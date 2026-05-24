@@ -1,0 +1,795 @@
+﻿import 'package:flutter/material.dart';
+import '../../core/app_user.dart';
+import '../../data/models/models.dart';
+import '../../data/services/firestore_service.dart';
+import '../../theme/app_theme.dart';
+
+class ProductDetailScreen extends StatefulWidget {
+  final ProductModel product;
+  const ProductDetailScreen({super.key, required this.product});
+  @override
+  State<ProductDetailScreen> createState() => _ProductDetailScreenState();
+}
+
+class _ProductDetailScreenState extends State<ProductDetailScreen> {
+  final _service = FirestoreService();
+  int _photoIndex = 0;
+  bool _photoExpanded = false;
+
+  Future<void> _deleteBatch(BatchModel batch) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Удалить поставку?'),
+        content: const Text('Действие необратимо. Поставка и связанные продажи будут удалены.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Отмена'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.danger),
+            child: const Text('Удалить'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await _service.deleteBatch(widget.product.id, batch.id);
+  }
+
+  Future<void> _editBatch(BatchModel batch) async {
+    final purchaseCtrl =
+        TextEditingController(text: batch.purchasePrice.toStringAsFixed(0));
+    final sellingCtrl =
+        TextEditingController(text: batch.sellingPrice.toStringAsFixed(0));
+    DateTime tempDate = batch.dateArrived;
+    final tempSizes = Map<String, int>.from(batch.sizesQuantity);
+
+    final save = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) => AlertDialog(
+          title: const Text('Редактировать поставку'),
+          content: SizedBox(
+            width: 340,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextButton.icon(
+                    onPressed: () async {
+                      final picked = await showDatePicker(
+                        context: ctx,
+                        initialDate: tempDate,
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime.now(),
+                      );
+                      if (picked != null) setS(() => tempDate = picked);
+                    },
+                    icon: const Icon(Icons.calendar_month_outlined),
+                    label: Text(
+                      '${tempDate.day.toString().padLeft(2, '0')}.${tempDate.month.toString().padLeft(2, '0')}.${tempDate.year}',
+                    ),
+                  ),
+                  TextField(
+                    controller: purchaseCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(labelText: 'Закупочная цена'),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: sellingCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(labelText: 'Цена продажи'),
+                  ),
+                  const SizedBox(height: 10),
+                  const Text('Размеры', style: TextStyle(fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 6),
+                  ...tempSizes.keys.map((size) {
+                    final qty = tempSizes[size] ?? 0;
+                    return Row(
+                      children: [
+                        SizedBox(width: 34, child: Text(size)),
+                        IconButton(
+                          onPressed: qty > 0 ? () => setS(() => tempSizes[size] = qty - 1) : null,
+                          icon: const Icon(Icons.remove_circle_outline),
+                        ),
+                        Text('$qty', style: const TextStyle(fontWeight: FontWeight.w700)),
+                        IconButton(
+                          onPressed: () => setS(() => tempSizes[size] = qty + 1),
+                          icon: const Icon(Icons.add_circle_outline),
+                        ),
+                      ],
+                    );
+                  }),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Отмена')),
+            ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Сохранить')),
+          ],
+        ),
+      ),
+    );
+
+    if (save != true) return;
+
+    await _service.updateBatch(
+      productId: widget.product.id,
+      batchId: batch.id,
+      dateArrived: tempDate,
+      purchasePrice: double.tryParse(purchaseCtrl.text.trim()) ?? batch.purchasePrice,
+      sellingPrice: double.tryParse(sellingCtrl.text.trim()) ?? batch.sellingPrice,
+      sizesQuantity: tempSizes,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = widget.product;
+    final inStock = p.status == ProductModel.statusInStock;
+
+    return Scaffold(
+      backgroundColor: AppTheme.background,
+      body: StreamBuilder<List<BatchModel>>(
+        stream: _service.watchBatches(p.id),
+        builder: (context, batchSnap) {
+          final batches = batchSnap.data ?? [];
+          final activeBatches = batches.where((b) => b.totalQuantity > 0).toList();
+          final soldBatches = batches.where((b) => b.totalQuantity <= 0).toList();
+          final totalPairs =
+              batches.fold<int>(0, (s, b) => s + b.totalQuantity);
+
+          final Map<String, int> totalSizes = {};
+          for (final b in batches) {
+            b.sizesQuantity.forEach(
+                (k, v) => totalSizes[k] = (totalSizes[k] ?? 0) + v);
+          }
+          final availSizes = totalSizes.entries
+              .where((e) => e.value > 0)
+              .toList()
+            ..sort((a, b) =>
+                (int.tryParse(a.key) ?? 0)
+                    .compareTo(int.tryParse(b.key) ?? 0));
+
+          return CustomScrollView(slivers: [
+            // ── Фото ──────────────────────────────────────────────────
+            SliverToBoxAdapter(
+              child: GestureDetector(
+                onTap: () =>
+                    setState(() => _photoExpanded = !_photoExpanded),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 350),
+                  curve: Curves.easeInOut,
+                  height: _photoExpanded
+                      ? MediaQuery.of(context).size.height * 0.6
+                      : 280,
+                  child: Stack(fit: StackFit.expand, children: [
+                    p.images.isNotEmpty
+                        ? PageView.builder(
+                            itemCount: p.images.length,
+                            onPageChanged: (i) =>
+                                setState(() => _photoIndex = i),
+                            itemBuilder: (_, i) => Image.network(
+                              p.images[i],
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) =>
+                                  _placeholder(),
+                            ))
+                        : _placeholder(),
+                    Positioned.fill(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              Colors.black.withValues(alpha: 0.6)
+                            ],
+                            stops: const [0.5, 1.0],
+                          ),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      top: MediaQuery.of(context).padding.top + 8,
+                      left: 12,
+                      child: GestureDetector(
+                        onTap: () => Navigator.pop(context),
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.4),
+                              borderRadius: BorderRadius.circular(10)),
+                          child: const Icon(Icons.arrow_back_ios_new,
+                              color: Colors.white, size: 18)),
+                      ),
+                    ),
+                    if (p.images.isNotEmpty)
+                      Positioned(
+                        top: MediaQuery.of(context).padding.top + 8,
+                        right: 12,
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.4),
+                              borderRadius: BorderRadius.circular(10)),
+                          child: Icon(
+                              _photoExpanded
+                                  ? Icons.fullscreen_exit
+                                  : Icons.fullscreen,
+                              color: Colors.white,
+                              size: 18)),
+                      ),
+                    if (p.images.length > 1)
+                      Positioned(
+                        bottom: 16,
+                        left: 0,
+                        right: 0,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: List.generate(
+                            p.images.length,
+                            (i) => AnimatedContainer(
+                              duration: const Duration(milliseconds: 250),
+                              width: i == _photoIndex ? 20 : 6,
+                              height: 6,
+                              margin: const EdgeInsets.symmetric(horizontal: 3),
+                              decoration: BoxDecoration(
+                                color: i == _photoIndex
+                                    ? Colors.white
+                                    : Colors.white.withValues(alpha: 0.4),
+                                borderRadius: BorderRadius.circular(3),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    Positioned(
+                      bottom: 16,
+                      left: 16,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: inStock
+                              ? AppTheme.success
+                              : Colors.grey,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(p.status,
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700)),
+                      ),
+                    ),
+                    Positioned(
+                      bottom: 16,
+                      right: 16,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.5),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(p.articul,
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontFamily: 'monospace',
+                                fontWeight: FontWeight.w500)),
+                      ),
+                    ),
+                  ]),
+                ),
+              ),
+            ),
+
+            // ── Контент ────────────────────────────────────────────────
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
+              sliver: SliverList(
+                delegate: SliverChildListDelegate([
+                  // Бренд + название
+                  Row(children: [
+                    Expanded(
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(p.brand.toUpperCase(),
+                                style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppTheme.primary,
+                                    letterSpacing: 1)),
+                            const SizedBox(height: 4),
+                            Text(p.name,
+                                style: const TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppTheme.textPrimary,
+                                    letterSpacing: -0.5)),
+                          ]),
+                    ),
+                    Column(children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                            color: AppTheme.primary.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(12)),
+                        child: const Icon(Icons.inventory_2_outlined,
+                            color: AppTheme.primary, size: 22)),
+                      const SizedBox(height: 4),
+                      Text('$totalPairs пар',
+                          style: const TextStyle(
+                              fontSize: 11,
+                              color: AppTheme.textSecondary,
+                              fontWeight: FontWeight.w600)),
+                    ]),
+                  ]),
+                  const SizedBox(height: 8),
+                  // Теги
+                  Wrap(spacing: 8, children: [
+                    _Tag(label: p.type, icon: Icons.category_outlined),
+                    _Tag(label: p.category, icon: Icons.people_outline),
+                    if (p.color.isNotEmpty)
+                      _Tag(label: p.color, icon: Icons.palette_outlined),
+                    if (p.material.isNotEmpty)
+                      _Tag(
+                          label: p.material,
+                          icon: Icons.texture_outlined),
+                  ]),
+                  const SizedBox(height: 20),
+
+                  // Размерлер блогы
+                  if (AppUser.isAdmin) ...[
+                    // Админ: тек қолда бар размерлер (Wrap)
+                    if (availSizes.isNotEmpty) ...[
+                      const _SecTitle('Доступные размеры'),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: availSizes
+                            .map((e) => Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 14, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                        color: AppTheme.primary
+                                            .withValues(alpha: 0.3)),
+                                    boxShadow: [
+                                      BoxShadow(
+                                          color: AppTheme.primary
+                                              .withValues(alpha: 0.06),
+                                          blurRadius: 6,
+                                          offset: const Offset(0, 2))
+                                    ],
+                                  ),
+                                  child: Column(children: [
+                                    Text(e.key,
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 15,
+                                            color: AppTheme.primary)),
+                                    Text('${e.value} шт',
+                                        style: const TextStyle(
+                                            fontSize: 10,
+                                            color: AppTheme.textSecondary)),
+                                  ]),
+                                ))
+                            .toList(),
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+                  ] else ...[
+                    // Саттушы: барлық размерлер grid-те (қолда бар/жоқ)
+                    const _SecTitle('Размерлер'),
+                    const SizedBox(height: 10),
+                    _buildSizesGrid(totalSizes),
+                    const SizedBox(height: 20),
+                  ],
+
+                  // Партии
+                  const _SecTitle('Партии поставок'),
+                  const SizedBox(height: 10),
+                  if (batchSnap.connectionState ==
+                      ConnectionState.waiting)
+                    const Center(
+                        child: CircularProgressIndicator(
+                            color: AppTheme.primary))
+                  else if (batches.isEmpty)
+                    const Text('Нет партий',
+                        style: TextStyle(color: AppTheme.textHint))
+                  else ...[
+                    if (activeBatches.isNotEmpty) ...[
+                      const _SecTitle('В наличии'),
+                      const SizedBox(height: 8),
+                      ...activeBatches.map((b) => _BatchWithSales(
+                            batch: b,
+                            productId: p.id,
+                            service: _service,
+                            isArchived: false,
+                            onEdit: () => _editBatch(b),
+                            onDelete: () => _deleteBatch(b),
+                          )),
+                    ],
+                    if (soldBatches.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      const _SecTitle('Продано'),
+                      const SizedBox(height: 8),
+                      ...soldBatches.map((b) => _BatchWithSales(
+                            batch: b,
+                            productId: p.id,
+                            service: _service,
+                            isArchived: true,
+                          )),
+                    ],
+                  ],
+                ]),
+              ),
+            ),
+          ]);
+        },
+      ),
+
+      // Сату MakeSaleScreen-нен басталады (SalesScreen FAB арқылы)
+      bottomNavigationBar: null,
+    );
+  }
+
+  // Саттушы үшін: барлық размерлер grid-те
+  Widget _buildSizesGrid(Map<String, int> allSizes) {
+    final sorted = allSizes.entries.toList()
+      ..sort((a, b) => (int.tryParse(a.key) ?? 0).compareTo(int.tryParse(b.key) ?? 0));
+    if (sorted.isEmpty) return const SizedBox.shrink();
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 4,
+        childAspectRatio: 1.1,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+      ),
+      itemCount: sorted.length,
+      itemBuilder: (_, i) {
+        final size = sorted[i].key;
+        final qty  = sorted[i].value;
+        final avail = qty > 0;
+        return Container(
+          decoration: BoxDecoration(
+            color: avail
+                ? AppTheme.primary.withValues(alpha: 0.06)
+                : Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: avail
+                  ? AppTheme.primary.withValues(alpha: 0.3)
+                  : AppTheme.border,
+              width: 1.5,
+            ),
+          ),
+          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Text(size, style: TextStyle(
+              fontSize: 18, fontWeight: FontWeight.w800,
+              color: avail ? AppTheme.primary : AppTheme.textHint,
+            )),
+            Text(avail ? '$qty пар' : 'жоқ', style: TextStyle(
+              fontSize: 11,
+              color: avail ? AppTheme.textSecondary : AppTheme.textHint,
+            )),
+          ]),
+        );
+      },
+    );
+  }
+
+  Widget _placeholder() => Container(
+      color: const Color(0xFFEEF2FF),
+      child: const Center(
+          child: Icon(Icons.inventory_2_outlined,
+              size: 60, color: AppTheme.primary)));
+}
+
+// ── Партия + её продажи ───────────────────────────────────────────────────────
+class _BatchWithSales extends StatelessWidget {
+  final BatchModel batch;
+  final String productId;
+  final FirestoreService service;
+  final bool isArchived;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
+
+  const _BatchWithSales({
+    required this.batch,
+    required this.productId,
+    required this.service,
+    this.isArchived = false,
+    this.onEdit,
+    this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final d = batch.dateArrived;
+    final dateStr =
+        '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
+    final margin = batch.sellingPrice - batch.purchasePrice;
+    final sizes = batch.sizesQuantity.entries
+        .where((e) => e.value > 0)
+        .map((e) => '${e.key}(${e.value})')
+        .join('  ');
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: isArchived ? const Color(0xFFF3F4F6) : Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: isArchived ? Border.all(color: const Color(0xFFD1D5DB)) : null,
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2))
+        ],
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // Заголовок партии
+        Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  Container(
+                    padding: const EdgeInsets.all(7),
+                    decoration: BoxDecoration(
+                        color: AppTheme.primary.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(8)),
+                    child: const Icon(Icons.local_shipping_outlined,
+                        size: 16, color: AppTheme.primary),
+                  ),
+                  const SizedBox(width: 8),
+                  Text('Поставка от $dateStr',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          color: AppTheme.textPrimary)),
+                  if (isArchived) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.grey,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Text(
+                        'Продано',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                  const Spacer(),
+                  if (!isArchived && AppUser.isAdmin) ...[
+                    IconButton(
+                      onPressed: onEdit,
+                      icon: const Icon(Icons.edit_outlined, size: 18),
+                      color: AppTheme.primary,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    IconButton(
+                      onPressed: onDelete,
+                      icon: const Icon(Icons.delete_outline, size: 18),
+                      color: AppTheme.danger,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ],
+                  Text('${batch.totalQuantity} пар',
+                      style: const TextStyle(
+                          color: AppTheme.textSecondary,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500)),
+                ]),
+                const SizedBox(height: 10),
+                Row(children: [
+                  if (AppUser.isAdmin) ...[
+                    _PriceTag(
+                        label: 'Закуп',
+                        value: '${batch.purchasePrice.toStringAsFixed(0)} ₸',
+                        color: AppTheme.danger),
+                    const SizedBox(width: 8),
+                  ],
+                  _PriceTag(
+                      label: 'Продажа',
+                      value: '${batch.sellingPrice.toStringAsFixed(0)} ₸',
+                      color: AppTheme.success),
+                  if (AppUser.isAdmin) ...[
+                    const SizedBox(width: 8),
+                    _PriceTag(
+                        label: 'Маржа',
+                        value: '${margin >= 0 ? "+" : ""}${margin.toStringAsFixed(0)} ₸',
+                        color: margin >= 0 ? AppTheme.primary : AppTheme.danger),
+                  ],
+                ]),
+                if (sizes.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(sizes,
+                      style: const TextStyle(
+                          fontSize: 11, color: AppTheme.textSecondary)),
+                ],
+              ]),
+        ),
+
+        // Продажи этой партии
+        FutureBuilder<List<SaleModel>>(
+          future: service.getSalesForProduct(productId),
+          builder: (_, snap) {
+            if (!snap.hasData) return const SizedBox.shrink();
+            final sales = snap.data!
+                .where((s) => s.batchId == batch.id)
+                .toList();
+            if (sales.isEmpty) return const SizedBox.shrink();
+
+            return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Divider(height: 1),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 10, 14, 4),
+                    child: Row(children: [
+                      const Icon(Icons.receipt_long_outlined,
+                          size: 14, color: AppTheme.textHint),
+                      const SizedBox(width: 6),
+                      Text('Продажи из этой партии — ${sales.length} опер.',
+                          style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.textSecondary)),
+                    ]),
+                  ),
+                  ...sales.map((s) => _SaleRow(sale: s)),
+                  const SizedBox(height: 8),
+                ]);
+          },
+        ),
+      ]),
+    );
+  }
+}
+
+// ── Строка продажи внутри партии ──────────────────────────────────────────────
+class _SaleRow extends StatelessWidget {
+  final SaleModel sale;
+  const _SaleRow({required this.sale});
+
+  @override
+  Widget build(BuildContext context) {
+    final d = sale.saleDate;
+    final dateStr =
+        '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
+    final sizes = sale.sizesSold.entries
+        .where((e) => e.value > 0)
+        .map((e) => 'Р.${e.key}×${e.value}')
+        .join('  ');
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 4, 14, 4),
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: AppTheme.background,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(children: [
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+                color: AppTheme.successLight,
+                borderRadius: BorderRadius.circular(8)),
+            child: const Icon(Icons.shopping_bag_outlined,
+                color: AppTheme.success, size: 16),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(sizes,
+                      style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.textPrimary)),
+                  Row(children: [
+                    Text(
+                      sale.sellerName.isNotEmpty
+                          ? '• $dateStr • ${sale.sellerName}'
+                          : '• $dateStr',
+                      style: const TextStyle(fontSize: 10, color: AppTheme.textHint)),
+                  ]),
+                ]),
+          ),
+          Text('${sale.totalPrice.toStringAsFixed(0)} ₸',
+              style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.success)),
+        ]),
+      ),
+    );
+  }
+}
+
+// ─── Helper widgets ───────────────────────────────────────────────────────────
+class _PriceTag extends StatelessWidget {
+  final String label, value;
+  final Color color;
+  const _PriceTag(
+      {required this.label, required this.value, required this.color});
+  @override
+  Widget build(BuildContext context) => Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(7)),
+      child: Column(children: [
+        Text(label,
+            style: TextStyle(
+                fontSize: 9,
+                color: color.withValues(alpha: 0.7),
+                fontWeight: FontWeight.w600)),
+        Text(value,
+            style: TextStyle(
+                fontSize: 12,
+                color: color,
+                fontWeight: FontWeight.w700)),
+      ]));
+}
+
+class _Tag extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  const _Tag({required this.label, required this.icon});
+  @override
+  Widget build(BuildContext context) => Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+          color: AppTheme.background,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppTheme.border)),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 12, color: AppTheme.textSecondary),
+        const SizedBox(width: 4),
+        Text(label,
+            style: const TextStyle(
+                fontSize: 11,
+                color: AppTheme.textSecondary,
+                fontWeight: FontWeight.w500)),
+      ]));
+}
+
+class _SecTitle extends StatelessWidget {
+  final String text;
+  const _SecTitle(this.text);
+  @override
+  Widget build(BuildContext context) => Text(text,
+      style: const TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w700,
+          color: AppTheme.textPrimary));
+}

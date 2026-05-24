@@ -1,0 +1,1267 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:intl/intl.dart' as intl;
+
+import 'app_localizations_kk.dart';
+import 'app_localizations_ru.dart';
+
+// ignore_for_file: type=lint
+
+/// Callers can lookup localized strings with an instance of AppLocalizations
+/// returned by `AppLocalizations.of(context)`.
+///
+/// Applications need to include `AppLocalizations.delegate()` in their app's
+/// `localizationDelegates` list, and the locales they support in the app's
+/// `supportedLocales` list. For example:
+///
+/// ```dart
+/// import 'l10n/app_localizations.dart';
+///
+/// return MaterialApp(
+///   localizationsDelegates: AppLocalizations.localizationsDelegates,
+///   supportedLocales: AppLocalizations.supportedLocales,
+///   home: MyApplicationHome(),
+/// );
+/// ```
+///
+/// ## Update pubspec.yaml
+///
+/// Please make sure to update your pubspec.yaml to include the following
+/// packages:
+///
+/// ```yaml
+/// dependencies:
+///   # Internationalization support.
+///   flutter_localizations:
+///     sdk: flutter
+///   intl: any # Use the pinned version from flutter_localizations
+///
+///   # Rest of dependencies
+/// ```
+///
+/// ## iOS Applications
+///
+/// iOS applications define key application metadata, including supported
+/// locales, in an Info.plist file that is built into the application bundle.
+/// To configure the locales supported by your app, you’ll need to edit this
+/// file.
+///
+/// First, open your project’s ios/Runner.xcworkspace Xcode workspace file.
+/// Then, in the Project Navigator, open the Info.plist file under the Runner
+/// project’s Runner folder.
+///
+/// Next, select the Information Property List item, select Add Item from the
+/// Editor menu, then select Localizations from the pop-up menu.
+///
+/// Select and expand the newly-created Localizations item then, for each
+/// locale your application supports, add a new item and select the locale
+/// you wish to add from the pop-up menu in the Value field. This list should
+/// be consistent with the languages listed in the AppLocalizations.supportedLocales
+/// property.
+abstract class AppLocalizations {
+  AppLocalizations(String locale)
+      : localeName = intl.Intl.canonicalizedLocale(locale.toString());
+
+  final String localeName;
+
+  static AppLocalizations? of(BuildContext context) {
+    return Localizations.of<AppLocalizations>(context, AppLocalizations);
+  }
+
+  static const LocalizationsDelegate<AppLocalizations> delegate =
+      _AppLocalizationsDelegate();
+
+  /// A list of this localizations delegate along with the default localizations
+  /// delegates.
+  ///
+  /// Returns a list of localizations delegates containing this delegate along with
+  /// GlobalMaterialLocalizations.delegate, GlobalCupertinoLocalizations.delegate,
+  /// and GlobalWidgetsLocalizations.delegate.
+  ///
+  /// Additional delegates can be added by appending to this list in
+  /// MaterialApp. This list does not have to be used at all if a custom list
+  /// of delegates is preferred or required.
+  static const List<LocalizationsDelegate<dynamic>> localizationsDelegates =
+      <LocalizationsDelegate<dynamic>>[
+    delegate,
+    GlobalMaterialLocalizations.delegate,
+    GlobalCupertinoLocalizations.delegate,
+    GlobalWidgetsLocalizations.delegate,
+  ];
+
+  /// A list of this localizations delegate's supported locales.
+  static const List<Locale> supportedLocales = <Locale>[
+    Locale('kk'),
+    Locale('ru')
+  ];
+
+  /// No description provided for @appTitle.
+  ///
+  /// In kk, this message translates to:
+  /// **'Qoima'**
+  String get appTitle;
+
+  /// No description provided for @appVersion.
+  ///
+  /// In kk, this message translates to:
+  /// **'Qoima v2.3 — Аяқ киім есебі'**
+  String get appVersion;
+
+  /// No description provided for @ok.
+  ///
+  /// In kk, this message translates to:
+  /// **'Жарайды'**
+  String get ok;
+
+  /// No description provided for @cancel.
+  ///
+  /// In kk, this message translates to:
+  /// **'Болдырмау'**
+  String get cancel;
+
+  /// No description provided for @save.
+  ///
+  /// In kk, this message translates to:
+  /// **'Сақтау'**
+  String get save;
+
+  /// No description provided for @delete.
+  ///
+  /// In kk, this message translates to:
+  /// **'Жою'**
+  String get delete;
+
+  /// No description provided for @close.
+  ///
+  /// In kk, this message translates to:
+  /// **'Жабу'**
+  String get close;
+
+  /// No description provided for @confirm.
+  ///
+  /// In kk, this message translates to:
+  /// **'Растау'**
+  String get confirm;
+
+  /// No description provided for @back.
+  ///
+  /// In kk, this message translates to:
+  /// **'Артқа'**
+  String get back;
+
+  /// No description provided for @add.
+  ///
+  /// In kk, this message translates to:
+  /// **'Қосу'**
+  String get add;
+
+  /// No description provided for @edit.
+  ///
+  /// In kk, this message translates to:
+  /// **'Өзгерту'**
+  String get edit;
+
+  /// No description provided for @loading.
+  ///
+  /// In kk, this message translates to:
+  /// **'Жүктелуде...'**
+  String get loading;
+
+  /// No description provided for @error.
+  ///
+  /// In kk, this message translates to:
+  /// **'Қате'**
+  String get error;
+
+  /// No description provided for @copy.
+  ///
+  /// In kk, this message translates to:
+  /// **'Көшіру'**
+  String get copy;
+
+  /// No description provided for @copied.
+  ///
+  /// In kk, this message translates to:
+  /// **'Көшірілді'**
+  String get copied;
+
+  /// No description provided for @yes.
+  ///
+  /// In kk, this message translates to:
+  /// **'Иә'**
+  String get yes;
+
+  /// No description provided for @no.
+  ///
+  /// In kk, this message translates to:
+  /// **'Жоқ'**
+  String get no;
+
+  /// No description provided for @search.
+  ///
+  /// In kk, this message translates to:
+  /// **'Іздеу'**
+  String get search;
+
+  /// No description provided for @noData.
+  ///
+  /// In kk, this message translates to:
+  /// **'Деректер жоқ'**
+  String get noData;
+
+  /// No description provided for @signIn.
+  ///
+  /// In kk, this message translates to:
+  /// **'Кіру'**
+  String get signIn;
+
+  /// No description provided for @signOut.
+  ///
+  /// In kk, this message translates to:
+  /// **'Шығу'**
+  String get signOut;
+
+  /// No description provided for @signOutConfirmTitle.
+  ///
+  /// In kk, this message translates to:
+  /// **'Шығу'**
+  String get signOutConfirmTitle;
+
+  /// No description provided for @signOutConfirmBody.
+  ///
+  /// In kk, this message translates to:
+  /// **'Шықпақшысыз ба?'**
+  String get signOutConfirmBody;
+
+  /// No description provided for @register.
+  ///
+  /// In kk, this message translates to:
+  /// **'Тіркелу'**
+  String get register;
+
+  /// No description provided for @email.
+  ///
+  /// In kk, this message translates to:
+  /// **'Email'**
+  String get email;
+
+  /// No description provided for @password.
+  ///
+  /// In kk, this message translates to:
+  /// **'Пароль'**
+  String get password;
+
+  /// No description provided for @confirmPassword.
+  ///
+  /// In kk, this message translates to:
+  /// **'Парольді растаңыз'**
+  String get confirmPassword;
+
+  /// No description provided for @yourName.
+  ///
+  /// In kk, this message translates to:
+  /// **'Атыңыз'**
+  String get yourName;
+
+  /// No description provided for @namePlaceholder.
+  ///
+  /// In kk, this message translates to:
+  /// **'Мысалы: Асқар Сейтқали'**
+  String get namePlaceholder;
+
+  /// No description provided for @emailPlaceholder.
+  ///
+  /// In kk, this message translates to:
+  /// **'example@mail.com'**
+  String get emailPlaceholder;
+
+  /// No description provided for @passwordPlaceholder.
+  ///
+  /// In kk, this message translates to:
+  /// **'Минимум 6 таңба'**
+  String get passwordPlaceholder;
+
+  /// No description provided for @confirmPasswordPlaceholder.
+  ///
+  /// In kk, this message translates to:
+  /// **'Парольді қайталаңыз'**
+  String get confirmPasswordPlaceholder;
+
+  /// No description provided for @haveAccount.
+  ///
+  /// In kk, this message translates to:
+  /// **'Аккаунт бар ма?'**
+  String get haveAccount;
+
+  /// No description provided for @noAccount.
+  ///
+  /// In kk, this message translates to:
+  /// **'Аккаунт жоқ па?'**
+  String get noAccount;
+
+  /// No description provided for @createAccount.
+  ///
+  /// In kk, this message translates to:
+  /// **'Аккаунт жасау'**
+  String get createAccount;
+
+  /// No description provided for @fillDetails.
+  ///
+  /// In kk, this message translates to:
+  /// **'Рөліңізді таңдап, деректерді толтырыңыз'**
+  String get fillDetails;
+
+  /// No description provided for @chooseRole.
+  ///
+  /// In kk, this message translates to:
+  /// **'Рөл таңдаңыз'**
+  String get chooseRole;
+
+  /// No description provided for @adminRole.
+  ///
+  /// In kk, this message translates to:
+  /// **'Дүкен иесі'**
+  String get adminRole;
+
+  /// No description provided for @adminRoleSubtitle.
+  ///
+  /// In kk, this message translates to:
+  /// **'Толық бақылау'**
+  String get adminRoleSubtitle;
+
+  /// No description provided for @sellerRole.
+  ///
+  /// In kk, this message translates to:
+  /// **'Сатушы'**
+  String get sellerRole;
+
+  /// No description provided for @sellerRoleSubtitle.
+  ///
+  /// In kk, this message translates to:
+  /// **'Шақырылған'**
+  String get sellerRoleSubtitle;
+
+  /// No description provided for @sellerRegisterHint.
+  ///
+  /// In kk, this message translates to:
+  /// **'Тіркелгеннен кейін дүкен иесінің бизнес-кодын енгізесіз.'**
+  String get sellerRegisterHint;
+
+  /// No description provided for @selected.
+  ///
+  /// In kk, this message translates to:
+  /// **'✓ Таңдалды'**
+  String get selected;
+
+  /// No description provided for @profileTitle.
+  ///
+  /// In kk, this message translates to:
+  /// **'Профиль'**
+  String get profileTitle;
+
+  /// No description provided for @adminBadge.
+  ///
+  /// In kk, this message translates to:
+  /// **'🏪 Дүкен иесі'**
+  String get adminBadge;
+
+  /// No description provided for @sellerBadge.
+  ///
+  /// In kk, this message translates to:
+  /// **'🏷️ Сатушы'**
+  String get sellerBadge;
+
+  /// No description provided for @businessCode.
+  ///
+  /// In kk, this message translates to:
+  /// **'Бизнес-код'**
+  String get businessCode;
+
+  /// No description provided for @businessCodeCopied.
+  ///
+  /// In kk, this message translates to:
+  /// **'Бизнес-код көшірілді'**
+  String get businessCodeCopied;
+
+  /// No description provided for @sellers.
+  ///
+  /// In kk, this message translates to:
+  /// **'Сатушылар'**
+  String get sellers;
+
+  /// No description provided for @manageSellers.
+  ///
+  /// In kk, this message translates to:
+  /// **'Жалданбал сатушыларды басқару'**
+  String get manageSellers;
+
+  /// No description provided for @warehouses.
+  ///
+  /// In kk, this message translates to:
+  /// **'Қоймалар'**
+  String get warehouses;
+
+  /// No description provided for @manageWarehouses.
+  ///
+  /// In kk, this message translates to:
+  /// **'Қойма желісін басқару'**
+  String get manageWarehouses;
+
+  /// No description provided for @transfers.
+  ///
+  /// In kk, this message translates to:
+  /// **'Перемещениялар'**
+  String get transfers;
+
+  /// No description provided for @transfersSubtitle.
+  ///
+  /// In kk, this message translates to:
+  /// **'Қоймалар арасындағы тасымал'**
+  String get transfersSubtitle;
+
+  /// No description provided for @about.
+  ///
+  /// In kk, this message translates to:
+  /// **'Қолданба туралы'**
+  String get about;
+
+  /// No description provided for @language.
+  ///
+  /// In kk, this message translates to:
+  /// **'Тіл / Язык'**
+  String get language;
+
+  /// No description provided for @selectLanguage.
+  ///
+  /// In kk, this message translates to:
+  /// **'Тілді таңдаңыз'**
+  String get selectLanguage;
+
+  /// No description provided for @kazakh.
+  ///
+  /// In kk, this message translates to:
+  /// **'Қазақша'**
+  String get kazakh;
+
+  /// No description provided for @russian.
+  ///
+  /// In kk, this message translates to:
+  /// **'Русский'**
+  String get russian;
+
+  /// No description provided for @pendingRequests.
+  ///
+  /// In kk, this message translates to:
+  /// **'Күтудегі өтінімдер'**
+  String get pendingRequests;
+
+  /// No description provided for @sellersTitle.
+  ///
+  /// In kk, this message translates to:
+  /// **'Сатушылар'**
+  String get sellersTitle;
+
+  /// No description provided for @activeSellers.
+  ///
+  /// In kk, this message translates to:
+  /// **'Белсенді'**
+  String get activeSellers;
+
+  /// No description provided for @pendingTab.
+  ///
+  /// In kk, this message translates to:
+  /// **'Күтуде'**
+  String get pendingTab;
+
+  /// No description provided for @noActiveSellers.
+  ///
+  /// In kk, this message translates to:
+  /// **'Белсенді сатушы жоқ'**
+  String get noActiveSellers;
+
+  /// No description provided for @noPendingRequests.
+  ///
+  /// In kk, this message translates to:
+  /// **'Күтудегі өтінім жоқ'**
+  String get noPendingRequests;
+
+  /// No description provided for @approve.
+  ///
+  /// In kk, this message translates to:
+  /// **'Қабылдау'**
+  String get approve;
+
+  /// No description provided for @reject.
+  ///
+  /// In kk, this message translates to:
+  /// **'Бас тарту'**
+  String get reject;
+
+  /// No description provided for @assignWarehouse.
+  ///
+  /// In kk, this message translates to:
+  /// **'Қойма тағайындау'**
+  String get assignWarehouse;
+
+  /// No description provided for @removeSeller.
+  ///
+  /// In kk, this message translates to:
+  /// **'Дүкеннен шығару'**
+  String get removeSeller;
+
+  /// No description provided for @confirmRemoveSeller.
+  ///
+  /// In kk, this message translates to:
+  /// **'Сатушыны дүкеннен шығарасыз ба?'**
+  String get confirmRemoveSeller;
+
+  /// No description provided for @reassignWarehouse.
+  ///
+  /// In kk, this message translates to:
+  /// **'Қойманы өзгерту'**
+  String get reassignWarehouse;
+
+  /// No description provided for @warehousesTitle.
+  ///
+  /// In kk, this message translates to:
+  /// **'Қоймалар'**
+  String get warehousesTitle;
+
+  /// No description provided for @addWarehouse.
+  ///
+  /// In kk, this message translates to:
+  /// **'Қойма қосу'**
+  String get addWarehouse;
+
+  /// No description provided for @warehouseName.
+  ///
+  /// In kk, this message translates to:
+  /// **'Қойма атауы'**
+  String get warehouseName;
+
+  /// No description provided for @warehouseAddress.
+  ///
+  /// In kk, this message translates to:
+  /// **'Мекенжай (міндетті емес)'**
+  String get warehouseAddress;
+
+  /// No description provided for @warehouseNote.
+  ///
+  /// In kk, this message translates to:
+  /// **'Ескертпе (міндетті емес)'**
+  String get warehouseNote;
+
+  /// No description provided for @isMainWarehouse.
+  ///
+  /// In kk, this message translates to:
+  /// **'Негізгі қойма'**
+  String get isMainWarehouse;
+
+  /// No description provided for @deleteWarehouse.
+  ///
+  /// In kk, this message translates to:
+  /// **'Қойманы жою'**
+  String get deleteWarehouse;
+
+  /// No description provided for @deleteWarehouseConfirm.
+  ///
+  /// In kk, this message translates to:
+  /// **'Қойманы жойғыңыз келе ме? Бұл қоймадағы барлық өнімдер тасымалданбаған болса байланысын жоғалтады.'**
+  String get deleteWarehouseConfirm;
+
+  /// No description provided for @noWarehouses.
+  ///
+  /// In kk, this message translates to:
+  /// **'Қойма жоқ'**
+  String get noWarehouses;
+
+  /// No description provided for @noWarehousesHint.
+  ///
+  /// In kk, this message translates to:
+  /// **'Алғашқы қоймаңызды қосыңыз'**
+  String get noWarehousesHint;
+
+  /// No description provided for @createFirstWarehouse.
+  ///
+  /// In kk, this message translates to:
+  /// **'Алғашқы қойма жасаңыз'**
+  String get createFirstWarehouse;
+
+  /// No description provided for @onboardingTitle.
+  ///
+  /// In kk, this message translates to:
+  /// **'Қошқелдіңіз! 🎉'**
+  String get onboardingTitle;
+
+  /// No description provided for @onboardingSubtitle.
+  ///
+  /// In kk, this message translates to:
+  /// **'Бастау үшін алғашқы қоймаңызды жасаңыз'**
+  String get onboardingSubtitle;
+
+  /// No description provided for @onboardingCreateWarehouse.
+  ///
+  /// In kk, this message translates to:
+  /// **'Қойма жасау'**
+  String get onboardingCreateWarehouse;
+
+  /// No description provided for @pairsCount.
+  ///
+  /// In kk, this message translates to:
+  /// **'{count} жұп'**
+  String pairsCount(int count);
+
+  /// No description provided for @analyticsTitle.
+  ///
+  /// In kk, this message translates to:
+  /// **'Аналитика'**
+  String get analyticsTitle;
+
+  /// No description provided for @stockTitle.
+  ///
+  /// In kk, this message translates to:
+  /// **'Қойма'**
+  String get stockTitle;
+
+  /// No description provided for @contactTitle.
+  ///
+  /// In kk, this message translates to:
+  /// **'Байланыс'**
+  String get contactTitle;
+
+  /// No description provided for @contactPhone.
+  ///
+  /// In kk, this message translates to:
+  /// **'Телефон'**
+  String get contactPhone;
+
+  /// No description provided for @contactTelegram.
+  ///
+  /// In kk, this message translates to:
+  /// **'Telegram'**
+  String get contactTelegram;
+
+  /// No description provided for @productsTitle.
+  ///
+  /// In kk, this message translates to:
+  /// **'Өнімдер'**
+  String get productsTitle;
+
+  /// No description provided for @addProduct.
+  ///
+  /// In kk, this message translates to:
+  /// **'Өнім қосу'**
+  String get addProduct;
+
+  /// No description provided for @productName.
+  ///
+  /// In kk, this message translates to:
+  /// **'Атауы'**
+  String get productName;
+
+  /// No description provided for @brand.
+  ///
+  /// In kk, this message translates to:
+  /// **'Бренд'**
+  String get brand;
+
+  /// No description provided for @type.
+  ///
+  /// In kk, this message translates to:
+  /// **'Түрі'**
+  String get type;
+
+  /// No description provided for @material.
+  ///
+  /// In kk, this message translates to:
+  /// **'Материал'**
+  String get material;
+
+  /// No description provided for @category.
+  ///
+  /// In kk, this message translates to:
+  /// **'Категория'**
+  String get category;
+
+  /// No description provided for @color.
+  ///
+  /// In kk, this message translates to:
+  /// **'Түс'**
+  String get color;
+
+  /// No description provided for @allWarehouses.
+  ///
+  /// In kk, this message translates to:
+  /// **'Барлық қоймалар'**
+  String get allWarehouses;
+
+  /// No description provided for @selectWarehouse.
+  ///
+  /// In kk, this message translates to:
+  /// **'Қойманы таңдаңыз'**
+  String get selectWarehouse;
+
+  /// No description provided for @noProductsInWarehouse.
+  ///
+  /// In kk, this message translates to:
+  /// **'Бұл қоймада өнім жоқ'**
+  String get noProductsInWarehouse;
+
+  /// No description provided for @allProductsLabel.
+  ///
+  /// In kk, this message translates to:
+  /// **'Барлығы'**
+  String get allProductsLabel;
+
+  /// No description provided for @inStockLabel.
+  ///
+  /// In kk, this message translates to:
+  /// **'Қолда бар'**
+  String get inStockLabel;
+
+  /// No description provided for @soldLabel.
+  ///
+  /// In kk, this message translates to:
+  /// **'Сатылды'**
+  String get soldLabel;
+
+  /// No description provided for @salesTitle.
+  ///
+  /// In kk, this message translates to:
+  /// **'Сатулар'**
+  String get salesTitle;
+
+  /// No description provided for @makeSale.
+  ///
+  /// In kk, this message translates to:
+  /// **'Сату жасау'**
+  String get makeSale;
+
+  /// No description provided for @selectProduct.
+  ///
+  /// In kk, this message translates to:
+  /// **'Өнімді таңдаңыз'**
+  String get selectProduct;
+
+  /// No description provided for @selectSize.
+  ///
+  /// In kk, this message translates to:
+  /// **'Размер таңдаңыз'**
+  String get selectSize;
+
+  /// No description provided for @quantity.
+  ///
+  /// In kk, this message translates to:
+  /// **'Саны'**
+  String get quantity;
+
+  /// No description provided for @price.
+  ///
+  /// In kk, this message translates to:
+  /// **'Бағасы'**
+  String get price;
+
+  /// No description provided for @discount.
+  ///
+  /// In kk, this message translates to:
+  /// **'Жеңілдік (%)'**
+  String get discount;
+
+  /// No description provided for @total.
+  ///
+  /// In kk, this message translates to:
+  /// **'Жиыны'**
+  String get total;
+
+  /// No description provided for @saleSuccess.
+  ///
+  /// In kk, this message translates to:
+  /// **'Сату сәтті аяқталды!'**
+  String get saleSuccess;
+
+  /// No description provided for @noStock.
+  ///
+  /// In kk, this message translates to:
+  /// **'Қоймада тауар жоқ'**
+  String get noStock;
+
+  /// No description provided for @transferTitle.
+  ///
+  /// In kk, this message translates to:
+  /// **'Тасымал'**
+  String get transferTitle;
+
+  /// No description provided for @newTransfer.
+  ///
+  /// In kk, this message translates to:
+  /// **'Жаңа тасымал'**
+  String get newTransfer;
+
+  /// No description provided for @fromWarehouse.
+  ///
+  /// In kk, this message translates to:
+  /// **'Қайдан'**
+  String get fromWarehouse;
+
+  /// No description provided for @toWarehouse.
+  ///
+  /// In kk, this message translates to:
+  /// **'Қайда'**
+  String get toWarehouse;
+
+  /// No description provided for @selectProduct2.
+  ///
+  /// In kk, this message translates to:
+  /// **'Өнімді таңдаңыз'**
+  String get selectProduct2;
+
+  /// No description provided for @transferSuccess.
+  ///
+  /// In kk, this message translates to:
+  /// **'Тасымал сәтті орындалды'**
+  String get transferSuccess;
+
+  /// No description provided for @joinTitle.
+  ///
+  /// In kk, this message translates to:
+  /// **'Дүкенге қосылу'**
+  String get joinTitle;
+
+  /// No description provided for @enterBusinessCode.
+  ///
+  /// In kk, this message translates to:
+  /// **'Бизнес-кодты енгізіңіз'**
+  String get enterBusinessCode;
+
+  /// No description provided for @businessCodeHint.
+  ///
+  /// In kk, this message translates to:
+  /// **'Дүкен иесінен алыңыз'**
+  String get businessCodeHint;
+
+  /// No description provided for @sendRequest.
+  ///
+  /// In kk, this message translates to:
+  /// **'Сұрау жіберу'**
+  String get sendRequest;
+
+  /// No description provided for @requestSent.
+  ///
+  /// In kk, this message translates to:
+  /// **'Сұрау жіберілді. Дүкен иесі растауын күтіңіз.'**
+  String get requestSent;
+
+  /// No description provided for @cancelRequest.
+  ///
+  /// In kk, this message translates to:
+  /// **'Сұрауды болдырмау'**
+  String get cancelRequest;
+
+  /// No description provided for @waitingApproval.
+  ///
+  /// In kk, this message translates to:
+  /// **'Дүкен иесінің жауабын күтіп жатырсыз'**
+  String get waitingApproval;
+
+  /// No description provided for @requestApproved.
+  ///
+  /// In kk, this message translates to:
+  /// **'Сұрауыңыз қабылданды!'**
+  String get requestApproved;
+
+  /// No description provided for @validationRequired.
+  ///
+  /// In kk, this message translates to:
+  /// **'Бұл өрісті толтырыңыз'**
+  String get validationRequired;
+
+  /// No description provided for @validationEmail.
+  ///
+  /// In kk, this message translates to:
+  /// **'Email форматы дұрыс емес'**
+  String get validationEmail;
+
+  /// No description provided for @validationPasswordMin.
+  ///
+  /// In kk, this message translates to:
+  /// **'Пароль минимум 6 таңба'**
+  String get validationPasswordMin;
+
+  /// No description provided for @validationPasswordMatch.
+  ///
+  /// In kk, this message translates to:
+  /// **'Парольдер сәйкес емес'**
+  String get validationPasswordMatch;
+
+  /// No description provided for @validationNameRequired.
+  ///
+  /// In kk, this message translates to:
+  /// **'Атыңызды енгізіңіз'**
+  String get validationNameRequired;
+
+  /// No description provided for @validationEmailRequired.
+  ///
+  /// In kk, this message translates to:
+  /// **'Email енгізіңіз'**
+  String get validationEmailRequired;
+
+  /// No description provided for @unknownError.
+  ///
+  /// In kk, this message translates to:
+  /// **'Белгісіз қате. Қайталап көріңіз.'**
+  String get unknownError;
+
+  /// No description provided for @validationPasswordRequired.
+  ///
+  /// In kk, this message translates to:
+  /// **'Парольді енгізіңіз'**
+  String get validationPasswordRequired;
+
+  /// No description provided for @validationCodeRequired.
+  ///
+  /// In kk, this message translates to:
+  /// **'6 санды толық енгізіңіз'**
+  String get validationCodeRequired;
+
+  /// No description provided for @businessCodeSubtitle.
+  ///
+  /// In kk, this message translates to:
+  /// **'Дүкен иесінің берген 6 санды бизнес-кодын енгізіңіз'**
+  String get businessCodeSubtitle;
+
+  /// No description provided for @requestSentBody.
+  ///
+  /// In kk, this message translates to:
+  /// **'Ұсынысыңыз жіберілді. Дүкен иесі қабылдағаннан кейін автоматты түрде кіресіз.'**
+  String get requestSentBody;
+
+  /// No description provided for @history.
+  ///
+  /// In kk, this message translates to:
+  /// **'Тарих'**
+  String get history;
+
+  /// No description provided for @selectMonth.
+  ///
+  /// In kk, this message translates to:
+  /// **'Ай таңдаңыз'**
+  String get selectMonth;
+
+  /// No description provided for @apply.
+  ///
+  /// In kk, this message translates to:
+  /// **'Қолдану'**
+  String get apply;
+
+  /// No description provided for @noSalesThisMonth.
+  ///
+  /// In kk, this message translates to:
+  /// **'Осы айда сатылым жоқ'**
+  String get noSalesThisMonth;
+
+  /// No description provided for @operations.
+  ///
+  /// In kk, this message translates to:
+  /// **'Операциялар'**
+  String get operations;
+
+  /// No description provided for @productDeleted.
+  ///
+  /// In kk, this message translates to:
+  /// **'Тауар жойылды'**
+  String get productDeleted;
+
+  /// No description provided for @overviewSub.
+  ///
+  /// In kk, this message translates to:
+  /// **'Жалпы шолу'**
+  String get overviewSub;
+
+  /// No description provided for @makeSaleHint.
+  ///
+  /// In kk, this message translates to:
+  /// **'Сатыңыз'**
+  String get makeSaleHint;
+
+  /// No description provided for @sortBy.
+  ///
+  /// In kk, this message translates to:
+  /// **'Сұрыптау'**
+  String get sortBy;
+
+  /// No description provided for @sortAZ.
+  ///
+  /// In kk, this message translates to:
+  /// **'Алфавит бойынша А–Я'**
+  String get sortAZ;
+
+  /// No description provided for @sortZA.
+  ///
+  /// In kk, this message translates to:
+  /// **'Алфавит бойынша Я–А'**
+  String get sortZA;
+
+  /// No description provided for @sortManyStock.
+  ///
+  /// In kk, this message translates to:
+  /// **'Қалдығы көп'**
+  String get sortManyStock;
+
+  /// No description provided for @sortFewStock.
+  ///
+  /// In kk, this message translates to:
+  /// **'Қалдығы аз'**
+  String get sortFewStock;
+
+  /// No description provided for @searchHint.
+  ///
+  /// In kk, this message translates to:
+  /// **'Іздеу...'**
+  String get searchHint;
+
+  /// No description provided for @manageWarehouseSubtitle.
+  ///
+  /// In kk, this message translates to:
+  /// **'Қоймамен жұмыс'**
+  String get manageWarehouseSubtitle;
+
+  /// No description provided for @inStockSubtitle.
+  ///
+  /// In kk, this message translates to:
+  /// **'Қолда бар тауарлар'**
+  String get inStockSubtitle;
+
+  /// No description provided for @financialDashboard.
+  ///
+  /// In kk, this message translates to:
+  /// **'Қаржылық дашборд'**
+  String get financialDashboard;
+
+  /// No description provided for @generalTab.
+  ///
+  /// In kk, this message translates to:
+  /// **'Жалпы'**
+  String get generalTab;
+
+  /// No description provided for @sellersTab.
+  ///
+  /// In kk, this message translates to:
+  /// **'Сатушылар'**
+  String get sellersTab;
+
+  /// No description provided for @warehouseTab.
+  ///
+  /// In kk, this message translates to:
+  /// **'Қойма бойынша'**
+  String get warehouseTab;
+
+  /// No description provided for @monthRevenue.
+  ///
+  /// In kk, this message translates to:
+  /// **'Ай кірісі'**
+  String get monthRevenue;
+
+  /// No description provided for @costPrice.
+  ///
+  /// In kk, this message translates to:
+  /// **'Өзіндік құн'**
+  String get costPrice;
+
+  /// No description provided for @netProfit.
+  ///
+  /// In kk, this message translates to:
+  /// **'Таза пайда'**
+  String get netProfit;
+
+  /// No description provided for @income.
+  ///
+  /// In kk, this message translates to:
+  /// **'кіріс'**
+  String get income;
+
+  /// No description provided for @lossLabel.
+  ///
+  /// In kk, this message translates to:
+  /// **'шығын'**
+  String get lossLabel;
+
+  /// No description provided for @soldPairsMonth.
+  ///
+  /// In kk, this message translates to:
+  /// **'Осы айда сатылды'**
+  String get soldPairsMonth;
+
+  /// No description provided for @arrivedPairsMonth.
+  ///
+  /// In kk, this message translates to:
+  /// **'Осы айда келді'**
+  String get arrivedPairsMonth;
+
+  /// No description provided for @topSalesTitle.
+  ///
+  /// In kk, this message translates to:
+  /// **'🔥 Топ сатылымдар'**
+  String get topSalesTitle;
+
+  /// No description provided for @fastSalesTitle.
+  ///
+  /// In kk, this message translates to:
+  /// **'⚡ Жылдам өткен тауарлар'**
+  String get fastSalesTitle;
+
+  /// No description provided for @fastSalesSub.
+  ///
+  /// In kk, this message translates to:
+  /// **'Ең тез сатылды'**
+  String get fastSalesSub;
+
+  /// No description provided for @staleProductsTitle.
+  ///
+  /// In kk, this message translates to:
+  /// **'⏳ Ескі қалдықтар'**
+  String get staleProductsTitle;
+
+  /// No description provided for @staleProductsSub.
+  ///
+  /// In kk, this message translates to:
+  /// **'Қоймада 30 күннен астам'**
+  String get staleProductsSub;
+
+  /// No description provided for @popularSizesTitle.
+  ///
+  /// In kk, this message translates to:
+  /// **'👟 Танымал размерлер'**
+  String get popularSizesTitle;
+
+  /// No description provided for @noFastSalesData.
+  ///
+  /// In kk, this message translates to:
+  /// **'Жылдам сатылым деректері жоқ'**
+  String get noFastSalesData;
+
+  /// No description provided for @noStaleProductsMsg.
+  ///
+  /// In kk, this message translates to:
+  /// **'Ескі қалдық жоқ 🎉'**
+  String get noStaleProductsMsg;
+
+  /// No description provided for @productDeletedShort.
+  ///
+  /// In kk, this message translates to:
+  /// **'Жойылды'**
+  String get productDeletedShort;
+
+  /// No description provided for @purchasePrice.
+  ///
+  /// In kk, this message translates to:
+  /// **'Сатып алу бағасы'**
+  String get purchasePrice;
+
+  /// No description provided for @sizeLabel.
+  ///
+  /// In kk, this message translates to:
+  /// **'Размер'**
+  String get sizeLabel;
+
+  /// No description provided for @pairsUnit.
+  ///
+  /// In kk, this message translates to:
+  /// **'жұп'**
+  String get pairsUnit;
+
+  /// No description provided for @noSalesThisMonthSimple.
+  ///
+  /// In kk, this message translates to:
+  /// **'Осы айда сатулар жоқ'**
+  String get noSalesThisMonthSimple;
+
+  /// No description provided for @ranking.
+  ///
+  /// In kk, this message translates to:
+  /// **'Рейтинг'**
+  String get ranking;
+
+  /// No description provided for @dailyActivity.
+  ///
+  /// In kk, this message translates to:
+  /// **'Күндік белсенділік'**
+  String get dailyActivity;
+
+  /// No description provided for @warehouseRanking.
+  ///
+  /// In kk, this message translates to:
+  /// **'Қоймалар рейтингі'**
+  String get warehouseRanking;
+
+  /// No description provided for @activeWarehouses.
+  ///
+  /// In kk, this message translates to:
+  /// **'Белсенді қоймалар'**
+  String get activeWarehouses;
+
+  /// No description provided for @totalRevenueStat.
+  ///
+  /// In kk, this message translates to:
+  /// **'Жалпы түсім'**
+  String get totalRevenueStat;
+
+  /// No description provided for @warehouseSuffix.
+  ///
+  /// In kk, this message translates to:
+  /// **'қойма'**
+  String get warehouseSuffix;
+
+  /// No description provided for @revenueSuffix.
+  ///
+  /// In kk, this message translates to:
+  /// **'Түсім'**
+  String get revenueSuffix;
+
+  /// No description provided for @salesSuffix.
+  ///
+  /// In kk, this message translates to:
+  /// **'Сатылым'**
+  String get salesSuffix;
+
+  /// No description provided for @pairsSuffix.
+  ///
+  /// In kk, this message translates to:
+  /// **'Жұп'**
+  String get pairsSuffix;
+}
+
+class _AppLocalizationsDelegate
+    extends LocalizationsDelegate<AppLocalizations> {
+  const _AppLocalizationsDelegate();
+
+  @override
+  Future<AppLocalizations> load(Locale locale) {
+    return SynchronousFuture<AppLocalizations>(lookupAppLocalizations(locale));
+  }
+
+  @override
+  bool isSupported(Locale locale) =>
+      <String>['kk', 'ru'].contains(locale.languageCode);
+
+  @override
+  bool shouldReload(_AppLocalizationsDelegate old) => false;
+}
+
+AppLocalizations lookupAppLocalizations(Locale locale) {
+  // Lookup logic when only language code is specified.
+  switch (locale.languageCode) {
+    case 'kk':
+      return AppLocalizationsKk();
+    case 'ru':
+      return AppLocalizationsRu();
+  }
+
+  throw FlutterError(
+      'AppLocalizations.delegate failed to load unsupported locale "$locale". This is likely '
+      'an issue with the localizations generation tool. Please file an issue '
+      'on GitHub with a reproducible sample app and the gen-l10n configuration '
+      'that was used.');
+}

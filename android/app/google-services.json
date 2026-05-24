@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "536773855283",
+    "project_id": "qoima-61cbb",
+    "storage_bucket": "qoima-61cbb.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:536773855283:android:5800d6f03899961a1e7b46",
+        "android_client_info": {
+          "package_name": "com.jambyl.qoima.qoima"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDoY-rdKvdNrctpnGXIeWgbkckhm4y8wIg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
