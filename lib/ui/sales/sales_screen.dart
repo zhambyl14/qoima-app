@@ -280,21 +280,78 @@ class _SalesBody extends StatelessWidget {
             Text(context.l10n.operations, style: const TextStyle(fontSize: 15,
                 fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
             const SizedBox(height: 10),
-            ...sales.map((s) {
-              final prod = products.firstWhere((p) => p.id == s.productId,
-                  orElse: () => ProductModel(id: '', name: context.l10n.productDeleted,
-                      brand: '', type: '', material: '', category: '',
-                      color: '', articul: '', status: '', images: []));
-              String whName = '';
-              if (s.warehouseId.isNotEmpty) {
-                try { whName = warehouses.firstWhere((w) => w.id == s.warehouseId).name; }
-                catch (_) {}
-              }
-              return _SaleCard(sale: s, product: prod, warehouseName: whName);
-            }),
+            ..._buildGroupedSales(context, sales, products, warehouses),
           ]),
         ),
     ]);
+  }
+
+  static List<Widget> _buildGroupedSales(
+    BuildContext context,
+    List<SaleModel> sales,
+    List<ProductModel> products,
+    List<WarehouseModel> warehouses,
+  ) {
+    final map = <DateTime, List<SaleModel>>{};
+    for (final s in sales) {
+      final day = DateTime(s.saleDate.year, s.saleDate.month, s.saleDate.day);
+      (map[day] ??= []).add(s);
+    }
+    final days = map.keys.toList()..sort((a, b) => b.compareTo(a));
+
+    final now       = DateTime.now();
+    final today     = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+
+    final result = <Widget>[];
+    for (final day in days) {
+      final daySales = map[day]!;
+      final dayTotal = daySales.fold<double>(0, (sum, s) => sum + s.totalPrice);
+
+      final String label;
+      if (day == today) {
+        label = 'Бүгін';
+      } else if (day == yesterday) {
+        label = 'Кеше';
+      } else {
+        label = '${day.day.toString().padLeft(2, '0')}'
+            '.${day.month.toString().padLeft(2, '0')}'
+            '.${day.year}';
+      }
+
+      result.add(Padding(
+        padding: const EdgeInsets.only(top: 8, bottom: 4),
+        child: Row(children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+                color: AppTheme.primary.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(20)),
+            child: Text(label, style: const TextStyle(
+                fontSize: 12, fontWeight: FontWeight.w700,
+                color: AppTheme.primary)),
+          ),
+          const Spacer(),
+          Text('${dayTotal.toStringAsFixed(0)} ₸',
+              style: const TextStyle(fontSize: 13,
+                  fontWeight: FontWeight.w700, color: AppTheme.success)),
+        ]),
+      ));
+
+      for (final s in daySales) {
+        final prod = products.firstWhere((p) => p.id == s.productId,
+            orElse: () => ProductModel(id: '', name: context.l10n.productDeleted,
+                brand: '', type: '', material: '', category: '',
+                color: '', articul: '', status: '', images: []));
+        String whName = '';
+        if (s.warehouseId.isNotEmpty) {
+          try { whName = warehouses.firstWhere((w) => w.id == s.warehouseId).name; }
+          catch (_) {}
+        }
+        result.add(_SaleCard(sale: s, product: prod, warehouseName: whName));
+      }
+    }
+    return result;
   }
 
   static bool _isToday(DateTime d) {
@@ -495,6 +552,28 @@ class _HistorySheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Group sales by normalized day, descending
+    final map = <DateTime, List<SaleModel>>{};
+    for (final s in sales) {
+      final day = DateTime(s.saleDate.year, s.saleDate.month, s.saleDate.day);
+      (map[day] ??= []).add(s);
+    }
+    final days = map.keys.toList()..sort((a, b) => b.compareTo(a));
+    final dayTotals = <DateTime, double>{
+      for (final d in days) d: map[d]!.fold(0.0, (sum, s) => sum + s.totalPrice),
+    };
+
+    // Flat item list: DateTime (day header) | SaleModel (card)
+    final items = <Object>[];
+    for (final day in days) {
+      items.add(day);
+      items.addAll(map[day]!);
+    }
+
+    final now       = DateTime.now();
+    final today     = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+
     return Column(children: [
       Padding(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
@@ -521,17 +600,56 @@ class _HistorySheet extends StatelessWidget {
             : ListView.builder(
                 controller: scrollCtrl,
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-                itemCount: sales.length,
+                itemCount: items.length,
                 itemBuilder: (_, i) {
-                  final s = sales[i];
+                  final item = items[i];
+
+                  if (item is DateTime) {
+                    final total = dayTotals[item] ?? 0.0;
+                    final String label;
+                    if (item == today) {
+                      label = 'Бүгін';
+                    } else if (item == yesterday) {
+                      label = 'Кеше';
+                    } else {
+                      label = '${item.day.toString().padLeft(2, '0')}'
+                          '.${item.month.toString().padLeft(2, '0')}'
+                          '.${item.year}';
+                    }
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 8, bottom: 4),
+                      child: Row(children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                              color: AppTheme.primary.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(20)),
+                          child: Text(label, style: const TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.w700,
+                              color: AppTheme.primary)),
+                        ),
+                        const Spacer(),
+                        Text('${total.toStringAsFixed(0)} ₸',
+                            style: const TextStyle(fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: AppTheme.success)),
+                      ]),
+                    );
+                  }
+
+                  final s = item as SaleModel;
                   final prod = products.firstWhere((p) => p.id == s.productId,
                       orElse: () => ProductModel(id: '', name: 'Жойылды',
                           brand: '', type: '', material: '', category: '',
                           color: '', articul: '', status: '', images: []));
                   String whName = '';
                   if (s.warehouseId.isNotEmpty) {
-                    try { whName = warehouses.firstWhere((w) => w.id == s.warehouseId).name; }
-                    catch (_) {}
+                    try {
+                      whName = warehouses
+                          .firstWhere((w) => w.id == s.warehouseId)
+                          .name;
+                    } catch (_) {}
                   }
                   return _SaleCard(sale: s, product: prod, warehouseName: whName);
                 },

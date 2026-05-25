@@ -43,12 +43,8 @@ class _MakeSaleScreenState extends State<MakeSaleScreen> {
   List<CartItem> _cart = [];
   bool _isConfirming = false;
 
-  String _activeWarehouseId(BuildContext ctx) {
-    if (AppUser.isAdmin) {
-      return ctx.read<WarehouseContext>().current?.id ?? '';
-    }
-    return AppUser.assignedWarehouseId;
-  }
+  String _activeWarehouseId(BuildContext ctx) =>
+      ctx.read<WarehouseContext>().current?.id ?? AppUser.assignedWarehouseId;
 
   Stream<List<ProductModel>> _productStream(String whId) {
     if (whId.isNotEmpty) {
@@ -61,10 +57,14 @@ class _MakeSaleScreenState extends State<MakeSaleScreen> {
 
   // ── Қадам 1 → 2 ───────────────────────────────────────────────────────────
   Future<void> _goToStep2() async {
-    if (_selectedIds.isEmpty) return;
-    if (!await ensureWarehouseSelected(context)) return;
-    if (!mounted) return;
+    if (_isConfirming) return;
     setState(() => _isConfirming = true);
+    if (_selectedIds.isEmpty) { setState(() => _isConfirming = false); return; }
+    if (!await ensureWarehouseSelected(context)) {
+      if (mounted) setState(() => _isConfirming = false);
+      return;
+    }
+    if (!mounted) return;
     final whId = _activeWarehouseId(context);
     final items = <CartItem>[];
     final noStock = <String>[];
@@ -100,21 +100,46 @@ class _MakeSaleScreenState extends State<MakeSaleScreen> {
 
   // ── Сатуды растау ─────────────────────────────────────────────────────────
   Future<void> _confirm() async {
-    final validItems = _cart.where((c) => c.qty > 0).toList();
-    if (validItems.isEmpty) {
-      _snack('Кем дегенде 1 жұп таңдаңыз', isError: true);
-      return;
-    }
+    if (_isConfirming) return;
     setState(() => _isConfirming = true);
     final whId = _activeWarehouseId(context);
     try {
+      final validItems = _cart.where((c) => c.qty > 0).toList();
+      if (validItems.isEmpty) {
+        _snack('Кем дегенде 1 жұп таңдаңыз', isError: true);
+        return;
+      }
+
+      // Pre-flight: if any cart item's batch belongs to a different warehouse
+      // than the current one, the admin reassigned us while we were mid-sale.
+      final hasConflict = validItems.any((c) =>
+          c.batch.warehouseId.isNotEmpty && c.batch.warehouseId != whId);
+      if (hasConflict) {
+        _snack(
+          'Ошибка: Ваша привязка к складу была изменена Админом. Данная продажа отменена.',
+          isError: true,
+        );
+        setState(() {
+          _isConfirming = false;
+          _step = 0;
+          _cart.clear();
+          _selectedIds.clear();
+        });
+        return;
+      }
+
       for (final item in validItems) {
+        // Use a stable idempotency key per item so double-taps can't create
+        // duplicate sales even if the first network call is still in flight.
+        final key = '${item.product.id}_${item.batch.id}_'
+            '${DateTime.now().millisecondsSinceEpoch ~/ 3000}';
         await _service.makeSale(
           productId:       item.product.id,
           batchId:         item.batch.id,
           sizesSold:       Map.from(item.sizes),
           discountPercent: item.discountPercent,
           warehouseId:     whId,
+          idempotencyKey:  key,
         );
       }
       final totalQty   = validItems.fold(0, (s, c) => s + c.qty);
@@ -147,12 +172,12 @@ class _MakeSaleScreenState extends State<MakeSaleScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final whId = AppUser.isAdmin
-        ? context.watch<WarehouseContext>().current?.id ?? ''
-        : AppUser.assignedWarehouseId;
-    final whName = AppUser.isAdmin
-        ? (context.watch<WarehouseContext>().current?.name ?? 'Қойма жоқ')
-        : 'Менің қоймам';
+    // WarehouseContext.current is now reactive for both admin AND seller
+    // (main.dart calls wCtx.load() for both roles). AppUser fallback is only
+    // used during the brief moment before the initial load completes.
+    final wCtx   = context.watch<WarehouseContext>();
+    final whId   = wCtx.current?.id   ?? AppUser.assignedWarehouseId;
+    final whName = wCtx.current?.name ?? 'Қойма жоқ';
 
     return Scaffold(
       backgroundColor: AppTheme.background,
@@ -436,8 +461,8 @@ class _WhPickerSheet extends StatelessWidget {
   }
 }
 
-// ── Қадам 1: Товар таңдау (StreamBuilder — warehouse-filtered) ─────────────────
-class _Step1 extends StatelessWidget {
+// ── Қадам 1: Товар таңдау + поиск ────────────────────────────────────────────
+class _Step1 extends StatefulWidget {
   final Stream<List<ProductModel>> productStream;
   final Set<String> selectedIds;
   final void Function(String) onToggle;
@@ -446,19 +471,44 @@ class _Step1 extends StatelessWidget {
       required this.onToggle});
 
   @override
+  State<_Step1> createState() => _Step1State();
+}
+
+class _Step1State extends State<_Step1> {
+  final _searchCtrl = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  List<ProductModel> _filter(List<ProductModel> all) {
+    if (_query.isEmpty) return all;
+    final q = _query.toLowerCase();
+    return all.where((p) =>
+        p.name.toLowerCase().contains(q) ||
+        p.brand.toLowerCase().contains(q) ||
+        p.type.toLowerCase().contains(q) ||
+        p.category.toLowerCase().contains(q) ||
+        p.articul.toLowerCase().contains(q)).toList();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return StreamBuilder<List<ProductModel>>(
-      stream: productStream,
+      stream: widget.productStream,
       builder: (_, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
           return const Center(
               child: CircularProgressIndicator(color: AppTheme.primary));
         }
-        final products = (snap.data ?? [])
+        final allProducts = (snap.data ?? [])
             .where((p) => p.status == ProductModel.statusInStock)
             .toList();
 
-        if (products.isEmpty) {
+        if (allProducts.isEmpty) {
           return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
             Container(
               width: 80, height: 80,
@@ -478,27 +528,85 @@ class _Step1 extends StatelessWidget {
           ]));
         }
 
-        if (selectedIds.isNotEmpty) {
-          final validIds = selectedIds
-              .where((id) => products.any((p) => p.id == id))
+        if (widget.selectedIds.isNotEmpty) {
+          final validIds = widget.selectedIds
+              .where((id) => allProducts.any((p) => p.id == id))
               .toSet();
-          if (validIds.length != selectedIds.length) {
+          if (validIds.length != widget.selectedIds.length) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
-              selectedIds
+              widget.selectedIds
                 ..clear()
                 ..addAll(validIds);
             });
           }
         }
 
-        return ListView.builder(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
-          itemCount: products.length,
-          itemBuilder: (_, i) {
-            final p   = products[i];
-            final sel = selectedIds.contains(p.id);
+        final products = _filter(allProducts);
+
+        return Column(children: [
+          // ── Search bar ───────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppTheme.border),
+                boxShadow: [BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.04),
+                    blurRadius: 8, offset: const Offset(0, 2))],
+              ),
+              child: TextField(
+                controller: _searchCtrl,
+                onChanged: (v) => setState(() => _query = v.trim()),
+                style: const TextStyle(fontSize: 14, color: AppTheme.textPrimary),
+                decoration: InputDecoration(
+                  hintText: 'Тауар атауы, бренд, санат...',
+                  hintStyle: const TextStyle(
+                      color: AppTheme.textHint, fontSize: 13),
+                  prefixIcon: const Icon(Icons.search_rounded,
+                      color: AppTheme.textHint, size: 20),
+                  suffixIcon: _query.isNotEmpty
+                      ? GestureDetector(
+                          onTap: () {
+                            _searchCtrl.clear();
+                            setState(() => _query = '');
+                          },
+                          child: const Icon(Icons.close_rounded,
+                              color: AppTheme.textHint, size: 18))
+                      : null,
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 4, vertical: 13),
+                ),
+              ),
+            ),
+          ),
+
+          // ── Empty search result ──────────────────────────────────────────
+          if (products.isEmpty)
+            Expanded(
+              child: Center(child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                Icon(Icons.search_off_rounded,
+                    size: 52, color: Colors.grey.shade300),
+                const SizedBox(height: 12),
+                Text('«$_query» табылмады',
+                    style: const TextStyle(
+                        fontSize: 14, color: AppTheme.textSecondary)),
+              ])),
+            )
+          else
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                itemCount: products.length,
+                itemBuilder: (_, i) {
+                  final p   = products[i];
+                  final sel = widget.selectedIds.contains(p.id);
             return GestureDetector(
-              onTap: () => onToggle(p.id),
+              onTap: () => widget.onToggle(p.id),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 180),
                 margin: const EdgeInsets.only(bottom: 10),
@@ -561,10 +669,12 @@ class _Step1 extends StatelessWidget {
                 ]),
               ),
             );
-          },
-        );
-      },
-    );
+                },
+              ),      // closes ListView.builder
+            ),        // closes Expanded (else branch)
+          ]);         // closes Column(children:[...])
+        },
+      );
   }
 
   Widget _imgPlaceholder() => Container(

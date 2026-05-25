@@ -326,19 +326,28 @@ class _DiscountCard extends StatelessWidget {
 }
 
 // ── Daily bar chart ────────────────────────────────────────────────────────────
-class _DailyChart extends StatelessWidget {
+class _DailyChart extends StatefulWidget {
   final List<SaleModel> sales;
   final DateTime month;
   const _DailyChart({required this.sales, required this.month});
+  @override
+  State<_DailyChart> createState() => _DailyChartState();
+}
+
+class _DailyChartState extends State<_DailyChart> {
+  int? _tapped; // 0-based day index
 
   @override
   Widget build(BuildContext context) {
-    final daysInMonth = DateUtils.getDaysInMonth(month.year, month.month);
-    final List<int> byDay = List.filled(daysInMonth, 0);
-    for (final s in sales) {
-      byDay[s.saleDate.day - 1]++;
+    final daysInMonth =
+        DateUtils.getDaysInMonth(widget.month.year, widget.month.month);
+    final byDay = List<double>.filled(daysInMonth, 0.0);
+    for (final s in widget.sales) {
+      byDay[s.saleDate.day - 1] += s.totalPrice;
     }
-    final maxVal = byDay.reduce((a, b) => a > b ? a : b).clamp(1, 999);
+    final maxVal = byDay.reduce((a, b) => a > b ? a : b);
+    final effectiveMax = maxVal < 1 ? 1.0 : maxVal;
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -347,29 +356,107 @@ class _DailyChart extends StatelessWidget {
         boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .04),
             blurRadius: 8, offset: const Offset(0, 2))],
       ),
-      child: SizedBox(
-        height: 90,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: List.generate(daysInMonth, (i) {
-            final v = byDay[i];
-            return Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 1),
-                child: Container(
-                  height: (v / maxVal) * 60 + 2,
-                  decoration: BoxDecoration(
-                    color: v > 0 ? AppTheme.primary : AppTheme.border,
-                    borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(2)),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Info row: month total by default, selected day on tap
+          SizedBox(
+            height: 26,
+            child: Row(children: [
+              if (_tapped != null) ...[
+                Text('${_tapped! + 1} күн',
+                    style: const TextStyle(fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textSecondary)),
+                const Spacer(),
+                Text(_fmtRevenue(byDay[_tapped!]),
+                    style: const TextStyle(fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: AppTheme.success)),
+              ] else ...[
+                const Text('Барлығы',
+                    style: TextStyle(fontSize: 12, color: AppTheme.textHint)),
+                const Spacer(),
+                Text(
+                  _fmtRevenue(widget.sales
+                      .fold(0.0, (s, e) => s + e.totalPrice)),
+                  style: const TextStyle(fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.primary),
+                ),
+              ],
+            ]),
+          ),
+          const SizedBox(height: 6),
+          // Bars
+          SizedBox(
+            height: 72,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: List.generate(daysInMonth, (i) {
+                final v      = byDay[i];
+                final isSel  = _tapped == i;
+                return Expanded(
+                  child: GestureDetector(
+                    onTap: () =>
+                        setState(() => _tapped = _tapped == i ? null : i),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 1),
+                      child: Container(
+                        height: v > 0
+                            ? (v / effectiveMax) * 66 + 3
+                            : 2,
+                        decoration: BoxDecoration(
+                          color: isSel
+                              ? AppTheme.success
+                              : v > 0
+                                  ? AppTheme.primary
+                                  : AppTheme.border,
+                          borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(2)),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }),
+            ),
+          ),
+          const SizedBox(height: 4),
+          // X-axis: show only day 1, mid-month, last day + tapped day
+          Row(
+            children: List.generate(daysInMonth, (i) {
+              final day   = i + 1;
+              final mid   = (daysInMonth / 2).round();
+              final isSel = _tapped == i;
+              final show  = isSel || day == 1 || day == mid || day == daysInMonth;
+              return Expanded(
+                child: Text(
+                  show ? '$day' : '',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 9,
+                    color: isSel ? AppTheme.primary : AppTheme.textHint,
+                    fontWeight: isSel ? FontWeight.w700 : FontWeight.w400,
                   ),
                 ),
-              ),
-            );
-          }),
-        ),
+              );
+            }),
+          ),
+        ],
       ),
     );
+  }
+
+  static String _fmtRevenue(double v) {
+    if (v >= 1000000) {
+      return '${(v / 1000000).toStringAsFixed(1)}M ₸';
+    }
+    if (v >= 1000) {
+      return '${(v / 1000).toStringAsFixed(0)}K ₸';
+    }
+    return '${v.toStringAsFixed(0)} ₸';
   }
 }
 

@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../../core/warehouse_context.dart';
 import '../../data/models/warehouse_model.dart';
 import '../../data/services/firestore_service.dart';
 import '../../theme/app_theme.dart';
@@ -17,13 +15,8 @@ class WarehousesScreen extends StatelessWidget {
         stream: service.watchWarehouses(),
         builder: (context, snap) {
           final warehouses = snap.data ?? [];
-
-          // WarehouseContext-ті жаңартамыз
-          if (snap.hasData) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              context.read<WarehouseContext>().refresh(warehouses);
-            });
-          }
+          // WarehouseContext is now self-updating via its own Firestore stream
+          // subscription (see warehouse_context.dart). No manual refresh needed.
 
           return CustomScrollView(slivers: [
             SliverToBoxAdapter(child: Container(

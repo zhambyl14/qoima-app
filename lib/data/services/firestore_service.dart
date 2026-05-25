@@ -166,14 +166,31 @@ class FirestoreService {
     final anyInStock = remaining.any((b) => b.sizesQuantity.values.any((q) => q > 0));
     final newStatus = (remaining.isNotEmpty && anyInStock)
         ? ProductModel.statusInStock : ProductModel.statusSold;
-    final wb = _db.batch();
-    wb.delete(_batches(productId).doc(batchId));
+
+    // If there are sales linked to this batch, archive it (zero out sizes,
+    // mark isArchived=true) instead of deleting — this preserves analytics
+    // and sales history integrity.
     final salesSnap = await _salesHistory
         .where('product_id', isEqualTo: productId)
-        .where('batch_id', isEqualTo: batchId).get();
-    for (final d in salesSnap.docs) { wb.delete(d.reference); }
+        .where('batch_id',   isEqualTo: batchId)
+        .limit(1).get();
+
+    final wb = _db.batch();
+    if (salesSnap.docs.isNotEmpty) {
+      wb.update(_batches(productId).doc(batchId), {
+        'sizes_quantity': <String, int>{},
+        'isArchived':     true,
+      });
+    } else {
+      wb.delete(_batches(productId).doc(batchId));
+    }
     wb.update(_products.doc(productId), {'status': newStatus});
     await wb.commit();
+
+    if (salesSnap.docs.isNotEmpty) {
+      throw SaleException(
+          'Бұл партиядан сату болған. Партия жойылмай архивке өтті — аналитика сақталды.');
+    }
   }
 
   // ── Sales ─────────────────────────────────────────────────────────────────────
@@ -184,16 +201,36 @@ class FirestoreService {
     required Map<String, int> sizesSold,
     double discountPercent = 0,
     required String warehouseId,
+    // Optional client-generated key; reusing the same key makes the operation
+    // idempotent — the second call is a no-op if the document already exists.
+    String? idempotencyKey,
   }) async {
     final sellerId   = AppUser.uid.isNotEmpty ? AppUser.uid : (_auth.currentUser?.uid ?? '');
     final sellerName = AppUser.name;
+    final saleDocId  = idempotencyKey ?? _salesHistory.doc().id;
 
     await _db.runTransaction((transaction) async {
+      // ── ALL reads must come before ANY writes (Firestore rule) ──────────
       final batchRef = _batches(productId).doc(batchId);
-      final batchDoc = await transaction.get(batchRef);
+      final saleRef  = _salesHistory.doc(saleDocId);
+
+      final batchDoc    = await transaction.get(batchRef);
+      final existingDoc = await transaction.get(saleRef);
+
+      // Early exits (no writes done yet)
       if (!batchDoc.exists) throw SaleException('Партия табылмады.');
+      if (existingDoc.exists) return; // Idempotency: sale already recorded.
 
       final batch = BatchModel.fromFirestore(batchDoc);
+
+      // Guard: batch must belong to the warehouse being sold from.
+      // Catches the race condition where admin reassigns the seller's warehouse
+      // while the seller is mid-sale and the WarehouseContext has already updated.
+      if (batch.warehouseId.isNotEmpty && batch.warehouseId != warehouseId) {
+        throw SaleException(
+            'Ошибка: Ваша привязка к складу была изменена Админом. Данная продажа отменена.');
+      }
+
       for (final entry in sizesSold.entries) {
         if (entry.value <= 0) continue;
         final available = batch.sizesQuantity[entry.key] ?? 0;
@@ -208,8 +245,8 @@ class FirestoreService {
           updatedSizes[entry.key] = (updatedSizes[entry.key] ?? 0) - entry.value;
         }
       }
-      transaction.update(batchRef, {'sizes_quantity': updatedSizes});
 
+      // Non-transactional read for allSoldOut check (was in original code).
       final allBatches = await _batches(productId).get();
       bool allSoldOut = true;
       for (final doc in allBatches.docs) {
@@ -217,16 +254,18 @@ class FirestoreService {
         final sizes = b.id == batchId ? updatedSizes : b.sizesQuantity;
         if (sizes.values.any((q) => q > 0)) { allSoldOut = false; break; }
       }
-      if (allSoldOut) {
-        transaction.update(_products.doc(productId), {'status': ProductModel.statusSold});
-      }
 
       final qty        = sizesSold.values.fold(0, (a, b) => a + b);
       final basePrice  = batch.sellingPrice * qty;
       final totalPrice = basePrice * (1 - discountPercent / 100);
       final firstSize  = sizesSold.keys.isNotEmpty ? sizesSold.keys.first : '';
 
-      final saleRef = _salesHistory.doc();
+      // ── All writes at the end ────────────────────────────────────────────
+      transaction.update(batchRef, {'sizes_quantity': updatedSizes});
+      if (allSoldOut) {
+        transaction.update(_products.doc(productId), {'status': ProductModel.statusSold});
+      }
+
       transaction.set(saleRef, SaleModel(
         id:              saleRef.id,
         productId:       productId,
@@ -340,23 +379,24 @@ class FirestoreService {
     await wb.commit();
   }
 
-  /// Берілген қоймадағы өнімдер мен жалпы жұп санын қайтарады
+  /// Returns all products that have at least one batch in [warehouseId],
+  /// including sold-out ones (pairs == 0), so the "Продано" tab stays intact.
   Stream<List<ProductWithStock>> watchProductsInWarehouse(String warehouseId) =>
       _products.orderBy('name').snapshots().asyncMap((snap) async {
         final result = <ProductWithStock>[];
         for (final pDoc in snap.docs) {
           final batchSnap = await _batches(pDoc.id)
               .where('warehouseId', isEqualTo: warehouseId).get();
+          // Skip products that have never had a batch in this warehouse.
+          if (batchSnap.docs.isEmpty) continue;
           final pairs = batchSnap.docs.fold<int>(0, (acc, b) {
             final sq = (b.data()['sizes_quantity'] as Map<dynamic, dynamic>? ?? {});
             return acc + sq.values.fold<int>(0, (s, v) => s + ((v as num).toInt()));
           });
-          if (pairs > 0) {
-            result.add(ProductWithStock(
-              product: ProductModel.fromFirestore(pDoc),
-              pairs: pairs,
-            ));
-          }
+          result.add(ProductWithStock(
+            product: ProductModel.fromFirestore(pDoc),
+            pairs: pairs,
+          ));
         }
         return result;
       });
@@ -401,6 +441,14 @@ class FirestoreService {
             d.data()['assignedWarehouseId'] == warehouseId)
         .length;
   }
+
+  /// Seller's own user document stream — used by WarehouseContext to react
+  /// instantly when an admin reassigns the seller to a different warehouse.
+  Stream<String> watchSellerAssignedWarehouseId() =>
+      _db.collection('users')
+          .doc(_auth.currentUser!.uid)
+          .snapshots()
+          .map((doc) => doc.data()?['assignedWarehouseId'] as String? ?? '');
 
   // ── Seller join flow ──────────────────────────────────────────────────────────
 

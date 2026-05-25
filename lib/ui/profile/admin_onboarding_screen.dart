@@ -24,12 +24,13 @@ class _AdminOnboardingScreenState extends State<AdminOnboardingScreen> {
   }
 
   Future<void> _create() async {
+    if (_loading) return;
+    setState(() { _loading = true; _error = null; });
     final name = _nameCtrl.text.trim();
     if (name.isEmpty) {
-      setState(() => _error = 'Қойма атауын енгізіңіз');
+      setState(() { _loading = false; _error = 'Қойма атауын енгізіңіз'; });
       return;
     }
-    setState(() { _loading = true; _error = null; });
     try {
       final service = FirestoreService();
       await service.createWarehouse(

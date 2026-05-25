@@ -186,9 +186,13 @@ class _AddProductScreenState extends State<AddProductScreen> {
   }
 
   Future<void> _save() async {
-    if (!await ensureWarehouseSelected(context)) return;
-    if (!mounted) return;
+    if (_isLoading) return;
     setState(() => _isLoading = true);
+    if (!await ensureWarehouseSelected(context)) {
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
+    if (!mounted) return;
     final warehouseId =
         context.read<WarehouseContext>().current?.id ?? '';
     try {

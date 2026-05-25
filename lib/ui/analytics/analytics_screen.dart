@@ -515,6 +515,7 @@ class _WarehousesTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final warehouses = context.watch<WarehouseContext>().all;
+
     return StreamBuilder<List<SaleModel>>(
       stream: FirestoreService().watchSalesHistory(),
       builder: (_, snap) {
@@ -564,7 +565,27 @@ class _WarehousesTab extends StatelessWidget {
             const SizedBox(height: 16),
             _SectionLabel(context.l10n.warehouseRanking),
             const SizedBox(height: 8),
-            ...ranked.map((stat) => _WhStatCard(stat: stat, grandTotal: grandTotal)),
+
+            // Each warehouse: stat card + its own daily chart
+            ...ranked.expand((stat) {
+              final wSales = sales
+                  .where((s) => s.warehouseId == stat.id)
+                  .toList();
+              return <Widget>[
+                _WhStatCard(stat: stat, grandTotal: grandTotal),
+                if (wSales.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  _SectionLabel('${stat.name}: күндік белсенділік'),
+                  const SizedBox(height: 6),
+                  _DailyChart(
+                    sales: wSales,
+                    month: month,
+                    revenueLabel: 'Выручка по складу',
+                  ),
+                ],
+                const SizedBox(height: 12),
+              ];
+            }),
           ],
         );
       },
@@ -779,54 +800,164 @@ class _SectionLabel extends StatelessWidget {
         color: AppTheme.textPrimary));
 }
 
-// ── Күндік bar chart ──────────────────────────────────────────────────────────
-class _DailyChart extends StatelessWidget {
+// ── Күндік bar chart (интерактивный, выручка в ₸) ────────────────────────────
+// revenueLabel — подпись при тапе: "Выручка" или "Выручка по складу" и т.д.
+class _DailyChart extends StatefulWidget {
   final List<SaleModel> sales;
   final DateTime month;
-  const _DailyChart({required this.sales, required this.month});
+  final String revenueLabel;
+  const _DailyChart({
+    required this.sales,
+    required this.month,
+    this.revenueLabel = 'Выручка',
+  });
+  @override
+  State<_DailyChart> createState() => _DailyChartState();
+}
+
+class _DailyChartState extends State<_DailyChart> {
+  int? _tapped; // 0-based
 
   @override
   Widget build(BuildContext context) {
-    final daysInMonth = DateUtils.getDaysInMonth(month.year, month.month);
-    final List<int> byDay = List.filled(daysInMonth, 0);
-    for (final s in sales) {
-      if (s.saleDate.month == month.month && s.saleDate.year == month.year) {
-        byDay[s.saleDate.day - 1]++;
+    final daysInMonth =
+        DateUtils.getDaysInMonth(widget.month.year, widget.month.month);
+
+    // Accumulate revenue per day (not count)
+    final byDay = List<double>.filled(daysInMonth, 0.0);
+    for (final s in widget.sales) {
+      if (s.saleDate.month == widget.month.month &&
+          s.saleDate.year == widget.month.year) {
+        byDay[s.saleDate.day - 1] += s.totalPrice;
       }
     }
-    final maxVal = byDay.reduce((a, b) => a > b ? a : b).clamp(1, 999);
+    final maxVal      = byDay.reduce((a, b) => a > b ? a : b);
+    final effectiveMax = maxVal < 1 ? 1.0 : maxVal;
+    final monthTotal  = byDay.fold(0.0, (s, v) => s + v);
+
     return Card(
       elevation: 0,
       color: Colors.white,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       child: Padding(
         padding: const EdgeInsets.all(14),
-        child: SizedBox(
-          height: 90,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: List.generate(daysInMonth, (i) {
-              final v = byDay[i];
-              return Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 1),
-                  child: Container(
-                    height: (v / maxVal) * 60 + 2,
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [AppTheme.primaryLight, AppTheme.primary],
-                        begin: Alignment.topCenter, end: Alignment.bottomCenter,
-                      ),
-                      borderRadius: BorderRadius.vertical(top: Radius.circular(2)),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Info row: month total by default; selected day on tap ──────
+            SizedBox(
+              height: 26,
+              child: Row(children: [
+                if (_tapped != null) ...[
+                  Expanded(
+                    child: Text(
+                      'Дата: ${(_tapped! + 1).toString().padLeft(2, '0')}'
+                      '.${widget.month.month.toString().padLeft(2, '0')}'
+                      '.${widget.month.year}',
+                      style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.textSecondary),
                     ),
                   ),
-                ),
-              );
-            }),
-          ),
+                  Text(
+                    '${widget.revenueLabel}: ${_fmtRev(byDay[_tapped!])}',
+                    style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: AppTheme.success),
+                  ),
+                ] else ...[
+                  const Text('Барлығы',
+                      style: TextStyle(fontSize: 12, color: AppTheme.textHint)),
+                  const Spacer(),
+                  Text(
+                    _fmtRev(monthTotal),
+                    style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.primary),
+                  ),
+                ],
+              ]),
+            ),
+            const SizedBox(height: 6),
+
+            // ── Bars ────────────────────────────────────────────────────────
+            SizedBox(
+              height: 72,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: List.generate(daysInMonth, (i) {
+                  final v     = byDay[i];
+                  final isSel = _tapped == i;
+                  return Expanded(
+                    child: GestureDetector(
+                      onTap: () =>
+                          setState(() => _tapped = _tapped == i ? null : i),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 1),
+                        child: Container(
+                          height: v > 0 ? (v / effectiveMax) * 66 + 3 : 2,
+                          decoration: BoxDecoration(
+                            gradient: isSel
+                                ? null
+                                : const LinearGradient(
+                                    colors: [
+                                      AppTheme.primaryLight,
+                                      AppTheme.primary,
+                                    ],
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                  ),
+                            color: isSel ? AppTheme.success : null,
+                            borderRadius: const BorderRadius.vertical(
+                                top: Radius.circular(2)),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ),
+            ),
+            const SizedBox(height: 4),
+
+            // ── X-axis: day 1, mid-month, last day + tapped ─────────────────
+            Row(
+              children: List.generate(daysInMonth, (i) {
+                final day   = i + 1;
+                final mid   = (daysInMonth / 2).round();
+                final isSel = _tapped == i;
+                final show  = isSel || day == 1 || day == mid || day == daysInMonth;
+                return Expanded(
+                  child: Text(
+                    show ? '$day' : '',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 9,
+                      color: isSel ? AppTheme.primary : AppTheme.textHint,
+                      fontWeight: isSel ? FontWeight.w700 : FontWeight.w400,
+                    ),
+                  ),
+                );
+              }),
+            ),
+          ],
         ),
       ),
     );
+  }
+
+  static String _fmtRev(double v) {
+    if (v >= 1000000) {
+      return '${(v / 1000000).toStringAsFixed(1)}M ₸';
+    }
+    if (v >= 1000) {
+      return '${(v / 1000).toStringAsFixed(0)}K ₸';
+    }
+    return '${v.toStringAsFixed(0)} ₸';
   }
 }
 

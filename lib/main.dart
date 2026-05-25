@@ -97,10 +97,10 @@ Future<bool> _loadSession(String uid, BuildContext context) async {
       assignedWarehouseId: userDoc.assignedWarehouseId,
       joinStatus:          userDoc.joinStatus,
     );
-    // Admin болса қоймаларды жүктейміз
-    if (AppUser.isAdmin) {
-      await wCtx.load();
-    }
+    // Admin да, seller да WarehouseContext-ті жүктейді.
+    // Seller үшін бұл Firestore stream орнатады — admin қойманы
+    // ауыстырса, seller экраны Hot Restart жоқ бірден жаңарады.
+    await wCtx.load();
     return true;
   } catch (_) {
     return false;
