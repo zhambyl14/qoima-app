@@ -1,0 +1,99 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+class StoreModel {
+  final String adminUid;
+  final String storeName;
+  final String storeSlug;
+  final String logoUrl;
+  final String city;
+  final String phone;
+  final String description;
+  final List<String> visibleWarehouseIds;
+  final bool isPublished;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  const StoreModel({
+    required this.adminUid,
+    required this.storeName,
+    required this.storeSlug,
+    required this.logoUrl,
+    required this.city,
+    required this.phone,
+    required this.description,
+    required this.visibleWarehouseIds,
+    required this.isPublished,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  static String generateSlug(String name) => name
+      .toLowerCase()
+      .replaceAll(RegExp(r'[^a-z0-9а-яёА-ЯЁ\s]'), '')
+      .trim()
+      .replaceAll(RegExp(r'\s+'), '-');
+
+  factory StoreModel.fromFirestore(
+      DocumentSnapshot<Map<String, dynamic>> doc) {
+    final d = doc.data()!;
+    return StoreModel(
+      adminUid: doc.id,
+      storeName: d['storeName'] as String? ?? '',
+      storeSlug: d['storeSlug'] as String? ?? '',
+      logoUrl: d['logoUrl'] as String? ?? '',
+      city: d['city'] as String? ?? '',
+      phone: d['phone'] as String? ?? '',
+      description: d['description'] as String? ?? '',
+      visibleWarehouseIds:
+          (d['visibleWarehouseIds'] as List<dynamic>? ?? [])
+              .map((e) => e.toString())
+              .toList(),
+      isPublished: d['isPublished'] as bool? ?? false,
+      createdAt:
+          (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      updatedAt:
+          (d['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'adminUid': adminUid,
+        'storeName': storeName,
+        'storeSlug': storeSlug,
+        'logoUrl': logoUrl,
+        'city': city,
+        'phone': phone,
+        'description': description,
+        'visibleWarehouseIds': visibleWarehouseIds,
+        'isPublished': isPublished,
+        'createdAt': Timestamp.fromDate(createdAt),
+        'updatedAt': Timestamp.fromDate(updatedAt),
+      };
+
+  StoreModel copyWith({
+    String? adminUid,
+    String? storeName,
+    String? storeSlug,
+    String? logoUrl,
+    String? city,
+    String? phone,
+    String? description,
+    List<String>? visibleWarehouseIds,
+    bool? isPublished,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) =>
+      StoreModel(
+        adminUid: adminUid ?? this.adminUid,
+        storeName: storeName ?? this.storeName,
+        storeSlug: storeSlug ?? this.storeSlug,
+        logoUrl: logoUrl ?? this.logoUrl,
+        city: city ?? this.city,
+        phone: phone ?? this.phone,
+        description: description ?? this.description,
+        visibleWarehouseIds: visibleWarehouseIds ?? this.visibleWarehouseIds,
+        isPublished: isPublished ?? this.isPublished,
+        createdAt: createdAt ?? this.createdAt,
+        updatedAt: updatedAt ?? this.updatedAt,
+      );
+}

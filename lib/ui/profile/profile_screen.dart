@@ -10,6 +10,7 @@ import '../../data/services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import 'sellers_screen.dart';
 import 'warehouses_screen.dart';
+import 'store_settings_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -180,6 +181,24 @@ class ProfileScreen extends StatelessWidget {
                 subtitle: l.manageWarehouses,
                 onTap: () => Navigator.push(context,
                     MaterialPageRoute(builder: (_) => const WarehousesScreen())),
+              ),
+              const SizedBox(height: 8),
+              StreamBuilder(
+                stream: service.watchStore(),
+                builder: (_, snap) {
+                  final store       = snap.data;
+                  final subtitle    = store != null
+                      ? store.storeName
+                      : 'Баптанбаған';
+                  final unpublished = store != null && !store.isPublished;
+                  return _StoreMenuItem(
+                    subtitle: subtitle,
+                    showBadge: unpublished,
+                    onTap: () => Navigator.push(context,
+                        MaterialPageRoute(
+                            builder: (_) => const StoreSettingsScreen())),
+                  );
+                },
               ),
               const SizedBox(height: 8),
             ],
@@ -503,6 +522,57 @@ class _MenuItem extends StatelessWidget {
       subtitle: Text(subtitle,
           style: const TextStyle(color: AppTheme.textHint, fontSize: 12)),
       trailing: const Icon(Icons.chevron_right_rounded, color: AppTheme.textHint),
+      onTap: onTap,
+    ),
+  );
+}
+
+class _StoreMenuItem extends StatelessWidget {
+  final String subtitle;
+  final bool showBadge;
+  final VoidCallback onTap;
+
+  const _StoreMenuItem({
+    required this.subtitle,
+    required this.showBadge,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) => Container(
+    decoration: BoxDecoration(color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8, offset: const Offset(0, 2))]),
+    child: ListTile(
+      leading: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+            color: const Color(0xFFF59E0B).withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(8)),
+        child: const Icon(Icons.storefront_rounded,
+            color: Color(0xFFF59E0B), size: 20)),
+      title: Row(children: [
+        const Text('Менің дүкенім',
+            style: TextStyle(fontWeight: FontWeight.w500,
+                color: AppTheme.textPrimary)),
+        if (showBadge) ...[
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+                color: AppTheme.warning.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(6)),
+            child: const Text('Жарияланбаған',
+                style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700,
+                    color: AppTheme.warning)),
+          ),
+        ],
+      ]),
+      subtitle: Text(subtitle,
+          style: const TextStyle(color: AppTheme.textHint, fontSize: 12)),
+      trailing: const Icon(Icons.chevron_right_rounded,
+          color: AppTheme.textHint),
       onTap: onTap,
     ),
   );

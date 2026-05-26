@@ -156,7 +156,11 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
             child: TabBarView(
               controller: _tabCtrl,
               children: [
-                _OverviewTab(month: _month, service: _service),
+                _OverviewTab(
+                  month: _month,
+                  service: _service,
+                  onMonthChanged: (m) => setState(() => _month = m),
+                ),
                 _SellersTab(month: _month),
                 _WarehousesTab(month: _month),
               ],
@@ -173,7 +177,12 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
 class _OverviewTab extends StatefulWidget {
   final DateTime month;
   final FirestoreService service;
-  const _OverviewTab({required this.month, required this.service});
+  final void Function(DateTime) onMonthChanged;
+  const _OverviewTab({
+    required this.month,
+    required this.service,
+    required this.onMonthChanged,
+  });
   @override
   State<_OverviewTab> createState() => _OverviewTabState();
 }
@@ -183,6 +192,35 @@ class _OverviewTabState extends State<_OverviewTab> {
       .where((s) => s.saleDate.month == widget.month.month &&
                     s.saleDate.year  == widget.month.year)
       .toList();
+
+  // Count batches (new deliveries) that arrived in the given month
+  Future<int> _newDeliveries(List<SaleModel> allSales) async {
+    final products = await widget.service.watchProducts().first;
+    int count = 0;
+    for (final p in products) {
+      final batches = await widget.service.getBatches(p.id);
+      count += batches
+          .where((b) =>
+              b.dateArrived.month == widget.month.month &&
+              b.dateArrived.year  == widget.month.year)
+          .length;
+    }
+    return count;
+  }
+
+  // Count distinct productIds that had a new batch arrive this month
+  Future<int> _newProducts() async {
+    final products = await widget.service.watchProducts().first;
+    int count = 0;
+    for (final p in products) {
+      final batches = await widget.service.getBatches(p.id);
+      final hasNew = batches.any((b) =>
+          b.dateArrived.month == widget.month.month &&
+          b.dateArrived.year  == widget.month.year);
+      if (hasNew) count++;
+    }
+    return count;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -215,7 +253,6 @@ class _OverviewTabState extends State<_OverviewTab> {
     // Упрощение: берём из продаж totalPrice / sellingPrice * purchasePrice
     // Для точного расчёта нужны batch данные (асинхронно)
 
-    final monthSoldPairs = mSales.fold<int>(0, (sum, sale) => sum + sale.quantity);
     // Топ по выручке за месяц
     final Map<String, double> revByProd = {};
     final Map<String, int> qtyByProd = {};
@@ -233,6 +270,20 @@ class _OverviewTabState extends State<_OverviewTab> {
     final topSizes = sizeMap.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      // ── Месяц в цифрах — навигация + сводка ─────────────────────────
+      _MonthSummaryBlock(
+        month: widget.month,
+        mSales: mSales,
+        service: widget.service,
+        onPrev: () => widget.onMonthChanged(
+            DateTime(widget.month.year, widget.month.month - 1)),
+        onNext: () => widget.onMonthChanged(
+            DateTime(widget.month.year, widget.month.month + 1)),
+        newDeliveriesFuture: _newDeliveries(allSales),
+        newProductsFuture: _newProducts(),
+      ),
+      const SizedBox(height: 20),
+
       // ── Метка месяца ────────────────────────────────────────────────
       Text(context.forMonth(widget.month),
           style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary,
@@ -280,21 +331,6 @@ class _OverviewTabState extends State<_OverviewTab> {
           ]);
         },
       ),
-      const SizedBox(height: 10),
-
-      Row(children: [
-        Expanded(child: _StatMini(label: context.l10n.soldPairsMonth,
-            value: '$monthSoldPairs ${context.l10n.pairsUnit}',
-            color: AppTheme.warning)),
-        const SizedBox(width: 10),
-        Expanded(child: FutureBuilder<int>(
-          future: widget.service.getArrivedPairsForMonth(widget.month),
-          builder: (_, snap) => _StatMini(
-            label: context.l10n.arrivedPairsMonth,
-            value: '${snap.data ?? 0} ${context.l10n.pairsUnit}',
-            color: AppTheme.success)),
-        ),
-      ]),
       const SizedBox(height: 24),
 
       // ── Топ продаж ───────────────────────────────────────────────────
@@ -967,6 +1003,192 @@ class _FastItem { final ProductModel product; final int days; final double margi
 class _StaleItem { final ProductModel product; final int days; final BatchModel batch;
   _StaleItem({required this.product, required this.days, required this.batch}); }
 
+// ── Месяц в цифрах ────────────────────────────────────────────────────────────
+class _MonthSummaryBlock extends StatelessWidget {
+  final DateTime month;
+  final List<SaleModel> mSales;
+  final FirestoreService service;
+  final VoidCallback onPrev;
+  final VoidCallback onNext;
+  final Future<int> newDeliveriesFuture;
+  final Future<int> newProductsFuture;
+
+  const _MonthSummaryBlock({
+    required this.month,
+    required this.mSales,
+    required this.service,
+    required this.onPrev,
+    required this.onNext,
+    required this.newDeliveriesFuture,
+    required this.newProductsFuture,
+  });
+
+  static String _monthName(int m) {
+    const names = [
+      'Қаңтар','Ақпан','Наурыз','Сәуір','Мамыр','Маусым',
+      'Шілде','Тамыз','Қыркүйек','Қазан','Қараша','Желтоқсан',
+    ];
+    return names[m - 1];
+  }
+
+  static String _fmtK(double v) {
+    if (v >= 1000000) return '${(v / 1000000).toStringAsFixed(1)}M';
+    if (v >= 1000)    return '${(v / 1000).toStringAsFixed(0)}K';
+    return v.toStringAsFixed(0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final revenue    = mSales.fold<double>(0, (s, e) => s + e.totalPrice);
+    final soldPairs  = mSales.fold<int>(0, (s, e) => s + e.quantity);
+    final now        = DateTime.now();
+    final isCurrentMonth =
+        month.month == now.month && month.year == now.year;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+            colors: [Color(0xFF1E3A8A), Color(0xFF2D4FB5)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [BoxShadow(
+            color: const Color(0xFF1E3A8A).withValues(alpha: 0.25),
+            blurRadius: 16, offset: const Offset(0, 4))],
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+
+        // ── Month navigation row ───────────────────────────────────────
+        Row(children: [
+          GestureDetector(
+            onTap: onPrev,
+            child: Container(
+              width: 32, height: 32,
+              decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8)),
+              child: const Icon(Icons.chevron_left,
+                  color: Colors.white, size: 20)),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('АЙДЫҢ НӘТИЖЕСІ',
+                    style: TextStyle(color: Colors.white54,
+                        fontSize: 9, fontWeight: FontWeight.w700,
+                        letterSpacing: 1)),
+                Text('${_monthName(month.month)} ${month.year}',
+                    style: const TextStyle(color: Colors.white,
+                        fontSize: 16, fontWeight: FontWeight.w800)),
+              ],
+            ),
+          ),
+          GestureDetector(
+            onTap: isCurrentMonth ? null : onNext,
+            child: Container(
+              width: 32, height: 32,
+              decoration: BoxDecoration(
+                  color: isCurrentMonth
+                      ? Colors.white.withValues(alpha: 0.05)
+                      : Colors.white.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8)),
+              child: Icon(Icons.chevron_right,
+                  color: isCurrentMonth
+                      ? Colors.white24
+                      : Colors.white,
+                  size: 20)),
+          ),
+        ]),
+        const SizedBox(height: 14),
+
+        // ── 2×2 stats grid ─────────────────────────────────────────────
+        Row(children: [
+          _SummaryTile(
+            label: 'Оборот',
+            value: '${_fmtK(revenue)} ₸',
+            icon: Icons.trending_up_rounded,
+          ),
+          const SizedBox(width: 8),
+          _SummaryTile(
+            label: 'Сатылды',
+            value: '$soldPairs жұп',
+            icon: Icons.shopping_bag_outlined,
+          ),
+        ]),
+        const SizedBox(height: 8),
+        Row(children: [
+          FutureBuilder<int>(
+            future: service.getArrivedPairsForMonth(month),
+            builder: (_, snap) => _SummaryTile(
+              label: 'Түсті',
+              value: '${snap.data ?? 0} жұп',
+              icon: Icons.inventory_2_outlined,
+            ),
+          ),
+          const SizedBox(width: 8),
+          FutureBuilder<int>(
+            future: newDeliveriesFuture,
+            builder: (_, snap) => _SummaryTile(
+              label: 'Жеткізу',
+              value: '${snap.data ?? 0} рет',
+              icon: Icons.local_shipping_outlined,
+            ),
+          ),
+        ]),
+        const SizedBox(height: 8),
+        FutureBuilder<int>(
+          future: newProductsFuture,
+          builder: (_, snap) => _SummaryTile(
+            label: 'Жаңа тауар',
+            value: '${snap.data ?? 0} атау',
+            icon: Icons.new_releases_outlined,
+            fullWidth: true,
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+class _SummaryTile extends StatelessWidget {
+  final String label, value;
+  final IconData icon;
+  final bool fullWidth;
+
+  const _SummaryTile({
+    required this.label,
+    required this.value,
+    required this.icon,
+    this.fullWidth = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final content = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(12)),
+      child: Row(children: [
+        Icon(icon, color: Colors.white70, size: 16),
+        const SizedBox(width: 8),
+        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(label,
+              style: const TextStyle(color: Colors.white54,
+                  fontSize: 10, fontWeight: FontWeight.w500)),
+          Text(value,
+              style: const TextStyle(color: Colors.white,
+                  fontSize: 14, fontWeight: FontWeight.w800)),
+        ]),
+      ]),
+    );
+    return fullWidth ? content : Expanded(child: content);
+  }
+}
+
 // ─── Widgets ──────────────────────────────────────────────────────────────────
 class _FinCard extends StatelessWidget {
   final String label, value, sub;
@@ -1000,25 +1222,6 @@ class _FinCard extends StatelessWidget {
             letterSpacing: -0.3)),
         Text(sub, style: TextStyle(fontSize: 10, color: highlight ? const Color(0xFF137333).withValues(alpha: 0.7) : AppTheme.textHint)),
       ])),
-    ]),
-  );
-}
-
-class _StatMini extends StatelessWidget {
-  final String label, value;
-  final Color color;
-  const _StatMini({required this.label, required this.value, required this.color});
-
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(14),
-    decoration: BoxDecoration(
-      color: color.withValues(alpha: 0.08),
-      borderRadius: BorderRadius.circular(14),
-    ),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(value, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: color)),
-      Text(label, style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
     ]),
   );
 }

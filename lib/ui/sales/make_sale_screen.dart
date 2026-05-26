@@ -43,6 +43,12 @@ class _MakeSaleScreenState extends State<MakeSaleScreen> {
   List<CartItem> _cart = [];
   bool _isConfirming = false;
 
+  @override
+  void initState() {
+    super.initState();
+    _service.cleanupExpiredReservations().ignore();
+  }
+
   String _activeWarehouseId(BuildContext ctx) =>
       ctx.read<WarehouseContext>().current?.id ?? AppUser.assignedWarehouseId;
 
@@ -299,15 +305,19 @@ class _MakeSaleScreenState extends State<MakeSaleScreen> {
                     else { _selectedIds.add(id); }
                   }),
                 )
-              : _Step2(
-                  cart: _cart,
-                  onSizeChanged: (ci, sizes) =>
-                      setState(() => _cart[ci].sizes = sizes),
-                  onDiscount: (ci) => _showDiscountSheet(ci),
-                  onRemove: (ci) => setState(() {
-                    _cart.removeAt(ci);
-                    if (_cart.isEmpty) _step = 0;
-                  }),
+              : StreamBuilder<List<ReservationModel>>(
+                  stream: _service.watchActiveReservations(),
+                  builder: (_, rSnap) => _Step2(
+                    cart: _cart,
+                    reservations: rSnap.data ?? const [],
+                    onSizeChanged: (ci, sizes) =>
+                        setState(() => _cart[ci].sizes = sizes),
+                    onDiscount: (ci) => _showDiscountSheet(ci),
+                    onRemove: (ci) => setState(() {
+                      _cart.removeAt(ci);
+                      if (_cart.isEmpty) _step = 0;
+                    }),
+                  ),
                 ),
         ),
 
@@ -689,12 +699,18 @@ class _Step1State extends State<_Step1> {
 // ── Қадам 2: Размерлер + скидка ──────────────────────────────────────────────
 class _Step2 extends StatelessWidget {
   final List<CartItem> cart;
+  final List<ReservationModel> reservations;
   final void Function(int, Map<String, int>) onSizeChanged;
   final void Function(int) onDiscount;
   final void Function(int) onRemove;
 
-  const _Step2({required this.cart, required this.onSizeChanged,
-      required this.onDiscount, required this.onRemove});
+  const _Step2({
+    required this.cart,
+    required this.reservations,
+    required this.onSizeChanged,
+    required this.onDiscount,
+    required this.onRemove,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -704,6 +720,7 @@ class _Step2 extends StatelessWidget {
       itemBuilder: (_, ci) => _CartCard(
         item: cart[ci],
         cartIndex: ci,
+        reservations: reservations,
         onSizeChanged: (s) => onSizeChanged(ci, s),
         onDiscount: () => onDiscount(ci),
         onRemove: () => onRemove(ci),
@@ -715,12 +732,19 @@ class _Step2 extends StatelessWidget {
 class _CartCard extends StatelessWidget {
   final CartItem item;
   final int cartIndex;
+  final List<ReservationModel> reservations;
   final void Function(Map<String, int>) onSizeChanged;
   final VoidCallback onDiscount;
   final VoidCallback onRemove;
 
-  const _CartCard({required this.item, required this.cartIndex,
-      required this.onSizeChanged, required this.onDiscount, required this.onRemove});
+  const _CartCard({
+    required this.item,
+    required this.cartIndex,
+    required this.reservations,
+    required this.onSizeChanged,
+    required this.onDiscount,
+    required this.onRemove,
+  });
 
   Map<String, int> get _availSizes {
     final m = Map.fromEntries(
@@ -802,11 +826,20 @@ class _CartCard extends StatelessWidget {
                 final size  = e.key;
                 final maxQ  = e.value;
                 final cartQ = item.sizes[size] ?? 0;
+                // Check if any active reservation blocks this size on this batch
+                final res = reservations.where((r) =>
+                    r.batchId == item.batch.id &&
+                    r.size    == size &&
+                    r.isActive).toList();
+                final isReserved  = res.isNotEmpty;
+                final minsLeft    = isReserved ? res.first.minutesLeft : 0;
                 return _SizeChip(
                   size: size, max: maxQ, cartQty: cartQ,
-                  onMinus: () => _setQty(size, cartQ - 1),
-                  onPlus:  () => _setQty(size, cartQ + 1),
-                  onTap: () => _showQtyInput(context, size, maxQ, cartQ),
+                  isReserved: isReserved,
+                  reservedMinutes: minsLeft,
+                  onMinus: isReserved ? null : () => _setQty(size, cartQ - 1),
+                  onPlus:  isReserved ? null : () => _setQty(size, cartQ + 1),
+                  onTap: isReserved ? null : () => _showQtyInput(context, size, maxQ, cartQ),
                 );
               }).toList()),
 
@@ -899,13 +932,42 @@ class _CartCard extends StatelessWidget {
 class _SizeChip extends StatelessWidget {
   final String size;
   final int max, cartQty;
-  final VoidCallback onMinus, onPlus, onTap;
+  final bool isReserved;
+  final int reservedMinutes;
+  final VoidCallback? onMinus, onPlus, onTap;
 
-  const _SizeChip({required this.size, required this.max, required this.cartQty,
-      required this.onMinus, required this.onPlus, required this.onTap});
+  const _SizeChip({
+    required this.size,
+    required this.max,
+    required this.cartQty,
+    this.isReserved = false,
+    this.reservedMinutes = 0,
+    required this.onMinus,
+    required this.onPlus,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
+    if (isReserved) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+            color: Colors.grey.shade100,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.grey.shade300)),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text(size, style: TextStyle(
+              fontSize: 13, fontWeight: FontWeight.w700,
+              color: Colors.grey.shade400)),
+          const SizedBox(height: 2),
+          Text('🔒 $reservedMinutes мин',
+              style: TextStyle(fontSize: 9, color: Colors.grey.shade500,
+                  fontWeight: FontWeight.w600)),
+        ]),
+      );
+    }
+
     final active = cartQty > 0;
     return Container(
       decoration: BoxDecoration(

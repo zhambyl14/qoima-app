@@ -4,6 +4,8 @@ import '../models/product_model.dart';
 import '../models/batch_model.dart';
 import '../models/sale_model.dart';
 import '../models/warehouse_model.dart';
+import '../models/store_model.dart';
+import '../models/reservation_model.dart';
 import '../../core/app_user.dart';
 
 class FirestoreService {
@@ -44,6 +46,13 @@ class FirestoreService {
 
   CollectionReference<Map<String, dynamic>> get _transfers =>
       _db.collection('users').doc(_adminUid).collection('transfers');
+
+  // Store document lives under the admin's own user path — no extra rules needed.
+  DocumentReference<Map<String, dynamic>> get _storeDoc =>
+      _db.collection('users').doc(_adminUid).collection('store').doc(_adminUid);
+
+  CollectionReference<Map<String, dynamic>> get _reservations =>
+      _db.collection('users').doc(_adminUid).collection('reservations');
 
   // ── Products ─────────────────────────────────────────────────────────────────
 
@@ -346,6 +355,13 @@ class FirestoreService {
       'isMain':    isMain,
       'createdAt': FieldValue.serverTimestamp(),
     });
+    // Auto-add new warehouse to store's visibleWarehouseIds if store exists
+    try {
+      await _storeDoc.update({
+        'visibleWarehouseIds': FieldValue.arrayUnion([ref.id]),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (_) {}
     return ref.id;
   }
 
@@ -672,6 +688,60 @@ class FirestoreService {
         'createdAt':       FieldValue.serverTimestamp(),
       });
     });
+  }
+  // ── Store ─────────────────────────────────────────────────────────────────────
+
+  Future<StoreModel?> getStore() async {
+    final doc = await _storeDoc.get();
+    if (!doc.exists) return null;
+    return StoreModel.fromFirestore(doc);
+  }
+
+  Stream<StoreModel?> watchStore() =>
+      _storeDoc.snapshots().map((doc) {
+        if (!doc.exists) return null;
+        return StoreModel.fromFirestore(doc);
+      });
+
+  Future<void> saveStore(StoreModel store) =>
+      _storeDoc.set(
+        {
+          ...store.toJson(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+
+  // ── Reservations ───────────────────────────────────────────────────────────────
+
+  Future<void> createReservation(ReservationModel reservation) =>
+      _reservations.doc(reservation.id).set(reservation.toJson());
+
+  Future<void> releaseReservation(String reservationId) =>
+      _reservations
+          .doc(reservationId)
+          .update({'status': ReservationModel.statusExpired});
+
+  Stream<List<ReservationModel>> watchActiveReservations() =>
+      _reservations
+          .where('status', isEqualTo: ReservationModel.statusActive)
+          .snapshots()
+          .map((s) => s.docs
+              .map(ReservationModel.fromFirestore)
+              .where((r) => r.expiresAt.isAfter(DateTime.now()))
+              .toList());
+
+  Future<void> cleanupExpiredReservations() async {
+    final now  = DateTime.now();
+    final snap = await _reservations
+        .where('status', isEqualTo: ReservationModel.statusActive)
+        .where('expiresAt', isLessThan: Timestamp.fromDate(now))
+        .get();
+    final wb = _db.batch();
+    for (final doc in snap.docs) {
+      wb.update(doc.reference, {'status': ReservationModel.statusExpired});
+    }
+    await wb.commit();
   }
 }
 

@@ -9,7 +9,10 @@ import 'firebase_options.dart';
 import 'theme/app_theme.dart';
 import 'ui/auth/login_screen.dart';
 import 'ui/main_shell.dart';
+import 'ui/profile/store_onboarding_screen.dart';
 import 'data/services/auth_service.dart';
+import 'data/services/firestore_service.dart';
+import 'data/models/store_model.dart';
 import 'core/app_user.dart';
 import 'core/warehouse_context.dart';
 import 'core/locale_context.dart';
@@ -67,6 +70,7 @@ class QoimaApp extends StatelessWidget {
                   return const _Splash();
                 }
                 if (futureSnap.data != true) return const LoginScreen();
+                if (AppUser.isAdmin) return const _AdminHomeRouter();
                 return const MainShell();
               },
             );
@@ -104,6 +108,33 @@ Future<bool> _loadSession(String uid, BuildContext context) async {
     return true;
   } catch (_) {
     return false;
+  }
+}
+
+class _AdminHomeRouter extends StatefulWidget {
+  const _AdminHomeRouter();
+  @override
+  State<_AdminHomeRouter> createState() => _AdminHomeRouterState();
+}
+
+class _AdminHomeRouterState extends State<_AdminHomeRouter> {
+  bool _forceMain = false;
+
+  @override
+  Widget build(BuildContext context) {
+    if (_forceMain) return const MainShell();
+    return StreamBuilder<StoreModel?>(
+      stream: FirestoreService().watchStore(),
+      builder: (_, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const _Splash();
+        }
+        if (snap.data != null) return const MainShell();
+        return StoreOnboardingScreen(
+          onDone: () => setState(() => _forceMain = true),
+        );
+      },
+    );
   }
 }
 
