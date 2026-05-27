@@ -6,6 +6,7 @@ import '../../core/warehouse_context.dart';
 import '../../data/models/models.dart';
 import '../../data/services/firestore_service.dart';
 import '../../theme/app_theme.dart';
+import '../shared/skeletons.dart';
 import 'add_product_screen.dart';
 import 'product_detail_screen.dart';
 
@@ -137,14 +138,13 @@ class _ProductsScreenState extends State<ProductsScreen> {
     // WarehouseContext now works for both admin AND seller (loaded via load()).
     // Fallback to AppUser.assignedWarehouseId for safety during initial load.
     final warehouseId = context.watch<WarehouseContext>().current?.id
-        ?? AppUser.assignedWarehouseId;
+        ?? context.read<AppUser>().assignedWarehouseId;
 
     return Scaffold(
       backgroundColor: AppTheme.background,
       body: StreamBuilder<List<ProductModel>>(
-        // key forces StreamBuilder to re-subscribe when warehouse changes,
-        // guaranteeing the product list always reflects the active warehouse.
         key: ValueKey(warehouseId),
+        initialData: _service.cachedProducts,
         stream: warehouseId.isNotEmpty
             ? _service
                 .watchProductsInWarehouse(warehouseId)
@@ -306,7 +306,9 @@ class _ProductsScreenState extends State<ProductsScreen> {
             // ── List ──────────────────────────────────────────────────
             if (snap.connectionState == ConnectionState.waiting)
               const SliverFillRemaining(
-                child: Center(child: CircularProgressIndicator(color: AppTheme.primary)))
+                hasScrollBody: true,
+                child: ProductsSkeleton(),
+              )
             else if (filtered.isEmpty)
               SliverFillRemaining(
                 child: Center(

@@ -21,9 +21,9 @@ class WarehouseContext extends ChangeNotifier {
   bool get hasMultiple => _all.length > 1;
 
   Future<void> load() async {
-    if (AppUser.isAdmin) {
+    if (AppUser.current.isAdmin) {
       await _loadForAdmin();
-    } else if (AppUser.isSeller) {
+    } else if (AppUser.current.isSeller) {
       await _loadForSeller();
     }
   }
@@ -64,12 +64,12 @@ class WarehouseContext extends ChangeNotifier {
   // immediately reflected in the UI without needing to restart the app.
   Future<void> _loadForSeller() async {
     await _sellerSub?.cancel();
-    if (AppUser.ownerUid.isEmpty) return; // Not yet linked to an admin.
+    if (AppUser.current.ownerUid.isEmpty) return; // Not yet linked to an admin.
     try {
       final service      = FirestoreService();
       final warehouses   = await service.getWarehouses();
       _all               = warehouses;
-      final warehouseId  = AppUser.assignedWarehouseId;
+      final warehouseId  = AppUser.current.assignedWarehouseId;
       if (warehouseId.isNotEmpty) {
         _current = _all.firstWhere(
           (w) => w.id == warehouseId,
@@ -83,7 +83,7 @@ class WarehouseContext extends ChangeNotifier {
         (newId) async {
           if (newId.isEmpty || newId == (_current?.id ?? '')) return;
           try {
-            AppUser.assignedWarehouseId = newId;
+            AppUser.current.assignedWarehouseId = newId;
             final whs = await service.getWarehouses();
             _all     = whs;
             _current = _all.firstWhere(
@@ -103,20 +103,6 @@ class WarehouseContext extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_prefKey, wh.id);
     _current = wh;
-    notifyListeners();
-  }
-
-  // Kept for external callers that still pass data in (e.g., migration code).
-  void refresh(List<WarehouseModel> warehouses) {
-    _all = warehouses;
-    if (_current != null) {
-      _current = _all.firstWhere(
-        (w) => w.id == _current!.id,
-        orElse: () => _all.isNotEmpty ? _all.first : _current!,
-      );
-    } else if (_all.isNotEmpty) {
-      _current = _all.firstWhere((w) => w.isMain, orElse: () => _all.first);
-    }
     notifyListeners();
   }
 

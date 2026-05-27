@@ -1,31 +1,30 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../l10n/app_localizations.dart';
+
+extension MoneyFmt on num {
+  String get money =>
+      '${NumberFormat('#,###', 'ru').format(this).replaceAll(',', ' ')} ₸';
+}
 
 extension L10nContext on BuildContext {
   AppLocalizations get l10n => AppLocalizations.of(this)!;
 
-  List<String> get monthAbbreviations {
-    final isKk = Localizations.localeOf(this).languageCode == 'kk';
-    return isKk
-        ? ['Қаң', 'Ақп', 'Нау', 'Сәу', 'Мам', 'Мау', 'Шіл', 'Там', 'Қыр', 'Қаз', 'Қар', 'Жел']
-        : ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
-  }
+  String money(num amount) =>
+      '${NumberFormat('#,##0', 'ru').format(amount.round())} ₸';
 
-  List<String> get monthNames {
-    final isKk = Localizations.localeOf(this).languageCode == 'kk';
-    return isKk
-        ? ['Қаңтар', 'Ақпан', 'Наурыз', 'Сәуір', 'Мамыр', 'Маусым', 'Шілде', 'Тамыз', 'Қыркүйек', 'Қазан', 'Қараша', 'Желтоқсан']
-        : ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
-  }
+  String date(DateTime d) =>
+      DateFormat('dd.MM.yyyy').format(d);
+
+  List<String> get monthAbbreviations =>
+      ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
+
+  List<String> get monthNames =>
+      ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
 
   String monthShort(DateTime d) => '${monthAbbreviations[d.month - 1]} ${d.year}';
 
   String monthLong(DateTime d) => '${monthNames[d.month - 1]} ${d.year}';
 
-  String forMonth(DateTime d) {
-    final isKk = Localizations.localeOf(this).languageCode == 'kk';
-    return isKk
-        ? '${monthNames[d.month - 1]} айы үшін'
-        : 'За ${monthNames[d.month - 1]}';
-  }
+  String forMonth(DateTime d) => 'За ${monthNames[d.month - 1]}';
 }

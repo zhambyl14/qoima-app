@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../core/l10n_ext.dart';
 import '../../data/services/auth_service.dart';
+import 'package:provider/provider.dart';
 import '../../core/app_user.dart';
 import '../../theme/app_theme.dart';
 import '../main_shell.dart';
@@ -50,8 +51,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
       );
       final uid = _authService.currentUid!;
       final userDoc = await _authService.getUserDoc(uid);
-      if (userDoc != null) {
-        AppUser.set(
+      if (userDoc != null && mounted) {
+        context.read<AppUser>().set(
           uid:                 userDoc.uid,
           ownerUid:            userDoc.ownerId,
           name:                userDoc.name,

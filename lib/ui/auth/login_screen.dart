@@ -1,8 +1,10 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../core/l10n_ext.dart';
 import '../../data/services/auth_service.dart';
+import '../../theme/app_theme.dart';
 import 'register_screen.dart';
+import 'client_login_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -12,13 +14,13 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _emailCtrl = TextEditingController();
-  final _passwordCtrl = TextEditingController();
-  final _authService = AuthService();
+  final _formKey       = GlobalKey<FormState>();
+  final _emailCtrl     = TextEditingController();
+  final _passwordCtrl  = TextEditingController();
+  final _authService   = AuthService();
 
-  bool _isLoading = false;
-  bool _obscurePassword = true;
+  bool    _isLoading        = false;
+  bool    _obscurePassword  = true;
   String? _errorMessage;
 
   @override
@@ -30,19 +32,15 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _signIn() async {
     if (!_formKey.currentState!.validate()) return;
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
-
+    setState(() { _isLoading = true; _errorMessage = null; });
     try {
       await _authService.signIn(
-        email: _emailCtrl.text,
+        email:    _emailCtrl.text,
         password: _passwordCtrl.text,
       );
     } on FirebaseAuthException catch (e) {
       setState(() => _errorMessage = AuthService.parseError(e));
-    } catch (e) {
+    } catch (_) {
       if (mounted) setState(() => _errorMessage = context.l10n.unknownError);
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -52,7 +50,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
+      backgroundColor: AppTheme.background,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -62,20 +60,14 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // ── Тек Үлкен Премиум Логотип (Жазулар алынды) ──────────────
+                  // ── Logo ──────────────────────────────────────────────
                   Container(
-                    width: 160, // Көз тартарлық үлкен өлшем
+                    width: 160,
                     height: 160,
                     decoration: BoxDecoration(
-                      color: Colors.white, 
-                      borderRadius: BorderRadius.circular(36), // Үлкен контейнерге сәйкес жұмсақ бұрыштар
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.04),
-                          blurRadius: 14,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(36),
+                      boxShadow: cardShadow,
                     ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(36),
@@ -85,34 +77,44 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                   ),
-                  
-                  // Сәнді аралық (Инпуттарға дейін)
-                  const SizedBox(height: 50),
+                  const SizedBox(height: 20),
+                  const Text('Qoima',
+                      style: TextStyle(
+                          color: AppTheme.textPrimary,
+                          fontSize: 28,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -1)),
+                  const SizedBox(height: 4),
+                  const Text('Қойма менеджменті',
+                      style: TextStyle(
+                          color: AppTheme.textSecondary, fontSize: 14)),
+                  const SizedBox(height: 40),
 
-                  // ── Email ────────────────────────────────────────────────
+                  // ── Email ─────────────────────────────────────────────
                   TextFormField(
                     controller: _emailCtrl,
                     keyboardType: TextInputType.emailAddress,
-                    decoration: _inputDecoration(
-                      label: context.l10n.email,
-                      icon: Icons.email_outlined,
-                    ),
+                    decoration: _inputDeco(
+                        label: context.l10n.email,
+                        icon: Icons.email_outlined),
                     validator: (v) {
-                      if (v == null || v.trim().isEmpty) return context.l10n.validationEmailRequired;
+                      if (v == null || v.trim().isEmpty) {
+                        return context.l10n.validationEmailRequired;
+                      }
                       if (!v.contains('@')) return context.l10n.validationEmail;
                       return null;
                     },
                   ),
                   const SizedBox(height: 16),
 
-                  // ── Пароль ───────────────────────────────────────────────
+                  // ── Пароль ────────────────────────────────────────────
                   TextFormField(
                     controller: _passwordCtrl,
                     obscureText: _obscurePassword,
-                    decoration: _inputDecoration(
-                      label: context.l10n.password,
-                      icon: Icons.lock_outlined,
-                    ).copyWith(
+                    decoration: _inputDeco(
+                            label: context.l10n.password,
+                            icon: Icons.lock_outlined)
+                        .copyWith(
                       suffixIcon: IconButton(
                         icon: Icon(_obscurePassword
                             ? Icons.visibility_outlined
@@ -122,100 +124,101 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                     validator: (v) {
-                      if (v == null || v.isEmpty) return context.l10n.validationPasswordRequired;
+                      if (v == null || v.isEmpty) {
+                        return context.l10n.validationPasswordRequired;
+                      }
                       if (v.length < 6) return context.l10n.validationPasswordMin;
                       return null;
                     },
                   ),
                   const SizedBox(height: 12),
 
-                  // ── Ошибка ───────────────────────────────────────────────
+                  // ── Қате ─────────────────────────────────────────────
                   if (_errorMessage != null)
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.red.shade50,
+                        color: AppTheme.dangerLight,
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.red.shade200),
+                        border: Border.all(
+                            color: AppTheme.danger.withValues(alpha: 0.3)),
                       ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.error_outline,
-                              color: Colors.red.shade700, size: 18),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              _errorMessage!,
-                              style: TextStyle(
-                                color: Colors.red.shade700,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+                      child: Row(children: [
+                        const Icon(Icons.error_outline,
+                            color: AppTheme.danger, size: 18),
+                        const SizedBox(width: 8),
+                        Expanded(
+                            child: Text(_errorMessage!,
+                                style: const TextStyle(
+                                    color: AppTheme.danger, fontSize: 13))),
+                      ]),
                     ),
                   const SizedBox(height: 24),
 
-                  // ── Кнопка входа ─────────────────────────────────────────
+                  // ── Кіру ─────────────────────────────────────────────
                   SizedBox(
                     width: double.infinity,
                     height: 52,
                     child: ElevatedButton(
                       onPressed: _isLoading ? null : _signIn,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF1A237E),
+                        backgroundColor: AppTheme.primary,
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+                            borderRadius: BorderRadius.circular(14)),
                         elevation: 0,
                       ),
                       child: _isLoading
                           ? const SizedBox(
-                              width: 22,
-                              height: 22,
+                              width: 22, height: 22,
                               child: CircularProgressIndicator(
-                                color: Colors.white,
-                                strokeWidth: 2.5,
-                              ),
-                            )
-                          : Text(
-                              context.l10n.signIn,
+                                  color: Colors.white, strokeWidth: 2.5))
+                          : Text(context.l10n.signIn,
                               style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
+                                  fontSize: 16, fontWeight: FontWeight.w600)),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // ── Сатып алушы ───────────────────────────────────────
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const ClientLoginScreen())),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppTheme.primary,
+                        side: const BorderSide(color: AppTheme.primary),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
+                      ),
+                      child: const Text('Сатып алушы ретінде кіру',
+                          style: TextStyle(
+                              fontSize: 15, fontWeight: FontWeight.w600)),
                     ),
                   ),
                   const SizedBox(height: 20),
 
-                  // ── Переход к регистрации ────────────────────────────────
+                  // ── Тіркелу ───────────────────────────────────────────
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(
-                        context.l10n.noAccount,
-                        style: const TextStyle(color: Colors.grey),
-                      ),
+                      Text(context.l10n.noAccount,
+                          style: const TextStyle(
+                              color: AppTheme.textSecondary)),
                       TextButton(
-                        onPressed: () {
-                          Navigator.push(
+                        onPressed: () => Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => const RegisterScreen(),
-                            ),
-                          );
-                        },
-                        child: Text(
-                          context.l10n.register,
-                          style: const TextStyle(
-                            color: Color(0xFF1A237E),
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                                builder: (_) => const RegisterScreen())),
+                        child: Text(context.l10n.register,
+                            style: const TextStyle(
+                                color: AppTheme.primary,
+                                fontWeight: FontWeight.w600)),
                       ),
                     ],
                   ),
@@ -228,31 +231,25 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  InputDecoration _inputDecoration({
-    required String label,
-    required IconData icon,
-  }) {
+  InputDecoration _inputDeco(
+      {required String label, required IconData icon}) {
     return InputDecoration(
       labelText: label,
-      prefixIcon: Icon(icon, color: const Color(0xFF1A237E)),
+      prefixIcon: Icon(icon, color: AppTheme.primary),
       filled: true,
       fillColor: Colors.white,
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.grey.shade300),
-      ),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppTheme.border)),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.grey.shade300),
-      ),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppTheme.border)),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Color(0xFF1A237E), width: 2),
-      ),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppTheme.primary, width: 2)),
       errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Colors.red),
-      ),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppTheme.danger)),
     );
   }
 }

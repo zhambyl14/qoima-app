@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class LocaleContext extends ChangeNotifier {
   static const _prefKey = 'app_locale';
 
-  Locale _locale = const Locale('kk');
+  Locale _locale = const Locale('ru');
   Locale get locale => _locale;
 
   LocaleContext() {

@@ -23,8 +23,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   @override
   void initState() {
     super.initState();
-    _tabCtrl = TabController(length: 3, vsync: this);
-    if (!AppUser.isAdmin) {
+    _tabCtrl = TabController(length: 4, vsync: this);
+    if (!context.read<AppUser>().isAdmin) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) Navigator.of(context).pop();
       });
@@ -144,6 +144,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
                       Tab(text: context.l10n.generalTab),
                       Tab(text: context.l10n.sellersTab),
                       Tab(text: context.l10n.warehouseTab),
+                      const Tab(text: 'Онлайн'),
                     ],
                   ),
                 ]),
@@ -163,6 +164,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
                 ),
                 _SellersTab(month: _month),
                 _WarehousesTab(month: _month),
+                _OnlineTab(month: _month),
               ],
             ),
           ),
@@ -188,39 +190,22 @@ class _OverviewTab extends StatefulWidget {
 }
 
 class _OverviewTabState extends State<_OverviewTab> {
+  Future<double>? _costFuture;
+  String _costKey = '';
+
+  Future<double> _stableCostFuture(List<SaleModel> sales) {
+    final key = '${widget.month.year}-${widget.month.month}-${sales.length}';
+    if (key != _costKey || _costFuture == null) {
+      _costKey = key;
+      _costFuture = _calcCost(sales);
+    }
+    return _costFuture!;
+  }
+
   List<SaleModel> _byMonth(List<SaleModel> all) => all
       .where((s) => s.saleDate.month == widget.month.month &&
                     s.saleDate.year  == widget.month.year)
       .toList();
-
-  // Count batches (new deliveries) that arrived in the given month
-  Future<int> _newDeliveries(List<SaleModel> allSales) async {
-    final products = await widget.service.watchProducts().first;
-    int count = 0;
-    for (final p in products) {
-      final batches = await widget.service.getBatches(p.id);
-      count += batches
-          .where((b) =>
-              b.dateArrived.month == widget.month.month &&
-              b.dateArrived.year  == widget.month.year)
-          .length;
-    }
-    return count;
-  }
-
-  // Count distinct productIds that had a new batch arrive this month
-  Future<int> _newProducts() async {
-    final products = await widget.service.watchProducts().first;
-    int count = 0;
-    for (final p in products) {
-      final batches = await widget.service.getBatches(p.id);
-      final hasNew = batches.any((b) =>
-          b.dateArrived.month == widget.month.month &&
-          b.dateArrived.year  == widget.month.year);
-      if (hasNew) count++;
-    }
-    return count;
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -279,8 +264,6 @@ class _OverviewTabState extends State<_OverviewTab> {
             DateTime(widget.month.year, widget.month.month - 1)),
         onNext: () => widget.onMonthChanged(
             DateTime(widget.month.year, widget.month.month + 1)),
-        newDeliveriesFuture: _newDeliveries(allSales),
-        newProductsFuture: _newProducts(),
       ),
       const SizedBox(height: 20),
 
@@ -303,7 +286,7 @@ class _OverviewTabState extends State<_OverviewTab> {
 
       // Расчёт себестоимости через FutureBuilder
       FutureBuilder<double>(
-        future: _calcCost(mSales),
+        future: _stableCostFuture(mSales),
         builder: (_, snap) {
           final cost = snap.data ?? 0;
           final profit = revenue - cost;
@@ -331,6 +314,34 @@ class _OverviewTabState extends State<_OverviewTab> {
           ]);
         },
       ),
+      // ── Жұп статистикасы ────────────────────────────────────────────
+      const SizedBox(height: 10),
+      Row(children: [
+        Expanded(
+          child: FutureBuilder<int>(
+            future: widget.service.getArrivedPairsForMonth(widget.month),
+            builder: (_, snap) => _FinCard(
+              label: 'Пар получено',
+              value: '${snap.data ?? 0} пар',
+              icon: Icons.inventory_2_outlined,
+              iconBg: const Color(0xFFEFF4FF),
+              iconColor: AppTheme.primary,
+              sub: 'в этом месяце',
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _FinCard(
+            label: 'Пар продано',
+            value: '${mSales.fold<int>(0, (s, e) => s + e.quantity)} пар',
+            icon: Icons.shopping_bag_outlined,
+            iconBg: AppTheme.successLight,
+            iconColor: AppTheme.success,
+            sub: 'в этом месяце',
+          ),
+        ),
+      ]),
       const SizedBox(height: 24),
 
       // ── Топ продаж ───────────────────────────────────────────────────
@@ -418,16 +429,24 @@ class _OverviewTabState extends State<_OverviewTab> {
 
   // ── Себестоимость через партии ──────────────────────────────────────────
   Future<double> _calcCost(List<SaleModel> sales) async {
+    if (sales.isEmpty) return 0;
+    // Fetch batches once per unique product (not once per sale).
+    final uniquePids = sales.map((s) => s.productId).toSet();
+    final batchMap = <String, List<BatchModel>>{};
+    await Future.wait(uniquePids.map((pid) async {
+      try { batchMap[pid] = await widget.service.getBatches(pid); }
+      catch (_) { batchMap[pid] = []; }
+    }));
     double total = 0;
     for (final s in sales) {
-      try {
-        final batches = await widget.service.getBatches(s.productId);
-        final batch = batches.firstWhere((b) => b.id == s.batchId,
-            orElse: () => batches.isNotEmpty ? batches.first :
-                BatchModel(id: '', dateArrived: DateTime.now(),
-                    purchasePrice: 0, sellingPrice: 0, sizesQuantity: {}));
-        total += batch.purchasePrice * s.quantity;
-      } catch (_) {}
+      final batches = batchMap[s.productId] ?? [];
+      if (batches.isEmpty) continue;
+      BatchModel? found;
+      if (s.batchId.isNotEmpty) {
+        for (final b in batches) { if (b.id == s.batchId) { found = b; break; } }
+      }
+      found ??= batches.first;
+      total += found.purchasePrice * s.quantity;
     }
     return total;
   }
@@ -611,7 +630,7 @@ class _WarehousesTab extends StatelessWidget {
                 _WhStatCard(stat: stat, grandTotal: grandTotal),
                 if (wSales.isNotEmpty) ...[
                   const SizedBox(height: 6),
-                  _SectionLabel('${stat.name}: күндік белсенділік'),
+                  _SectionLabel('${stat.name}: дневная активность'),
                   const SizedBox(height: 6),
                   _DailyChart(
                     sales: wSales,
@@ -763,7 +782,7 @@ class _SellerStatCard extends StatelessWidget {
                       fontWeight: FontWeight.w800, color: AppTheme.success)),
             ]),
             const SizedBox(height: 2),
-            Text('${stat.salesCount} сат · ${share.toStringAsFixed(0)}% үлес',
+            Text('${stat.salesCount} прод · ${share.toStringAsFixed(0)}% доля',
                 style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
             const SizedBox(height: 6),
             ClipRRect(borderRadius: BorderRadius.circular(3),
@@ -788,17 +807,17 @@ class _SellerKpiRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Row(children: [
-    _KpiMini(label: 'Белсенді', value: '${ranked.length}',
-        sub: 'саттушы', color: AppTheme.primary),
+    _KpiMini(label: 'Активных', value: '${ranked.length}',
+        sub: 'продавцов', color: AppTheme.primary),
     const SizedBox(width: 8),
-    _KpiMini(label: 'Жалпы выручка',
+    _KpiMini(label: 'Общая выручка',
         value: '${(grandTotal / 1000).toStringAsFixed(0)}K',
         sub: '₸', color: AppTheme.success),
     if (ranked.isNotEmpty) ...[
       const SizedBox(width: 8),
-      _KpiMini(label: 'Топ саттушы',
+      _KpiMini(label: 'Топ продавец',
           value: ranked.first.name.split(' ').first,
-          sub: '${ranked.first.salesCount} сат',
+          sub: '${ranked.first.salesCount} прод.',
           color: const Color(0xFFB45309)),
     ],
   ]);
@@ -905,7 +924,7 @@ class _DailyChartState extends State<_DailyChart> {
                         color: AppTheme.success),
                   ),
                 ] else ...[
-                  const Text('Барлығы',
+                  const Text('Итого',
                       style: TextStyle(fontSize: 12, color: AppTheme.textHint)),
                   const Spacer(),
                   Text(
@@ -997,6 +1016,115 @@ class _DailyChartState extends State<_DailyChart> {
   }
 }
 
+// ── _OnlineTab — онлайн заказы за месяц ──────────────────────────────────────
+class _OnlineTab extends StatelessWidget {
+  final DateTime month;
+  const _OnlineTab({required this.month});
+
+  List<OrderModel> _forMonth(List<OrderModel> all) => all
+      .where((o) => o.createdAt.month == month.month && o.createdAt.year == month.year)
+      .toList();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<OrderModel>>(
+      stream: FirestoreService().watchOnlineOrders(),
+      builder: (_, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator(color: AppTheme.primary));
+        }
+        final orders  = _forMonth(snap.data ?? []);
+        final total   = orders.length;
+        final active  = orders.where((o) =>
+            o.status == OrderModel.statusReserved ||
+            o.status == OrderModel.statusPending).length;
+        final done    = orders.where((o) => o.status == OrderModel.statusCompleted).length;
+        final cancelled = orders.where((o) => o.status == OrderModel.statusCancelled).length;
+
+        // Revenue = completed orders only
+        final revenue = orders
+            .where((o) => o.status == OrderModel.statusCompleted)
+            .fold<double>(0, (s, o) => s + o.totalWithDelivery);
+        final depositCollected = orders
+            .where((o) => o.isSmartReservation)
+            .fold<double>(0, (s, o) => s + o.depositAmount);
+
+        final convRate = total > 0 ? (done / total * 100) : 0.0;
+
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 30),
+          children: [
+            if (total == 0)
+              const Padding(
+                padding: EdgeInsets.only(top: 60),
+                child: Column(children: [
+                  Icon(Icons.shopping_bag_outlined, size: 56, color: AppTheme.textHint),
+                  SizedBox(height: 12),
+                  Text('Нет онлайн-заказов за этот месяц',
+                      style: TextStyle(fontSize: 15, color: AppTheme.textSecondary)),
+                ]),
+              )
+            else ...[
+              // KPI row 1
+              Row(children: [
+                _KpiMini(label: 'Всего заказов', value: '$total',
+                    sub: 'за месяц', color: AppTheme.primary),
+                const SizedBox(width: 8),
+                _KpiMini(label: 'Завершено', value: '$done',
+                    sub: '${convRate.toStringAsFixed(0)}% конверсия',
+                    color: AppTheme.success),
+              ]),
+              const SizedBox(height: 10),
+              // KPI row 2
+              Row(children: [
+                _KpiMini(label: 'Активных', value: '$active',
+                    sub: 'ждут обработки', color: AppTheme.warning),
+                const SizedBox(width: 8),
+                _KpiMini(label: 'Отменено', value: '$cancelled',
+                    sub: 'за месяц', color: AppTheme.danger),
+              ]),
+              const SizedBox(height: 16),
+
+              // Revenue card
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                      colors: [Color(0xFF1E3A8A), Color(0xFF2D4FB5)],
+                      begin: Alignment.topLeft, end: Alignment.bottomRight),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const Text('ВЫРУЧКА ОТ ОНЛАЙН',
+                      style: TextStyle(color: Colors.white54, fontSize: 10,
+                          fontWeight: FontWeight.w700, letterSpacing: 0.8)),
+                  const SizedBox(height: 6),
+                  Text(
+                    revenue >= 1000
+                        ? '${(revenue / 1000).toStringAsFixed(0)}K ₸'
+                        : '${revenue.toStringAsFixed(0)} ₸',
+                    style: const TextStyle(color: Colors.white, fontSize: 28,
+                        fontWeight: FontWeight.w900, letterSpacing: -0.5),
+                  ),
+                  if (depositCollected > 0) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      'Депозиты (смарт-бронь): ${depositCollected.toStringAsFixed(0)} ₸',
+                      style: const TextStyle(color: Colors.white60, fontSize: 12),
+                    ),
+                  ],
+                ]),
+              ),
+              const SizedBox(height: 16),
+
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
 // ─── Data classes ─────────────────────────────────────────────────────────────
 class _FastItem { final ProductModel product; final int days; final double margin; final BatchModel batch;
   _FastItem({required this.product, required this.days, required this.margin, required this.batch}); }
@@ -1010,8 +1138,6 @@ class _MonthSummaryBlock extends StatelessWidget {
   final FirestoreService service;
   final VoidCallback onPrev;
   final VoidCallback onNext;
-  final Future<int> newDeliveriesFuture;
-  final Future<int> newProductsFuture;
 
   const _MonthSummaryBlock({
     required this.month,
@@ -1019,27 +1145,18 @@ class _MonthSummaryBlock extends StatelessWidget {
     required this.service,
     required this.onPrev,
     required this.onNext,
-    required this.newDeliveriesFuture,
-    required this.newProductsFuture,
   });
 
   static String _monthName(int m) {
     const names = [
-      'Қаңтар','Ақпан','Наурыз','Сәуір','Мамыр','Маусым',
-      'Шілде','Тамыз','Қыркүйек','Қазан','Қараша','Желтоқсан',
+      'Январь','Февраль','Март','Апрель','Май','Июнь',
+      'Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь',
     ];
     return names[m - 1];
   }
 
-  static String _fmtK(double v) {
-    if (v >= 1000000) return '${(v / 1000000).toStringAsFixed(1)}M';
-    if (v >= 1000)    return '${(v / 1000).toStringAsFixed(0)}K';
-    return v.toStringAsFixed(0);
-  }
-
   @override
   Widget build(BuildContext context) {
-    final revenue    = mSales.fold<double>(0, (s, e) => s + e.totalPrice);
     final soldPairs  = mSales.fold<int>(0, (s, e) => s + e.quantity);
     final now        = DateTime.now();
     final isCurrentMonth =
@@ -1076,7 +1193,7 @@ class _MonthSummaryBlock extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('АЙДЫҢ НӘТИЖЕСІ',
+                const Text('ИТОГИ МЕСЯЦА',
                     style: TextStyle(color: Colors.white54,
                         fontSize: 9, fontWeight: FontWeight.w700,
                         letterSpacing: 1)),
@@ -1104,50 +1221,23 @@ class _MonthSummaryBlock extends StatelessWidget {
         ]),
         const SizedBox(height: 14),
 
-        // ── 2×2 stats grid ─────────────────────────────────────────────
+        // ── 2 tile stats ───────────────────────────────────────────────
         Row(children: [
           _SummaryTile(
-            label: 'Оборот',
-            value: '${_fmtK(revenue)} ₸',
-            icon: Icons.trending_up_rounded,
-          ),
-          const SizedBox(width: 8),
-          _SummaryTile(
-            label: 'Сатылды',
-            value: '$soldPairs жұп',
+            label: 'Продано',
+            value: '$soldPairs пар',
             icon: Icons.shopping_bag_outlined,
           ),
-        ]),
-        const SizedBox(height: 8),
-        Row(children: [
+          const SizedBox(width: 8),
           FutureBuilder<int>(
             future: service.getArrivedPairsForMonth(month),
             builder: (_, snap) => _SummaryTile(
-              label: 'Түсті',
-              value: '${snap.data ?? 0} жұп',
+              label: 'Получено',
+              value: '${snap.data ?? 0} пар',
               icon: Icons.inventory_2_outlined,
             ),
           ),
-          const SizedBox(width: 8),
-          FutureBuilder<int>(
-            future: newDeliveriesFuture,
-            builder: (_, snap) => _SummaryTile(
-              label: 'Жеткізу',
-              value: '${snap.data ?? 0} рет',
-              icon: Icons.local_shipping_outlined,
-            ),
-          ),
         ]),
-        const SizedBox(height: 8),
-        FutureBuilder<int>(
-          future: newProductsFuture,
-          builder: (_, snap) => _SummaryTile(
-            label: 'Жаңа тауар',
-            value: '${snap.data ?? 0} атау',
-            icon: Icons.new_releases_outlined,
-            fullWidth: true,
-          ),
-        ),
       ]),
     );
   }
@@ -1156,36 +1246,35 @@ class _MonthSummaryBlock extends StatelessWidget {
 class _SummaryTile extends StatelessWidget {
   final String label, value;
   final IconData icon;
-  final bool fullWidth;
 
   const _SummaryTile({
     required this.label,
     required this.value,
     required this.icon,
-    this.fullWidth = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final content = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(12)),
-      child: Row(children: [
-        Icon(icon, color: Colors.white70, size: 16),
-        const SizedBox(width: 8),
-        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(label,
-              style: const TextStyle(color: Colors.white54,
-                  fontSize: 10, fontWeight: FontWeight.w500)),
-          Text(value,
-              style: const TextStyle(color: Colors.white,
-                  fontSize: 14, fontWeight: FontWeight.w800)),
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(12)),
+        child: Row(children: [
+          Icon(icon, color: Colors.white70, size: 16),
+          const SizedBox(width: 8),
+          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(label,
+                style: const TextStyle(color: Colors.white54,
+                    fontSize: 10, fontWeight: FontWeight.w500)),
+            Text(value,
+                style: const TextStyle(color: Colors.white,
+                    fontSize: 14, fontWeight: FontWeight.w800)),
+          ]),
         ]),
-      ]),
+      ),
     );
-    return fullWidth ? content : Expanded(child: content);
   }
 }
 

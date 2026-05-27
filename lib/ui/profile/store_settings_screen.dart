@@ -72,7 +72,7 @@ class _StoreSettingsScreenState extends State<StoreSettingsScreen> {
       final now  = DateTime.now();
       final name = _nameCtrl.text.trim();
       final updated = StoreModel(
-        adminUid:            AppUser.uid,
+        adminUid:            context.read<AppUser>().uid,
         storeName:           name,
         storeSlug:           StoreModel.generateSlug(name),
         logoUrl:             _store?.logoUrl ?? '',
@@ -174,7 +174,7 @@ class _StoreSettingsScreenState extends State<StoreSettingsScreen> {
                 const SizedBox(height: 14),
 
                 // Phone
-                _FieldLabel('Телефон'),
+                _FieldLabel('Телефон *'),
                 const SizedBox(height: 6),
                 TextFormField(
                   controller: _phoneCtrl,
@@ -184,6 +184,11 @@ class _StoreSettingsScreenState extends State<StoreSettingsScreen> {
                       hintText: '87001234567',
                       prefixIcon: Icon(Icons.phone_outlined),
                       prefixText: '+7 '),
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) return 'Телефон нөмірін енгізіңіз';
+                    if (v.trim().length < 10) return 'Телефон нөмірі дұрыс емес';
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 14),
 

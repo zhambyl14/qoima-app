@@ -23,9 +23,11 @@ class _SalesScreenState extends State<SalesScreen> {
       .toList();
 
   // Саттушы: тек өз сатылымдарын көреді
-  List<SaleModel> _filterSeller(List<SaleModel> all) => AppUser.isAdmin
-      ? all
-      : all.where((s) => s.sellerId == AppUser.uid).toList();
+  List<SaleModel> _filterSeller(
+          List<SaleModel> all, AppUser appUser) =>
+      appUser.isAdmin
+          ? all
+          : all.where((s) => s.sellerId == appUser.uid).toList();
 
   void _showHistorySheet(List<SaleModel> all, List<ProductModel> products,
       List<WarehouseModel> warehouses) {
@@ -40,7 +42,7 @@ class _SalesScreenState extends State<SalesScreen> {
         minChildSize: 0.5,
         expand: false,
         builder: (_, ctrl) => _HistorySheet(
-          sales: _filterSeller(all),
+          sales: _filterSeller(all, context.read<AppUser>()),
           products: products,
           warehouses: warehouses,
           scrollCtrl: ctrl,
@@ -51,6 +53,7 @@ class _SalesScreenState extends State<SalesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final appUser    = context.watch<AppUser>();
     final warehouses = context.watch<WarehouseContext>().all;
     return Scaffold(
       backgroundColor: AppTheme.background,
@@ -69,8 +72,8 @@ class _SalesScreenState extends State<SalesScreen> {
           return StreamBuilder<List<ProductModel>>(
             stream: _service.watchProducts(),
             builder: (_, prodSnap) {
-              final products = prodSnap.data ?? [];
-              final monthSales = _filterSeller(_filterMonth(allSales));
+              final products  = prodSnap.data ?? [];
+              final monthSales = _filterSeller(_filterMonth(allSales), appUser);
               final total = monthSales.fold<double>(0, (s, e) => s + e.totalPrice);
 
               return CustomScrollView(slivers: [
@@ -92,7 +95,7 @@ class _SalesScreenState extends State<SalesScreen> {
                                   style: const TextStyle(color: Colors.white, fontSize: 26,
                                       fontWeight: FontWeight.w800, letterSpacing: -0.5)),
                               Text(
-                                AppUser.isAdmin ? context.l10n.overviewSub : context.l10n.makeSaleHint,
+                                appUser.isAdmin ? context.l10n.overviewSub : context.l10n.makeSaleHint,
                                 style: const TextStyle(color: Colors.white60, fontSize: 13),
                               ),
                             ]),
@@ -126,7 +129,7 @@ class _SalesScreenState extends State<SalesScreen> {
                     sales: monthSales,
                     total: total,
                     month: _month,
-                    showRevenue: AppUser.isAdmin,
+                    showRevenue: appUser.isAdmin,
                     products: products,
                     warehouses: warehouses,
                     onMonthTap: _pickMonth,

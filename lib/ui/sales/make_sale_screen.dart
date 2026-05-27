@@ -50,7 +50,7 @@ class _MakeSaleScreenState extends State<MakeSaleScreen> {
   }
 
   String _activeWarehouseId(BuildContext ctx) =>
-      ctx.read<WarehouseContext>().current?.id ?? AppUser.assignedWarehouseId;
+      ctx.read<WarehouseContext>().current?.id ?? ctx.read<AppUser>().assignedWarehouseId;
 
   Stream<List<ProductModel>> _productStream(String whId) {
     if (whId.isNotEmpty) {
@@ -95,7 +95,7 @@ class _MakeSaleScreenState extends State<MakeSaleScreen> {
     }
 
     if (noStock.isNotEmpty && mounted) {
-      _snack('Бұл қоймада жоқ: ${noStock.join(', ')}', isError: true);
+      _snack('Нет на этом складе: ${noStock.join(', ')}', isError: true);
     }
     if (items.isEmpty) {
       if (mounted) setState(() => _isConfirming = false);
@@ -112,7 +112,7 @@ class _MakeSaleScreenState extends State<MakeSaleScreen> {
     try {
       final validItems = _cart.where((c) => c.qty > 0).toList();
       if (validItems.isEmpty) {
-        _snack('Кем дегенде 1 жұп таңдаңыз', isError: true);
+        _snack('Выберите хотя бы 1 пару', isError: true);
         return;
       }
 
@@ -156,7 +156,7 @@ class _MakeSaleScreenState extends State<MakeSaleScreen> {
           content: Row(children: [
             const Icon(Icons.check_circle, color: Colors.white),
             const SizedBox(width: 8),
-            Text('Сатылды $totalQty жұп · ${totalPrice.toStringAsFixed(0)} ₸'),
+            Text('Продано $totalQty пар · ${totalPrice.toStringAsFixed(0)} ₸'),
           ]),
           backgroundColor: AppTheme.success,
           behavior: SnackBarBehavior.floating,
@@ -182,8 +182,8 @@ class _MakeSaleScreenState extends State<MakeSaleScreen> {
     // (main.dart calls wCtx.load() for both roles). AppUser fallback is only
     // used during the brief moment before the initial load completes.
     final wCtx   = context.watch<WarehouseContext>();
-    final whId   = wCtx.current?.id   ?? AppUser.assignedWarehouseId;
-    final whName = wCtx.current?.name ?? 'Қойма жоқ';
+    final whId   = wCtx.current?.id   ?? context.read<AppUser>().assignedWarehouseId;
+    final whName = wCtx.current?.name ?? 'Нет склада';
 
     return Scaffold(
       backgroundColor: AppTheme.background,
@@ -217,10 +217,10 @@ class _MakeSaleScreenState extends State<MakeSaleScreen> {
               ),
               const SizedBox(width: 12),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(_step == 0 ? 'Жаңа сатылым' : 'Размер және скидка',
+                Text(_step == 0 ? 'Новая продажа' : 'Размер и скидка',
                     style: const TextStyle(color: Colors.white, fontSize: 18,
                         fontWeight: FontWeight.w700, letterSpacing: -0.3)),
-                Text('${_step + 1}/2 қадам',
+                Text('Шаг ${_step + 1}/2',
                     style: const TextStyle(color: Colors.white54, fontSize: 11)),
               ])),
               Container(
@@ -252,14 +252,14 @@ class _MakeSaleScreenState extends State<MakeSaleScreen> {
                       color: Colors.white, size: 15)),
                 const SizedBox(width: 10),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  const Text('САТЫЛЫМ ҚОЙМАСЫ',
+                  const Text('СКЛАД ПРОДАЖИ',
                       style: TextStyle(color: Colors.white38,
                           fontSize: 9, fontWeight: FontWeight.w700, letterSpacing: 0.8)),
                   Text(whName,
                       style: const TextStyle(color: Colors.white,
                           fontSize: 13, fontWeight: FontWeight.w700)),
                 ])),
-                if (AppUser.isAdmin && _step == 0)
+                if (context.read<AppUser>().isAdmin && _step == 0)
                   GestureDetector(
                     onTap: () async {
                       final whs = await _service.getWarehouses();
@@ -284,7 +284,7 @@ class _MakeSaleScreenState extends State<MakeSaleScreen> {
                       decoration: BoxDecoration(
                           color: Colors.white.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(8)),
-                      child: const Text('Өзгерту',
+                      child: const Text('Сменить',
                           style: TextStyle(color: Colors.white,
                               fontSize: 11, fontWeight: FontWeight.w600)),
                     ),
@@ -366,14 +366,14 @@ class _MakeSaleScreenState extends State<MakeSaleScreen> {
                   style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700,
                       color: AppTheme.textPrimary)),
               const SizedBox(height: 4),
-              Text('Базалық баға: ${item.base.toStringAsFixed(0)} ₸',
+              Text('Базовая цена: ${item.base.toStringAsFixed(0)} ₸',
                   style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
               const SizedBox(height: 14),
               Row(children: [
-                _ToggleBtn(label: '% Проценттен', active: byPercent,
+                _ToggleBtn(label: '% от цены', active: byPercent,
                     onTap: () => setS(() => byPercent = true)),
                 const SizedBox(width: 8),
-                _ToggleBtn(label: '₸ Жаңа баға', active: !byPercent,
+                _ToggleBtn(label: '₸ Новая цена', active: !byPercent,
                     onTap: () => setS(() => byPercent = false)),
               ]),
               const SizedBox(height: 12),
@@ -397,7 +397,7 @@ class _MakeSaleScreenState extends State<MakeSaleScreen> {
                 inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))],
                 style: const TextStyle(fontSize: 15, color: AppTheme.textPrimary),
                 decoration: InputDecoration(
-                  labelText: byPercent ? 'Скидка %' : 'Соңғы баға ₸',
+                  labelText: byPercent ? 'Скидка %' : 'Финальная цена ₸',
                   suffixText: byPercent ? '%' : '₸',
                   filled: true, fillColor: Colors.white,
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
@@ -426,7 +426,7 @@ class _MakeSaleScreenState extends State<MakeSaleScreen> {
                     setState(() => _cart[cartIndex].discountPercent = pct);
                     Navigator.pop(ctx);
                   },
-                  child: const Text('Қолдану',
+                  child: const Text('Применить',
                       style: TextStyle(fontWeight: FontWeight.w700)))),
             ]),
           );
@@ -453,7 +453,7 @@ class _WhPickerSheet extends StatelessWidget {
             decoration: BoxDecoration(color: Colors.grey.shade300,
                 borderRadius: BorderRadius.circular(2)))),
         const SizedBox(height: 14),
-        const Text('Сату қоймасын таңдаңыз',
+        const Text('Выберите склад для продажи',
             style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700,
                 color: AppTheme.textPrimary)),
         const SizedBox(height: 12),
@@ -529,11 +529,11 @@ class _Step1State extends State<_Step1> {
                   size: 36, color: AppTheme.primary.withValues(alpha: 0.4)),
             ),
             const SizedBox(height: 16),
-            const Text('Бұл қоймада тауар жоқ',
+            const Text('На этом складе нет товаров',
                 style: TextStyle(fontSize: 15, color: AppTheme.textSecondary,
                     fontWeight: FontWeight.w500)),
             const SizedBox(height: 6),
-            const Text('Басқа қойманы таңдаңыз',
+            const Text('Выберите другой склад',
                 style: TextStyle(fontSize: 12, color: AppTheme.textHint)),
           ]));
         }
@@ -571,7 +571,7 @@ class _Step1State extends State<_Step1> {
                 onChanged: (v) => setState(() => _query = v.trim()),
                 style: const TextStyle(fontSize: 14, color: AppTheme.textPrimary),
                 decoration: InputDecoration(
-                  hintText: 'Тауар атауы, бренд, санат...',
+                  hintText: 'Название, бренд, категория...',
                   hintStyle: const TextStyle(
                       color: AppTheme.textHint, fontSize: 13),
                   prefixIcon: const Icon(Icons.search_rounded,
@@ -602,7 +602,7 @@ class _Step1State extends State<_Step1> {
                 Icon(Icons.search_off_rounded,
                     size: 52, color: Colors.grey.shade300),
                 const SizedBox(height: 12),
-                Text('«$_query» табылмады',
+                Text('«$_query» не найдено',
                     style: const TextStyle(
                         fontSize: 14, color: AppTheme.textSecondary)),
               ])),
@@ -796,7 +796,7 @@ class _CartCard extends StatelessWidget {
                   style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14,
                       color: AppTheme.textPrimary),
                   maxLines: 1, overflow: TextOverflow.ellipsis),
-              Text('${item.batch.sellingPrice.toStringAsFixed(0)} ₸/жұп',
+              Text('${item.batch.sellingPrice.toStringAsFixed(0)} ₸/пара',
                   style: const TextStyle(fontSize: 12, color: AppTheme.success,
                       fontWeight: FontWeight.w700)),
             ])),
@@ -811,14 +811,14 @@ class _CartCard extends StatelessWidget {
           const SizedBox(height: 12),
 
           // Размер секциясының тақырыбы
-          const Text('РАЗМЕР ЖӘНЕ САНЫ',
+          const Text('РАЗМЕР И КОЛИЧЕСТВО',
               style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800,
                   color: AppTheme.textSecondary, letterSpacing: 0.8)),
           const SizedBox(height: 8),
 
           // Размер чиптері
           if (_availSizes.isEmpty)
-            const Text('Бұл партияда қалдық жоқ',
+            const Text('В этой партии нет остатка',
                 style: TextStyle(color: AppTheme.danger, fontSize: 12))
           else
             Wrap(spacing: 8, runSpacing: 8,
@@ -870,7 +870,7 @@ class _CartCard extends StatelessWidget {
                         '${item.total.toStringAsFixed(0)} ₸',
                         style: const TextStyle(fontSize: 12,
                             color: AppTheme.warning, fontWeight: FontWeight.w600))
-                    : const Text('Скидка қосу',
+                    : const Text('Добавить скидку',
                         style: TextStyle(fontSize: 12, color: AppTheme.textHint))),
                 if (item.qty > 0)
                   Text('${item.total.toStringAsFixed(0)} ₸',
@@ -896,7 +896,7 @@ class _CartCard extends StatelessWidget {
       context: ctx,
       builder: (dCtx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Размер $size · макс $max жұп',
+        title: Text('Размер $size · макс. $max пар',
             style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
         content: TextField(
           controller: ctrl,
@@ -904,13 +904,13 @@ class _CartCard extends StatelessWidget {
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
           autofocus: true,
           decoration: InputDecoration(
-            suffixText: 'жұп',
+            suffixText: 'пар',
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
             focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
                 borderSide: const BorderSide(color: AppTheme.primary, width: 1.5)))),
         actions: [
           TextButton(onPressed: () => Navigator.pop(dCtx),
-              child: const Text('Болдырмау',
+              child: const Text('Отмена',
                   style: TextStyle(color: AppTheme.textSecondary))),
           ElevatedButton(
             onPressed: () {
@@ -1046,14 +1046,14 @@ class _Footer extends StatelessWidget {
         if (step == 1 && totalQty > 0) ...[
           if (hasDiscount)
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              const Text('Жалпы:',
+              const Text('Итого:',
                   style: TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
               Text('${baseTotal.toStringAsFixed(0)} ₸',
                   style: const TextStyle(fontSize: 13, color: AppTheme.textHint,
                       decoration: TextDecoration.lineThrough)),
             ]),
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            Text('Барлығы: $totalQty жұп',
+            Text('Итого: $totalQty пар',
                 style: const TextStyle(color: AppTheme.textSecondary, fontSize: 14)),
             Text('${finalTotal.toStringAsFixed(0)} ₸',
                 style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800,
@@ -1084,8 +1084,8 @@ class _Footer extends StatelessWidget {
                     const SizedBox(width: 8),
                     Text(
                       step == 0
-                          ? 'Қарай · $selectedCount тауар'
-                          : 'Сатуды растау · ${finalTotal.toStringAsFixed(0)} ₸',
+                          ? 'Далее · $selectedCount товаров'
+                          : 'Подтвердить продажу · ${finalTotal.toStringAsFixed(0)} ₸',
                       style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
                   ]),
           )),

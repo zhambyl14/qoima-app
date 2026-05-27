@@ -1,4 +1,5 @@
 ﻿import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../core/app_user.dart';
 import '../../data/models/models.dart';
 import '../../data/services/firestore_service.dart';
@@ -350,7 +351,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   const SizedBox(height: 20),
 
                   // Размерлер блогы
-                  if (AppUser.isAdmin) ...[
+                  if (context.read<AppUser>().isAdmin) ...[
                     // Админ: тек қолда бар размерлер (Wrap)
                     if (availSizes.isNotEmpty) ...[
                       const _SecTitle('Доступные размеры'),
@@ -585,7 +586,7 @@ class _BatchWithSales extends StatelessWidget {
                     ),
                   ],
                   const Spacer(),
-                  if (!isArchived && AppUser.isAdmin) ...[
+                  if (!isArchived && context.read<AppUser>().isAdmin) ...[
                     IconButton(
                       onPressed: onEdit,
                       icon: const Icon(Icons.edit_outlined, size: 18),
@@ -607,7 +608,7 @@ class _BatchWithSales extends StatelessWidget {
                 ]),
                 const SizedBox(height: 10),
                 Row(children: [
-                  if (AppUser.isAdmin) ...[
+                  if (context.read<AppUser>().isAdmin) ...[
                     _PriceTag(
                         label: 'Закуп',
                         value: '${batch.purchasePrice.toStringAsFixed(0)} ₸',
@@ -618,7 +619,7 @@ class _BatchWithSales extends StatelessWidget {
                       label: 'Продажа',
                       value: '${batch.sellingPrice.toStringAsFixed(0)} ₸',
                       color: AppTheme.success),
-                  if (AppUser.isAdmin) ...[
+                  if (context.read<AppUser>().isAdmin) ...[
                     const SizedBox(width: 8),
                     _PriceTag(
                         label: 'Маржа',

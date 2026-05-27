@@ -1,13 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-/// Модель партии (подколлекция "batches" внутри документа товара)
 class BatchModel {
   final String id;
   final DateTime dateArrived;
   final double purchasePrice;
   final double sellingPrice;
   final Map<String, int> sizesQuantity;
-  final String warehouseId; // қай қоймада
+  final Map<String, int> reservedSizes;
+  final String warehouseId;
 
   const BatchModel({
     required this.id,
@@ -15,33 +15,52 @@ class BatchModel {
     required this.purchasePrice,
     required this.sellingPrice,
     required this.sizesQuantity,
+    Map<String, int>? reservedSizes,
     this.warehouseId = '',
-  });
+  }) : reservedSizes = reservedSizes ?? const {};
 
-  // ─── Вспомогательные геттеры ─────────────────────────────────────────────────
-
-  /// Общее количество пар во всех размерах партии
+  // Physical total (ignores reservations)
   int get totalQuantity =>
       sizesQuantity.values.fold(0, (acc, qty) => acc + qty);
 
-  /// Является ли партия полностью проданной
+  // Physically sold out (no stock at all)
   bool get isSoldOut => sizesQuantity.values.every((qty) => qty <= 0);
 
-  /// Маржинальность партии (цена продажи - себестоимость)
+  // Available for a specific size after subtracting reservations
+  int availableForSize(String size) {
+    final qty      = sizesQuantity[size] ?? 0;
+    final reserved = reservedSizes[size] ?? 0;
+    return (qty - reserved).clamp(0, qty);
+  }
+
+  // All sizes with available (unreserved) stock
+  Map<String, int> get availableSizes {
+    final result = <String, int>{};
+    for (final size in sizesQuantity.keys) {
+      final avail = availableForSize(size);
+      if (avail > 0) result[size] = avail;
+    }
+    return result;
+  }
+
+  bool get isEffectivelySoldOut => availableSizes.isEmpty;
+
   double get margin => sellingPrice - purchasePrice;
 
-  // ─── fromJson ────────────────────────────────────────────────────────────────
   factory BatchModel.fromJson(Map<String, dynamic> json, {String? docId}) {
-    // Firestore возвращает Timestamp, при десериализации из Map — DateTime
     DateTime parseDate(dynamic raw) {
       if (raw is Timestamp) return raw.toDate();
       if (raw is DateTime) return raw;
       return DateTime.now();
     }
 
-    // Приводим Map<dynamic, dynamic> из Firestore к Map<String, int>
     final rawSizes = json['sizes_quantity'] as Map<dynamic, dynamic>? ?? {};
     final sizesQuantity = rawSizes.map(
+      (k, v) => MapEntry(k.toString(), (v as num).toInt()),
+    );
+
+    final rawReserved = json['reserved_sizes'] as Map<dynamic, dynamic>? ?? {};
+    final reservedSizes = rawReserved.map(
       (k, v) => MapEntry(k.toString(), (v as num).toInt()),
     );
 
@@ -51,33 +70,31 @@ class BatchModel {
       purchasePrice: (json['purchase_price'] as num?)?.toDouble() ?? 0.0,
       sellingPrice:  (json['selling_price']  as num?)?.toDouble() ?? 0.0,
       sizesQuantity: sizesQuantity,
+      reservedSizes: reservedSizes,
       warehouseId:   json['warehouseId'] as String? ?? '',
     );
   }
 
-  // ─── fromFirestore ────────────────────────────────────────────────────────────
-  factory BatchModel.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    return BatchModel.fromJson(data, docId: doc.id);
-  }
+  factory BatchModel.fromFirestore(DocumentSnapshot doc) =>
+      BatchModel.fromJson(doc.data() as Map<String, dynamic>, docId: doc.id);
 
-  // ─── toJson ──────────────────────────────────────────────────────────────────
   Map<String, dynamic> toJson() => {
-        'id':             id,
-        'date_arrived':   Timestamp.fromDate(dateArrived),
-        'purchase_price': purchasePrice,
-        'selling_price':  sellingPrice,
-        'sizes_quantity': sizesQuantity,
-        'warehouseId':    warehouseId,
-      };
+    'id':             id,
+    'date_arrived':   Timestamp.fromDate(dateArrived),
+    'purchase_price': purchasePrice,
+    'selling_price':  sellingPrice,
+    'sizes_quantity': sizesQuantity,
+    'reserved_sizes': reservedSizes,
+    'warehouseId':    warehouseId,
+  };
 
-  // ─── copyWith ────────────────────────────────────────────────────────────────
   BatchModel copyWith({
     String? id,
     DateTime? dateArrived,
     double? purchasePrice,
     double? sellingPrice,
     Map<String, int>? sizesQuantity,
+    Map<String, int>? reservedSizes,
     String? warehouseId,
   }) => BatchModel(
     id:            id            ?? this.id,
@@ -85,11 +102,10 @@ class BatchModel {
     purchasePrice: purchasePrice ?? this.purchasePrice,
     sellingPrice:  sellingPrice  ?? this.sellingPrice,
     sizesQuantity: sizesQuantity ?? Map<String, int>.from(this.sizesQuantity),
+    reservedSizes: reservedSizes ?? Map<String, int>.from(this.reservedSizes),
     warehouseId:   warehouseId   ?? this.warehouseId,
   );
 
-  /// Создаёт новую копию модели с изменённым количеством для конкретного размера.
-  /// Используется при нажатии кнопок + / - во Flutter.
   BatchModel updateSize(String size, int delta) {
     final updated = Map<String, int>.from(sizesQuantity);
     final current = updated[size] ?? 0;

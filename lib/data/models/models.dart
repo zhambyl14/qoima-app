@@ -5,3 +5,6 @@ export 'user_model.dart';
 export 'warehouse_model.dart';
 export 'store_model.dart';
 export 'reservation_model.dart';
+export 'client_model.dart';
+export 'cart_item_model.dart';
+export 'order_model.dart';

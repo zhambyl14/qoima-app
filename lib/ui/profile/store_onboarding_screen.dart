@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import '../../core/app_user.dart';
 import '../../data/models/store_model.dart';
 import '../../data/services/firestore_service.dart';
@@ -44,7 +45,7 @@ class _StoreOnboardingScreenState extends State<StoreOnboardingScreen> {
       final now  = DateTime.now();
       final name = _nameCtrl.text.trim();
       final store = StoreModel(
-        adminUid:            AppUser.uid,
+        adminUid:            context.read<AppUser>().uid,
         storeName:           name,
         storeSlug:           StoreModel.generateSlug(name),
         logoUrl:             '',

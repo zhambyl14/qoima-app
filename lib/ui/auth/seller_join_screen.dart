@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
 import '../../core/app_user.dart';
 import '../../core/l10n_ext.dart';
 import '../../data/services/auth_service.dart';
@@ -47,8 +48,7 @@ class _SellerJoinScreenState extends State<SellerJoinScreen> {
     setState(() { _loading = true; _error = null; });
     try {
       await FirestoreService().sendJoinRequest(code);
-      // AppUser.joinStatus жаңартамыз
-      AppUser.joinStatus = 'pending';
+      if (mounted) context.read<AppUser>().joinStatus = 'pending';
       setState(() {});
     } catch (e) {
       setState(() => _error = e.toString());
@@ -61,7 +61,7 @@ class _SellerJoinScreenState extends State<SellerJoinScreen> {
     setState(() => _loading = true);
     try {
       await FirestoreService().cancelJoinRequest();
-      AppUser.joinStatus = 'none';
+      if (mounted) context.read<AppUser>().joinStatus = 'none';
       setState(() {});
     } catch (_) {} finally {
       if (mounted) setState(() => _loading = false);
@@ -73,7 +73,7 @@ class _SellerJoinScreenState extends State<SellerJoinScreen> {
   @override
   Widget build(BuildContext context) {
     // Егер active болса — MainShell-ге жібереміз
-    if (AppUser.joinStatus == 'active') {
+    if (context.watch<AppUser>().joinStatus == 'active') {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           Navigator.of(context).pushAndRemoveUntil(
@@ -93,12 +93,12 @@ class _SellerJoinScreenState extends State<SellerJoinScreen> {
       builder: (_, snap) {
         final status = (snap.data?.data() as Map<String, dynamic>?)?['joinStatus']
                 as String? ??
-            AppUser.joinStatus;
+            context.read<AppUser>().joinStatus;
 
         if (status == 'active') {
-          AppUser.joinStatus = 'active';
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) {
+              context.read<AppUser>().joinStatus = 'active';
               Navigator.of(context).pushAndRemoveUntil(
                   MaterialPageRoute(builder: (_) => const MainShell()),
                   (r) => false);

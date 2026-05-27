@@ -12,6 +12,8 @@ class StoreModel {
   final bool isPublished;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final double deliveryFeeCity;
+  final double deliveryFreeThreshold;
 
   const StoreModel({
     required this.adminUid,
@@ -25,6 +27,8 @@ class StoreModel {
     required this.isPublished,
     required this.createdAt,
     required this.updatedAt,
+    this.deliveryFeeCity       = 1500.0,
+    this.deliveryFreeThreshold = 0.0,
   });
 
   static String generateSlug(String name) => name
@@ -53,6 +57,8 @@ class StoreModel {
           (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt:
           (d['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      deliveryFeeCity:       (d['deliveryFeeCity']       as num?)?.toDouble() ?? 1500.0,
+      deliveryFreeThreshold: (d['deliveryFreeThreshold'] as num?)?.toDouble() ?? 0.0,
     );
   }
 
@@ -68,6 +74,8 @@ class StoreModel {
         'isPublished': isPublished,
         'createdAt': Timestamp.fromDate(createdAt),
         'updatedAt': Timestamp.fromDate(updatedAt),
+        'deliveryFeeCity':       deliveryFeeCity,
+        'deliveryFreeThreshold': deliveryFreeThreshold,
       };
 
   StoreModel copyWith({
@@ -82,6 +90,8 @@ class StoreModel {
     bool? isPublished,
     DateTime? createdAt,
     DateTime? updatedAt,
+    double? deliveryFeeCity,
+    double? deliveryFreeThreshold,
   }) =>
       StoreModel(
         adminUid: adminUid ?? this.adminUid,
@@ -95,5 +105,7 @@ class StoreModel {
         isPublished: isPublished ?? this.isPublished,
         createdAt: createdAt ?? this.createdAt,
         updatedAt: updatedAt ?? this.updatedAt,
+        deliveryFeeCity:       deliveryFeeCity       ?? this.deliveryFeeCity,
+        deliveryFreeThreshold: deliveryFreeThreshold ?? this.deliveryFreeThreshold,
       );
 }

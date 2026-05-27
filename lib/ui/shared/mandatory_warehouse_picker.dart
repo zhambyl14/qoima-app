@@ -8,7 +8,7 @@ import '../../theme/app_theme.dart';
 /// Returns false if admin has no current warehouse and user dismissed without picking.
 /// Call before any warehouse-dependent action. Resolves immediately if warehouse is already set.
 Future<bool> ensureWarehouseSelected(BuildContext context) async {
-  if (!AppUser.isAdmin) return true;
+  if (!context.read<AppUser>().isAdmin) return true;
   final wCtx = context.read<WarehouseContext>();
   if (wCtx.current != null) return true;
   if (wCtx.all.isEmpty) return false;

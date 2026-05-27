@@ -1,6 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -10,6 +13,8 @@ import 'theme/app_theme.dart';
 import 'ui/auth/login_screen.dart';
 import 'ui/main_shell.dart';
 import 'ui/profile/store_onboarding_screen.dart';
+import 'ui/client/client_shell.dart';
+import 'ui/admin/admin_shell.dart';
 import 'data/services/auth_service.dart';
 import 'data/services/firestore_service.dart';
 import 'data/models/store_model.dart';
@@ -21,17 +26,25 @@ import 'l10n/app_localizations.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('ru', null);
-  await initializeDateFormatting('kk', null);
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
     statusBarIconBrightness: Brightness.light,
   ));
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  FirebaseFirestore.instance.settings = const Settings(
+    persistenceEnabled: true,
+    cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+  );
+  if (kDebugMode) {
+    await FirebaseAuth.instance.setSettings(appVerificationDisabledForTesting: true);
+  }
   runApp(
     MultiProvider(
       providers: [
+        ChangeNotifierProvider(create: (_) => AppUser()),
         ChangeNotifierProvider(create: (_) => WarehouseContext()),
         ChangeNotifierProvider(create: (_) => LocaleContext()),
+        ChangeNotifierProvider(create: (_) => CartProvider()),
       ],
       child: const QoimaApp(),
     ),
@@ -47,9 +60,11 @@ class QoimaApp extends StatelessWidget {
     return MaterialApp(
       title: 'Qoima',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.theme,
+      theme: AppTheme.theme.copyWith(
+        textTheme: GoogleFonts.interTextTheme(AppTheme.theme.textTheme),
+      ),
       locale: locale,
-      supportedLocales: const [Locale('kk'), Locale('ru')],
+      supportedLocales: const [Locale('ru')],
       localizationsDelegates: const [
         AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
@@ -70,12 +85,13 @@ class QoimaApp extends StatelessWidget {
                   return const _Splash();
                 }
                 if (futureSnap.data != true) return const LoginScreen();
-                if (AppUser.isAdmin) return const _AdminHomeRouter();
+                if (context.read<AppUser>().isClient) return const ClientShell();
+                if (context.read<AppUser>().isAdmin) return const _AdminHomeRouter();
                 return const MainShell();
               },
             );
           }
-          AppUser.clear();
+          context.read<AppUser>().clear();
           context.read<WarehouseContext>().clear();
           return const LoginScreen();
         },
@@ -85,27 +101,44 @@ class QoimaApp extends StatelessWidget {
 }
 
 Future<bool> _loadSession(String uid, BuildContext context) async {
-  final wCtx = context.read<WarehouseContext>();
+  final wCtx    = context.read<WarehouseContext>();
+  final appUser = context.read<AppUser>();
   try {
     final authService = AuthService();
+
+    // Try admin/seller doc first
     final userDoc = await authService.getUserDoc(uid);
-    if (userDoc == null) return false;
-    AppUser.set(
-      uid:                 userDoc.uid,
-      ownerUid:            userDoc.ownerId.isNotEmpty ? userDoc.ownerId : userDoc.uid,
-      name:                userDoc.name,
-      email:               userDoc.email,
-      role:                userDoc.role,
-      active:              userDoc.active,
-      businessCode:        userDoc.businessCode,
-      assignedWarehouseId: userDoc.assignedWarehouseId,
-      joinStatus:          userDoc.joinStatus,
-    );
-    // Admin да, seller да WarehouseContext-ті жүктейді.
-    // Seller үшін бұл Firestore stream орнатады — admin қойманы
-    // ауыстырса, seller экраны Hot Restart жоқ бірден жаңарады.
-    await wCtx.load();
-    return true;
+    if (userDoc != null) {
+      appUser.set(
+        uid:                 userDoc.uid,
+        ownerUid:            userDoc.ownerId.isNotEmpty ? userDoc.ownerId : userDoc.uid,
+        name:                userDoc.name,
+        email:               userDoc.email,
+        role:                userDoc.role,
+        active:              userDoc.active,
+        businessCode:        userDoc.businessCode,
+        assignedWarehouseId: userDoc.assignedWarehouseId,
+        joinStatus:          userDoc.joinStatus,
+      );
+      await wCtx.load();
+      return true;
+    }
+
+    // Try client doc
+    final clientDoc = await authService.getClientDoc(uid);
+    if (clientDoc != null) {
+      appUser.set(
+        uid:      clientDoc.uid,
+        ownerUid: '',
+        name:     clientDoc.name,
+        email:    '',
+        role:     'client',
+        phone:    clientDoc.phone,
+      );
+      return true;
+    }
+
+    return false;
   } catch (_) {
     return false;
   }
@@ -122,14 +155,14 @@ class _AdminHomeRouterState extends State<_AdminHomeRouter> {
 
   @override
   Widget build(BuildContext context) {
-    if (_forceMain) return const MainShell();
+    if (_forceMain) return const AdminShell();
     return StreamBuilder<StoreModel?>(
       stream: FirestoreService().watchStore(),
       builder: (_, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
           return const _Splash();
         }
-        if (snap.data != null) return const MainShell();
+        if (snap.data != null) return const AdminShell();
         return StoreOnboardingScreen(
           onDone: () => setState(() => _forceMain = true),
         );

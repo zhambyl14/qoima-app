@@ -18,9 +18,10 @@ class ProfileScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l       = context.l10n;
-    final name    = AppUser.name;
-    final email   = AppUser.email;
-    final isAdmin = AppUser.isAdmin;
+    final appUser = context.watch<AppUser>();
+    final name    = appUser.name;
+    final email   = appUser.email;
+    final isAdmin = appUser.isAdmin;
     final initials = name.trim().split(' ')
         .map((w) => w.isNotEmpty ? w[0].toUpperCase() : '')
         .take(2)
@@ -105,7 +106,7 @@ class ProfileScreen extends StatelessWidget {
                 )),
 
               // Бизнес-код карточка (тек admin үшін)
-              if (isAdmin && AppUser.businessCode.isNotEmpty) ...[
+              if (isAdmin && appUser.businessCode.isNotEmpty) ...[
                 const SizedBox(height: 16),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -125,7 +126,7 @@ class ProfileScreen extends StatelessWidget {
                       GestureDetector(
                         onTap: () {
                           Clipboard.setData(
-                              ClipboardData(text: AppUser.businessCode));
+                              ClipboardData(text: appUser.businessCode));
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text(l.businessCodeCopied),
@@ -144,7 +145,7 @@ class ProfileScreen extends StatelessWidget {
                     ]),
                     const SizedBox(height: 8),
                     Text(
-                      _formatCode(AppUser.businessCode),
+                      _formatCode(appUser.businessCode),
                       style: const TextStyle(
                           color: Colors.white,
                           fontSize: 26,
