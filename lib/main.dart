@@ -10,7 +10,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
 import 'firebase_options.dart';
 import 'theme/app_theme.dart';
-import 'ui/auth/login_screen.dart';
+import 'ui/auth/client_login_screen.dart';
 import 'ui/main_shell.dart';
 import 'ui/profile/store_onboarding_screen.dart';
 import 'ui/client/client_shell.dart';
@@ -84,7 +84,7 @@ class QoimaApp extends StatelessWidget {
                 if (futureSnap.connectionState == ConnectionState.waiting) {
                   return const _Splash();
                 }
-                if (futureSnap.data != true) return const LoginScreen();
+                if (futureSnap.data != true) return const ClientLoginScreen();
                 if (context.read<AppUser>().isClient) return const ClientShell();
                 if (context.read<AppUser>().isAdmin) return const _AdminHomeRouter();
                 return const MainShell();
@@ -93,7 +93,7 @@ class QoimaApp extends StatelessWidget {
           }
           context.read<AppUser>().clear();
           context.read<WarehouseContext>().clear();
-          return const LoginScreen();
+          return const ClientLoginScreen();
         },
       ),
     );

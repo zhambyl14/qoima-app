@@ -19,6 +19,11 @@ class OrderModel {
   final double            depositAmount;
   final double            deliveryFee;
   final String            pickupCode;
+  final int               orderNumber;
+  final String            sellerId;
+  final String            sellerName;
+  final String            deliveredByUid;
+  final String            deliveredByName;
 
   static const String typeSmartReservation = 'smart_reservation';
   static const String typeClickCollect     = 'click_collect';
@@ -46,9 +51,14 @@ class OrderModel {
     required this.createdAt,
     this.address       = '',
     this.note          = '',
-    this.depositAmount = 0.0,
-    this.deliveryFee   = 0.0,
-    this.pickupCode    = '',
+    this.depositAmount   = 0.0,
+    this.deliveryFee     = 0.0,
+    this.pickupCode      = '',
+    this.orderNumber     = 0,
+    this.sellerId        = 'онлайн',
+    this.sellerName      = 'Онлайн',
+    this.deliveredByUid  = '',
+    this.deliveredByName = '',
   });
 
   double get total             => items.fold(0.0, (s, i) => s + i.subtotal);
@@ -85,9 +95,14 @@ class OrderModel {
       createdAt:     (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       address:       d['address']       as String? ?? '',
       note:          d['note']          as String? ?? '',
-      depositAmount: (d['depositAmount'] as num?)?.toDouble() ?? 0.0,
-      deliveryFee:   (d['deliveryFee']   as num?)?.toDouble() ?? 0.0,
-      pickupCode:    d['pickupCode']     as String? ?? '',
+      depositAmount:   (d['depositAmount'] as num?)?.toDouble() ?? 0.0,
+      deliveryFee:     (d['deliveryFee']   as num?)?.toDouble() ?? 0.0,
+      pickupCode:      d['pickupCode']     as String? ?? '',
+      orderNumber:     (d['orderNumber']   as num?)?.toInt()   ?? 0,
+      sellerId:        d['sellerId']       as String?          ?? 'онлайн',
+      sellerName:      d['sellerName']     as String?          ?? 'Онлайн',
+      deliveredByUid:  d['deliveredByUid'] as String?          ?? '',
+      deliveredByName: d['deliveredByName'] as String?         ?? '',
     );
   }
 
@@ -108,6 +123,11 @@ class OrderModel {
     'depositAmount':    depositAmount,
     'deliveryFee':      deliveryFee,
     'pickupCode':       pickupCode,
+    'orderNumber':      orderNumber,
+    'sellerId':         sellerId,
+    'sellerName':       sellerName,
+    'deliveredByUid':   deliveredByUid,
+    'deliveredByName':  deliveredByName,
   };
 
   OrderModel copyWith({
@@ -116,7 +136,8 @@ class OrderModel {
     String? warehouseAddress, List<CartItemModel>? items,
     String? status, String? orderType, DateTime? createdAt,
     String? address, String? note, double? depositAmount, double? deliveryFee,
-    String? pickupCode,
+    String? pickupCode, int? orderNumber, String? sellerId, String? sellerName,
+    String? deliveredByUid, String? deliveredByName,
   }) => OrderModel(
     id:               id               ?? this.id,
     clientPhone:      clientPhone      ?? this.clientPhone,
@@ -135,5 +156,10 @@ class OrderModel {
     depositAmount:    depositAmount    ?? this.depositAmount,
     deliveryFee:      deliveryFee      ?? this.deliveryFee,
     pickupCode:       pickupCode       ?? this.pickupCode,
+    orderNumber:      orderNumber      ?? this.orderNumber,
+    sellerId:         sellerId         ?? this.sellerId,
+    sellerName:       sellerName       ?? this.sellerName,
+    deliveredByUid:   deliveredByUid   ?? this.deliveredByUid,
+    deliveredByName:  deliveredByName  ?? this.deliveredByName,
   );
 }

@@ -43,11 +43,13 @@ class ClientShell extends StatefulWidget {
   const ClientShell({super.key});
 
   @override
-  State<ClientShell> createState() => _ClientShellState();
+  State<ClientShell> createState() => ClientShellState();
 }
 
-class _ClientShellState extends State<ClientShell> {
-  int _index = 0;
+class ClientShellState extends State<ClientShell> {
+  int _currentIndex = 0;
+
+  void setIndex(int i) => setState(() => _currentIndex = i);
 
   static const List<_TabDef> _tabs = [
     _TabDef(Icons.storefront_outlined,  Icons.storefront_rounded,   'Дүкен'),
@@ -68,7 +70,7 @@ class _ClientShellState extends State<ClientShell> {
     final cartCount = context.watch<CartProvider>().count;
 
     return Scaffold(
-      body: IndexedStack(index: _index, children: _screens),
+      body: IndexedStack(index: _currentIndex, children: _screens),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: Colors.white,
@@ -85,12 +87,12 @@ class _ClientShellState extends State<ClientShell> {
             height: 64,
             child: Row(
               children: List.generate(_tabs.length, (i) {
-                final active = i == _index;
+                final active = i == _currentIndex;
                 return Expanded(
                   child: GestureDetector(
                     onTap: () {
                       HapticFeedback.selectionClick();
-                      setState(() => _index = i);
+                      setState(() => _currentIndex = i);
                     },
                     behavior: HitTestBehavior.opaque,
                     child: Column(

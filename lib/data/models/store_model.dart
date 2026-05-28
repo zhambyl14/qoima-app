@@ -8,6 +8,7 @@ class StoreModel {
   final String city;
   final String phone;
   final String description;
+  final String address;
   final List<String> visibleWarehouseIds;
   final bool isPublished;
   final DateTime createdAt;
@@ -23,6 +24,7 @@ class StoreModel {
     required this.city,
     required this.phone,
     required this.description,
+    this.address = '',
     required this.visibleWarehouseIds,
     required this.isPublished,
     required this.createdAt,
@@ -48,6 +50,7 @@ class StoreModel {
       city: d['city'] as String? ?? '',
       phone: d['phone'] as String? ?? '',
       description: d['description'] as String? ?? '',
+      address: d['address'] as String? ?? '',
       visibleWarehouseIds:
           (d['visibleWarehouseIds'] as List<dynamic>? ?? [])
               .map((e) => e.toString())
@@ -70,6 +73,7 @@ class StoreModel {
         'city': city,
         'phone': phone,
         'description': description,
+        'address': address,
         'visibleWarehouseIds': visibleWarehouseIds,
         'isPublished': isPublished,
         'createdAt': Timestamp.fromDate(createdAt),
@@ -86,6 +90,7 @@ class StoreModel {
     String? city,
     String? phone,
     String? description,
+    String? address,
     List<String>? visibleWarehouseIds,
     bool? isPublished,
     DateTime? createdAt,
@@ -101,6 +106,7 @@ class StoreModel {
         city: city ?? this.city,
         phone: phone ?? this.phone,
         description: description ?? this.description,
+        address: address ?? this.address,
         visibleWarehouseIds: visibleWarehouseIds ?? this.visibleWarehouseIds,
         isPublished: isPublished ?? this.isPublished,
         createdAt: createdAt ?? this.createdAt,

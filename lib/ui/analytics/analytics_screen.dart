@@ -190,6 +190,7 @@ class _OverviewTab extends StatefulWidget {
 }
 
 class _OverviewTabState extends State<_OverviewTab> {
+  final _onlineOrdersStream = FirestoreService().watchOnlineOrders();
   Future<double>? _costFuture;
   String _costKey = '';
 
@@ -314,8 +315,33 @@ class _OverviewTabState extends State<_OverviewTab> {
           ]);
         },
       ),
-      // ── Жұп статистикасы ────────────────────────────────────────────
+      // ── Онлайн выручка ──────────────────────────────────────────────
       const SizedBox(height: 10),
+      StreamBuilder<List<OrderModel>>(
+        stream: _onlineOrdersStream,
+        builder: (_, oSnap) {
+          final onlineRevenue = (oSnap.data ?? [])
+              .where((o) =>
+                  o.status == OrderModel.statusCompleted &&
+                  o.createdAt.month == widget.month.month &&
+                  o.createdAt.year  == widget.month.year)
+              .fold<double>(0, (s, o) => s + o.totalWithDelivery);
+          if (onlineRevenue <= 0) return const SizedBox.shrink();
+          return Column(children: [
+            _FinCard(
+              label: 'Онлайн выручка',
+              value: '${_fmt(onlineRevenue)} ₸',
+              icon: Icons.shopping_bag_outlined,
+              iconBg: AppTheme.successLight,
+              iconColor: AppTheme.success,
+              sub: 'завершённые онлайн-заказы',
+            ),
+            const SizedBox(height: 10),
+          ]);
+        },
+      ),
+
+      // ── Жұп статистикасы ────────────────────────────────────────────
       Row(children: [
         Expanded(
           child: FutureBuilder<int>(

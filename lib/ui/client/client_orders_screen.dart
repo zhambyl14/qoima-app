@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/app_user.dart';
 import '../../data/models/order_model.dart';
 import '../../data/services/client_service.dart';
@@ -136,6 +137,19 @@ class _OrderCardState extends State<_OrderCard> {
       widget.order.status == OrderModel.statusReserved ||
       widget.order.status == OrderModel.statusPending;
 
+  Future<void> _open2Gis(String address) async {
+    final encoded = Uri.encodeComponent(address);
+    final dgis = Uri.parse('dgis://2gis.ru/search/$encoded');
+    if (await canLaunchUrl(dgis)) {
+      await launchUrl(dgis);
+    } else {
+      await launchUrl(
+        Uri.parse('https://2gis.kz/search/$encoded'),
+        mode: LaunchMode.externalApplication,
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final order = widget.order;
@@ -153,9 +167,15 @@ class _OrderCardState extends State<_OrderCard> {
         // Header row
         Row(children: [
           Expanded(
-            child: Text(order.storeName,
-                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700,
-                    color: AppTheme.textPrimary)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(order.storeName,
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700,
+                      color: AppTheme.textPrimary)),
+              if (order.orderNumber > 0)
+                Text('#${order.orderNumber.toString().padLeft(5, '0')}',
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
+                        color: AppTheme.textHint)),
+            ]),
           ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -210,14 +230,19 @@ class _OrderCardState extends State<_OrderCard> {
         // Warehouse address for SmartRes / ClickCollect
         if (!order.isDelivery && order.warehouseAddress.isNotEmpty) ...[
           const SizedBox(height: 8),
-          Row(children: [
-            const Icon(Icons.location_on_outlined,
-                color: AppTheme.primary, size: 14),
-            const SizedBox(width: 4),
-            Expanded(child: Text(order.warehouseAddress,
-                style: const TextStyle(
-                    fontSize: 12, color: AppTheme.textSecondary))),
-          ]),
+          GestureDetector(
+            onTap: () => _open2Gis(order.warehouseAddress),
+            child: Row(children: [
+              const Icon(Icons.location_on_outlined,
+                  color: AppTheme.primary, size: 14),
+              const SizedBox(width: 4),
+              Expanded(child: Text(order.warehouseAddress,
+                  style: const TextStyle(fontSize: 12, color: AppTheme.primary,
+                      decoration: TextDecoration.underline))),
+              const Icon(Icons.open_in_new_rounded,
+                  color: AppTheme.primary, size: 12),
+            ]),
+          ),
         ],
 
         // Timer for active SmartReservation

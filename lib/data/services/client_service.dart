@@ -114,6 +114,7 @@ class ClientService {
   /// - ClickCollect / Delivery → decrements `sizes_quantity` immediately
   Future<OrderModel> placeOrder(OrderModel order) async {
     final code = await _uniquePickupCode();
+    final orderNumber = 10000 + (DateTime.now().millisecondsSinceEpoch % 90000);
     final orderId = await _db.runTransaction<String>((tx) async {
       final orderRef = _db.collection('orders').doc();
 
@@ -158,11 +159,14 @@ class ClientService {
         }
       }
 
-      final placed = order.copyWith(id: orderRef.id, pickupCode: code);
+      final placed = order.copyWith(
+          id: orderRef.id, pickupCode: code, orderNumber: orderNumber,
+          sellerId: 'онлайн', sellerName: 'Онлайн');
       tx.set(orderRef, placed.toJson());
       return orderRef.id;
     });
-    return order.copyWith(id: orderId, pickupCode: code);
+    return order.copyWith(id: orderId, pickupCode: code, orderNumber: orderNumber,
+        sellerId: 'онлайн', sellerName: 'Онлайн');
   }
 
   // Sort client-side to avoid needing a composite index on clientPhone+createdAt

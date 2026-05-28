@@ -10,6 +10,19 @@ service cloud.firestore {
       return signed() && request.auth.uid == uid;
     }
 
+    function isAdminOfSeller(uid) {
+      return signed() &&
+        resource.data.get('role', '') == 'seller' &&
+        resource.data.get('ownerId', '') == request.auth.uid;
+    }
+
+    function isPendingSellerForAdmin(uid) {
+      return signed() &&
+        resource.data.get('role', '') == 'seller' &&
+        resource.data.get('pendingOwnerId', '') == request.auth.uid &&
+        resource.data.get('joinStatus', '') == 'pending';
+    }
+
     // True if the caller is the admin, OR an active seller whose ownerId == adminUid.
     function canAccess(adminUid) {
       return signed() && (
@@ -36,6 +49,21 @@ service cloud.firestore {
              request.auth.token.get('phone_number', '') == resource.data.get('clientPhone', '');
     }
 
+    // Client may cancel only their own reserved/pending orders — touching only status.
+    function clientCanCancel() {
+      return isOrderOwner() &&
+        (resource.data.get('status', '') == 'reserved' ||
+         resource.data.get('status', '') == 'pending') &&
+        request.resource.data.get('status', '') == 'cancelled' &&
+        request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['status']);
+    }
+
+    function validSellerAdminUpdate() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(['assignedWarehouseId', 'ownerId', 'joinStatus']);
+    }
+
     // ── Users (Admins & Sellers) ──────────────────────────────────────────────
     match /users/{uid} {
       // Own profile; admin listing their sellers; active seller reading admin data.
@@ -44,7 +72,9 @@ service cloud.firestore {
         resource.data.get('ownerId', '') == request.auth.uid ||
         canAccess(uid)
       );
-      allow write: if isOwner(uid);
+      allow write: if isOwner(uid) ||
+        ((isAdminOfSeller(uid) || isPendingSellerForAdmin(uid)) &&
+          validSellerAdminUpdate());
 
       // ── Store settings ─────────────────────────────────────────────────────
       // Any signed user reads (client discovering stores).
@@ -130,15 +160,10 @@ service cloud.firestore {
       );
 
       // Admin / seller: any update (confirm, cancel, complete, etc.).
-      // Client: can ONLY set status = 'cancelled' and change nothing else.
+      // Client: can ONLY cancel their own reserved/pending orders.
       allow update: if signed() && (
         canAccess(resource.data.get('adminUid', '')) ||
-        (
-          isOrderOwner() &&
-          request.resource.data.get('status', '') == 'cancelled' &&
-          request.resource.data.diff(resource.data).affectedKeys()
-              .hasOnly(['status'])
-        )
+        clientCanCancel()
       );
 
       allow delete: if false;

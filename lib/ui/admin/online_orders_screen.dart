@@ -95,21 +95,20 @@ class _OnlineOrdersScreenState extends State<OnlineOrdersScreen> {
                   child: Container(
                     height: 44,
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.15),
+                      color: Colors.white,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: TextField(
                       controller: _codeCtrl,
                       onSubmitted: (_) => _lookup(),
-                      style: const TextStyle(color: Colors.white, fontSize: 14),
-                      decoration: InputDecoration(
+                      style: const TextStyle(color: Colors.black87, fontSize: 14),
+                      decoration: const InputDecoration(
                         hintText: 'Введите код заказа...',
-                        hintStyle: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.6), fontSize: 14),
+                        hintStyle: TextStyle(color: Colors.black38, fontSize: 14),
                         prefixIcon: Icon(Icons.qr_code_scanner_rounded,
-                            color: Colors.white.withValues(alpha: 0.8), size: 20),
+                            color: AppTheme.primary, size: 20),
                         border: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                        contentPadding: EdgeInsets.symmetric(vertical: 12),
                       ),
                     ),
                   ),

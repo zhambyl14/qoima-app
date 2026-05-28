@@ -82,9 +82,8 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
   final _searchCtrl = TextEditingController();
 
   List<StoreModel>   _stores          = [];
-  // pairs[i] = (product, batches) — loaded once per store
   List<({ProductModel product, List<BatchModel> batches})> _pairs = [];
-  StoreModel?        _selectedStore;
+  Map<String, StoreModel> _productStoreMap = {};
   bool               _loadingStores   = true;
   bool               _loadingProducts = false;
   ClientFilters      _filters         = const ClientFilters();
@@ -133,7 +132,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
   @override
   void initState() {
     super.initState();
-    _loadStores();
+    _loadAllProducts();
     _scrollCtrl.addListener(_onScroll);
   }
 
@@ -152,44 +151,45 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
     }
   }
 
-  Future<void> _loadStores() async {
+  Future<void> _loadAllProducts() async {
+    setState(() { _loadingStores = true; _errorMessage = null; });
     try {
       final stores = await _service.getPublishedStores();
       if (!mounted) return;
       setState(() {
         _stores        = stores;
         _loadingStores = false;
+        if (stores.isNotEmpty) _loadingProducts = true;
       });
-      if (stores.isNotEmpty) _selectStore(stores.first);
-    } catch (e) {
-      if (mounted) setState(() { _loadingStores = false; _errorMessage = e.toString(); });
-    }
-  }
+      if (stores.isEmpty) return;
 
-  Future<void> _selectStore(StoreModel store) async {
-    _searchCtrl.clear();
-    setState(() {
-      _selectedStore   = store;
-      _loadingProducts = true;
-      _pairs           = [];
-      _filters         = const ClientFilters();
-      _displayCount    = 20;
-    });
-    try {
-      final pairs = await _service.getStoreProductsWithBatches(
-          store.adminUid, store.visibleWarehouseIds);
+      final pairs    = <({ProductModel product, List<BatchModel> batches})>[];
+      final storeMap = <String, StoreModel>{};
+      for (final store in stores) {
+        final sp = await _service.getStoreProductsWithBatches(
+            store.adminUid, store.visibleWarehouseIds);
+        for (final p in sp) { storeMap[p.product.id] = store; }
+        pairs.addAll(sp);
+      }
       if (!mounted) return;
       setState(() {
         _pairs           = pairs;
+        _productStoreMap = storeMap;
         _loadingProducts = false;
       });
-    } catch (_) {
-      if (mounted) setState(() => _loadingProducts = false);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _loadingStores   = false;
+          _loadingProducts = false;
+          _errorMessage    = e.toString();
+        });
+      }
     }
   }
 
   void _openFilters() async {
-    if (_selectedStore == null) return;
+    if (_stores.isEmpty) return;
     final updated = await showModalBottomSheet<ClientFilters>(
       context: context,
       isScrollControlled: true,
@@ -262,7 +262,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                         child: Container(
                           height: 42,
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.15),
+                            color: Colors.white,
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: TextField(
@@ -271,14 +271,13 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                               _filters = _filters.copyWith(search: q.trim());
                               _displayCount = 20;
                             }),
-                            style: const TextStyle(color: Colors.white, fontSize: 14),
+                            style: const TextStyle(color: Colors.black87, fontSize: 14),
                             decoration: InputDecoration(
                               hintText: 'Поиск товара...',
-                              hintStyle: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.6),
-                                  fontSize: 14),
-                              prefixIcon: Icon(Icons.search_rounded,
-                                  color: Colors.white.withValues(alpha: 0.8), size: 20),
+                              hintStyle: const TextStyle(
+                                  color: Colors.black54, fontSize: 14),
+                              prefixIcon: const Icon(Icons.search_rounded,
+                                  color: AppTheme.primary, size: 20),
                               suffixIcon: _filters.search.isNotEmpty
                                   ? GestureDetector(
                                       onTap: () {
@@ -287,9 +286,8 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                                           _filters = _filters.copyWith(search: '');
                                         });
                                       },
-                                      child: Icon(Icons.close_rounded,
-                                          color: Colors.white.withValues(alpha: 0.8),
-                                          size: 18))
+                                      child: const Icon(Icons.close_rounded,
+                                          color: AppTheme.textHint, size: 18))
                                   : null,
                               border: InputBorder.none,
                               contentPadding:
@@ -335,45 +333,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                       ),
                     ]),
                   ),
-                  // Store selector
-                  if (_stores.length > 1)
-                    SizedBox(
-                      height: 38,
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
-                        itemCount: _stores.length,
-                        separatorBuilder: (_, __) => const SizedBox(width: 8),
-                        itemBuilder: (_, i) {
-                          final s      = _stores[i];
-                          final active = s.adminUid == _selectedStore?.adminUid;
-                          return GestureDetector(
-                            onTap: () => _selectStore(s),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 200),
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 14, vertical: 5),
-                              decoration: BoxDecoration(
-                                color: active
-                                    ? Colors.white
-                                    : Colors.white.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(s.storeName,
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                    color: active
-                                        ? AppTheme.primary
-                                        : Colors.white,
-                                  )),
-                            ),
-                          );
-                        },
-                      ),
-                    )
-                  else
-                    const SizedBox(height: 4),
+                  const SizedBox(height: 8),
 
                   // Active filter chips row
                   if (activeChips.isNotEmpty)
@@ -439,14 +399,14 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                                     return _ProductCard(
                                       product: pair.product,
                                       onTap: (p) {
-                                        if (_selectedStore == null) return;
+                                        final store = _productStoreMap[p.id];
+                                        if (store == null) return;
                                         Navigator.push(
                                           context,
                                           MaterialPageRoute(
-                                            builder: (_) =>
-                                                ClientProductDetail(
+                                            builder: (_) => ClientProductDetail(
                                               product: p,
-                                              store:   _selectedStore!,
+                                              store:   store,
                                             ),
                                           ),
                                         );

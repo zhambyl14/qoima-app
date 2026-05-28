@@ -42,6 +42,7 @@ class _MakeSaleScreenState extends State<MakeSaleScreen> {
   final Set<String> _selectedIds = {};
   List<CartItem> _cart = [];
   bool _isConfirming = false;
+  List<ReservationModel> _latestReservations = const [];
 
   @override
   void initState() {
@@ -132,6 +133,43 @@ class _MakeSaleScreenState extends State<MakeSaleScreen> {
           _selectedIds.clear();
         });
         return;
+      }
+
+      // Block if any selected size is currently reserved by an online order
+      for (final item in validItems) {
+        for (final entry in item.sizes.entries) {
+          if (entry.value <= 0) continue;
+          final isBlocked = _latestReservations.any((r) =>
+              r.batchId == item.batch.id &&
+              r.size    == entry.key &&
+              r.isActive);
+          if (isBlocked) {
+            if (mounted) {
+              await showDialog(
+                context: context,
+                builder: (_) => AlertDialog(
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16)),
+                  title: const Text('Тауар брондалған'),
+                  content: Text(
+                      '${item.product.name} (р. ${entry.key}) — '
+                      'онлайн тапсырыспен брондалған. '
+                      'Аздан кейін қайталаңыз.'),
+                  actions: [
+                    ElevatedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.primary,
+                          foregroundColor: Colors.white),
+                      child: const Text('Түсіндім')),
+                  ],
+                ),
+              );
+            }
+            setState(() => _isConfirming = false);
+            return;
+          }
+        }
       }
 
       for (final item in validItems) {
@@ -307,17 +345,20 @@ class _MakeSaleScreenState extends State<MakeSaleScreen> {
                 )
               : StreamBuilder<List<ReservationModel>>(
                   stream: _service.watchActiveReservations(),
-                  builder: (_, rSnap) => _Step2(
-                    cart: _cart,
-                    reservations: rSnap.data ?? const [],
-                    onSizeChanged: (ci, sizes) =>
-                        setState(() => _cart[ci].sizes = sizes),
-                    onDiscount: (ci) => _showDiscountSheet(ci),
-                    onRemove: (ci) => setState(() {
-                      _cart.removeAt(ci);
-                      if (_cart.isEmpty) _step = 0;
-                    }),
-                  ),
+                  builder: (_, rSnap) {
+                    _latestReservations = rSnap.data ?? const [];
+                    return _Step2(
+                      cart: _cart,
+                      reservations: _latestReservations,
+                      onSizeChanged: (ci, sizes) =>
+                          setState(() => _cart[ci].sizes = sizes),
+                      onDiscount: (ci) => _showDiscountSheet(ci),
+                      onRemove: (ci) => setState(() {
+                        _cart.removeAt(ci);
+                        if (_cart.isEmpty) _step = 0;
+                      }),
+                    );
+                  },
                 ),
         ),
 

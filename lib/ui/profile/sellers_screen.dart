@@ -159,16 +159,45 @@ class _ActiveSellerCard extends StatelessWidget {
             fontSize: 14, color: AppTheme.textPrimary)),
         subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(email, style: const TextStyle(color: AppTheme.textHint, fontSize: 12)),
-          if (whId.isNotEmpty)
-            _WarehouseName(service: service, warehouseId: whId),
+          StreamBuilder<List<WarehouseModel>>(
+            stream: service.watchWarehouses(),
+            builder: (_, snap) {
+              final warehouses = snap.data ?? [];
+              if (warehouses.isEmpty) return const SizedBox.shrink();
+              return DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: warehouses.any((w) => w.id == whId) ? whId : null,
+                  hint: const Text('Қойма таңдаңыз',
+                      style: TextStyle(fontSize: 12, color: AppTheme.textHint)),
+                  isDense: true,
+                  style: const TextStyle(fontSize: 12,
+                      color: AppTheme.textPrimary, fontWeight: FontWeight.w500),
+                  icon: const Icon(Icons.arrow_drop_down,
+                      size: 18, color: AppTheme.textHint),
+                  items: warehouses.map((wh) => DropdownMenuItem(
+                    value: wh.id,
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      const Icon(Icons.warehouse_outlined,
+                          size: 12, color: AppTheme.primary),
+                      const SizedBox(width: 4),
+                      Text(wh.name,
+                          style: const TextStyle(fontSize: 12)),
+                    ]),
+                  )).toList(),
+                  onChanged: (newId) async {
+                    if (newId == null || newId == whId) return;
+                    await service.reassignSellerWarehouse(uid, newId);
+                  },
+                ),
+              );
+            },
+          ),
         ]),
         trailing: PopupMenuButton<String>(
           icon: const Icon(Icons.more_vert, color: AppTheme.textHint, size: 20),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           onSelected: (val) async {
-            if (val == 'warehouse') {
-              _showWarehousePicker(context, uid, whId);
-            } else if (val == 'remove') {
+            if (val == 'remove') {
               final ok = await showDialog<bool>(context: context,
                 builder: (_) => AlertDialog(
                   shape: RoundedRectangleBorder(
@@ -190,12 +219,6 @@ class _ActiveSellerCard extends StatelessWidget {
             }
           },
           itemBuilder: (_) => [
-            const PopupMenuItem(value: 'warehouse',
-              child: Row(children: [
-                Icon(Icons.warehouse_outlined, size: 16, color: AppTheme.primary),
-                SizedBox(width: 8),
-                Text('Қойма тағайындау'),
-              ])),
             const PopupMenuItem(value: 'remove',
               child: Row(children: [
                 Icon(Icons.person_remove_outlined, size: 16, color: AppTheme.danger),
@@ -208,48 +231,6 @@ class _ActiveSellerCard extends StatelessWidget {
     );
   }
 
-  Future<void> _showWarehousePicker(
-      BuildContext context, String sellerUid, String currentWhId) async {
-    final warehouses = await service.getWarehouses();
-    if (!context.mounted) return;
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (_) => _WarehousePicker(
-          warehouses: warehouses,
-          currentId: currentWhId,
-          onSelect: (wh) async {
-            await service.reassignSellerWarehouse(sellerUid, wh.id);
-            if (context.mounted) Navigator.pop(context);
-          }),
-    );
-  }
-}
-
-class _WarehouseName extends StatelessWidget {
-  final FirestoreService service;
-  final String warehouseId;
-  const _WarehouseName({required this.service, required this.warehouseId});
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<List<WarehouseModel>>(
-      stream: service.watchWarehouses(),
-      builder: (_, snap) {
-        final warehouses = snap.data ?? [];
-        final wh = warehouses.cast<WarehouseModel?>().firstWhere(
-            (w) => w?.id == warehouseId, orElse: () => null);
-        if (wh == null) return const SizedBox.shrink();
-        return Row(children: [
-          const Icon(Icons.warehouse_outlined, size: 11, color: AppTheme.textHint),
-          const SizedBox(width: 3),
-          Text(wh.name, style: const TextStyle(
-              color: AppTheme.textHint, fontSize: 11)),
-        ]);
-      },
-    );
-  }
 }
 
 class _WarehousePicker extends StatelessWidget {

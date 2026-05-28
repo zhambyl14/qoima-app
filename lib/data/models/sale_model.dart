@@ -14,7 +14,10 @@ class SaleModel {
   final double discountAmount;  // ₸ айырмашылығы
   final String sellerId;
   final String sellerName;
-  final String warehouseId; // қай қоймадан сатылды
+  final String warehouseId;
+  final bool   isOnline;
+  final String orderId;
+  final String deliveredByName;
 
   const SaleModel({
     required this.id,
@@ -30,7 +33,10 @@ class SaleModel {
     required this.discountAmount,
     required this.sellerId,
     required this.sellerName,
-    this.warehouseId = '',
+    this.warehouseId     = '',
+    this.isOnline        = false,
+    this.orderId         = '',
+    this.deliveredByName = '',
   });
 
   factory SaleModel.fromJson(Map<String, dynamic> json, {String? docId}) {
@@ -56,9 +62,12 @@ class SaleModel {
       totalPrice:      totalPrice,
       discountPercent: (json['discount_percent'] as num?)?.toDouble() ?? 0.0,
       discountAmount:  (json['discount_amount']  as num?)?.toDouble() ?? 0.0,
-      sellerId:        json['seller_id']    as String? ?? '',
-      sellerName:      json['seller_name']  as String? ?? '',
-      warehouseId:     json['warehouseId']  as String? ?? '',
+      sellerId:        json['seller_id']         as String? ?? '',
+      sellerName:      json['seller_name']        as String? ?? '',
+      warehouseId:     json['warehouseId']        as String? ?? '',
+      isOnline:        json['is_online']          as bool?   ?? false,
+      orderId:         json['order_id']           as String? ?? '',
+      deliveredByName: json['delivered_by_name']  as String? ?? '',
     );
   }
 
@@ -79,9 +88,12 @@ class SaleModel {
     'total_price':      totalPrice,
     'discount_percent': discountPercent,
     'discount_amount':  discountAmount,
-    'seller_id':        sellerId,
-    'seller_name':      sellerName,
-    'warehouseId':      warehouseId,
+    'seller_id':         sellerId,
+    'seller_name':       sellerName,
+    'warehouseId':       warehouseId,
+    'is_online':         isOnline,
+    'order_id':          orderId,
+    'delivered_by_name': deliveredByName,
   };
 
   SaleModel copyWith({
@@ -89,7 +101,7 @@ class SaleModel {
     Map<String, int>? sizesSold, String? selectedSize, int? quantity,
     double? basePrice, double? totalPrice, double? discountPercent,
     double? discountAmount, String? sellerId, String? sellerName,
-    String? warehouseId,
+    String? warehouseId, bool? isOnline, String? orderId, String? deliveredByName,
   }) => SaleModel(
     id:              id              ?? this.id,
     productId:       productId       ?? this.productId,
@@ -105,5 +117,8 @@ class SaleModel {
     sellerId:        sellerId        ?? this.sellerId,
     sellerName:      sellerName      ?? this.sellerName,
     warehouseId:     warehouseId     ?? this.warehouseId,
+    isOnline:        isOnline        ?? this.isOnline,
+    orderId:         orderId         ?? this.orderId,
+    deliveredByName: deliveredByName ?? this.deliveredByName,
   );
 }

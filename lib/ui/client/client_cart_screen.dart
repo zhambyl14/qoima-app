@@ -6,7 +6,6 @@ import '../../data/models/order_model.dart';
 import '../../data/services/client_service.dart';
 import '../../theme/app_theme.dart';
 import 'client_shell.dart';
-import 'client_order_success_screen.dart';
 
 class ClientCartScreen extends StatefulWidget {
   const ClientCartScreen({super.key});
@@ -77,36 +76,40 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
 
     setState(() => _isLoading = true);
     try {
-      final item  = cart.items.first;
-      final order = OrderModel(
-        id:               '',
-        clientPhone:      appUser.phone,
-        clientName:       appUser.name,
-        clientUid:        appUser.uid,
-        adminUid:         item.adminUid,
-        storeName:        item.storeName,
-        warehouseId:      item.warehouseId,
-        warehouseAddress: _warehouseAddress(cart.items),
-        items:            List.from(cart.items),
-        status:           _orderType == OrderModel.typeSmartReservation
-            ? OrderModel.statusReserved
-            : OrderModel.statusPending,
-        orderType:        _orderType,
-        createdAt:        DateTime.now(),
-        address:          _addressCtrl.text.trim(),
-        note:             _noteCtrl.text.trim(),
-        depositAmount:    deposit,
-        deliveryFee:      deliveryFee,
-      );
-      final placed = await _service.placeOrder(order);
+      // Group items by store and place one order per store
+      final Map<String, List<CartItemModel>> byStore = {};
+      for (final item in cart.items) {
+        byStore.putIfAbsent(item.adminUid, () => []).add(item);
+      }
+      for (final entry in byStore.entries) {
+        final storeItems   = entry.value;
+        final storeTotal   = storeItems.fold<double>(0, (s, i) => s + i.subtotal);
+        final storeDeposit = _depositFor(storeTotal);
+        final order = OrderModel(
+          id:               '',
+          clientPhone:      appUser.phone,
+          clientName:       appUser.name,
+          clientUid:        appUser.uid,
+          adminUid:         storeItems.first.adminUid,
+          storeName:        storeItems.first.storeName,
+          warehouseId:      storeItems.first.warehouseId,
+          warehouseAddress: storeItems.first.warehouseAddress,
+          items:            storeItems,
+          status:           _orderType == OrderModel.typeSmartReservation
+              ? OrderModel.statusReserved
+              : OrderModel.statusPending,
+          orderType:        _orderType,
+          createdAt:        DateTime.now(),
+          address:          _addressCtrl.text.trim(),
+          note:             _noteCtrl.text.trim(),
+          depositAmount:    storeDeposit,
+          deliveryFee:      _deliveryFeeFor(),
+        );
+        await _service.placeOrder(order);
+      }
       if (!mounted) return;
       cart.clear();
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => ClientOrderSuccessScreen(order: placed),
-        ),
-      );
+      context.findAncestorStateOfType<ClientShellState>()?.setIndex(2);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -620,6 +623,23 @@ class _CartItemTile extends StatelessWidget {
               style: const TextStyle(
                   fontSize: 14, fontWeight: FontWeight.w700,
                   color: AppTheme.primary)),
+          if (item.storeName.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Row(children: [
+              const Icon(Icons.store_outlined, size: 10, color: AppTheme.textHint),
+              const SizedBox(width: 3),
+              Text(item.storeName,
+                  style: const TextStyle(fontSize: 11, color: AppTheme.textHint)),
+            ]),
+          ],
+          if (item.warehouseAddress.isNotEmpty)
+            Row(children: [
+              const Icon(Icons.location_on_outlined, size: 10, color: AppTheme.textHint),
+              const SizedBox(width: 3),
+              Expanded(child: Text(item.warehouseAddress,
+                  style: const TextStyle(fontSize: 10, color: AppTheme.textHint),
+                  maxLines: 1, overflow: TextOverflow.ellipsis)),
+            ]),
         ],
       )),
       IconButton(

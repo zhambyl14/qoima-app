@@ -882,6 +882,7 @@ class FirestoreService {
   /// - ClickCollect / Delivery: just marks order as completed (inventory was
   ///   already deducted when the order was placed).
   Future<void> confirmOnlineOrder(OrderModel order) async {
+    final seller = AppUser.current;
     await _db.runTransaction((tx) async {
       final orderRef = _db.collection('orders').doc(order.id);
       final orderDoc = await tx.get(orderRef);
@@ -902,7 +903,33 @@ class FirestoreService {
         }
       }
 
-      tx.update(orderRef, {'status': OrderModel.statusCompleted});
+      tx.update(orderRef, {
+        'status':          OrderModel.statusCompleted,
+        'deliveredByUid':  seller.uid,
+        'deliveredByName': seller.name,
+        'sellerId':        'онлайн',
+        'sellerName':      'Онлайн',
+      });
+
+      for (final item in order.items) {
+        final saleRef = _salesHistory.doc();
+        tx.set(saleRef, {
+          'product_id':        item.productId,
+          'batch_id':          item.batchId,
+          'seller_id':         'онлайн',
+          'seller_name':       'Онлайн',
+          'is_online':         true,
+          'order_id':          order.id,
+          'delivered_by_uid':  seller.uid,
+          'delivered_by_name': seller.name,
+          'total_price':       item.subtotal,
+          'quantity':          item.qty,
+          'selected_size':     item.size,
+          'sizes_sold':        {item.size: item.qty},
+          'sale_date':         Timestamp.now(),
+          'warehouseId':       order.warehouseId,
+        });
+      }
     });
   }
 

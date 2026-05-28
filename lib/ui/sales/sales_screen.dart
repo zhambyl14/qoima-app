@@ -499,8 +499,12 @@ class _SaleCard extends StatelessWidget {
           const Divider(),
           const SizedBox(height: 10),
           _InfoRow(label: 'Сату күні', value: '$dateStr · $timeStr'),
-          if (sale.sellerName.isNotEmpty)
-            _InfoRow(label: 'Саттушы', value: sale.sellerName),
+          _InfoRow(
+            label: 'Саттушы',
+            value: sale.isOnline ? 'Онлайн 🛒' : sale.sellerName,
+          ),
+          if (sale.isOnline && sale.deliveredByName.isNotEmpty)
+            _InfoRow(label: 'Тапсырды берген', value: sale.deliveredByName),
           if (warehouseName.isNotEmpty)
             _InfoRow(label: 'Қойма', value: warehouseName),
           if (sale.discountPercent > 0) ...[

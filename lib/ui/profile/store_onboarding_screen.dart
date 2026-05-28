@@ -26,6 +26,7 @@ class _StoreOnboardingScreenState extends State<StoreOnboardingScreen> {
   final _nameCtrl      = TextEditingController();
   final _phoneCtrl     = TextEditingController();
   final _descCtrl      = TextEditingController();
+  final _addressCtrl   = TextEditingController();
   String? _selectedCity;
   bool _isLoading = false;
 
@@ -34,6 +35,7 @@ class _StoreOnboardingScreenState extends State<StoreOnboardingScreen> {
     _nameCtrl.dispose();
     _phoneCtrl.dispose();
     _descCtrl.dispose();
+    _addressCtrl.dispose();
     super.dispose();
   }
 
@@ -52,6 +54,7 @@ class _StoreOnboardingScreenState extends State<StoreOnboardingScreen> {
         city:                _selectedCity ?? '',
         phone:               _phoneCtrl.text.trim(),
         description:         _descCtrl.text.trim(),
+        address:             _addressCtrl.text.trim(),
         visibleWarehouseIds: const [],
         isPublished:         false,
         createdAt:           now,
@@ -156,6 +159,22 @@ class _StoreOnboardingScreenState extends State<StoreOnboardingScreen> {
                     prefixIcon: Icon(Icons.phone_outlined),
                     prefixText: '+7 ',
                   ),
+                ),
+                const SizedBox(height: 16),
+
+                // ── Address ────────────────────────────────────────────────
+                _Label('Мекен-жай *'),
+                const SizedBox(height: 6),
+                TextFormField(
+                  controller: _addressCtrl,
+                  decoration: const InputDecoration(
+                    hintText: 'Мысалы: Алматы, Абай д-лы 52',
+                    prefixIcon: Icon(Icons.location_on_outlined),
+                  ),
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) return 'Мекен-жай міндетті';
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 16),
 
