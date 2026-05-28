@@ -4,7 +4,6 @@ import '../../core/l10n_ext.dart';
 import '../../data/services/auth_service.dart';
 import '../../theme/app_theme.dart';
 import 'register_screen.dart';
-import 'client_login_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -38,6 +37,7 @@ class _LoginScreenState extends State<LoginScreen> {
         email:    _emailCtrl.text,
         password: _passwordCtrl.text,
       );
+      if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
     } on FirebaseAuthException catch (e) {
       setState(() => _errorMessage = AuthService.parseError(e));
     } catch (_) {
@@ -51,6 +51,15 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.background,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new,
+              color: AppTheme.textPrimary, size: 20),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -177,28 +186,6 @@ class _LoginScreenState extends State<LoginScreen> {
                           : Text(context.l10n.signIn,
                               style: const TextStyle(
                                   fontSize: 16, fontWeight: FontWeight.w600)),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // ── Сатып алушы ───────────────────────────────────────
-                  SizedBox(
-                    width: double.infinity,
-                    height: 52,
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => const ClientLoginScreen())),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppTheme.primary,
-                        side: const BorderSide(color: AppTheme.primary),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14)),
-                      ),
-                      child: const Text('Сатып алушы ретінде кіру',
-                          style: TextStyle(
-                              fontSize: 15, fontWeight: FontWeight.w600)),
                     ),
                   ),
                   const SizedBox(height: 20),

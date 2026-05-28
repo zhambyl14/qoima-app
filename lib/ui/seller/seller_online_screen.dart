@@ -48,7 +48,9 @@ class _SellerOnlineScreenState extends State<SellerOnlineScreen> {
       setState(() {
         _lookupResult  = found;
         _lookupLoading = false;
-        _lookupError   = found == null ? 'Неверный код или заказ не найден' : null;
+        _lookupError   = order != null && found == null
+            ? 'Бұл тапсырыс сіздің қоймаңызға тиесілі емес'
+            : found == null ? 'Тапсырыс табылмады' : null;
       });
     } catch (e) {
       if (mounted) setState(() { _lookupError = e.toString(); _lookupLoading = false; });

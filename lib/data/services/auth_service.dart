@@ -29,7 +29,9 @@ class AuthService {
     try {
       if (role == 'admin') {
         final code = _generateBusinessCode();
-        await _db.collection('users').doc(uid).set({
+        final batch = _db.batch();
+
+        batch.set(_db.collection('users').doc(uid), {
           'uid':                 uid,
           'name':                name.trim(),
           'email':               email.trim(),
@@ -41,6 +43,14 @@ class AuthService {
           'assignedWarehouseId': '',
           'joinStatus':          'active',
         });
+
+        // business_codes коллекциясына да жаз — seller іздейтін жер осы
+        batch.set(_db.collection('business_codes').doc(code), {
+          'adminUid':  uid,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+
+        await batch.commit();
       } else {
         await _db.collection('users').doc(uid).set({
           'uid':                 uid,

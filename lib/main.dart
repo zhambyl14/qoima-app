@@ -11,6 +11,7 @@ import 'package:provider/provider.dart';
 import 'firebase_options.dart';
 import 'theme/app_theme.dart';
 import 'ui/auth/client_login_screen.dart';
+import 'ui/auth/seller_join_screen.dart';
 import 'ui/main_shell.dart';
 import 'ui/profile/store_onboarding_screen.dart';
 import 'ui/client/client_shell.dart';
@@ -85,9 +86,11 @@ class QoimaApp extends StatelessWidget {
                   return const _Splash();
                 }
                 if (futureSnap.data != true) return const ClientLoginScreen();
-                if (context.read<AppUser>().isClient) return const ClientShell();
-                if (context.read<AppUser>().isAdmin) return const _AdminHomeRouter();
-                return const MainShell();
+                final user = context.read<AppUser>();
+                if (user.isClient) return const ClientShell();
+                if (user.isAdmin) return const _AdminHomeRouter();
+                if (user.joinStatus == 'active') return const MainShell();
+                return const SellerJoinScreen();
               },
             );
           }

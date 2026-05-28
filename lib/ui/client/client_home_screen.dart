@@ -166,6 +166,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
       final pairs    = <({ProductModel product, List<BatchModel> batches})>[];
       final storeMap = <String, StoreModel>{};
       for (final store in stores) {
+        if (store.visibleWarehouseIds.isEmpty) continue;
         final sp = await _service.getStoreProductsWithBatches(
             store.adminUid, store.visibleWarehouseIds);
         for (final p in sp) { storeMap[p.product.id] = store; }

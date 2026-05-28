@@ -214,6 +214,7 @@ class _AddWarehouseSheet extends StatefulWidget {
 }
 
 class _AddWarehouseSheetState extends State<_AddWarehouseSheet> {
+  final _formKey    = GlobalKey<FormState>();
   final _nameCtrl    = TextEditingController();
   final _addressCtrl = TextEditingController();
   final _noteCtrl    = TextEditingController();
@@ -232,58 +233,85 @@ class _AddWarehouseSheetState extends State<_AddWarehouseSheet> {
       padding: EdgeInsets.only(
           left: 20, right: 20, top: 20,
           bottom: MediaQuery.of(context).viewInsets.bottom + 24),
-      child: Column(mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Center(child: Container(width: 36, height: 4,
-            decoration: BoxDecoration(color: Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(2)))),
-        const SizedBox(height: 16),
-        const Text('Жаңа қойма', style: TextStyle(fontSize: 18,
-            fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
-        const SizedBox(height: 16),
-        _Field(ctrl: _nameCtrl, label: 'Қойма атауы *', hint: 'Мысалы: ТРЦ Mega',
-            icon: Icons.warehouse_outlined),
-        const SizedBox(height: 12),
-        _Field(ctrl: _addressCtrl, label: 'Мекен-жай', hint: 'Алматы, Абай к-сі 10',
-            icon: Icons.location_on_outlined),
-        const SizedBox(height: 12),
-        _Field(ctrl: _noteCtrl, label: 'Ескерту', hint: 'Қосымша ақпарат',
-            icon: Icons.notes_rounded),
-        if (_error != null) ...[
-          const SizedBox(height: 10),
-          Text(_error!, style: const TextStyle(color: AppTheme.danger, fontSize: 13)),
-        ],
-        const SizedBox(height: 16),
-        SizedBox(width: double.infinity, height: 48,
-          child: ElevatedButton(
-            style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primary, foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                elevation: 0),
-            onPressed: _loading ? null : () async {
-              final name = _nameCtrl.text.trim();
-              if (name.isEmpty) {
-                setState(() => _error = 'Атауын енгізіңіз');
-                return;
-              }
-              setState(() { _loading = true; _error = null; });
-              try {
-                await widget.service.createWarehouse(
-                  name: name,
-                  address: _addressCtrl.text.trim().isEmpty ? null : _addressCtrl.text.trim(),
-                  note:    _noteCtrl.text.trim().isEmpty    ? null : _noteCtrl.text.trim(),
-                );
-                if (context.mounted) Navigator.pop(context);
-              } catch (e) {
-                setState(() { _error = e.toString(); _loading = false; });
-              }
+      child: Form(
+        key: _formKey,
+        child: Column(mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Center(child: Container(width: 36, height: 4,
+              decoration: BoxDecoration(color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2)))),
+          const SizedBox(height: 16),
+          const Text('Жаңа қойма', style: TextStyle(fontSize: 18,
+              fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
+          const SizedBox(height: 16),
+          _Field(ctrl: _nameCtrl, label: 'Қойма атауы *', hint: 'Мысалы: ТРЦ Mega',
+              icon: Icons.warehouse_outlined),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _addressCtrl,
+            style: const TextStyle(fontSize: 14, color: AppTheme.textPrimary),
+            decoration: InputDecoration(
+              labelText: 'Мекен-жай *',
+              hintText: 'Алматы, Абай к-сі 10',
+              hintStyle: const TextStyle(color: AppTheme.textHint),
+              prefixIcon: const Icon(Icons.location_on_outlined,
+                  color: AppTheme.primary, size: 20),
+              filled: true, fillColor: Colors.white,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppTheme.border)),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppTheme.border)),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppTheme.primary, width: 1.5)),
+              errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppTheme.danger)),
+            ),
+            validator: (v) {
+              if (v == null || v.trim().isEmpty) return 'Мекенжай міндетті!';
+              if (v.trim().length < 5) return 'Толық мекенжай енгізіңіз';
+              return null;
             },
-            child: _loading
-                ? const SizedBox(width: 22, height: 22,
-                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                : const Text('Сақтау', style: TextStyle(fontWeight: FontWeight.w700)),
-          )),
-      ]),
+          ),
+          const SizedBox(height: 12),
+          _Field(ctrl: _noteCtrl, label: 'Ескерту', hint: 'Қосымша ақпарат',
+              icon: Icons.notes_rounded),
+          if (_error != null) ...[
+            const SizedBox(height: 10),
+            Text(_error!, style: const TextStyle(color: AppTheme.danger, fontSize: 13)),
+          ],
+          const SizedBox(height: 16),
+          SizedBox(width: double.infinity, height: 48,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primary, foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  elevation: 0),
+              onPressed: _loading ? null : () async {
+                if (!(_formKey.currentState?.validate() ?? false)) return;
+                final name = _nameCtrl.text.trim();
+                if (name.isEmpty) {
+                  setState(() => _error = 'Атауын енгізіңіз');
+                  return;
+                }
+                setState(() { _loading = true; _error = null; });
+                try {
+                  await widget.service.createWarehouse(
+                    name: name,
+                    address: _addressCtrl.text.trim(),
+                    note:    _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
+                  );
+                  if (context.mounted) Navigator.pop(context);
+                } catch (e) {
+                  setState(() { _error = e.toString(); _loading = false; });
+                }
+              },
+              child: _loading
+                  ? const SizedBox(width: 22, height: 22,
+                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                  : const Text('Сақтау', style: TextStyle(fontWeight: FontWeight.w700)),
+            )),
+        ]),
+      ),
     );
   }
 }

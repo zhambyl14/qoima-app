@@ -259,12 +259,19 @@ class _OrderCardState extends State<_OrderCard> {
             order.status == OrderModel.statusReserved) ...[
           const SizedBox(height: 12),
           Center(child: QrImageView(
-            data: order.id,
+            data: order.orderNumber.toString(),
             version: QrVersions.auto,
             size: 140,
             backgroundColor: Colors.white,
           )),
           const SizedBox(height: 4),
+          Center(child: Text(
+            '#${order.orderNumber.toString().padLeft(5, '0')}',
+            style: const TextStyle(
+              fontSize: 22, fontWeight: FontWeight.w900,
+              color: AppTheme.primary, letterSpacing: 2,
+            ),
+          )),
           const Center(child: Text('Сатушыға осы QR кодты көрсетіңіз',
               style: TextStyle(fontSize: 11, color: AppTheme.textSecondary))),
         ],
@@ -275,12 +282,19 @@ class _OrderCardState extends State<_OrderCard> {
             order.status != OrderModel.statusCompleted) ...[
           const SizedBox(height: 12),
           Center(child: QrImageView(
-            data: order.id,
+            data: order.orderNumber.toString(),
             version: QrVersions.auto,
             size: 140,
             backgroundColor: Colors.white,
           )),
           const SizedBox(height: 4),
+          Center(child: Text(
+            '#${order.orderNumber.toString().padLeft(5, '0')}',
+            style: const TextStyle(
+              fontSize: 22, fontWeight: FontWeight.w900,
+              color: AppTheme.primary, letterSpacing: 2,
+            ),
+          )),
           const Center(child: Text('Дүкенге осы QR кодты көрсетіңіз',
               style: TextStyle(fontSize: 11, color: AppTheme.textSecondary))),
         ],

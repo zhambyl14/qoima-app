@@ -115,8 +115,9 @@ class _ClientLoginScreenState extends State<ClientLoginScreen> {
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(
-        title: const Text('Сатып алушы ретінде кіру'),
-        backgroundColor: AppTheme.primary,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        automaticallyImplyLeading: false,
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -124,23 +125,51 @@ class _ClientLoginScreenState extends State<ClientLoginScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: 16),
+              const SizedBox(height: 8),
               Center(
-                child: Container(
-                  width: 72, height: 72,
-                  decoration: BoxDecoration(
-                    color: AppTheme.primary.withValues(alpha: 0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.shopping_bag_outlined,
-                      color: AppTheme.primary, size: 36),
+                child: Column(
+                  children: [
+                    Container(
+                      width: 100, height: 100,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppTheme.primary.withValues(alpha: 0.15),
+                            blurRadius: 20,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(24),
+                        child: Image.asset(
+                          'assets/images/logo.png',
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                            color: AppTheme.primary,
+                            child: const Icon(Icons.storefront_rounded,
+                                color: Colors.white, size: 50),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    const Text(
+                      'Qoima',
+                      style: TextStyle(
+                        fontSize: 28, fontWeight: FontWeight.w900,
+                        color: AppTheme.textPrimary, letterSpacing: -1,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Қойма менеджменті',
+                      style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(height: 20),
-              const Center(
-                child: Text('Телефон арқылы кіру',
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800,
-                        color: AppTheme.textPrimary, letterSpacing: -0.3)),
               ),
               const SizedBox(height: 6),
               Center(

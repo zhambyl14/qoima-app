@@ -525,46 +525,59 @@ class FirestoreService {
 
   /// Бизнес-код арқылы admin-ді табып, қосылу сұрауын жіберу
   Future<void> sendJoinRequest(String businessCode) async {
-    final query = await _db.collection('users')
-        .where('businessCode', isEqualTo: businessCode.trim())
-        .where('role', isEqualTo: 'admin')
-        .limit(1).get();
+    final sellerUid = _auth.currentUser?.uid;
+    if (sellerUid == null) throw 'Авторизацияланбаған';
 
-    if (query.docs.isEmpty) {
-      throw 'Бизнес-код табылмады. Дүкен иесінен қайта сұраңыз.';
+    // business_codes коллекциясынан іздейміз (rules: signed() → oқуға рұқсат)
+    final codeDoc = await _db
+        .collection('business_codes')
+        .doc(businessCode.trim().toUpperCase())
+        .get();
+
+    if (!codeDoc.exists) {
+      throw 'Бизнес-код табылмады. Дұрыс кодты енгізіңіз.';
     }
 
-    final adminDoc = query.docs.first;
-    final adminUid = adminDoc.id;
-    final sellerUid = _auth.currentUser!.uid;
+    final adminUid = codeDoc.data()?['adminUid'] as String?;
+    if (adminUid == null || adminUid.isEmpty) {
+      throw 'Код жарамсыз. Дүкен иесіне хабарлаңыз.';
+    }
 
     // Бұрын жіберілмеген бе?
-    final existing = await _db.collection('users').doc(adminUid)
-        .collection('join_requests')
-        .where('sellerId', isEqualTo: sellerUid)
-        .where('status',   isEqualTo: 'pending')
-        .limit(1).get();
+    final existing = await _db
+        .collection('users').doc(adminUid)
+        .collection('join_requests').doc(sellerUid)
+        .get();
 
-    if (existing.docs.isNotEmpty) {
+    if (existing.exists &&
+        (existing.data()?['status'] as String? ?? '') == 'pending') {
       throw 'Сіз бұл дүкенге ұсыныс жіберіп қойғансыз.';
     }
 
-    final userDoc = await _db.collection('users').doc(sellerUid).get();
-    final data    = userDoc.data() ?? {};
+    final batch = _db.batch();
 
-    await _db.collection('users').doc(adminUid)
-        .collection('join_requests').add({
-      'sellerId':    sellerUid,
-      'sellerName':  data['name']  ?? '',
-      'sellerEmail': data['email'] ?? '',
-      'requestedAt': FieldValue.serverTimestamp(),
-      'status':      'pending',
-    });
+    // join_requests-қа жаз (doc id = sellerUid, admin оңай табады)
+    batch.set(
+      _db.collection('users').doc(adminUid)
+          .collection('join_requests').doc(sellerUid),
+      {
+        'sellerUid':   sellerUid,
+        'adminUid':    adminUid,
+        'status':      'pending',
+        'requestedAt': FieldValue.serverTimestamp(),
+      },
+    );
 
-    await _db.collection('users').doc(sellerUid).update({
-      'joinStatus':     'pending',
-      'pendingOwnerId': adminUid,
-    });
+    // Seller өзінің doc-ын жаңарт
+    batch.update(
+      _db.collection('users').doc(sellerUid),
+      {
+        'pendingOwnerId': adminUid,
+        'joinStatus':     'pending',
+      },
+    );
+
+    await batch.commit();
   }
 
   /// Ұсынысты болдырмау (seller жағынан)
@@ -825,29 +838,19 @@ class FirestoreService {
         });
   }
 
-  /// Finds an order by pickupCode (QM-XXXX) or document ID (fallback).
-  /// Returns null if not found or belongs to a different admin.
+  /// Finds an order by orderNumber (the numeric code shown in QR / on-screen).
+  /// Returns null if not found.
   Future<OrderModel?> lookupOnlineOrder(String code) async {
-    final trimmed = code.trim().toUpperCase();
-    if (trimmed.isEmpty) return null;
+    final num = int.tryParse(code.replaceAll('#', '').trim());
+    if (num == null) return null;
     try {
-      // 1) Search by pickupCode first (normal path)
-      final byCode = await _db
+      final snap = await _db
           .collection('orders')
-          .where('pickupCode', isEqualTo: trimmed)
-          .where('adminUid', isEqualTo: _adminUid)
+          .where('orderNumber', isEqualTo: num)
           .limit(1)
           .get();
-      if (byCode.docs.isNotEmpty) {
-        return OrderModel.fromFirestore(byCode.docs.first);
-      }
-      // 2) Fallback: try as Firestore document ID
-      final byId = await _db.collection('orders').doc(trimmed).get();
-      if (byId.exists) {
-        final order = OrderModel.fromFirestore(byId);
-        if (order.adminUid == _adminUid) return order;
-      }
-      return null;
+      if (snap.docs.isEmpty) return null;
+      return OrderModel.fromFirestore(snap.docs.first);
     } catch (_) {
       return null;
     }
