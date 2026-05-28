@@ -34,7 +34,7 @@ class WarehouseContext extends ChangeNotifier {
     await _warehouseSub?.cancel();
     try {
       final service = FirestoreService();
-      final prefs   = await SharedPreferences.getInstance();
+      final prefs = await SharedPreferences.getInstance();
       final savedId = prefs.getString(_prefKey);
 
       _warehouseSub = service.watchWarehouses().listen(
@@ -50,7 +50,8 @@ class WarehouseContext extends ChangeNotifier {
           } else {
             _current = _all.firstWhere(
               (w) => w.id == savedId,
-              orElse: () => _all.firstWhere((w) => w.isMain, orElse: () => _all.first),
+              orElse: () =>
+                  _all.firstWhere((w) => w.isMain, orElse: () => _all.first),
             );
           }
           notifyListeners();
@@ -66,10 +67,10 @@ class WarehouseContext extends ChangeNotifier {
     await _sellerSub?.cancel();
     if (AppUser.current.ownerUid.isEmpty) return; // Not yet linked to an admin.
     try {
-      final service      = FirestoreService();
-      final warehouses   = await service.getWarehouses();
-      _all               = warehouses;
-      final warehouseId  = AppUser.current.assignedWarehouseId;
+      final service = FirestoreService();
+      final warehouses = await service.getWarehouses();
+      _all = warehouses;
+      final warehouseId = AppUser.current.assignedWarehouseId;
       if (warehouseId.isNotEmpty) {
         _current = _all.firstWhere(
           (w) => w.id == warehouseId,
@@ -85,7 +86,7 @@ class WarehouseContext extends ChangeNotifier {
           try {
             AppUser.current.assignedWarehouseId = newId;
             final whs = await service.getWarehouses();
-            _all     = whs;
+            _all = whs;
             _current = _all.firstWhere(
               (w) => w.id == newId,
               orElse: () => _all.isNotEmpty ? _all.first : _current!,
@@ -112,9 +113,9 @@ class WarehouseContext extends ChangeNotifier {
     _warehouseSub?.cancel();
     _sellerSub?.cancel();
     _warehouseSub = null;
-    _sellerSub    = null;
-    _current      = null;
-    _all          = [];
+    _sellerSub = null;
+    _current = null;
+    _all = [];
     notifyListeners();
   }
 

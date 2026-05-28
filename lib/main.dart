@@ -37,7 +37,8 @@ void main() async {
     cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
   );
   if (kDebugMode) {
-    await FirebaseAuth.instance.setSettings(appVerificationDisabledForTesting: true);
+    await FirebaseAuth.instance
+        .setSettings(appVerificationDisabledForTesting: true);
   }
   runApp(
     MultiProvider(
@@ -104,7 +105,7 @@ class QoimaApp extends StatelessWidget {
 }
 
 Future<bool> _loadSession(String uid, BuildContext context) async {
-  final wCtx    = context.read<WarehouseContext>();
+  final wCtx = context.read<WarehouseContext>();
   final appUser = context.read<AppUser>();
   try {
     final authService = AuthService();
@@ -113,15 +114,15 @@ Future<bool> _loadSession(String uid, BuildContext context) async {
     final userDoc = await authService.getUserDoc(uid);
     if (userDoc != null) {
       appUser.set(
-        uid:                 userDoc.uid,
-        ownerUid:            userDoc.ownerId.isNotEmpty ? userDoc.ownerId : userDoc.uid,
-        name:                userDoc.name,
-        email:               userDoc.email,
-        role:                userDoc.role,
-        active:              userDoc.active,
-        businessCode:        userDoc.businessCode,
+        uid: userDoc.uid,
+        ownerUid: userDoc.ownerId.isNotEmpty ? userDoc.ownerId : userDoc.uid,
+        name: userDoc.name,
+        email: userDoc.email,
+        role: userDoc.role,
+        active: userDoc.active,
+        businessCode: userDoc.businessCode,
         assignedWarehouseId: userDoc.assignedWarehouseId,
-        joinStatus:          userDoc.joinStatus,
+        joinStatus: userDoc.joinStatus,
       );
       await wCtx.load();
       return true;
@@ -131,12 +132,12 @@ Future<bool> _loadSession(String uid, BuildContext context) async {
     final clientDoc = await authService.getClientDoc(uid);
     if (clientDoc != null) {
       appUser.set(
-        uid:      clientDoc.uid,
+        uid: clientDoc.uid,
         ownerUid: '',
-        name:     clientDoc.name,
-        email:    '',
-        role:     'client',
-        phone:    clientDoc.phone,
+        name: clientDoc.name,
+        email: '',
+        role: 'client',
+        phone: clientDoc.phone,
       );
       return true;
     }
@@ -178,22 +179,26 @@ class _Splash extends StatelessWidget {
   const _Splash();
   @override
   Widget build(BuildContext context) => const Scaffold(
-    backgroundColor: AppTheme.primary,
-    body: Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text('Qoima',
-              style: TextStyle(
-                  color: Colors.white, fontSize: 36,
-                  fontWeight: FontWeight.w800, letterSpacing: -1)),
-          SizedBox(height: 24),
-          SizedBox(
-            width: 24, height: 24,
-            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+        backgroundColor: AppTheme.primary,
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text('Qoima',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 36,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -1)),
+              SizedBox(height: 24),
+              SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                    color: Colors.white, strokeWidth: 2),
+              ),
+            ],
           ),
-        ],
-      ),
-    ),
-  );
+        ),
+      );
 }

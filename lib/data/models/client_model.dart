@@ -17,26 +17,27 @@ class ClientModel {
       DocumentSnapshot<Map<String, dynamic>> doc) {
     final d = doc.data()!;
     return ClientModel(
-      uid:       doc.id,
-      phone:     d['phone']     as String?   ?? '',
-      name:      d['name']      as String?   ?? '',
+      uid: doc.id,
+      phone: d['phone'] as String? ?? '',
+      name: d['name'] as String? ?? '',
       createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
 
   Map<String, dynamic> toJson() => {
-        'uid':       uid,
-        'phone':     phone,
-        'name':      name,
-        'role':      'client',
+        'uid': uid,
+        'phone': phone,
+        'name': name,
+        'role': 'client',
         'createdAt': Timestamp.fromDate(createdAt),
       };
 
-  ClientModel copyWith({String? uid, String? phone, String? name, DateTime? createdAt}) =>
+  ClientModel copyWith(
+          {String? uid, String? phone, String? name, DateTime? createdAt}) =>
       ClientModel(
-        uid:       uid       ?? this.uid,
-        phone:     phone     ?? this.phone,
-        name:      name      ?? this.name,
+        uid: uid ?? this.uid,
+        phone: phone ?? this.phone,
+        name: name ?? this.name,
         createdAt: createdAt ?? this.createdAt,
       );
 }

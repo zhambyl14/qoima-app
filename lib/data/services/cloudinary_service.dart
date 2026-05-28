@@ -31,11 +31,11 @@ class CloudinaryService {
       );
 
     final streamedResponse = await request.send().timeout(
-      const Duration(seconds: 60),
-      onTimeout: () => throw CloudinaryException(
-        'Время ожидания истекло. Проверьте интернет.',
-      ),
-    );
+          const Duration(seconds: 60),
+          onTimeout: () => throw CloudinaryException(
+            'Время ожидания истекло. Проверьте интернет.',
+          ),
+        );
 
     final response = await http.Response.fromStream(streamedResponse);
 
@@ -48,8 +48,7 @@ class CloudinaryService {
       return url;
     } else {
       final errorBody = jsonDecode(response.body) as Map<String, dynamic>?;
-      final message =
-          (errorBody?['error'] as Map?)?['message'] as String? ??
+      final message = (errorBody?['error'] as Map?)?['message'] as String? ??
           'Неизвестная ошибка Cloudinary';
       throw CloudinaryException('Ошибка [${response.statusCode}]: $message');
     }

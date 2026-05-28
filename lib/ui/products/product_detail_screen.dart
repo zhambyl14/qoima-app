@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/app_user.dart';
 import '../../data/models/models.dart';
@@ -22,7 +22,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Удалить поставку?'),
-        content: const Text('Действие необратимо. Поставка и связанные продажи будут удалены.'),
+        content: const Text(
+            'Действие необратимо. Поставка и связанные продажи будут удалены.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -77,17 +78,22 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   ),
                   TextField(
                     controller: purchaseCtrl,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(labelText: 'Закупочная цена'),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    decoration:
+                        const InputDecoration(labelText: 'Закупочная цена'),
                   ),
                   const SizedBox(height: 8),
                   TextField(
                     controller: sellingCtrl,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(labelText: 'Цена продажи'),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    decoration:
+                        const InputDecoration(labelText: 'Цена продажи'),
                   ),
                   const SizedBox(height: 10),
-                  const Text('Размеры', style: TextStyle(fontWeight: FontWeight.w700)),
+                  const Text('Размеры',
+                      style: TextStyle(fontWeight: FontWeight.w700)),
                   const SizedBox(height: 6),
                   ...tempSizes.keys.map((size) {
                     final qty = tempSizes[size] ?? 0;
@@ -95,12 +101,17 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       children: [
                         SizedBox(width: 34, child: Text(size)),
                         IconButton(
-                          onPressed: qty > 0 ? () => setS(() => tempSizes[size] = qty - 1) : null,
+                          onPressed: qty > 0
+                              ? () => setS(() => tempSizes[size] = qty - 1)
+                              : null,
                           icon: const Icon(Icons.remove_circle_outline),
                         ),
-                        Text('$qty', style: const TextStyle(fontWeight: FontWeight.w700)),
+                        Text('$qty',
+                            style:
+                                const TextStyle(fontWeight: FontWeight.w700)),
                         IconButton(
-                          onPressed: () => setS(() => tempSizes[size] = qty + 1),
+                          onPressed: () =>
+                              setS(() => tempSizes[size] = qty + 1),
                           icon: const Icon(Icons.add_circle_outline),
                         ),
                       ],
@@ -111,8 +122,12 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Отмена')),
-            ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Сохранить')),
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Отмена')),
+            ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Сохранить')),
           ],
         ),
       ),
@@ -124,8 +139,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       productId: widget.product.id,
       batchId: batch.id,
       dateArrived: tempDate,
-      purchasePrice: double.tryParse(purchaseCtrl.text.trim()) ?? batch.purchasePrice,
-      sellingPrice: double.tryParse(sellingCtrl.text.trim()) ?? batch.sellingPrice,
+      purchasePrice:
+          double.tryParse(purchaseCtrl.text.trim()) ?? batch.purchasePrice,
+      sellingPrice:
+          double.tryParse(sellingCtrl.text.trim()) ?? batch.sellingPrice,
       sizesQuantity: tempSizes,
     );
   }
@@ -141,29 +158,29 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         stream: _service.watchBatches(p.id),
         builder: (context, batchSnap) {
           final batches = batchSnap.data ?? [];
-          final activeBatches = batches.where((b) => b.totalQuantity > 0).toList();
-          final soldBatches = batches.where((b) => b.totalQuantity <= 0).toList();
+          final activeBatches =
+              batches.where((b) => b.totalQuantity > 0).toList();
+          final soldBatches =
+              batches.where((b) => b.totalQuantity <= 0).toList();
           final totalPairs =
               batches.fold<int>(0, (s, b) => s + b.totalQuantity);
 
           final Map<String, int> totalSizes = {};
           for (final b in batches) {
-            b.sizesQuantity.forEach(
-                (k, v) => totalSizes[k] = (totalSizes[k] ?? 0) + v);
+            b.sizesQuantity
+                .forEach((k, v) => totalSizes[k] = (totalSizes[k] ?? 0) + v);
           }
           final availSizes = totalSizes.entries
               .where((e) => e.value > 0)
               .toList()
             ..sort((a, b) =>
-                (int.tryParse(a.key) ?? 0)
-                    .compareTo(int.tryParse(b.key) ?? 0));
+                (int.tryParse(a.key) ?? 0).compareTo(int.tryParse(b.key) ?? 0));
 
           return CustomScrollView(slivers: [
             // ── Фото ──────────────────────────────────────────────────
             SliverToBoxAdapter(
               child: GestureDetector(
-                onTap: () =>
-                    setState(() => _photoExpanded = !_photoExpanded),
+                onTap: () => setState(() => _photoExpanded = !_photoExpanded),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 350),
                   curve: Curves.easeInOut,
@@ -177,11 +194,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                             onPageChanged: (i) =>
                                 setState(() => _photoIndex = i),
                             itemBuilder: (_, i) => Image.network(
-                              p.images[i],
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) =>
-                                  _placeholder(),
-                            ))
+                                  p.images[i],
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => _placeholder(),
+                                ))
                         : _placeholder(),
                     Positioned.fill(
                       child: DecoratedBox(
@@ -204,12 +220,12 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       child: GestureDetector(
                         onTap: () => Navigator.pop(context),
                         child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.4),
-                              borderRadius: BorderRadius.circular(10)),
-                          child: const Icon(Icons.arrow_back_ios_new,
-                              color: Colors.white, size: 18)),
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.4),
+                                borderRadius: BorderRadius.circular(10)),
+                            child: const Icon(Icons.arrow_back_ios_new,
+                                color: Colors.white, size: 18)),
                       ),
                     ),
                     if (p.images.isNotEmpty)
@@ -217,16 +233,16 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                         top: MediaQuery.of(context).padding.top + 8,
                         right: 12,
                         child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.4),
-                              borderRadius: BorderRadius.circular(10)),
-                          child: Icon(
-                              _photoExpanded
-                                  ? Icons.fullscreen_exit
-                                  : Icons.fullscreen,
-                              color: Colors.white,
-                              size: 18)),
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.4),
+                                borderRadius: BorderRadius.circular(10)),
+                            child: Icon(
+                                _photoExpanded
+                                    ? Icons.fullscreen_exit
+                                    : Icons.fullscreen,
+                                color: Colors.white,
+                                size: 18)),
                       ),
                     if (p.images.length > 1)
                       Positioned(
@@ -259,9 +275,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: inStock
-                              ? AppTheme.success
-                              : Colors.grey,
+                          color: inStock ? AppTheme.success : Colors.grey,
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(p.status,
@@ -322,12 +336,12 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                     ),
                     Column(children: [
                       Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                            color: AppTheme.primary.withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(12)),
-                        child: const Icon(Icons.inventory_2_outlined,
-                            color: AppTheme.primary, size: 22)),
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                              color: AppTheme.primary.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(12)),
+                          child: const Icon(Icons.inventory_2_outlined,
+                              color: AppTheme.primary, size: 22)),
                       const SizedBox(height: 4),
                       Text('$totalPairs пар',
                           style: const TextStyle(
@@ -344,9 +358,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                     if (p.color.isNotEmpty)
                       _Tag(label: p.color, icon: Icons.palette_outlined),
                     if (p.material.isNotEmpty)
-                      _Tag(
-                          label: p.material,
-                          icon: Icons.texture_outlined),
+                      _Tag(label: p.material, icon: Icons.texture_outlined),
                   ]),
                   const SizedBox(height: 20),
 
@@ -404,11 +416,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   // Партии
                   const _SecTitle('Партии поставок'),
                   const SizedBox(height: 10),
-                  if (batchSnap.connectionState ==
-                      ConnectionState.waiting)
+                  if (batchSnap.connectionState == ConnectionState.waiting)
                     const Center(
-                        child: CircularProgressIndicator(
-                            color: AppTheme.primary))
+                        child:
+                            CircularProgressIndicator(color: AppTheme.primary))
                   else if (batches.isEmpty)
                     const Text('Нет партий',
                         style: TextStyle(color: AppTheme.textHint))
@@ -452,7 +463,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   // Саттушы үшін: барлық размерлер grid-те
   Widget _buildSizesGrid(Map<String, int> allSizes) {
     final sorted = allSizes.entries.toList()
-      ..sort((a, b) => (int.tryParse(a.key) ?? 0).compareTo(int.tryParse(b.key) ?? 0));
+      ..sort((a, b) =>
+          (int.tryParse(a.key) ?? 0).compareTo(int.tryParse(b.key) ?? 0));
     if (sorted.isEmpty) return const SizedBox.shrink();
     return GridView.builder(
       shrinkWrap: true,
@@ -466,7 +478,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       itemCount: sorted.length,
       itemBuilder: (_, i) {
         final size = sorted[i].key;
-        final qty  = sorted[i].value;
+        final qty = sorted[i].value;
         final avail = qty > 0;
         return Container(
           decoration: BoxDecoration(
@@ -482,14 +494,17 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             ),
           ),
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Text(size, style: TextStyle(
-              fontSize: 18, fontWeight: FontWeight.w800,
-              color: avail ? AppTheme.primary : AppTheme.textHint,
-            )),
-            Text(avail ? '$qty пар' : 'жоқ', style: TextStyle(
-              fontSize: 11,
-              color: avail ? AppTheme.textSecondary : AppTheme.textHint,
-            )),
+            Text(size,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: avail ? AppTheme.primary : AppTheme.textHint,
+                )),
+            Text(avail ? '$qty пар' : 'жоқ',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: avail ? AppTheme.textSecondary : AppTheme.textHint,
+                )),
           ]),
         );
       },
@@ -549,91 +564,92 @@ class _BatchWithSales extends StatelessWidget {
         // Заголовок партии
         Padding(
           padding: const EdgeInsets.all(14),
-          child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(children: [
-                  Container(
-                    padding: const EdgeInsets.all(7),
-                    decoration: BoxDecoration(
-                        color: AppTheme.primary.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(8)),
-                    child: const Icon(Icons.local_shipping_outlined,
-                        size: 16, color: AppTheme.primary),
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Container(
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(
+                    color: AppTheme.primary.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(8)),
+                child: const Icon(Icons.local_shipping_outlined,
+                    size: 16, color: AppTheme.primary),
+              ),
+              const SizedBox(width: 8),
+              Text('Поставка от $dateStr',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      color: AppTheme.textPrimary)),
+              if (isArchived) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.grey,
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  const SizedBox(width: 8),
-                  Text('Поставка от $dateStr',
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                          color: AppTheme.textPrimary)),
-                  if (isArchived) ...[
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: Colors.grey,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Text(
-                        'Продано',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
+                  child: const Text(
+                    'Продано',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
                     ),
-                  ],
-                  const Spacer(),
-                  if (!isArchived && context.read<AppUser>().isAdmin) ...[
-                    IconButton(
-                      onPressed: onEdit,
-                      icon: const Icon(Icons.edit_outlined, size: 18),
-                      color: AppTheme.primary,
-                      visualDensity: VisualDensity.compact,
-                    ),
-                    IconButton(
-                      onPressed: onDelete,
-                      icon: const Icon(Icons.delete_outline, size: 18),
-                      color: AppTheme.danger,
-                      visualDensity: VisualDensity.compact,
-                    ),
-                  ],
-                  Text('${batch.totalQuantity} пар',
-                      style: const TextStyle(
-                          color: AppTheme.textSecondary,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500)),
-                ]),
-                const SizedBox(height: 10),
-                Row(children: [
-                  if (context.read<AppUser>().isAdmin) ...[
-                    _PriceTag(
-                        label: 'Закуп',
-                        value: '${batch.purchasePrice.toStringAsFixed(0)} ₸',
-                        color: AppTheme.danger),
-                    const SizedBox(width: 8),
-                  ],
-                  _PriceTag(
-                      label: 'Продажа',
-                      value: '${batch.sellingPrice.toStringAsFixed(0)} ₸',
-                      color: AppTheme.success),
-                  if (context.read<AppUser>().isAdmin) ...[
-                    const SizedBox(width: 8),
-                    _PriceTag(
-                        label: 'Маржа',
-                        value: '${margin >= 0 ? "+" : ""}${margin.toStringAsFixed(0)} ₸',
-                        color: margin >= 0 ? AppTheme.primary : AppTheme.danger),
-                  ],
-                ]),
-                if (sizes.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Text(sizes,
-                      style: const TextStyle(
-                          fontSize: 11, color: AppTheme.textSecondary)),
-                ],
-              ]),
+                  ),
+                ),
+              ],
+              const Spacer(),
+              if (!isArchived && context.read<AppUser>().isAdmin) ...[
+                IconButton(
+                  onPressed: onEdit,
+                  icon: const Icon(Icons.edit_outlined, size: 18),
+                  color: AppTheme.primary,
+                  visualDensity: VisualDensity.compact,
+                ),
+                IconButton(
+                  onPressed: onDelete,
+                  icon: const Icon(Icons.delete_outline, size: 18),
+                  color: AppTheme.danger,
+                  visualDensity: VisualDensity.compact,
+                ),
+              ],
+              Text('${batch.totalQuantity} пар',
+                  style: const TextStyle(
+                      color: AppTheme.textSecondary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500)),
+            ]),
+            const SizedBox(height: 10),
+            Row(children: [
+              if (context.read<AppUser>().isAdmin) ...[
+                _PriceTag(
+                    label: 'Закуп',
+                    value: '${batch.purchasePrice.toStringAsFixed(0)} ₸',
+                    color: AppTheme.danger),
+                const SizedBox(width: 8),
+              ],
+              _PriceTag(
+                  label: 'Продажа',
+                  value: '${batch.sellingPrice.toStringAsFixed(0)} ₸',
+                  color: AppTheme.success),
+              if (context.read<AppUser>().isAdmin) ...[
+                const SizedBox(width: 8),
+                _PriceTag(
+                    label: 'Маржа',
+                    value:
+                        '${margin >= 0 ? "+" : ""}${margin.toStringAsFixed(0)} ₸',
+                    color: margin >= 0 ? AppTheme.primary : AppTheme.danger),
+              ],
+            ]),
+            if (sizes.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(sizes,
+                  style: const TextStyle(
+                      fontSize: 11, color: AppTheme.textSecondary)),
+            ],
+          ]),
         ),
 
         // Продажи этой партии
@@ -641,9 +657,8 @@ class _BatchWithSales extends StatelessWidget {
           future: service.getSalesForProduct(productId),
           builder: (_, snap) {
             if (!snap.hasData) return const SizedBox.shrink();
-            final sales = snap.data!
-                .where((s) => s.batchId == batch.id)
-                .toList();
+            final sales =
+                snap.data!.where((s) => s.batchId == batch.id).toList();
             if (sales.isEmpty) return const SizedBox.shrink();
 
             return Column(
@@ -708,22 +723,22 @@ class _SaleRow extends StatelessWidget {
           ),
           const SizedBox(width: 10),
           Expanded(
-            child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(sizes,
-                      style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: AppTheme.textPrimary)),
-                  Row(children: [
-                    Text(
-                      sale.sellerName.isNotEmpty
-                          ? '• $dateStr • ${sale.sellerName}'
-                          : '• $dateStr',
-                      style: const TextStyle(fontSize: 10, color: AppTheme.textHint)),
-                  ]),
-                ]),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(sizes,
+                  style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textPrimary)),
+              Row(children: [
+                Text(
+                    sale.sellerName.isNotEmpty
+                        ? '• $dateStr • ${sale.sellerName}'
+                        : '• $dateStr',
+                    style: const TextStyle(
+                        fontSize: 10, color: AppTheme.textHint)),
+              ]),
+            ]),
           ),
           Text('${sale.totalPrice.toStringAsFixed(0)} ₸',
               style: const TextStyle(
@@ -756,9 +771,7 @@ class _PriceTag extends StatelessWidget {
                 fontWeight: FontWeight.w600)),
         Text(value,
             style: TextStyle(
-                fontSize: 12,
-                color: color,
-                fontWeight: FontWeight.w700)),
+                fontSize: 12, color: color, fontWeight: FontWeight.w700)),
       ]));
 }
 

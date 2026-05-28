@@ -34,8 +34,12 @@ class _SellerJoinScreenState extends State<SellerJoinScreen> {
   @override
   void dispose() {
     _codeCtrl.dispose();
-    for (final c in _digits) { c.dispose(); }
-    for (final f in _focuses) { f.dispose(); }
+    for (final c in _digits) {
+      c.dispose();
+    }
+    for (final f in _focuses) {
+      f.dispose();
+    }
     super.dispose();
   }
 
@@ -45,7 +49,10 @@ class _SellerJoinScreenState extends State<SellerJoinScreen> {
       setState(() => _error = context.l10n.validationCodeRequired);
       return;
     }
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
       await FirestoreService().sendJoinRequest(code);
       if (mounted) context.read<AppUser>().joinStatus = 'pending';
@@ -63,7 +70,8 @@ class _SellerJoinScreenState extends State<SellerJoinScreen> {
       await FirestoreService().cancelJoinRequest();
       if (mounted) context.read<AppUser>().joinStatus = 'none';
       setState(() {});
-    } catch (_) {} finally {
+    } catch (_) {
+    } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
@@ -91,8 +99,8 @@ class _SellerJoinScreenState extends State<SellerJoinScreen> {
           .doc(FirebaseAuth.instance.currentUser?.uid ?? '')
           .snapshots(),
       builder: (_, snap) {
-        final status = (snap.data?.data() as Map<String, dynamic>?)?['joinStatus']
-                as String? ??
+        final status = (snap.data?.data()
+                as Map<String, dynamic>?)?['joinStatus'] as String? ??
             context.read<AppUser>().joinStatus;
 
         if (status == 'active') {
@@ -122,7 +130,8 @@ class _SellerJoinScreenState extends State<SellerJoinScreen> {
         child: Column(children: [
           const SizedBox(height: 40),
           Container(
-            width: 80, height: 80,
+            width: 80,
+            height: 80,
             decoration: BoxDecoration(
               color: AppTheme.primary.withValues(alpha: 0.1),
               shape: BoxShape.circle,
@@ -132,33 +141,39 @@ class _SellerJoinScreenState extends State<SellerJoinScreen> {
           ),
           const SizedBox(height: 24),
           Text(context.l10n.joinTitle,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800,
-                  color: AppTheme.textPrimary, letterSpacing: -0.5)),
+              style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800,
+                  color: AppTheme.textPrimary,
+                  letterSpacing: -0.5)),
           const SizedBox(height: 8),
           Text(context.l10n.businessCodeSubtitle,
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 14, color: AppTheme.textSecondary)),
+              style:
+                  const TextStyle(fontSize: 14, color: AppTheme.textSecondary)),
           const SizedBox(height: 40),
 
           // 6 жеке жасуша
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(6, (i) => _DigitBox(
-              controller: _digits[i],
-              focusNode: _focuses[i],
-              onChanged: (v) {
-                if (v.isNotEmpty && i < 5) {
-                  FocusScope.of(context).requestFocus(_focuses[i + 1]);
-                }
-                setState(() => _error = null);
-              },
-              onBackspace: () {
-                if (_digits[i].text.isEmpty && i > 0) {
-                  FocusScope.of(context).requestFocus(_focuses[i - 1]);
-                  _digits[i - 1].clear();
-                }
-              },
-            )),
+            children: List.generate(
+                6,
+                (i) => _DigitBox(
+                      controller: _digits[i],
+                      focusNode: _focuses[i],
+                      onChanged: (v) {
+                        if (v.isNotEmpty && i < 5) {
+                          FocusScope.of(context).requestFocus(_focuses[i + 1]);
+                        }
+                        setState(() => _error = null);
+                      },
+                      onBackspace: () {
+                        if (_digits[i].text.isEmpty && i > 0) {
+                          FocusScope.of(context).requestFocus(_focuses[i - 1]);
+                          _digits[i - 1].clear();
+                        }
+                      },
+                    )),
           ),
 
           if (_error != null) ...[
@@ -168,31 +183,42 @@ class _SellerJoinScreenState extends State<SellerJoinScreen> {
               decoration: BoxDecoration(
                   color: AppTheme.dangerLight,
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppTheme.danger.withValues(alpha: 0.3))),
+                  border: Border.all(
+                      color: AppTheme.danger.withValues(alpha: 0.3))),
               child: Row(children: [
-                const Icon(Icons.error_outline, color: AppTheme.danger, size: 18),
+                const Icon(Icons.error_outline,
+                    color: AppTheme.danger, size: 18),
                 const SizedBox(width: 8),
-                Expanded(child: Text(_error!,
-                    style: const TextStyle(color: AppTheme.danger, fontSize: 13))),
+                Expanded(
+                    child: Text(_error!,
+                        style: const TextStyle(
+                            color: AppTheme.danger, fontSize: 13))),
               ]),
             ),
           ],
 
           const SizedBox(height: 32),
           SizedBox(
-            width: double.infinity, height: 52,
+            width: double.infinity,
+            height: 52,
             child: ElevatedButton(
               onPressed: _loading ? null : _sendRequest,
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primary, foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                backgroundColor: AppTheme.primary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
                 elevation: 0,
               ),
               child: _loading
-                  ? const SizedBox(width: 22, height: 22,
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                          color: Colors.white, strokeWidth: 2))
                   : Text(context.l10n.sendRequest,
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.w700)),
             ),
           ),
 
@@ -214,25 +240,31 @@ class _SellerJoinScreenState extends State<SellerJoinScreen> {
         padding: const EdgeInsets.all(32),
         child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
           const SizedBox(
-            width: 56, height: 56,
-            child: CircularProgressIndicator(color: AppTheme.primary, strokeWidth: 3),
+            width: 56,
+            height: 56,
+            child: CircularProgressIndicator(
+                color: AppTheme.primary, strokeWidth: 3),
           ),
           const SizedBox(height: 32),
           Text(context.l10n.waitingApproval,
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700,
+              style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
                   color: AppTheme.textPrimary)),
           const SizedBox(height: 12),
           Text(context.l10n.requestSentBody,
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 14, color: AppTheme.textSecondary)),
+              style:
+                  const TextStyle(fontSize: 14, color: AppTheme.textSecondary)),
           const SizedBox(height: 40),
           OutlinedButton(
             onPressed: _loading ? null : _cancelRequest,
             style: OutlinedButton.styleFrom(
               foregroundColor: AppTheme.danger,
               side: const BorderSide(color: AppTheme.danger),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             ),
             child: Text(context.l10n.cancelRequest),
@@ -266,7 +298,8 @@ class _DigitBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 44, height: 56,
+      width: 44,
+      height: 56,
       margin: const EdgeInsets.symmetric(horizontal: 4),
       child: TextField(
         controller: controller,
@@ -274,17 +307,21 @@ class _DigitBox extends StatelessWidget {
         textAlign: TextAlign.center,
         keyboardType: TextInputType.number,
         maxLength: 1,
-        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700,
-            color: AppTheme.primary),
+        style: const TextStyle(
+            fontSize: 22, fontWeight: FontWeight.w700, color: AppTheme.primary),
         decoration: InputDecoration(
           counterText: '',
-          filled: true, fillColor: Colors.white,
+          filled: true,
+          fillColor: Colors.white,
           contentPadding: EdgeInsets.zero,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
+          border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: AppTheme.border)),
-          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
+          enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: AppTheme.border)),
-          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
+          focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: AppTheme.primary, width: 2)),
         ),
         onChanged: (v) {

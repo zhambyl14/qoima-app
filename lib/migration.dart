@@ -16,7 +16,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 Future<void> runMigration({
   void Function(String)? onLog,
 }) async {
-  final db  = FirebaseFirestore.instance;
+  final db = FirebaseFirestore.instance;
   final uid = FirebaseAuth.instance.currentUser?.uid;
   if (uid == null) {
     onLog?.call('Авторизацияланбаған — миграция тоқтатылды.');
@@ -38,16 +38,20 @@ Future<void> runMigration({
   }
 
   // ── 2. Негізгі қойма ────────────────────────────────────────────────────────
-  final whSnap = await db.collection('users').doc(uid)
-      .collection('warehouses').limit(1).get();
+  final whSnap = await db
+      .collection('users')
+      .doc(uid)
+      .collection('warehouses')
+      .limit(1)
+      .get();
 
   String mainWarehouseId;
   if (whSnap.docs.isEmpty) {
     final ref = db.collection('users').doc(uid).collection('warehouses').doc();
     await ref.set({
-      'id':        ref.id,
-      'name':      'Негізгі қойма',
-      'isMain':    true,
+      'id': ref.id,
+      'name': 'Негізгі қойма',
+      'isMain': true,
       'createdAt': FieldValue.serverTimestamp(),
     });
     mainWarehouseId = ref.id;
@@ -58,24 +62,28 @@ Future<void> runMigration({
   }
 
   // ── 3. shops/{uid}/products → users/{uid}/products ─────────────────────────
-  final oldProducts = await db.collection('shops').doc(uid)
-      .collection('products').get();
+  final oldProducts =
+      await db.collection('shops').doc(uid).collection('products').get();
 
   if (oldProducts.docs.isEmpty) {
     onLog?.call('shops/ деректері жоқ — жылжыту қажет емес.');
   } else {
     onLog?.call('${oldProducts.docs.length} тауар жылжытылады...');
     for (final pDoc in oldProducts.docs) {
-      final newPRef = db.collection('users').doc(uid)
-          .collection('products').doc(pDoc.id);
+      final newPRef =
+          db.collection('users').doc(uid).collection('products').doc(pDoc.id);
 
       // Тауар деректерін жазамыз
       await newPRef.set(pDoc.data());
 
       // Батчтарды жылжытамыз
-      final batchSnap = await db.collection('shops').doc(uid)
-          .collection('products').doc(pDoc.id)
-          .collection('batches').get();
+      final batchSnap = await db
+          .collection('shops')
+          .doc(uid)
+          .collection('products')
+          .doc(pDoc.id)
+          .collection('batches')
+          .get();
 
       for (final bDoc in batchSnap.docs) {
         final bData = {...bDoc.data()};
@@ -89,8 +97,8 @@ Future<void> runMigration({
   }
 
   // ── 4. shops/{uid}/sales_history → users/{uid}/sales_history ───────────────
-  final oldSales = await db.collection('shops').doc(uid)
-      .collection('sales_history').get();
+  final oldSales =
+      await db.collection('shops').doc(uid).collection('sales_history').get();
 
   if (oldSales.docs.isNotEmpty) {
     onLog?.call('${oldSales.docs.length} сату жылжытылады...');
@@ -99,8 +107,12 @@ Future<void> runMigration({
       if ((sData['warehouseId'] as String? ?? '').isEmpty) {
         sData['warehouseId'] = mainWarehouseId;
       }
-      await db.collection('users').doc(uid)
-          .collection('sales_history').doc(sDoc.id).set(sData);
+      await db
+          .collection('users')
+          .doc(uid)
+          .collection('sales_history')
+          .doc(sDoc.id)
+          .set(sData);
     }
     onLog?.call('Сатулар жылжытылды.');
   }
@@ -108,7 +120,7 @@ Future<void> runMigration({
   // ── 5. joinStatus жоқ user-дарды жаңарту ────────────────────────────────────
   await db.collection('users').doc(uid).update({
     'joinStatus': 'active',
-    'ownerId':    uid,
+    'ownerId': uid,
   });
 
   onLog?.call('✅ Миграция аяқталды!');

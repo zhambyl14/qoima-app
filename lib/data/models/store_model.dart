@@ -29,7 +29,7 @@ class StoreModel {
     required this.isPublished,
     required this.createdAt,
     required this.updatedAt,
-    this.deliveryFeeCity       = 1500.0,
+    this.deliveryFeeCity = 1500.0,
     this.deliveryFreeThreshold = 0.0,
   });
 
@@ -39,8 +39,7 @@ class StoreModel {
       .trim()
       .replaceAll(RegExp(r'\s+'), '-');
 
-  factory StoreModel.fromFirestore(
-      DocumentSnapshot<Map<String, dynamic>> doc) {
+  factory StoreModel.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
     final d = doc.data()!;
     return StoreModel(
       adminUid: doc.id,
@@ -51,17 +50,15 @@ class StoreModel {
       phone: d['phone'] as String? ?? '',
       description: d['description'] as String? ?? '',
       address: d['address'] as String? ?? '',
-      visibleWarehouseIds:
-          (d['visibleWarehouseIds'] as List<dynamic>? ?? [])
-              .map((e) => e.toString())
-              .toList(),
+      visibleWarehouseIds: (d['visibleWarehouseIds'] as List<dynamic>? ?? [])
+          .map((e) => e.toString())
+          .toList(),
       isPublished: d['isPublished'] as bool? ?? false,
-      createdAt:
-          (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      updatedAt:
-          (d['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      deliveryFeeCity:       (d['deliveryFeeCity']       as num?)?.toDouble() ?? 1500.0,
-      deliveryFreeThreshold: (d['deliveryFreeThreshold'] as num?)?.toDouble() ?? 0.0,
+      createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      updatedAt: (d['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      deliveryFeeCity: (d['deliveryFeeCity'] as num?)?.toDouble() ?? 1500.0,
+      deliveryFreeThreshold:
+          (d['deliveryFreeThreshold'] as num?)?.toDouble() ?? 0.0,
     );
   }
 
@@ -78,7 +75,7 @@ class StoreModel {
         'isPublished': isPublished,
         'createdAt': Timestamp.fromDate(createdAt),
         'updatedAt': Timestamp.fromDate(updatedAt),
-        'deliveryFeeCity':       deliveryFeeCity,
+        'deliveryFeeCity': deliveryFeeCity,
         'deliveryFreeThreshold': deliveryFreeThreshold,
       };
 
@@ -111,7 +108,8 @@ class StoreModel {
         isPublished: isPublished ?? this.isPublished,
         createdAt: createdAt ?? this.createdAt,
         updatedAt: updatedAt ?? this.updatedAt,
-        deliveryFeeCity:       deliveryFeeCity       ?? this.deliveryFeeCity,
-        deliveryFreeThreshold: deliveryFreeThreshold ?? this.deliveryFreeThreshold,
+        deliveryFeeCity: deliveryFeeCity ?? this.deliveryFeeCity,
+        deliveryFreeThreshold:
+            deliveryFreeThreshold ?? this.deliveryFreeThreshold,
       );
 }

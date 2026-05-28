@@ -8,9 +8,21 @@ import '../../data/services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 
 const List<String> _kzCities = [
-  'Алматы', 'Астана', 'Шымкент', 'Қарағанды', 'Атырау',
-  'Ақтөбе', 'Тараз', 'Павлодар', 'Өскемен', 'Семей',
-  'Ақтау', 'Қостанай', 'Орал', 'Петропавл', 'Қызылорда',
+  'Алматы',
+  'Астана',
+  'Шымкент',
+  'Қарағанды',
+  'Атырау',
+  'Ақтөбе',
+  'Тараз',
+  'Павлодар',
+  'Өскемен',
+  'Семей',
+  'Ақтау',
+  'Қостанай',
+  'Орал',
+  'Петропавл',
+  'Қызылорда',
 ];
 
 class StoreSettingsScreen extends StatefulWidget {
@@ -21,18 +33,18 @@ class StoreSettingsScreen extends StatefulWidget {
 }
 
 class _StoreSettingsScreenState extends State<StoreSettingsScreen> {
-  final _service  = FirestoreService();
-  final _formKey  = GlobalKey<FormState>();
+  final _service = FirestoreService();
+  final _formKey = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
-  final _descCtrl  = TextEditingController();
+  final _descCtrl = TextEditingController();
 
   StoreModel? _store;
   String? _selectedCity;
   bool _isPublished = false;
   List<String> _visibleWarehouseIds = [];
-  bool _isLoading   = false;
-  bool _isDirty     = false;
+  bool _isLoading = false;
+  bool _isDirty = false;
 
   @override
   void initState() {
@@ -52,13 +64,13 @@ class _StoreSettingsScreenState extends State<StoreSettingsScreen> {
     final store = await _service.getStore();
     if (!mounted) return;
     if (store != null) {
-      _nameCtrl.text  = store.storeName;
+      _nameCtrl.text = store.storeName;
       _phoneCtrl.text = store.phone;
-      _descCtrl.text  = store.description;
+      _descCtrl.text = store.description;
       setState(() {
-        _store               = store;
-        _selectedCity        = store.city.isNotEmpty ? store.city : null;
-        _isPublished         = store.isPublished;
+        _store = store;
+        _selectedCity = store.city.isNotEmpty ? store.city : null;
+        _isPublished = store.isPublished;
         _visibleWarehouseIds = List<String>.from(store.visibleWarehouseIds);
       });
     }
@@ -69,24 +81,27 @@ class _StoreSettingsScreenState extends State<StoreSettingsScreen> {
     if (_isLoading) return;
     setState(() => _isLoading = true);
     try {
-      final now  = DateTime.now();
+      final now = DateTime.now();
       final name = _nameCtrl.text.trim();
       final updated = StoreModel(
-        adminUid:            context.read<AppUser>().uid,
-        storeName:           name,
-        storeSlug:           StoreModel.generateSlug(name),
-        logoUrl:             _store?.logoUrl ?? '',
-        city:                _selectedCity ?? '',
-        phone:               _phoneCtrl.text.trim(),
-        description:         _descCtrl.text.trim(),
+        adminUid: context.read<AppUser>().uid,
+        storeName: name,
+        storeSlug: StoreModel.generateSlug(name),
+        logoUrl: _store?.logoUrl ?? '',
+        city: _selectedCity ?? '',
+        phone: _phoneCtrl.text.trim(),
+        description: _descCtrl.text.trim(),
         visibleWarehouseIds: _visibleWarehouseIds,
-        isPublished:         _isPublished,
-        createdAt:           _store?.createdAt ?? now,
-        updatedAt:           now,
+        isPublished: _isPublished,
+        createdAt: _store?.createdAt ?? now,
+        updatedAt: now,
       );
       await _service.saveStore(updated);
       if (mounted) {
-        setState(() { _store = updated; _isDirty = false; });
+        setState(() {
+          _store = updated;
+          _isDirty = false;
+        });
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('Сақталды'),
           backgroundColor: AppTheme.success,
@@ -121,8 +136,8 @@ class _StoreSettingsScreenState extends State<StoreSettingsScreen> {
             TextButton(
               onPressed: _isLoading ? null : _save,
               child: const Text('Сақтау',
-                  style: TextStyle(color: Colors.white,
-                      fontWeight: FontWeight.w700)),
+                  style: TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.w700)),
             ),
         ],
       ),
@@ -134,7 +149,6 @@ class _StoreSettingsScreenState extends State<StoreSettingsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-
               // ── Section: Мой магазин ───────────────────────────────────
               _SectionHeader('Менің дүкенім'),
               const SizedBox(height: 12),
@@ -168,7 +182,10 @@ class _StoreSettingsScreenState extends State<StoreSettingsScreen> {
                       .map((c) => DropdownMenuItem(value: c, child: Text(c)))
                       .toList(),
                   onChanged: (v) {
-                    setState(() { _selectedCity = v; _isDirty = true; });
+                    setState(() {
+                      _selectedCity = v;
+                      _isDirty = true;
+                    });
                   },
                 ),
                 const SizedBox(height: 14),
@@ -185,8 +202,10 @@ class _StoreSettingsScreenState extends State<StoreSettingsScreen> {
                       prefixIcon: Icon(Icons.phone_outlined),
                       prefixText: '+7 '),
                   validator: (v) {
-                    if (v == null || v.trim().isEmpty) return 'Телефон нөмірін енгізіңіз';
-                    if (v.trim().length < 10) return 'Телефон нөмірі дұрыс емес';
+                    if (v == null || v.trim().isEmpty)
+                      return 'Телефон нөмірін енгізіңіз';
+                    if (v.trim().length < 10)
+                      return 'Телефон нөмірі дұрыс емес';
                     return null;
                   },
                 ),
@@ -212,22 +231,28 @@ class _StoreSettingsScreenState extends State<StoreSettingsScreen> {
 
                 // Published toggle
                 Row(children: [
-                  const Expanded(child: Column(
+                  const Expanded(
+                      child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text('Жарияланған',
-                          style: TextStyle(fontWeight: FontWeight.w600,
-                              fontSize: 14, color: AppTheme.textPrimary)),
+                          style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                              color: AppTheme.textPrimary)),
                       SizedBox(height: 2),
                       Text('Сатып алушылар дүкенді көреді',
-                          style: TextStyle(fontSize: 11,
-                              color: AppTheme.textSecondary)),
+                          style: TextStyle(
+                              fontSize: 11, color: AppTheme.textSecondary)),
                     ],
                   )),
                   Switch(
                     value: _isPublished,
                     activeThumbColor: AppTheme.success,
-                    onChanged: (v) => setState(() { _isPublished = v; _isDirty = true; }),
+                    onChanged: (v) => setState(() {
+                      _isPublished = v;
+                      _isDirty = true;
+                    }),
                   ),
                 ]),
               ]),
@@ -236,8 +261,10 @@ class _StoreSettingsScreenState extends State<StoreSettingsScreen> {
               // ── Section: Видимость складов ─────────────────────────────
               _SectionHeader('Қойма көрінуі'),
               const SizedBox(height: 6),
-              const Text('Сатып алушыларға қандай қоймалардан тауар көрсету керек?',
-                  style: TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+              const Text(
+                  'Сатып алушыларға қандай қоймалардан тауар көрсету керек?',
+                  style:
+                      TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
               const SizedBox(height: 10),
 
               if (warehouses.isEmpty)
@@ -252,10 +279,12 @@ class _StoreSettingsScreenState extends State<StoreSettingsScreen> {
                         const Icon(Icons.warehouse_outlined,
                             color: AppTheme.primary, size: 18),
                         const SizedBox(width: 10),
-                        Expanded(child: Text(wh.name,
-                            style: const TextStyle(fontSize: 14,
-                                fontWeight: FontWeight.w500,
-                                color: AppTheme.textPrimary))),
+                        Expanded(
+                            child: Text(wh.name,
+                                style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                    color: AppTheme.textPrimary))),
                         Switch(
                           value: visible,
                           activeThumbColor: AppTheme.primary,
@@ -280,20 +309,20 @@ class _StoreSettingsScreenState extends State<StoreSettingsScreen> {
               _SectionHeader('Сатып алушыларға арналған ақпарат'),
               const SizedBox(height: 10),
               _StorePreviewCard(
-                storeName:    _nameCtrl.text.isNotEmpty
-                    ? _nameCtrl.text
-                    : 'Дүкен атауы',
-                city:         _selectedCity ?? '',
-                phone:        _phoneCtrl.text,
-                description:  _descCtrl.text,
-                isPublished:  _isPublished,
+                storeName:
+                    _nameCtrl.text.isNotEmpty ? _nameCtrl.text : 'Дүкен атауы',
+                city: _selectedCity ?? '',
+                phone: _phoneCtrl.text,
+                description: _descCtrl.text,
+                isPublished: _isPublished,
               ),
               const SizedBox(height: 32),
 
               // ── Save button ────────────────────────────────────────────
               if (_isDirty)
                 SizedBox(
-                  width: double.infinity, height: 52,
+                  width: double.infinity,
+                  height: 52,
                   child: ElevatedButton(
                     onPressed: _isLoading ? null : _save,
                     style: ElevatedButton.styleFrom(
@@ -303,12 +332,14 @@ class _StoreSettingsScreenState extends State<StoreSettingsScreen> {
                             borderRadius: BorderRadius.circular(14)),
                         elevation: 0),
                     child: _isLoading
-                        ? const SizedBox(width: 20, height: 20,
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
                             child: CircularProgressIndicator(
                                 color: Colors.white, strokeWidth: 2))
                         : const Text('Сақтау',
-                            style: TextStyle(fontWeight: FontWeight.w700,
-                                fontSize: 15)),
+                            style: TextStyle(
+                                fontWeight: FontWeight.w700, fontSize: 15)),
                   ),
                 ),
             ],
@@ -342,28 +373,37 @@ class _StorePreviewCard extends StatelessWidget {
             color: isPublished
                 ? AppTheme.success.withValues(alpha: 0.3)
                 : AppTheme.border),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 10, offset: const Offset(0, 2))],
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 2))
+        ],
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Container(
-            width: 48, height: 48,
-            decoration: BoxDecoration(
-                color: AppTheme.primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12)),
-            child: const Icon(Icons.storefront_rounded,
-                color: AppTheme.primary, size: 26)),
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                  color: AppTheme.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12)),
+              child: const Icon(Icons.storefront_rounded,
+                  color: AppTheme.primary, size: 26)),
           const SizedBox(width: 12),
-          Expanded(child: Column(
+          Expanded(
+              child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(storeName, style: const TextStyle(
-                  fontSize: 16, fontWeight: FontWeight.w700,
-                  color: AppTheme.textPrimary)),
+              Text(storeName,
+                  style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.textPrimary)),
               if (city.isNotEmpty)
-                Text(city, style: const TextStyle(
-                    fontSize: 12, color: AppTheme.textSecondary)),
+                Text(city,
+                    style: const TextStyle(
+                        fontSize: 12, color: AppTheme.textSecondary)),
             ],
           )),
           Container(
@@ -375,24 +415,27 @@ class _StorePreviewCard extends StatelessWidget {
             child: Text(
               isPublished ? 'Жарияланған' : 'Жарияланбаған',
               style: TextStyle(
-                  fontSize: 10, fontWeight: FontWeight.w700,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
                   color: isPublished ? AppTheme.success : AppTheme.textHint),
             ),
           ),
         ]),
         if (description.isNotEmpty) ...[
           const SizedBox(height: 10),
-          Text(description, style: const TextStyle(
-              fontSize: 13, color: AppTheme.textSecondary)),
+          Text(description,
+              style:
+                  const TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
         ],
         if (phone.isNotEmpty) ...[
           const SizedBox(height: 8),
           Row(children: [
-            const Icon(Icons.phone_outlined, size: 14,
-                color: AppTheme.textHint),
+            const Icon(Icons.phone_outlined,
+                size: 14, color: AppTheme.textHint),
             const SizedBox(width: 4),
-            Text('+7 $phone', style: const TextStyle(
-                fontSize: 12, color: AppTheme.textSecondary)),
+            Text('+7 $phone',
+                style: const TextStyle(
+                    fontSize: 12, color: AppTheme.textSecondary)),
           ]),
         ],
       ]),
@@ -406,7 +449,9 @@ class _SectionHeader extends StatelessWidget {
   const _SectionHeader(this.text);
   @override
   Widget build(BuildContext context) => Text(text,
-      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700,
+      style: const TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w700,
           color: AppTheme.textPrimary));
 }
 
@@ -415,7 +460,9 @@ class _FieldLabel extends StatelessWidget {
   const _FieldLabel(this.text);
   @override
   Widget build(BuildContext context) => Text(text,
-      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
+      style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
           color: AppTheme.textSecondary));
 }
 
@@ -424,15 +471,20 @@ class _SettingsCard extends StatelessWidget {
   const _SettingsCard({required this.children});
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
-      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04),
-          blurRadius: 10, offset: const Offset(0, 2))],
-    ),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: children),
-  );
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 2))
+          ],
+        ),
+        child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start, children: children),
+      );
 }
 
 class _EmptyNote extends StatelessWidget {

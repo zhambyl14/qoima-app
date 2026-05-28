@@ -17,10 +17,10 @@ class _SellerShellState extends State<SellerShell> {
   int _index = 0;
 
   static const List<_TabDef> _tabs = [
-    _TabDef(Icons.receipt_long_outlined,  Icons.receipt_long_rounded,  'Продажи'),
-    _TabDef(Icons.inventory_2_outlined,   Icons.inventory_2_rounded,   'Склад'),
-    _TabDef(Icons.shopping_bag_outlined,  Icons.shopping_bag_rounded,  'Онлайн'),
-    _TabDef(Icons.person_outline_rounded, Icons.person_rounded,        'Профиль'),
+    _TabDef(Icons.receipt_long_outlined, Icons.receipt_long_rounded, 'Продажи'),
+    _TabDef(Icons.inventory_2_outlined, Icons.inventory_2_rounded, 'Склад'),
+    _TabDef(Icons.shopping_bag_outlined, Icons.shopping_bag_rounded, 'Онлайн'),
+    _TabDef(Icons.person_outline_rounded, Icons.person_rounded, 'Профиль'),
   ];
 
   static const List<Widget> _screens = [
@@ -78,14 +78,14 @@ class _SellerShellState extends State<SellerShell> {
                             child: Icon(
                               active ? tab.activeIcon : tab.icon,
                               size: 20,
-                              color: active
-                                  ? AppTheme.primary
-                                  : AppTheme.textHint,
+                              color:
+                                  active ? AppTheme.primary : AppTheme.textHint,
                             ),
                           ),
                           if (i == 2)
                             const Positioned(
-                              right: 0, top: 0,
+                              right: 0,
+                              top: 0,
                               child: _OnlineBadge(),
                             ),
                         ]),
@@ -94,12 +94,10 @@ class _SellerShellState extends State<SellerShell> {
                           tab.label,
                           style: TextStyle(
                             fontSize: 9.5,
-                            fontWeight: active
-                                ? FontWeight.w700
-                                : FontWeight.w500,
-                            color: active
-                                ? AppTheme.primary
-                                : AppTheme.textHint,
+                            fontWeight:
+                                active ? FontWeight.w700 : FontWeight.w500,
+                            color:
+                                active ? AppTheme.primary : AppTheme.textHint,
                             letterSpacing: 0.2,
                           ),
                         ),
@@ -146,7 +144,9 @@ class _OnlineBadge extends StatelessWidget {
             count > 99 ? '99+' : '$count',
             textAlign: TextAlign.center,
             style: const TextStyle(
-              color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800,
+              color: Colors.white,
+              fontSize: 9,
+              fontWeight: FontWeight.w800,
             ),
           ),
         );

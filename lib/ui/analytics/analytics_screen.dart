@@ -44,49 +44,82 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(context.l10n.selectMonth,
-            style: const TextStyle(fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
-        content: StatefulBuilder(builder: (_, setS) => SizedBox(
-          width: 280,
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              IconButton(icon: const Icon(Icons.chevron_left, color: AppTheme.primary),
-                  onPressed: () => setS(() => temp = DateTime(temp.year - 1, temp.month))),
-              Text('${temp.year}', style: const TextStyle(fontWeight: FontWeight.w700,
-                  fontSize: 17, color: AppTheme.textPrimary)),
-              IconButton(icon: const Icon(Icons.chevron_right, color: AppTheme.primary),
-                  onPressed: () => setS(() => temp = DateTime(temp.year + 1, temp.month))),
-            ]),
-            const SizedBox(height: 8),
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 4, childAspectRatio: 1.4, crossAxisSpacing: 6, mainAxisSpacing: 6),
-              itemCount: 12,
-              itemBuilder: (_, i) {
-                final sel = temp.month == i + 1;
-                final mn = context.monthAbbreviations;
-                return GestureDetector(
-                  onTap: () => setS(() => temp = DateTime(temp.year, i + 1)),
-                  child: Container(
-                    decoration: BoxDecoration(color: sel ? AppTheme.primary : AppTheme.background,
-                        borderRadius: BorderRadius.circular(8)),
-                    child: Center(child: Text(mn[i], style: TextStyle(fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: sel ? Colors.white : AppTheme.textSecondary)))));
-              },
-            ),
-          ]),
-        )),
+            style: const TextStyle(
+                fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
+        content: StatefulBuilder(
+            builder: (_, setS) => SizedBox(
+                  width: 280,
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          IconButton(
+                              icon: const Icon(Icons.chevron_left,
+                                  color: AppTheme.primary),
+                              onPressed: () => setS(() =>
+                                  temp = DateTime(temp.year - 1, temp.month))),
+                          Text('${temp.year}',
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 17,
+                                  color: AppTheme.textPrimary)),
+                          IconButton(
+                              icon: const Icon(Icons.chevron_right,
+                                  color: AppTheme.primary),
+                              onPressed: () => setS(() =>
+                                  temp = DateTime(temp.year + 1, temp.month))),
+                        ]),
+                    const SizedBox(height: 8),
+                    GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 4,
+                              childAspectRatio: 1.4,
+                              crossAxisSpacing: 6,
+                              mainAxisSpacing: 6),
+                      itemCount: 12,
+                      itemBuilder: (_, i) {
+                        final sel = temp.month == i + 1;
+                        final mn = context.monthAbbreviations;
+                        return GestureDetector(
+                            onTap: () =>
+                                setS(() => temp = DateTime(temp.year, i + 1)),
+                            child: Container(
+                                decoration: BoxDecoration(
+                                    color: sel
+                                        ? AppTheme.primary
+                                        : AppTheme.background,
+                                    borderRadius: BorderRadius.circular(8)),
+                                child: Center(
+                                    child: Text(mn[i],
+                                        style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                            color: sel
+                                                ? Colors.white
+                                                : AppTheme.textSecondary)))));
+                      },
+                    ),
+                  ]),
+                )),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx),
-              child: Text(context.l10n.cancel, style: const TextStyle(color: AppTheme.textSecondary))),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(context.l10n.cancel,
+                  style: const TextStyle(color: AppTheme.textSecondary))),
           ElevatedButton(
-            onPressed: () { setState(() => _month = temp); Navigator.pop(ctx); },
-            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-            child: Text(context.l10n.apply)),
+              onPressed: () {
+                setState(() => _month = temp);
+                Navigator.pop(ctx);
+              },
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primary,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10))),
+              child: Text(context.l10n.apply)),
         ],
       ),
     );
@@ -101,56 +134,78 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
           SliverToBoxAdapter(
             child: Container(
               decoration: const BoxDecoration(
-                gradient: LinearGradient(colors: [Color(0xFF1E3A8A), Color(0xFF2D4FB5)],
-                    begin: Alignment.topLeft, end: Alignment.bottomRight)),
-              child: SafeArea(bottom: false, child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 12, 0),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Row(children: [
-                    Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(context.l10n.analyticsTitle, style: const TextStyle(color: Colors.white, fontSize: 26,
-                          fontWeight: FontWeight.w800, letterSpacing: -0.5)),
-                      Text(context.l10n.financialDashboard, style: const TextStyle(color: Colors.white60, fontSize: 13)),
-                    ]),
-                    const Spacer(),
-                    GestureDetector(
-                      onTap: _pickMonth,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: Colors.white.withValues(alpha: 0.3))),
-                        child: Row(children: [
-                          Text(context.monthShort(_month),
-                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
-                          const SizedBox(width: 4),
-                          const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white, size: 18),
+                  gradient: LinearGradient(
+                      colors: [Color(0xFF1E3A8A), Color(0xFF2D4FB5)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight)),
+              child: SafeArea(
+                  bottom: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 12, 0),
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(children: [
+                            Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(context.l10n.analyticsTitle,
+                                      style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 26,
+                                          fontWeight: FontWeight.w800,
+                                          letterSpacing: -0.5)),
+                                  Text(context.l10n.financialDashboard,
+                                      style: const TextStyle(
+                                          color: Colors.white60, fontSize: 13)),
+                                ]),
+                            const Spacer(),
+                            GestureDetector(
+                              onTap: _pickMonth,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 14, vertical: 8),
+                                decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                        color: Colors.white
+                                            .withValues(alpha: 0.3))),
+                                child: Row(children: [
+                                  Text(context.monthShort(_month),
+                                      style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 13)),
+                                  const SizedBox(width: 4),
+                                  const Icon(Icons.keyboard_arrow_down_rounded,
+                                      color: Colors.white, size: 18),
+                                ]),
+                              ),
+                            ),
+                          ]),
+                          const SizedBox(height: 12),
+                          TabBar(
+                            controller: _tabCtrl,
+                            indicatorColor: Colors.white,
+                            indicatorWeight: 3,
+                            labelColor: Colors.white,
+                            unselectedLabelColor: Colors.white60,
+                            labelStyle: const TextStyle(
+                                fontWeight: FontWeight.w700, fontSize: 13),
+                            unselectedLabelStyle: const TextStyle(
+                                fontWeight: FontWeight.w500, fontSize: 13),
+                            tabs: [
+                              Tab(text: context.l10n.generalTab),
+                              Tab(text: context.l10n.sellersTab),
+                              Tab(text: context.l10n.warehouseTab),
+                              const Tab(text: 'Онлайн'),
+                            ],
+                          ),
                         ]),
-                      ),
-                    ),
-                  ]),
-                  const SizedBox(height: 12),
-                  TabBar(
-                    controller: _tabCtrl,
-                    indicatorColor: Colors.white,
-                    indicatorWeight: 3,
-                    labelColor: Colors.white,
-                    unselectedLabelColor: Colors.white60,
-                    labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-                    unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
-                    tabs: [
-                      Tab(text: context.l10n.generalTab),
-                      Tab(text: context.l10n.sellersTab),
-                      Tab(text: context.l10n.warehouseTab),
-                      const Tab(text: 'Онлайн'),
-                    ],
-                  ),
-                ]),
-              )),
+                  )),
             ),
           ),
-
           SliverFillRemaining(
             child: TabBarView(
               controller: _tabCtrl,
@@ -184,33 +239,40 @@ class _OverviewTabState extends State<_OverviewTab> {
       stream: widget.service.watchOnlineOrders(),
       builder: (_, oSnap) {
         return StreamBuilder<List<SaleModel>>(
-          stream: widget.service.watchSalesHistory(),
+          // Сервер айды сүзеді — клиент жағында фильтр жоқ
+          stream: widget.service.watchSalesForMonth(widget.month),
           builder: (_, sSnap) {
             if (sSnap.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator(color: AppTheme.primary));
+              return const Center(
+                  child: CircularProgressIndicator(color: AppTheme.primary));
             }
 
-            final allSales = sSnap.data ?? [];
-            final mSales = allSales.where((s) =>
-                s.saleDate.month == widget.month.month &&
-                s.saleDate.year == widget.month.year).toList();
-
-            // Тек шынайы офлайн сатылымдар (онлайн жазбаларды алып тас)
+            final mSales = sSnap.data ?? [];
             final pureSales = mSales.where((s) => !s.isOnline).toList();
 
-            final onlineOrders = (oSnap.data ?? []).where((o) =>
-                o.status == OrderModel.statusCompleted &&
-                o.createdAt.month == widget.month.month &&
-                o.createdAt.year == widget.month.year).toList();
+            final onlineOrders = (oSnap.data ?? [])
+                .where((o) =>
+                    o.status == OrderModel.statusCompleted &&
+                    o.createdAt.month == widget.month.month &&
+                    o.createdAt.year == widget.month.year)
+                .toList();
 
-            final offlineRevenue = pureSales.fold<double>(0, (s, e) => s + e.totalPrice);
-            final onlineRevenue = onlineOrders.fold<double>(0, (s, o) => s + o.totalWithDelivery);
+            final offlineRevenue =
+                pureSales.fold<double>(0, (s, e) => s + e.totalPrice);
+            final onlineRevenue =
+                onlineOrders.fold<double>(0, (s, o) => s + o.totalWithDelivery);
             final totalRevenue = offlineRevenue + onlineRevenue;
 
-            final offlinePairs = pureSales.fold<int>(0, (s, e) => s + e.quantity);
+            final offlinePairs =
+                pureSales.fold<int>(0, (s, e) => s + e.quantity);
             final onlinePairs = onlineOrders.fold<int>(
                 0, (s, o) => s + o.items.fold(0, (a, i) => a + i.qty));
             final totalPairs = offlinePairs + onlinePairs;
+
+            // Өзіндік құн — денормализацияланған purchase_price-тан (Firestore оқусыз)
+            final totalCost = mSales.fold<double>(
+                0, (s, e) => s + e.purchasePrice * e.quantity);
+            final margin = totalRevenue - totalCost;
 
             return SingleChildScrollView(
               padding: const EdgeInsets.all(16),
@@ -220,35 +282,29 @@ class _OverviewTabState extends State<_OverviewTab> {
                   _StatCard(
                     label: 'Жалпы Түсірілке',
                     value: '${_fmt(totalRevenue)} ₸',
-                    sub: 'Офлайн: ${_fmt(offlineRevenue)} ₸  ·  Онлайн: ${_fmt(onlineRevenue)} ₸',
+                    sub:
+                        'Офлайн: ${_fmt(offlineRevenue)} ₸  ·  Онлайн: ${_fmt(onlineRevenue)} ₸',
                     icon: Icons.trending_up_rounded,
                     color: AppTheme.primary,
                   ),
                   const SizedBox(height: 10),
-                  FutureBuilder<double>(
-                    future: _calcCost(pureSales),
-                    builder: (_, snap) {
-                      final offlineCost = snap.data ?? 0;
-                      final onlineCost = onlineRevenue * 0.6;
-                      final totalCost = offlineCost + onlineCost;
-                      final margin = totalRevenue - totalCost;
-                      return Row(children: [
-                        Expanded(child: _StatCard(
-                          label: 'Өзіндік құн',
-                          value: '${_fmt(totalCost)} ₸',
-                          icon: Icons.arrow_downward_rounded,
-                          color: AppTheme.danger,
-                        )),
-                        const SizedBox(width: 10),
-                        Expanded(child: _StatCard(
-                          label: 'Маржа',
-                          value: '${_fmt(margin)} ₸',
-                          icon: Icons.account_balance_wallet_outlined,
-                          color: margin >= 0 ? AppTheme.success : AppTheme.danger,
-                        )),
-                      ]);
-                    },
-                  ),
+                  Row(children: [
+                    Expanded(
+                        child: _StatCard(
+                      label: 'Өзіндік құн',
+                      value: '${_fmt(totalCost)} ₸',
+                      icon: Icons.arrow_downward_rounded,
+                      color: AppTheme.danger,
+                    )),
+                    const SizedBox(width: 10),
+                    Expanded(
+                        child: _StatCard(
+                      label: 'Маржа',
+                      value: '${_fmt(margin)} ₸',
+                      icon: Icons.account_balance_wallet_outlined,
+                      color: margin >= 0 ? AppTheme.success : AppTheme.danger,
+                    )),
+                  ]),
                   const SizedBox(height: 10),
                   _StatCard(
                     label: 'Сатылған жұп',
@@ -259,7 +315,9 @@ class _OverviewTabState extends State<_OverviewTab> {
                   ),
                   const SizedBox(height: 20),
                   const Text('Күндік белсенділік',
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700,
+                      style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
                           color: AppTheme.textPrimary)),
                   const SizedBox(height: 10),
                   _MobileDailyChart(
@@ -276,24 +334,6 @@ class _OverviewTabState extends State<_OverviewTab> {
     );
   }
 
-  Future<double> _calcCost(List<SaleModel> sales) async {
-    if (sales.isEmpty) return 0;
-    final uniquePids = sales.map((s) => s.productId).toSet();
-    final batchMap = <String, List<BatchModel>>{};
-    await Future.wait(uniquePids.map((pid) async {
-      try { batchMap[pid] = await widget.service.getBatches(pid); }
-      catch (_) { batchMap[pid] = []; }
-    }));
-    double total = 0;
-    for (final s in sales) {
-      final batches = batchMap[s.productId] ?? [];
-      if (batches.isEmpty) continue;
-      final b = batches.firstWhere(
-          (b) => b.id == s.batchId, orElse: () => batches.first);
-      total += b.purchasePrice * s.quantity;
-    }
-    return total;
-  }
 }
 
 // ── Tab 2: Сатушылар ──────────────────────────────────────────────────────────
@@ -304,15 +344,14 @@ class _SellersTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<List<SaleModel>>(
-      stream: FirestoreService().watchSalesHistory(),
+      stream: FirestoreService().watchSalesForMonth(month),
       builder: (_, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator(color: AppTheme.primary));
+          return const Center(
+              child: CircularProgressIndicator(color: AppTheme.primary));
         }
 
-        final sales = (snap.data ?? []).where((s) =>
-            s.saleDate.month == month.month &&
-            s.saleDate.year == month.year).toList();
+        final sales = snap.data ?? [];
 
         final Map<String, _SellerStat> bySeller = {};
         for (final s in sales) {
@@ -329,19 +368,24 @@ class _SellersTab extends StatelessWidget {
         final grandTotal = ranked.fold<double>(0, (a, s) => a + s.revenue);
 
         if (ranked.isEmpty) {
-          return const Center(child: Text('Сатылым жоқ',
-              style: TextStyle(color: AppTheme.textSecondary)));
+          return const Center(
+              child: Text('Сатылым жоқ',
+                  style: TextStyle(color: AppTheme.textSecondary)));
         }
 
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
             Row(children: [
-              _KpiChip(label: 'Сатушылар', value: '${ranked.length}',
+              _KpiChip(
+                  label: 'Сатушылар',
+                  value: '${ranked.length}',
                   color: AppTheme.primary),
               const SizedBox(width: 8),
-              _KpiChip(label: 'Жалпы түсімі',
-                  value: '${_fmt(grandTotal)} ₸', color: AppTheme.success),
+              _KpiChip(
+                  label: 'Жалпы түсімі',
+                  value: '${_fmt(grandTotal)} ₸',
+                  color: AppTheme.success),
             ]),
             const SizedBox(height: 8),
             Container(
@@ -351,43 +395,63 @@ class _SellersTab extends StatelessWidget {
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Row(children: [
-                const Text('🥇 Топ-1: ', style: TextStyle(
-                    fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFFB45309))),
-                Text(ranked.first.name, style: const TextStyle(
-                    fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF92400E))),
+                const Text('🥇 Топ-1: ',
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFFB45309))),
+                Text(ranked.first.name,
+                    style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF92400E))),
               ]),
             ),
             const SizedBox(height: 16),
             ...ranked.asMap().entries.map((e) {
               final rank = e.key + 1;
               final stat = e.value;
-              final medal = rank == 1 ? '🥇' : rank == 2 ? '🥈' : rank == 3 ? '🥉' : '#$rank';
+              final medal = rank == 1
+                  ? '🥇'
+                  : rank == 2
+                      ? '🥈'
+                      : rank == 3
+                          ? '🥉'
+                          : '#$rank';
               return GestureDetector(
-                onTap: () => Navigator.push(context, MaterialPageRoute(
-                  builder: (_) => SellerDrilldownScreen(
-                    sellerId: stat.id,
-                    sellerName: stat.name,
-                    month: month,
-                  ),
-                )),
+                onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => SellerDrilldownScreen(
+                        sellerId: stat.id,
+                        sellerName: stat.name,
+                        month: month,
+                      ),
+                    )),
                 child: Container(
                   margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(14),
-                    boxShadow: [BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.04),
-                        blurRadius: 8, offset: const Offset(0, 2))],
+                    boxShadow: [
+                      BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.04),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2))
+                    ],
                   ),
                   child: Row(children: [
                     Text(medal, style: const TextStyle(fontSize: 20)),
                     const SizedBox(width: 12),
-                    Expanded(child: Column(
+                    Expanded(
+                        child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(stat.name, style: const TextStyle(
-                            fontSize: 14, fontWeight: FontWeight.w700)),
+                        Text(stat.name,
+                            style: const TextStyle(
+                                fontSize: 14, fontWeight: FontWeight.w700)),
                         Text('${stat.count} сат · ${stat.pairs} жұп',
                             style: const TextStyle(
                                 fontSize: 11, color: AppTheme.textSecondary)),
@@ -395,7 +459,8 @@ class _SellersTab extends StatelessWidget {
                     )),
                     Text('${_fmt(stat.revenue)} ₸',
                         style: const TextStyle(
-                            fontSize: 14, fontWeight: FontWeight.w800,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
                             color: AppTheme.success)),
                     const SizedBox(width: 8),
                     const Icon(Icons.chevron_right_rounded,
@@ -427,35 +492,47 @@ class _WarehousesTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final warehouses = context.watch<WarehouseContext>().all;
 
-    return StreamBuilder<List<SaleModel>>(
-      stream: FirestoreService().watchSalesHistory(),
-      builder: (_, snap) {
-        if (snap.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator(color: AppTheme.primary));
-        }
-        // Тек офлайн сатылымдар (онлайн қайталануды болдырмау)
-        final allSales = (snap.data ?? []).where((s) =>
-            !s.isOnline &&
-            s.saleDate.month == month.month &&
-            s.saleDate.year == month.year).toList();
+    // Барлық партиялар + товар атауларын бір рет оқу (N+1 жоқ)
+    return FutureBuilder<(Map<String, List<BatchModel>>, Map<String, String>)>(
+      future: FirestoreService().getAllBatchesGrouped(),
+      builder: (_, batchSnap) {
+        final allBatches = batchSnap.data?.$1 ?? {};
+        final nameById = batchSnap.data?.$2 ?? {};
+        return StreamBuilder<List<SaleModel>>(
+          // Сервер айды + офлайн-ды сүзеді
+          stream: FirestoreService().watchSalesForMonth(month),
+          builder: (_, snap) {
+            if (snap.connectionState == ConnectionState.waiting) {
+              return const Center(
+                  child: CircularProgressIndicator(color: AppTheme.primary));
+            }
+            final allSales =
+                (snap.data ?? []).where((s) => !s.isOnline).toList();
 
-        if (warehouses.isEmpty) {
-          return const Center(child: Text('Қойма жоқ',
-              style: TextStyle(color: AppTheme.textSecondary)));
-        }
+            if (warehouses.isEmpty) {
+              return const Center(
+                  child: Text('Қойма жоқ',
+                      style: TextStyle(color: AppTheme.textSecondary)));
+            }
 
-        return ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: warehouses.length,
-          itemBuilder: (_, i) {
-            final wh = warehouses[i];
-            final wSales = allSales.where((s) => s.warehouseId == wh.id).toList();
-            final revenue = wSales.fold<double>(0, (s, e) => s + e.totalPrice);
-            return _WarehouseAnalyticsCard(
-              warehouse: wh,
-              sales: wSales,
-              revenue: revenue,
-              month: month,
+            return ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: warehouses.length,
+              itemBuilder: (_, i) {
+                final wh = warehouses[i];
+                final wSales =
+                    allSales.where((s) => s.warehouseId == wh.id).toList();
+                final revenue =
+                    wSales.fold<double>(0, (s, e) => s + e.totalPrice);
+                return _WarehouseAnalyticsCard(
+                  warehouse: wh,
+                  sales: wSales,
+                  revenue: revenue,
+                  month: month,
+                  allBatches: allBatches,
+                  productNameById: nameById,
+                );
+              },
             );
           },
         );
@@ -469,32 +546,43 @@ class _WarehouseAnalyticsCard extends StatelessWidget {
   final List<SaleModel> sales;
   final double revenue;
   final DateTime month;
+  final Map<String, List<BatchModel>> allBatches;
+  final Map<String, String> productNameById;
   const _WarehouseAnalyticsCard({
     required this.warehouse,
     required this.sales,
     required this.revenue,
     required this.month,
+    required this.allBatches,
+    required this.productNameById,
   });
 
   @override
   Widget build(BuildContext context) {
-    final Map<String, double> revByProd = {};
-    final Map<String, int> qtyByProd = {};
+    // D1: productName-тен топтастыру (UID емес)
+    final Map<String, double> revByName = {};
+    final Map<String, int> qtyByName = {};
     for (final s in sales) {
-      revByProd[s.productId] = (revByProd[s.productId] ?? 0) + s.totalPrice;
-      qtyByProd[s.productId] = (qtyByProd[s.productId] ?? 0) + s.quantity;
+      final name = s.productName.isNotEmpty ? s.productName : s.productId;
+      revByName[name] = (revByName[name] ?? 0) + s.totalPrice;
+      qtyByName[name] = (qtyByName[name] ?? 0) + s.quantity;
     }
-    final top3 = (revByProd.entries.toList()
-        ..sort((a, b) => b.value.compareTo(a.value))).take(3).toList();
+    final top3 = (revByName.entries.toList()
+          ..sort((a, b) => b.value.compareTo(a.value)))
+        .take(3)
+        .toList();
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10, offset: const Offset(0, 3))],
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 3))
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -506,14 +594,20 @@ class _WarehouseAnalyticsCard extends StatelessWidget {
               borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
             ),
             child: Row(children: [
-              const Icon(Icons.warehouse_rounded, color: AppTheme.primary, size: 20),
+              const Icon(Icons.warehouse_rounded,
+                  color: AppTheme.primary, size: 20),
               const SizedBox(width: 10),
-              Expanded(child: Text(warehouse.name,
-                  style: const TextStyle(fontSize: 15,
-                      fontWeight: FontWeight.w700, color: AppTheme.primary))),
+              Expanded(
+                  child: Text(warehouse.name,
+                      style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.primary))),
               Text('${_fmt(revenue)} ₸',
-                  style: const TextStyle(fontSize: 16,
-                      fontWeight: FontWeight.w900, color: AppTheme.primary)),
+                  style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      color: AppTheme.primary)),
             ]),
           ),
           Padding(
@@ -522,8 +616,10 @@ class _WarehouseAnalyticsCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text('Күндік белсенділік',
-                    style: TextStyle(fontSize: 12,
-                        fontWeight: FontWeight.w600, color: AppTheme.textSecondary)),
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textSecondary)),
                 const SizedBox(height: 8),
                 _MobileDailyChart(
                   offlineSales: sales,
@@ -533,75 +629,99 @@ class _WarehouseAnalyticsCard extends StatelessWidget {
                 if (top3.isNotEmpty) ...[
                   const SizedBox(height: 14),
                   const Text('Топ-3 сатылымдар',
-                      style: TextStyle(fontSize: 12,
-                          fontWeight: FontWeight.w600, color: AppTheme.textSecondary)),
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.textSecondary)),
                   const SizedBox(height: 8),
                   ...top3.asMap().entries.map((e) => Padding(
-                    padding: const EdgeInsets.only(bottom: 6),
-                    child: Row(children: [
-                      Container(
-                        width: 22, height: 22,
-                        decoration: BoxDecoration(
-                          color: AppTheme.primary.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Center(child: Text('${e.key + 1}',
-                            style: const TextStyle(fontSize: 10,
-                                fontWeight: FontWeight.w800, color: AppTheme.primary))),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(child: Text(
-                        e.value.key.length > 20
-                            ? '${e.value.key.substring(0, 20)}...' : e.value.key,
-                        style: const TextStyle(fontSize: 12, color: AppTheme.textPrimary),
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Row(children: [
+                          Container(
+                            width: 22,
+                            height: 22,
+                            decoration: BoxDecoration(
+                              color: AppTheme.primary.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Center(
+                                child: Text('${e.key + 1}',
+                                    style: const TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w800,
+                                        color: AppTheme.primary))),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(child: Text(
+                            e.value.key.length > 20
+                                ? '${e.value.key.substring(0, 20)}...'
+                                : e.value.key,
+                            style: const TextStyle(
+                                fontSize: 12, color: AppTheme.textPrimary),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          )),
+                          Text('${qtyByName[e.value.key] ?? 0} жұп',
+                              style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppTheme.success)),
+                        ]),
                       )),
-                      Text('${qtyByProd[e.value.key] ?? 0} жұп',
-                          style: const TextStyle(fontSize: 11,
-                              fontWeight: FontWeight.w700, color: AppTheme.success)),
-                    ]),
-                  )),
                 ],
                 const SizedBox(height: 14),
                 const Text('Жатып қалған тауар (30+ күн)',
-                    style: TextStyle(fontSize: 12,
-                        fontWeight: FontWeight.w600, color: AppTheme.textSecondary)),
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textSecondary)),
                 const SizedBox(height: 8),
                 FutureBuilder<List<_StaleItem>>(
                   future: _loadStale(warehouse.id),
                   builder: (_, snap) {
                     if (!snap.hasData) {
-                      return const SizedBox(height: 30,
-                          child: Center(child: CircularProgressIndicator(
-                              strokeWidth: 2, color: AppTheme.primary)));
+                      return const SizedBox(
+                          height: 30,
+                          child: Center(
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: AppTheme.primary)));
                     }
                     if (snap.data!.isEmpty) {
                       return const Text('Жатып қалған тауар жоқ 👍',
-                          style: TextStyle(fontSize: 12, color: AppTheme.textHint));
+                          style: TextStyle(
+                              fontSize: 12, color: AppTheme.textHint));
                     }
                     return Column(
-                      children: snap.data!.map((item) => Padding(
-                        padding: const EdgeInsets.only(bottom: 6),
-                        child: Row(children: [
-                          const Icon(Icons.warning_amber_rounded,
-                              color: AppTheme.warning, size: 16),
-                          const SizedBox(width: 8),
-                          Expanded(child: Text(item.product.name,
-                              style: const TextStyle(fontSize: 12,
-                                  color: AppTheme.textPrimary),
-                              maxLines: 1, overflow: TextOverflow.ellipsis)),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: AppTheme.warningSoft,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text('${item.days} күн',
-                                style: const TextStyle(fontSize: 10,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppTheme.warning)),
-                          ),
-                        ]),
-                      )).toList(),
+                      children: snap.data!
+                          .map((item) => Padding(
+                                padding: const EdgeInsets.only(bottom: 6),
+                                child: Row(children: [
+                                  const Icon(Icons.warning_amber_rounded,
+                                      color: AppTheme.warning, size: 16),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                      child: Text(item.product.name,
+                                          style: const TextStyle(
+                                              fontSize: 12,
+                                              color: AppTheme.textPrimary),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis)),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: AppTheme.warningSoft,
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text('${item.days} күн',
+                                        style: const TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w700,
+                                            color: AppTheme.warning)),
+                                  ),
+                                ]),
+                              ))
+                          .toList(),
                     );
                   },
                 ),
@@ -617,16 +737,21 @@ class _WarehouseAnalyticsCard extends StatelessWidget {
     final service = FirestoreService();
     final withStock = await service.watchAllProductPairs().first;
     final result = <_StaleItem>[];
-    for (final pw in withStock.where(
-        (pw) => pw.product.status == ProductModel.statusInStock)) {
+    for (final pw in withStock
+        .where((pw) => pw.product.status == ProductModel.statusInStock)) {
       try {
         final batches = await service.getBatches(pw.product.id);
-        final whBatches = batches.where((b) => b.warehouseId == warehouseId).toList();
-        if (whBatches.isEmpty) { continue; }
-        final oldest = whBatches.reduce((a, b) =>
-            a.dateArrived.isBefore(b.dateArrived) ? a : b);
+        final whBatches =
+            batches.where((b) => b.warehouseId == warehouseId).toList();
+        if (whBatches.isEmpty) {
+          continue;
+        }
+        final oldest = whBatches
+            .reduce((a, b) => a.dateArrived.isBefore(b.dateArrived) ? a : b);
         final days = DateTime.now().difference(oldest.dateArrived).inDays;
-        if (days >= 30) { result.add(_StaleItem(product: pw.product, days: days)); }
+        if (days >= 30) {
+          result.add(_StaleItem(product: pw.product, days: days));
+        }
       } catch (_) {}
     }
     result.sort((a, b) => b.days.compareTo(a.days));
@@ -651,20 +776,26 @@ class _OnlineTab extends StatelessWidget {
       stream: FirestoreService().watchOnlineOrders(),
       builder: (_, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator(color: AppTheme.primary));
+          return const Center(
+              child: CircularProgressIndicator(color: AppTheme.primary));
         }
 
-        final allOrders = (snap.data ?? []).where((o) =>
-            o.createdAt.month == month.month &&
-            o.createdAt.year == month.year).toList();
+        final allOrders = (snap.data ?? [])
+            .where((o) =>
+                o.createdAt.month == month.month &&
+                o.createdAt.year == month.year)
+            .toList();
 
-        final completed = allOrders.where(
-            (o) => o.status == OrderModel.statusCompleted).toList();
-        final cancelled = allOrders.where(
-            (o) => o.status == OrderModel.statusCancelled).length;
+        final completed = allOrders
+            .where((o) => o.status == OrderModel.statusCompleted)
+            .toList();
+        final cancelled = allOrders
+            .where((o) => o.status == OrderModel.statusCancelled)
+            .length;
         final totalCount = allOrders.length;
 
-        final revenue = completed.fold<double>(0, (s, o) => s + o.totalWithDelivery);
+        final revenue =
+            completed.fold<double>(0, (s, o) => s + o.totalWithDelivery);
         final pairsSold = completed.fold<int>(
             0, (s, o) => s + o.items.fold(0, (a, i) => a + i.qty));
 
@@ -684,14 +815,16 @@ class _OnlineTab extends StatelessWidget {
                 final cost = snap.data ?? 0;
                 final margin = revenue - cost;
                 return Row(children: [
-                  Expanded(child: _StatCard(
+                  Expanded(
+                      child: _StatCard(
                     label: 'Өзіндік құн',
                     value: '${_fmt(cost)} ₸',
                     icon: Icons.arrow_downward_rounded,
                     color: AppTheme.danger,
                   )),
                   const SizedBox(width: 10),
-                  Expanded(child: _StatCard(
+                  Expanded(
+                      child: _StatCard(
                     label: 'Маржа',
                     value: '${_fmt(margin)} ₸',
                     icon: Icons.account_balance_wallet_outlined,
@@ -702,14 +835,16 @@ class _OnlineTab extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             Row(children: [
-              Expanded(child: _StatCard(
+              Expanded(
+                  child: _StatCard(
                 label: 'Тапсырыстар',
                 value: '$totalCount',
                 icon: Icons.receipt_long_outlined,
                 color: AppTheme.primary,
               )),
               const SizedBox(width: 10),
-              Expanded(child: _StatCard(
+              Expanded(
+                  child: _StatCard(
                 label: 'Бас тарту',
                 value: '$cancelled',
                 icon: Icons.cancel_outlined,
@@ -725,7 +860,9 @@ class _OnlineTab extends StatelessWidget {
             ),
             const SizedBox(height: 20),
             const Text('Күндік белсенділік (онлайн)',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700,
+                style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
                     color: AppTheme.textPrimary)),
             const SizedBox(height: 10),
             _MobileDailyChart(
@@ -745,7 +882,10 @@ class _OnlineTab extends StatelessWidget {
       for (final item in o.items) {
         try {
           final batches = await FirestoreService().getBatches(item.productId);
-          if (batches.isNotEmpty) total += batches.first.purchasePrice * item.qty;
+          if (batches.isEmpty) continue;
+          final b = batches.firstWhere((b) => b.id == item.batchId,
+              orElse: () => batches.first);
+          total += b.purchasePrice * item.qty;
         } catch (_) {}
       }
     }
@@ -772,7 +912,8 @@ class _MobileDailyChartState extends State<_MobileDailyChart> {
 
   @override
   Widget build(BuildContext context) {
-    final daysInMonth = DateUtils.getDaysInMonth(widget.month.year, widget.month.month);
+    final daysInMonth =
+        DateUtils.getDaysInMonth(widget.month.year, widget.month.month);
     final byDay = List<double>.filled(daysInMonth, 0.0);
 
     for (final s in widget.offlineSales) {
@@ -793,9 +934,12 @@ class _MobileDailyChartState extends State<_MobileDailyChart> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
-        boxShadow: [BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 10, offset: const Offset(0, 2))],
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 2))
+        ],
       ),
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -807,18 +951,23 @@ class _MobileDailyChartState extends State<_MobileDailyChart> {
                 ? Row(children: [
                     Text(
                       '${_tapped! + 1} ${_monthShort(widget.month.month)}: ',
-                      style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                      style: const TextStyle(
+                          fontSize: 12, color: AppTheme.textSecondary),
                     ),
                     Text(
                       '${_fmtRev(byDay[_tapped!])} ₸',
-                      style: const TextStyle(fontSize: 14,
-                          fontWeight: FontWeight.w800, color: AppTheme.success),
+                      style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: AppTheme.success),
                     ),
                   ])
                 : Text(
                     'Жалпы: ${_fmtRev(byDay.fold(0.0, (s, v) => s + v))} ₸',
-                    style: const TextStyle(fontSize: 13,
-                        fontWeight: FontWeight.w700, color: AppTheme.primary),
+                    style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.primary),
                   ),
           ),
           const SizedBox(height: 8),
@@ -835,19 +984,26 @@ class _MobileDailyChartState extends State<_MobileDailyChart> {
                       final v = byDay[i];
                       final isSel = _tapped == i;
                       return GestureDetector(
-                        onTap: () => setState(() => _tapped = _tapped == i ? null : i),
+                        onTap: () =>
+                            setState(() => _tapped = _tapped == i ? null : i),
                         child: Container(
                           width: 14,
                           margin: const EdgeInsets.symmetric(horizontal: 1),
                           height: v > 0 ? (v / effectiveMax) * 76 + 4 : 3,
                           decoration: BoxDecoration(
-                            gradient: isSel ? null : const LinearGradient(
-                              colors: [AppTheme.primaryLight, AppTheme.primary],
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                            ),
+                            gradient: isSel
+                                ? null
+                                : const LinearGradient(
+                                    colors: [
+                                      AppTheme.primaryLight,
+                                      AppTheme.primary
+                                    ],
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                  ),
                             color: isSel ? AppTheme.success : null,
-                            borderRadius: const BorderRadius.vertical(top: Radius.circular(3)),
+                            borderRadius: const BorderRadius.vertical(
+                                top: Radius.circular(3)),
                           ),
                         ),
                       );
@@ -861,8 +1017,11 @@ class _MobileDailyChartState extends State<_MobileDailyChart> {
                     children: List.generate(daysInMonth, (i) {
                       final day = i + 1;
                       final isSel = _tapped == i;
-                      final show = isSel || day == 1 || day == 10 ||
-                          day == 20 || day == daysInMonth;
+                      final show = isSel ||
+                          day == 1 ||
+                          day == 10 ||
+                          day == 20 ||
+                          day == daysInMonth;
                       return SizedBox(
                         width: 16,
                         child: Text(
@@ -871,7 +1030,8 @@ class _MobileDailyChartState extends State<_MobileDailyChart> {
                           style: TextStyle(
                             fontSize: 8,
                             color: isSel ? AppTheme.primary : AppTheme.textHint,
-                            fontWeight: isSel ? FontWeight.w700 : FontWeight.w400,
+                            fontWeight:
+                                isSel ? FontWeight.w700 : FontWeight.w400,
                           ),
                         ),
                       );
@@ -893,8 +1053,20 @@ class _MobileDailyChartState extends State<_MobileDailyChart> {
   }
 
   static String _monthShort(int m) {
-    const names = ['қан', 'ақп', 'нау', 'сәу', 'мам', 'мау',
-                   'шіл', 'там', 'қыр', 'қаз', 'қар', 'жел'];
+    const names = [
+      'қан',
+      'ақп',
+      'нау',
+      'сәу',
+      'мам',
+      'мау',
+      'шіл',
+      'там',
+      'қыр',
+      'қаз',
+      'қар',
+      'жел'
+    ];
     return names[m - 1];
   }
 }
@@ -915,61 +1087,76 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(14),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(14),
-      boxShadow: [BoxShadow(
-          color: Colors.black.withValues(alpha: 0.04),
-          blurRadius: 8, offset: const Offset(0, 2))],
-    ),
-    child: Row(children: [
-      Container(
-        padding: const EdgeInsets.all(10),
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(10),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 8,
+                offset: const Offset(0, 2))
+          ],
         ),
-        child: Icon(icon, color: color, size: 20),
-      ),
-      const SizedBox(width: 12),
-      Expanded(child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: const TextStyle(
-              fontSize: 11, color: AppTheme.textSecondary,
-              fontWeight: FontWeight.w500)),
-          Text(value, style: TextStyle(
-              fontSize: 18, fontWeight: FontWeight.w800, color: color)),
-          if (sub != null)
-            Text(sub!, style: const TextStyle(
-                fontSize: 10, color: AppTheme.textHint)),
-        ],
-      )),
-    ]),
-  );
+        child: Row(children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+              child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label,
+                  style: const TextStyle(
+                      fontSize: 11,
+                      color: AppTheme.textSecondary,
+                      fontWeight: FontWeight.w500)),
+              Text(value,
+                  style: TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.w800, color: color)),
+              if (sub != null)
+                Text(sub!,
+                    style: const TextStyle(
+                        fontSize: 10, color: AppTheme.textHint)),
+            ],
+          )),
+        ]),
+      );
 }
 
 // ── Shared: KpiChip ───────────────────────────────────────────────────────────
 class _KpiChip extends StatelessWidget {
   final String label, value;
   final Color color;
-  const _KpiChip({required this.label, required this.value, required this.color});
+  const _KpiChip(
+      {required this.label, required this.value, required this.color});
 
   @override
-  Widget build(BuildContext context) => Expanded(child: Container(
-    padding: const EdgeInsets.all(12),
-    decoration: BoxDecoration(
-      color: color.withValues(alpha: 0.08),
-      borderRadius: BorderRadius.circular(12),
-    ),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(label, style: TextStyle(fontSize: 10, color: color, fontWeight: FontWeight.w600)),
-      const SizedBox(height: 4),
-      Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: color),
-          maxLines: 1, overflow: TextOverflow.ellipsis),
-    ]),
-  ));
+  Widget build(BuildContext context) => Expanded(
+          child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(label,
+              style: TextStyle(
+                  fontSize: 10, color: color, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 4),
+          Text(value,
+              style: TextStyle(
+                  fontSize: 16, fontWeight: FontWeight.w800, color: color),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis),
+        ]),
+      ));
 }
 
 // ── Shared: number formatter ──────────────────────────────────────────────────

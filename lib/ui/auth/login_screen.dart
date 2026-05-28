@@ -13,13 +13,13 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _formKey       = GlobalKey<FormState>();
-  final _emailCtrl     = TextEditingController();
-  final _passwordCtrl  = TextEditingController();
-  final _authService   = AuthService();
+  final _formKey = GlobalKey<FormState>();
+  final _emailCtrl = TextEditingController();
+  final _passwordCtrl = TextEditingController();
+  final _authService = AuthService();
 
-  bool    _isLoading        = false;
-  bool    _obscurePassword  = true;
+  bool _isLoading = false;
+  bool _obscurePassword = true;
   String? _errorMessage;
 
   @override
@@ -31,10 +31,13 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _signIn() async {
     if (!_formKey.currentState!.validate()) return;
-    setState(() { _isLoading = true; _errorMessage = null; });
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
     try {
       await _authService.signIn(
-        email:    _emailCtrl.text,
+        email: _emailCtrl.text,
         password: _passwordCtrl.text,
       );
       if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
@@ -104,8 +107,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     controller: _emailCtrl,
                     keyboardType: TextInputType.emailAddress,
                     decoration: _inputDeco(
-                        label: context.l10n.email,
-                        icon: Icons.email_outlined),
+                        label: context.l10n.email, icon: Icons.email_outlined),
                     validator: (v) {
                       if (v == null || v.trim().isEmpty) {
                         return context.l10n.validationEmailRequired;
@@ -128,15 +130,16 @@ class _LoginScreenState extends State<LoginScreen> {
                         icon: Icon(_obscurePassword
                             ? Icons.visibility_outlined
                             : Icons.visibility_off_outlined),
-                        onPressed: () =>
-                            setState(() => _obscurePassword = !_obscurePassword),
+                        onPressed: () => setState(
+                            () => _obscurePassword = !_obscurePassword),
                       ),
                     ),
                     validator: (v) {
                       if (v == null || v.isEmpty) {
                         return context.l10n.validationPasswordRequired;
                       }
-                      if (v.length < 6) return context.l10n.validationPasswordMin;
+                      if (v.length < 6)
+                        return context.l10n.validationPasswordMin;
                       return null;
                     },
                   ),
@@ -180,7 +183,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       child: _isLoading
                           ? const SizedBox(
-                              width: 22, height: 22,
+                              width: 22,
+                              height: 22,
                               child: CircularProgressIndicator(
                                   color: Colors.white, strokeWidth: 2.5))
                           : Text(context.l10n.signIn,
@@ -195,8 +199,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(context.l10n.noAccount,
-                          style: const TextStyle(
-                              color: AppTheme.textSecondary)),
+                          style:
+                              const TextStyle(color: AppTheme.textSecondary)),
                       TextButton(
                         onPressed: () => Navigator.push(
                             context,
@@ -218,8 +222,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  InputDecoration _inputDeco(
-      {required String label, required IconData icon}) {
+  InputDecoration _inputDeco({required String label, required IconData icon}) {
     return InputDecoration(
       labelText: label,
       prefixIcon: Icon(icon, color: AppTheme.primary),

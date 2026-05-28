@@ -7,9 +7,21 @@ import '../../data/services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 
 const List<String> _kzCities = [
-  'Алматы', 'Астана', 'Шымкент', 'Қарағанды', 'Атырау',
-  'Ақтөбе', 'Тараз', 'Павлодар', 'Өскемен', 'Семей',
-  'Ақтау', 'Қостанай', 'Орал', 'Петропавл', 'Қызылорда',
+  'Алматы',
+  'Астана',
+  'Шымкент',
+  'Қарағанды',
+  'Атырау',
+  'Ақтөбе',
+  'Тараз',
+  'Павлодар',
+  'Өскемен',
+  'Семей',
+  'Ақтау',
+  'Қостанай',
+  'Орал',
+  'Петропавл',
+  'Қызылорда',
 ];
 
 class StoreOnboardingScreen extends StatefulWidget {
@@ -21,12 +33,12 @@ class StoreOnboardingScreen extends StatefulWidget {
 }
 
 class _StoreOnboardingScreenState extends State<StoreOnboardingScreen> {
-  final _service       = FirestoreService();
-  final _formKey       = GlobalKey<FormState>();
-  final _nameCtrl      = TextEditingController();
-  final _phoneCtrl     = TextEditingController();
-  final _descCtrl      = TextEditingController();
-  final _addressCtrl   = TextEditingController();
+  final _service = FirestoreService();
+  final _formKey = GlobalKey<FormState>();
+  final _nameCtrl = TextEditingController();
+  final _phoneCtrl = TextEditingController();
+  final _descCtrl = TextEditingController();
+  final _addressCtrl = TextEditingController();
   String? _selectedCity;
   bool _isLoading = false;
 
@@ -44,21 +56,21 @@ class _StoreOnboardingScreenState extends State<StoreOnboardingScreen> {
     if (_isLoading) return;
     setState(() => _isLoading = true);
     try {
-      final now  = DateTime.now();
+      final now = DateTime.now();
       final name = _nameCtrl.text.trim();
       final store = StoreModel(
-        adminUid:            context.read<AppUser>().uid,
-        storeName:           name,
-        storeSlug:           StoreModel.generateSlug(name),
-        logoUrl:             '',
-        city:                _selectedCity ?? '',
-        phone:               _phoneCtrl.text.trim(),
-        description:         _descCtrl.text.trim(),
-        address:             _addressCtrl.text.trim(),
+        adminUid: context.read<AppUser>().uid,
+        storeName: name,
+        storeSlug: StoreModel.generateSlug(name),
+        logoUrl: '',
+        city: _selectedCity ?? '',
+        phone: _phoneCtrl.text.trim(),
+        description: _descCtrl.text.trim(),
+        address: _addressCtrl.text.trim(),
         visibleWarehouseIds: const [],
-        isPublished:         false,
-        createdAt:           now,
-        updatedAt:           now,
+        isPublished: false,
+        createdAt: now,
+        updatedAt: now,
       );
       await _service.saveStore(store);
       if (mounted) widget.onDone();
@@ -91,7 +103,8 @@ class _StoreOnboardingScreenState extends State<StoreOnboardingScreen> {
                 // ── Icon + title ───────────────────────────────────────────
                 Center(
                   child: Container(
-                    width: 72, height: 72,
+                    width: 72,
+                    height: 72,
                     decoration: BoxDecoration(
                         color: AppTheme.primary.withValues(alpha: 0.1),
                         shape: BoxShape.circle),
@@ -102,14 +115,18 @@ class _StoreOnboardingScreenState extends State<StoreOnboardingScreen> {
                 const SizedBox(height: 20),
                 const Center(
                   child: Text('Дүкеніңізді жасаңыз',
-                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800,
-                          color: AppTheme.textPrimary, letterSpacing: -0.3)),
+                      style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          color: AppTheme.textPrimary,
+                          letterSpacing: -0.3)),
                 ),
                 const SizedBox(height: 6),
                 const Center(
                   child: Text('Сатып алушылар үшін витрина алдын ала баптау',
                       textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
+                      style: TextStyle(
+                          fontSize: 13, color: AppTheme.textSecondary)),
                 ),
                 const SizedBox(height: 32),
 
@@ -172,7 +189,8 @@ class _StoreOnboardingScreenState extends State<StoreOnboardingScreen> {
                     prefixIcon: Icon(Icons.location_on_outlined),
                   ),
                   validator: (v) {
-                    if (v == null || v.trim().isEmpty) return 'Мекен-жай міндетті';
+                    if (v == null || v.trim().isEmpty)
+                      return 'Мекен-жай міндетті';
                     return null;
                   },
                 ),
@@ -198,7 +216,8 @@ class _StoreOnboardingScreenState extends State<StoreOnboardingScreen> {
 
                 // ── Buttons ────────────────────────────────────────────────
                 SizedBox(
-                  width: double.infinity, height: 52,
+                  width: double.infinity,
+                  height: 52,
                   child: ElevatedButton(
                     onPressed: _isLoading ? null : _create,
                     style: ElevatedButton.styleFrom(
@@ -208,17 +227,20 @@ class _StoreOnboardingScreenState extends State<StoreOnboardingScreen> {
                             borderRadius: BorderRadius.circular(14)),
                         elevation: 0),
                     child: _isLoading
-                        ? const SizedBox(width: 20, height: 20,
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
                             child: CircularProgressIndicator(
                                 color: Colors.white, strokeWidth: 2))
                         : const Text('Дүкен жасау',
-                            style: TextStyle(fontWeight: FontWeight.w700,
-                                fontSize: 15)),
+                            style: TextStyle(
+                                fontWeight: FontWeight.w700, fontSize: 15)),
                   ),
                 ),
                 const SizedBox(height: 12),
                 SizedBox(
-                  width: double.infinity, height: 48,
+                  width: double.infinity,
+                  height: 48,
                   child: TextButton(
                     onPressed: _isLoading ? null : widget.onDone,
                     child: const Text('Өткізіп жіберу',
@@ -241,6 +263,8 @@ class _Label extends StatelessWidget {
   const _Label(this.text);
   @override
   Widget build(BuildContext context) => Text(text,
-      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+      style: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
           color: AppTheme.textPrimary));
 }

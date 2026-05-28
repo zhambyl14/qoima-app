@@ -55,17 +55,18 @@ class ClientFilters {
     Object? maxPrice = _sentinel,
   }) =>
       ClientFilters(
-        search:     search     ?? this.search,
-        storeId:    storeId    == _sentinel ? this.storeId    : storeId    as String?,
-        types:      types      ?? this.types,
-        brands:     brands     ?? this.brands,
-        sizes:      sizes      ?? this.sizes,
-        colors:     colors     ?? this.colors,
+        search: search ?? this.search,
+        storeId: storeId == _sentinel ? this.storeId : storeId as String?,
+        types: types ?? this.types,
+        brands: brands ?? this.brands,
+        sizes: sizes ?? this.sizes,
+        colors: colors ?? this.colors,
         categories: categories ?? this.categories,
-        minPrice:   minPrice   == _sentinel ? this.minPrice   : minPrice   as double?,
-        maxPrice:   maxPrice   == _sentinel ? this.maxPrice   : maxPrice   as double?,
+        minPrice: minPrice == _sentinel ? this.minPrice : minPrice as double?,
+        maxPrice: maxPrice == _sentinel ? this.maxPrice : maxPrice as double?,
       );
 }
+
 const _sentinel = Object();
 
 // ── Screen ─────────────────────────────────────────────────────────────────────
@@ -77,18 +78,18 @@ class ClientHomeScreen extends StatefulWidget {
 }
 
 class _ClientHomeScreenState extends State<ClientHomeScreen> {
-  final _service    = ClientService();
+  final _service = ClientService();
   final _scrollCtrl = ScrollController();
   final _searchCtrl = TextEditingController();
 
-  List<StoreModel>   _stores          = [];
+  List<StoreModel> _stores = [];
   List<({ProductModel product, List<BatchModel> batches})> _pairs = [];
   Map<String, StoreModel> _productStoreMap = {};
-  bool               _loadingStores   = true;
-  bool               _loadingProducts = false;
-  ClientFilters      _filters         = const ClientFilters();
-  String?            _errorMessage;
-  int                _displayCount    = 20;
+  bool _loadingStores = true;
+  bool _loadingProducts = false;
+  ClientFilters _filters = const ClientFilters();
+  String? _errorMessage;
+  int _displayCount = 20;
 
   List<({ProductModel product, List<BatchModel> batches})> get _shown {
     final f = _filters;
@@ -98,7 +99,8 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
       if (f.types.isNotEmpty && !f.types.contains(p.type)) return false;
       if (f.brands.isNotEmpty && !f.brands.contains(p.brand)) return false;
       if (f.colors.isNotEmpty && !f.colors.contains(p.color)) return false;
-      if (f.categories.isNotEmpty && !f.categories.contains(p.category)) return false;
+      if (f.categories.isNotEmpty && !f.categories.contains(p.category))
+        return false;
       if (f.search.isNotEmpty) {
         final q = f.search.toLowerCase();
         if (!p.name.toLowerCase().contains(q) &&
@@ -107,8 +109,8 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
         }
       }
       if (f.sizes.isNotEmpty) {
-        final hasSize = b.any((bt) => f.sizes.any(
-            (s) => bt.availableSizes.containsKey(s)));
+        final hasSize =
+            b.any((bt) => f.sizes.any((s) => bt.availableSizes.containsKey(s)));
         if (!hasSize) return false;
       }
       if (f.minPrice != null || f.maxPrice != null) {
@@ -152,38 +154,43 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
   }
 
   Future<void> _loadAllProducts() async {
-    setState(() { _loadingStores = true; _errorMessage = null; });
+    setState(() {
+      _loadingStores = true;
+      _errorMessage = null;
+    });
     try {
       final stores = await _service.getPublishedStores();
       if (!mounted) return;
       setState(() {
-        _stores        = stores;
+        _stores = stores;
         _loadingStores = false;
         if (stores.isNotEmpty) _loadingProducts = true;
       });
       if (stores.isEmpty) return;
 
-      final pairs    = <({ProductModel product, List<BatchModel> batches})>[];
+      final pairs = <({ProductModel product, List<BatchModel> batches})>[];
       final storeMap = <String, StoreModel>{};
       for (final store in stores) {
         if (store.visibleWarehouseIds.isEmpty) continue;
         final sp = await _service.getStoreProductsWithBatches(
             store.adminUid, store.visibleWarehouseIds);
-        for (final p in sp) { storeMap[p.product.id] = store; }
+        for (final p in sp) {
+          storeMap[p.product.id] = store;
+        }
         pairs.addAll(sp);
       }
       if (!mounted) return;
       setState(() {
-        _pairs           = pairs;
+        _pairs = pairs;
         _productStoreMap = storeMap;
         _loadingProducts = false;
       });
     } catch (e) {
       if (mounted) {
         setState(() {
-          _loadingStores   = false;
+          _loadingStores = false;
           _loadingProducts = false;
-          _errorMessage    = e.toString();
+          _errorMessage = e.toString();
         });
       }
     }
@@ -196,14 +203,14 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => ClientFiltersSheet(
-        pairs:   _pairs,
-        stores:  _stores,
+        pairs: _pairs,
+        stores: _stores,
         current: _filters,
       ),
     );
     if (updated != null && mounted) {
       setState(() {
-        _filters      = updated;
+        _filters = updated;
         _displayCount = 20;
       });
     }
@@ -213,13 +220,27 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
     setState(() {
       _displayCount = 20;
       switch (key) {
-        case 'store':    _filters = _filters.copyWith(storeId: null);       break;
-        case 'types':    _filters = _filters.copyWith(types: {});           break;
-        case 'brands':   _filters = _filters.copyWith(brands: {});          break;
-        case 'sizes':    _filters = _filters.copyWith(sizes: {});           break;
-        case 'colors':   _filters = _filters.copyWith(colors: {});          break;
-        case 'cats':     _filters = _filters.copyWith(categories: {});      break;
-        case 'price':    _filters = _filters.copyWith(minPrice: null, maxPrice: null); break;
+        case 'store':
+          _filters = _filters.copyWith(storeId: null);
+          break;
+        case 'types':
+          _filters = _filters.copyWith(types: {});
+          break;
+        case 'brands':
+          _filters = _filters.copyWith(brands: {});
+          break;
+        case 'sizes':
+          _filters = _filters.copyWith(sizes: {});
+          break;
+        case 'colors':
+          _filters = _filters.copyWith(colors: {});
+          break;
+        case 'cats':
+          _filters = _filters.copyWith(categories: {});
+          break;
+        case 'price':
+          _filters = _filters.copyWith(minPrice: null, maxPrice: null);
+          break;
       }
     });
   }
@@ -251,8 +272,10 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                           color: Colors.white, size: 22),
                       const SizedBox(width: 8),
                       const Text('Магазин',
-                          style: TextStyle(color: Colors.white,
-                              fontSize: 22, fontWeight: FontWeight.w800)),
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800)),
                     ]),
                   ),
                   // Search bar + filter button
@@ -272,7 +295,8 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                               _filters = _filters.copyWith(search: q.trim());
                               _displayCount = 20;
                             }),
-                            style: const TextStyle(color: Colors.black87, fontSize: 14),
+                            style: const TextStyle(
+                                color: Colors.black87, fontSize: 14),
                             decoration: InputDecoration(
                               hintText: 'Поиск товара...',
                               hintStyle: const TextStyle(
@@ -284,7 +308,8 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                                       onTap: () {
                                         _searchCtrl.clear();
                                         setState(() {
-                                          _filters = _filters.copyWith(search: '');
+                                          _filters =
+                                              _filters.copyWith(search: '');
                                         });
                                       },
                                       child: const Icon(Icons.close_rounded,
@@ -304,7 +329,8 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                           clipBehavior: Clip.none,
                           children: [
                             Container(
-                              height: 42, width: 42,
+                              height: 42,
+                              width: 42,
                               decoration: BoxDecoration(
                                 color: Colors.white.withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(12),
@@ -314,9 +340,11 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                             ),
                             if (_filters.activeCount > 0)
                               Positioned(
-                                top: -4, right: -4,
+                                top: -4,
+                                right: -4,
                                 child: Container(
-                                  width: 18, height: 18,
+                                  width: 18,
+                                  height: 18,
                                   decoration: const BoxDecoration(
                                     color: Color(0xFFF59E0B),
                                     shape: BoxShape.circle,
@@ -324,7 +352,8 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                                   child: Center(
                                     child: Text('${_filters.activeCount}',
                                         style: const TextStyle(
-                                            color: Colors.white, fontSize: 10,
+                                            color: Colors.white,
+                                            fontSize: 10,
                                             fontWeight: FontWeight.w800)),
                                   ),
                                 ),
@@ -353,68 +382,71 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
             // ── Body ──────────────────────────────────────────────────────
             Expanded(
               child: _loadingStores
-                  ? const Center(child: CircularProgressIndicator(
-                      color: AppTheme.primary))
+                  ? const Center(
+                      child: CircularProgressIndicator(color: AppTheme.primary))
                   : _errorMessage != null
                       ? _EmptyState(
                           icon: Icons.error_outline_rounded,
                           message: _errorMessage!)
-                  : _stores.isEmpty
-                      ? const _EmptyState(
-                          icon: Icons.storefront_outlined,
-                          message: 'Нет активных магазинов')
-                      : _loadingProducts
-                          ? const Center(child: CircularProgressIndicator(
-                              color: AppTheme.primary))
-                          : _shown.isEmpty
-                              ? _EmptyState(
-                                  icon: Icons.search_off_rounded,
-                                  message: _filters.search.isNotEmpty
-                                      ? '«${_filters.search}» не найдено'
-                                      : 'Нет товаров')
-                              : GridView.builder(
-                                  controller: _scrollCtrl,
-                                  padding: const EdgeInsets.fromLTRB(
-                                      12, 12, 12, 20),
-                                  gridDelegate:
-                                      const SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount:   2,
-                                    childAspectRatio: 0.72,
-                                    crossAxisSpacing: 10,
-                                    mainAxisSpacing:  10,
-                                  ),
-                                  itemCount:
-                                      _shown.length + (_hasMore ? 1 : 0),
-                                  itemBuilder: (_, i) {
-                                    if (i == _shown.length) {
-                                      return const Center(
-                                        child: Padding(
-                                          padding: EdgeInsets.all(16),
-                                          child: CircularProgressIndicator(
-                                              color: AppTheme.primary,
-                                              strokeWidth: 2),
-                                        ),
-                                      );
-                                    }
-                                    final pair = _shown[i];
-                                    return _ProductCard(
-                                      product: pair.product,
-                                      onTap: (p) {
-                                        final store = _productStoreMap[p.id];
-                                        if (store == null) return;
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (_) => ClientProductDetail(
-                                              product: p,
-                                              store:   store,
+                      : _stores.isEmpty
+                          ? const _EmptyState(
+                              icon: Icons.storefront_outlined,
+                              message: 'Нет активных магазинов')
+                          : _loadingProducts
+                              ? const Center(
+                                  child: CircularProgressIndicator(
+                                      color: AppTheme.primary))
+                              : _shown.isEmpty
+                                  ? _EmptyState(
+                                      icon: Icons.search_off_rounded,
+                                      message: _filters.search.isNotEmpty
+                                          ? '«${_filters.search}» не найдено'
+                                          : 'Нет товаров')
+                                  : GridView.builder(
+                                      controller: _scrollCtrl,
+                                      padding: const EdgeInsets.fromLTRB(
+                                          12, 12, 12, 20),
+                                      gridDelegate:
+                                          const SliverGridDelegateWithFixedCrossAxisCount(
+                                        crossAxisCount: 2,
+                                        childAspectRatio: 0.72,
+                                        crossAxisSpacing: 10,
+                                        mainAxisSpacing: 10,
+                                      ),
+                                      itemCount:
+                                          _shown.length + (_hasMore ? 1 : 0),
+                                      itemBuilder: (_, i) {
+                                        if (i == _shown.length) {
+                                          return const Center(
+                                            child: Padding(
+                                              padding: EdgeInsets.all(16),
+                                              child: CircularProgressIndicator(
+                                                  color: AppTheme.primary,
+                                                  strokeWidth: 2),
                                             ),
-                                          ),
+                                          );
+                                        }
+                                        final pair = _shown[i];
+                                        return _ProductCard(
+                                          product: pair.product,
+                                          onTap: (p) {
+                                            final store =
+                                                _productStoreMap[p.id];
+                                            if (store == null) return;
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (_) =>
+                                                    ClientProductDetail(
+                                                  product: p,
+                                                  store: store,
+                                                ),
+                                              ),
+                                            );
+                                          },
                                         );
                                       },
-                                    );
-                                  },
-                                ),
+                                    ),
             ),
           ],
         ),
@@ -427,31 +459,33 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
     final f = _filters;
 
     if (f.storeId != null) {
-      final name = _stores.firstWhere(
-          (s) => s.adminUid == f.storeId,
-          orElse: () => _stores.first).storeName;
-      chips.add(_FilterChipTag(label: 'Магазин: $name',
-          onRemove: () => _removeFilter('store')));
+      final name = _stores
+          .firstWhere((s) => s.adminUid == f.storeId,
+              orElse: () => _stores.first)
+          .storeName;
+      chips.add(_FilterChipTag(
+          label: 'Магазин: $name', onRemove: () => _removeFilter('store')));
     }
     if (f.types.isNotEmpty) {
       chips.add(_FilterChipTag(
-        label: f.types.join(', '), onRemove: () => _removeFilter('types')));
+          label: f.types.join(', '), onRemove: () => _removeFilter('types')));
     }
     if (f.brands.isNotEmpty) {
       chips.add(_FilterChipTag(
-        label: f.brands.join(', '), onRemove: () => _removeFilter('brands')));
+          label: f.brands.join(', '), onRemove: () => _removeFilter('brands')));
     }
     if (f.sizes.isNotEmpty) {
       chips.add(_FilterChipTag(
-        label: f.sizes.join(', '), onRemove: () => _removeFilter('sizes')));
+          label: f.sizes.join(', '), onRemove: () => _removeFilter('sizes')));
     }
     if (f.colors.isNotEmpty) {
       chips.add(_FilterChipTag(
-        label: f.colors.join(', '), onRemove: () => _removeFilter('colors')));
+          label: f.colors.join(', '), onRemove: () => _removeFilter('colors')));
     }
     if (f.categories.isNotEmpty) {
       chips.add(_FilterChipTag(
-        label: f.categories.join(', '), onRemove: () => _removeFilter('cats')));
+          label: f.categories.join(', '),
+          onRemove: () => _removeFilter('cats')));
     }
     if (f.minPrice != null || f.maxPrice != null) {
       final lo = f.minPrice?.toStringAsFixed(0) ?? '0';
@@ -471,23 +505,26 @@ class _FilterChipTag extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    margin: const EdgeInsets.only(right: 6),
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(20),
-    ),
-    child: Row(mainAxisSize: MainAxisSize.min, children: [
-      Text(label,
-          style: const TextStyle(
-              fontSize: 11, fontWeight: FontWeight.w700, color: AppTheme.primary)),
-      const SizedBox(width: 4),
-      GestureDetector(
-        onTap: onRemove,
-        child: const Icon(Icons.close_rounded, size: 14, color: AppTheme.primary),
-      ),
-    ]),
-  );
+        margin: const EdgeInsets.only(right: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.primary)),
+          const SizedBox(width: 4),
+          GestureDetector(
+            onTap: onRemove,
+            child: const Icon(Icons.close_rounded,
+                size: 14, color: AppTheme.primary),
+          ),
+        ]),
+      );
 }
 
 // ── Product card ───────────────────────────────────────────────────────────────
@@ -505,8 +542,10 @@ class _ProductCard extends StatelessWidget {
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
-            BoxShadow(color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 8, offset: const Offset(0, 2)),
+            BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 8,
+                offset: const Offset(0, 2)),
           ],
         ),
         child: Column(
@@ -518,7 +557,8 @@ class _ProductCard extends StatelessWidget {
                     const BorderRadius.vertical(top: Radius.circular(16)),
                 child: product.images.isNotEmpty
                     ? Image.network(product.images.first,
-                        fit: BoxFit.cover, width: double.infinity,
+                        fit: BoxFit.cover,
+                        width: double.infinity,
                         errorBuilder: (_, __, ___) => _PlaceholderImage())
                     : _PlaceholderImage(),
               ),
@@ -529,15 +569,20 @@ class _ProductCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(product.brand,
-                      style: const TextStyle(fontSize: 11,
-                          fontWeight: FontWeight.w600, color: AppTheme.primary),
-                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                      style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.primary),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis),
                   const SizedBox(height: 2),
                   Text(product.name,
-                      style: const TextStyle(fontSize: 13,
+                      style: const TextStyle(
+                          fontSize: 13,
                           fontWeight: FontWeight.w600,
                           color: AppTheme.textPrimary),
-                      maxLines: 2, overflow: TextOverflow.ellipsis),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis),
                   const SizedBox(height: 4),
                   Text(product.type,
                       style: const TextStyle(
@@ -557,14 +602,14 @@ class _PlaceholderImage extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         color: AppTheme.primary.withValues(alpha: 0.06),
         child: const Center(
-            child: Icon(Icons.image_outlined,
-                color: AppTheme.textHint, size: 40)),
+            child:
+                Icon(Icons.image_outlined, color: AppTheme.textHint, size: 40)),
       );
 }
 
 class _EmptyState extends StatelessWidget {
   final IconData icon;
-  final String   message;
+  final String message;
   const _EmptyState({required this.icon, required this.message});
 
   @override
@@ -573,8 +618,8 @@ class _EmptyState extends StatelessWidget {
           Icon(icon, size: 56, color: AppTheme.textHint),
           const SizedBox(height: 12),
           Text(message,
-              style: const TextStyle(
-                  fontSize: 15, color: AppTheme.textSecondary)),
+              style:
+                  const TextStyle(fontSize: 15, color: AppTheme.textSecondary)),
         ]),
       );
 }

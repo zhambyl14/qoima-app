@@ -14,9 +14,9 @@ class ReservationModel {
   final String adminUid;
   final String orderType;
 
-  static const String statusActive    = 'active';
+  static const String statusActive = 'active';
   static const String statusCompleted = 'completed';
-  static const String statusExpired   = 'expired';
+  static const String statusExpired = 'expired';
 
   const ReservationModel({
     required this.id,
@@ -29,44 +29,46 @@ class ReservationModel {
     required this.status,
     this.clientPhone = '',
     this.warehouseId = '',
-    this.adminUid    = '',
-    this.orderType   = '',
+    this.adminUid = '',
+    this.orderType = '',
   });
 
-  bool get isActive    => status == statusActive && expiresAt.isAfter(DateTime.now());
-  int  get minutesLeft => expiresAt.difference(DateTime.now()).inMinutes.clamp(0, 60);
+  bool get isActive =>
+      status == statusActive && expiresAt.isAfter(DateTime.now());
+  int get minutesLeft =>
+      expiresAt.difference(DateTime.now()).inMinutes.clamp(0, 60);
 
   factory ReservationModel.fromFirestore(
       DocumentSnapshot<Map<String, dynamic>> doc) {
     final d = doc.data()!;
     return ReservationModel(
-      id:          doc.id,
-      productId:   d['productId']   as String? ?? '',
-      batchId:     d['batchId']     as String? ?? '',
-      size:        d['size']        as String? ?? '',
-      quantity:    (d['quantity']   as num?)?.toInt() ?? 0,
-      reservedBy:  d['reservedBy']  as String? ?? '',
-      expiresAt:   (d['expiresAt']  as Timestamp?)?.toDate() ?? DateTime.now(),
-      status:      d['status']      as String? ?? statusExpired,
+      id: doc.id,
+      productId: d['productId'] as String? ?? '',
+      batchId: d['batchId'] as String? ?? '',
+      size: d['size'] as String? ?? '',
+      quantity: (d['quantity'] as num?)?.toInt() ?? 0,
+      reservedBy: d['reservedBy'] as String? ?? '',
+      expiresAt: (d['expiresAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      status: d['status'] as String? ?? statusExpired,
       clientPhone: d['clientPhone'] as String? ?? '',
       warehouseId: d['warehouseId'] as String? ?? '',
-      adminUid:    d['adminUid']    as String? ?? '',
-      orderType:   d['orderType']   as String? ?? '',
+      adminUid: d['adminUid'] as String? ?? '',
+      orderType: d['orderType'] as String? ?? '',
     );
   }
 
   Map<String, dynamic> toJson() => {
-        'productId':   productId,
-        'batchId':     batchId,
-        'size':        size,
-        'quantity':    quantity,
-        'reservedBy':  reservedBy,
-        'expiresAt':   Timestamp.fromDate(expiresAt),
-        'status':      status,
+        'productId': productId,
+        'batchId': batchId,
+        'size': size,
+        'quantity': quantity,
+        'reservedBy': reservedBy,
+        'expiresAt': Timestamp.fromDate(expiresAt),
+        'status': status,
         'clientPhone': clientPhone,
         'warehouseId': warehouseId,
-        'adminUid':    adminUid,
-        'orderType':   orderType,
+        'adminUid': adminUid,
+        'orderType': orderType,
       };
 
   ReservationModel copyWith({
@@ -84,17 +86,17 @@ class ReservationModel {
     String? orderType,
   }) =>
       ReservationModel(
-        id:          id          ?? this.id,
-        productId:   productId   ?? this.productId,
-        batchId:     batchId     ?? this.batchId,
-        size:        size        ?? this.size,
-        quantity:    quantity    ?? this.quantity,
-        reservedBy:  reservedBy  ?? this.reservedBy,
-        expiresAt:   expiresAt   ?? this.expiresAt,
-        status:      status      ?? this.status,
+        id: id ?? this.id,
+        productId: productId ?? this.productId,
+        batchId: batchId ?? this.batchId,
+        size: size ?? this.size,
+        quantity: quantity ?? this.quantity,
+        reservedBy: reservedBy ?? this.reservedBy,
+        expiresAt: expiresAt ?? this.expiresAt,
+        status: status ?? this.status,
         clientPhone: clientPhone ?? this.clientPhone,
         warehouseId: warehouseId ?? this.warehouseId,
-        adminUid:    adminUid    ?? this.adminUid,
-        orderType:   orderType   ?? this.orderType,
+        adminUid: adminUid ?? this.adminUid,
+        orderType: orderType ?? this.orderType,
       );
 }

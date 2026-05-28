@@ -14,8 +14,8 @@ class FirestoreService {
   final FirebaseAuth _auth;
 
   FirestoreService({FirebaseFirestore? firestore, FirebaseAuth? auth})
-      : _db   = firestore ?? FirebaseFirestore.instance,
-        _auth = auth     ?? FirebaseAuth.instance;
+      : _db = firestore ?? FirebaseFirestore.instance,
+        _auth = auth ?? FirebaseAuth.instance;
 
   // ownerUid: admin → өз uid; seller → admin uid
   String get _ownerUid {
@@ -64,8 +64,8 @@ class FirestoreService {
     required String warehouseId,
   }) async {
     final productRef = _products.doc();
-    final productId  = productRef.id;
-    final articul    = 'QM-${productId.substring(0, 6).toUpperCase()}';
+    final productId = productRef.id;
+    final articul = 'QM-${productId.substring(0, 6).toUpperCase()}';
     final newProduct = product.copyWith(
         id: productId, articul: articul, status: ProductModel.statusInStock);
     final batchRef = _batches(productId).doc();
@@ -79,7 +79,7 @@ class FirestoreService {
     wb.set(batchRef, newBatch.toJson());
     if (warehouseId.isNotEmpty) {
       wb.update(_warehouses.doc(warehouseId), {
-        'totalPairs':    FieldValue.increment(totalQty),
+        'totalPairs': FieldValue.increment(totalQty),
         'totalProducts': FieldValue.increment(1),
       });
     }
@@ -112,17 +112,25 @@ class FirestoreService {
   }
 
   Future<String?> findMatchingProduct({
-    required String name, required String brand, required String type,
-    required String material, required String category, required String color,
+    required String name,
+    required String brand,
+    required String type,
+    required String material,
+    required String category,
+    required String color,
   }) async {
     final snap = await _products
-        .where('name',  isEqualTo: name.trim())
+        .where('name', isEqualTo: name.trim())
         .where('brand', isEqualTo: brand.trim())
         .get();
     for (final doc in snap.docs) {
       final p = ProductModel.fromFirestore(doc);
-      if (p.type == type && p.material == material &&
-          p.category == category && p.color == color) { return p.id; }
+      if (p.type == type &&
+          p.material == material &&
+          p.category == category &&
+          p.color == color) {
+        return p.id;
+      }
     }
     return null;
   }
@@ -149,39 +157,47 @@ class FirestoreService {
 
   Future<List<BatchModel>> getBatches(String productId) async {
     final snap = await _batches(productId)
-        .orderBy('date_arrived', descending: true).get();
+        .orderBy('date_arrived', descending: true)
+        .get();
     return snap.docs.map(BatchModel.fromFirestore).toList();
   }
 
-  Stream<List<BatchModel>> watchBatches(String productId) =>
-      _batches(productId)
-          .orderBy('date_arrived', descending: true)
-          .snapshots()
-          .map((s) => s.docs.map(BatchModel.fromFirestore).toList());
+  Stream<List<BatchModel>> watchBatches(String productId) => _batches(productId)
+      .orderBy('date_arrived', descending: true)
+      .snapshots()
+      .map((s) => s.docs.map(BatchModel.fromFirestore).toList());
 
   Future<void> updateBatchSizes(
-      String productId, String batchId, Map<String, int> sizes) =>
+          String productId, String batchId, Map<String, int> sizes) =>
       _batches(productId).doc(batchId).update({'sizes_quantity': sizes});
 
   Future<void> updateBatch({
-    required String productId, required String batchId,
-    required DateTime dateArrived, required double purchasePrice,
-    required double sellingPrice, required Map<String, int> sizesQuantity,
+    required String productId,
+    required String batchId,
+    required DateTime dateArrived,
+    required double purchasePrice,
+    required double sellingPrice,
+    required Map<String, int> sizesQuantity,
   }) async {
     final allSnap = await _batches(productId).get();
     final updatedAnyInStock = allSnap.docs.any((doc) {
       if (doc.id == batchId) return sizesQuantity.values.any((q) => q > 0);
-      return BatchModel.fromFirestore(doc).sizesQuantity.values.any((q) => q > 0);
+      return BatchModel.fromFirestore(doc)
+          .sizesQuantity
+          .values
+          .any((q) => q > 0);
     });
     final wb = _db.batch();
     wb.update(_batches(productId).doc(batchId), {
-      'date_arrived':   Timestamp.fromDate(dateArrived),
+      'date_arrived': Timestamp.fromDate(dateArrived),
       'purchase_price': purchasePrice,
-      'selling_price':  sellingPrice,
+      'selling_price': sellingPrice,
       'sizes_quantity': sizesQuantity,
     });
     wb.update(_products.doc(productId), {
-      'status': updatedAnyInStock ? ProductModel.statusInStock : ProductModel.statusSold,
+      'status': updatedAnyInStock
+          ? ProductModel.statusInStock
+          : ProductModel.statusSold,
     });
     await wb.commit();
   }
@@ -190,24 +206,28 @@ class FirestoreService {
     final allSnap = await _batches(productId).get();
     final remaining = allSnap.docs
         .where((d) => d.id != batchId)
-        .map(BatchModel.fromFirestore).toList();
-    final anyInStock = remaining.any((b) => b.sizesQuantity.values.any((q) => q > 0));
+        .map(BatchModel.fromFirestore)
+        .toList();
+    final anyInStock =
+        remaining.any((b) => b.sizesQuantity.values.any((q) => q > 0));
     final newStatus = (remaining.isNotEmpty && anyInStock)
-        ? ProductModel.statusInStock : ProductModel.statusSold;
+        ? ProductModel.statusInStock
+        : ProductModel.statusSold;
 
     // If there are sales linked to this batch, archive it (zero out sizes,
     // mark isArchived=true) instead of deleting — this preserves analytics
     // and sales history integrity.
     final salesSnap = await _salesHistory
         .where('product_id', isEqualTo: productId)
-        .where('batch_id',   isEqualTo: batchId)
-        .limit(1).get();
+        .where('batch_id', isEqualTo: batchId)
+        .limit(1)
+        .get();
 
     final wb = _db.batch();
     if (salesSnap.docs.isNotEmpty) {
       wb.update(_batches(productId).doc(batchId), {
         'sizes_quantity': <String, int>{},
-        'isArchived':     true,
+        'isArchived': true,
       });
     } else {
       wb.delete(_batches(productId).doc(batchId));
@@ -233,22 +253,26 @@ class FirestoreService {
     // idempotent — the second call is a no-op if the document already exists.
     String? idempotencyKey,
   }) async {
-    final sellerId   = AppUser.current.uid.isNotEmpty ? AppUser.current.uid : (_auth.currentUser?.uid ?? '');
+    final sellerId = AppUser.current.uid.isNotEmpty
+        ? AppUser.current.uid
+        : (_auth.currentUser?.uid ?? '');
     final sellerName = AppUser.current.name;
-    final saleDocId  = idempotencyKey ?? _salesHistory.doc().id;
+    final saleDocId = idempotencyKey ?? _salesHistory.doc().id;
 
-    // Pre-read all batch IDs outside the transaction so we can read them
-    // transactionally inside — non-transactional reads inside runTransaction
-    // are blocked by the native Firebase SDK on Android/iOS.
+    // Pre-read product name and all batch IDs outside the transaction —
+    // non-transactional reads inside runTransaction are blocked on Android/iOS.
+    final prodSnap = await _products.doc(productId).get();
+    final productName = prodSnap.data()?['name'] as String? ?? '';
+
     final allBatchSnap = await _batches(productId).get();
-    final allBatchIds  = allBatchSnap.docs.map((d) => d.id).toList();
+    final allBatchIds = allBatchSnap.docs.map((d) => d.id).toList();
 
     await _db.runTransaction((transaction) async {
       // ── ALL reads must come before ANY writes (Firestore rule) ──────────
       final batchRef = _batches(productId).doc(batchId);
-      final saleRef  = _salesHistory.doc(saleDocId);
+      final saleRef = _salesHistory.doc(saleDocId);
 
-      final batchDoc    = await transaction.get(batchRef);
+      final batchDoc = await transaction.get(batchRef);
       final existingDoc = await transaction.get(saleRef);
 
       // Read every batch transactionally for the allSoldOut check
@@ -288,7 +312,8 @@ class FirestoreService {
       final updatedSizes = Map<String, int>.from(batch.sizesQuantity);
       for (final entry in sizesSold.entries) {
         if (entry.value > 0) {
-          updatedSizes[entry.key] = (updatedSizes[entry.key] ?? 0) - entry.value;
+          updatedSizes[entry.key] =
+              (updatedSizes[entry.key] ?? 0) - entry.value;
         }
       }
 
@@ -305,15 +330,16 @@ class FirestoreService {
         }
       }
 
-      final qty        = sizesSold.values.fold(0, (a, b) => a + b);
-      final basePrice  = batch.sellingPrice * qty;
+      final qty = sizesSold.values.fold(0, (a, b) => a + b);
+      final basePrice = batch.sellingPrice * qty;
       final totalPrice = basePrice * (1 - discountPercent / 100);
-      final firstSize  = sizesSold.keys.isNotEmpty ? sizesSold.keys.first : '';
+      final firstSize = sizesSold.keys.isNotEmpty ? sizesSold.keys.first : '';
 
       // ── All writes at the end ────────────────────────────────────────────
       transaction.update(batchRef, {'sizes_quantity': updatedSizes});
       if (allSoldOut) {
-        transaction.update(_products.doc(productId), {'status': ProductModel.statusSold});
+        transaction.update(
+            _products.doc(productId), {'status': ProductModel.statusSold});
       }
       if (warehouseId.isNotEmpty) {
         transaction.update(_warehouses.doc(warehouseId), {
@@ -321,68 +347,110 @@ class FirestoreService {
         });
       }
 
-      transaction.set(saleRef, SaleModel(
-        id:              saleRef.id,
-        productId:       productId,
-        batchId:         batchId,
-        saleDate:        DateTime.now(),
-        sizesSold:       sizesSold,
-        selectedSize:    firstSize,
-        quantity:        qty,
-        basePrice:       basePrice,
-        totalPrice:      totalPrice,
-        discountPercent: discountPercent,
-        discountAmount:  basePrice - totalPrice,
-        sellerId:        sellerId,
-        sellerName:      sellerName,
-        warehouseId:     warehouseId,
-      ).toJson());
+      transaction.set(
+          saleRef,
+          SaleModel(
+            id: saleRef.id,
+            productId: productId,
+            batchId: batchId,
+            saleDate: DateTime.now(),
+            sizesSold: sizesSold,
+            selectedSize: firstSize,
+            quantity: qty,
+            basePrice: basePrice,
+            totalPrice: totalPrice,
+            discountPercent: discountPercent,
+            discountAmount: basePrice - totalPrice,
+            sellerId: sellerId,
+            sellerName: sellerName,
+            warehouseId: warehouseId,
+            productName: productName,
+            purchasePrice: batch.purchasePrice,
+          ).toJson());
     });
   }
 
-  Stream<List<SaleModel>> watchSalesHistory() =>
-      _salesHistory.orderBy('sale_date', descending: true)
-          .snapshots()
-          .map((s) => s.docs.map(SaleModel.fromFirestore).toList());
+  Stream<List<SaleModel>> watchSalesHistory() => _salesHistory
+      .orderBy('sale_date', descending: true)
+      .snapshots()
+      .map((s) => s.docs.map(SaleModel.fromFirestore).toList());
+
+  /// Тек берілген айдың сатуларын серверде сүзіп жүктейді (N+1 жоқ).
+  Stream<List<SaleModel>> watchSalesForMonth(DateTime month) {
+    final from = DateTime(month.year, month.month, 1);
+    final to = DateTime(month.year, month.month + 1, 1);
+    return _salesHistory
+        .where('sale_date',
+            isGreaterThanOrEqualTo: Timestamp.fromDate(from))
+        .where('sale_date', isLessThan: Timestamp.fromDate(to))
+        .orderBy('sale_date', descending: true)
+        .snapshots()
+        .map((s) => s.docs.map(SaleModel.fromFirestore).toList());
+  }
+
+  /// Барлық партиялар мен товар атауларын бір рет жүктейді.
+  /// Қайтарады: (productId→batches, productId→name)
+  Future<(Map<String, List<BatchModel>>, Map<String, String>)>
+      getAllBatchesGrouped() async {
+    final prods = await _products.get();
+    final snaps =
+        await Future.wait(prods.docs.map((d) => _batches(d.id).get()));
+    final batches = <String, List<BatchModel>>{};
+    final names = <String, String>{};
+    for (var i = 0; i < prods.docs.length; i++) {
+      final id = prods.docs[i].id;
+      batches[id] = snaps[i].docs.map(BatchModel.fromFirestore).toList();
+      names[id] = prods.docs[i].data()['name'] as String? ?? '';
+    }
+    return (batches, names);
+  }
 
   Future<List<SaleModel>> getSalesForProduct(String productId) async {
     final snap = await _salesHistory
         .where('product_id', isEqualTo: productId)
-        .orderBy('sale_date', descending: true).get();
+        .orderBy('sale_date', descending: true)
+        .get();
     return snap.docs.map(SaleModel.fromFirestore).toList();
   }
 
   Future<double> getTotalRevenue({DateTime? from, DateTime? to}) async {
     Query<Map<String, dynamic>> q = _salesHistory;
-    if (from != null) q = q.where('sale_date', isGreaterThanOrEqualTo: Timestamp.fromDate(from));
-    if (to   != null) q = q.where('sale_date', isLessThanOrEqualTo:    Timestamp.fromDate(to));
+    if (from != null) {
+      q = q.where('sale_date',
+          isGreaterThanOrEqualTo: Timestamp.fromDate(from));
+    }
+    if (to != null) {
+      q = q.where('sale_date', isLessThanOrEqualTo: Timestamp.fromDate(to));
+    }
     final snap = await q.get();
     return snap.docs.fold<double>(
         0, (s, d) => s + ((d.data()['total_price'] as num?)?.toDouble() ?? 0));
   }
 
   Future<int> getArrivedPairsForMonth(DateTime month) async {
-    final from     = DateTime(month.year, month.month, 1);
-    final to       = DateTime(month.year, month.month + 1, 1);
+    final from = DateTime(month.year, month.month, 1);
+    final to = DateTime(month.year, month.month + 1, 1);
     final products = await _products.get();
-    final futures  = products.docs.map((pDoc) =>
-        _batches(pDoc.id)
-            .where('date_arrived', isGreaterThanOrEqualTo: Timestamp.fromDate(from))
-            .where('date_arrived', isLessThan:             Timestamp.fromDate(to))
-            .get());
+    final futures = products.docs.map((pDoc) => _batches(pDoc.id)
+        .where('date_arrived', isGreaterThanOrEqualTo: Timestamp.fromDate(from))
+        .where('date_arrived', isLessThan: Timestamp.fromDate(to))
+        .get());
     final results = await Future.wait(futures);
     int total = 0;
     for (final snap in results) {
-      for (final bDoc in snap.docs) { total += BatchModel.fromFirestore(bDoc).totalQuantity; }
+      for (final bDoc in snap.docs) {
+        total += BatchModel.fromFirestore(bDoc).totalQuantity;
+      }
     }
     return total;
   }
 
   // ── Warehouses ────────────────────────────────────────────────────────────────
 
-  Stream<List<WarehouseModel>> watchWarehouses() =>
-      _warehouses.orderBy('createdAt').snapshots()
-          .map((s) => s.docs.map(WarehouseModel.fromFirestore).toList());
+  Stream<List<WarehouseModel>> watchWarehouses() => _warehouses
+      .orderBy('createdAt')
+      .snapshots()
+      .map((s) => s.docs.map(WarehouseModel.fromFirestore).toList());
 
   Future<List<WarehouseModel>> getWarehouses() async {
     final snap = await _warehouses.orderBy('createdAt').get();
@@ -397,13 +465,13 @@ class FirestoreService {
   }) async {
     final ref = _warehouses.doc();
     await ref.set({
-      'id':            ref.id,
-      'name':          name.trim(),
+      'id': ref.id,
+      'name': name.trim(),
       if (address != null && address.isNotEmpty) 'address': address.trim(),
-      if (note    != null && note.isNotEmpty)    'note':    note.trim(),
-      'isMain':        isMain,
-      'createdAt':     FieldValue.serverTimestamp(),
-      'totalPairs':    0,
+      if (note != null && note.isNotEmpty) 'note': note.trim(),
+      'isMain': isMain,
+      'createdAt': FieldValue.serverTimestamp(),
+      'totalPairs': 0,
       'totalProducts': 0,
     });
     // Auto-add new warehouse to store's visibleWarehouseIds if store exists
@@ -421,11 +489,12 @@ class FirestoreService {
     required String name,
     String? address,
     String? note,
-  }) => _warehouses.doc(warehouseId).update({
-    'name':    name.trim(),
-    'address': address?.trim() ?? '',
-    'note':    note?.trim()    ?? '',
-  });
+  }) =>
+      _warehouses.doc(warehouseId).update({
+        'name': name.trim(),
+        'address': address?.trim() ?? '',
+        'note': note?.trim() ?? '',
+      });
 
   Future<void> deleteWarehouse(String warehouseId) =>
       _warehouses.doc(warehouseId).delete();
@@ -438,7 +507,8 @@ class FirestoreService {
     final productsSnap = await _products.get();
     for (final pDoc in productsSnap.docs) {
       final batchSnap = await _batches(pDoc.id)
-          .where('warehouseId', isEqualTo: warehouseId).get();
+          .where('warehouseId', isEqualTo: warehouseId)
+          .get();
       for (final bDoc in batchSnap.docs) {
         wb.update(bDoc.reference, {'warehouseId': ''});
       }
@@ -451,15 +521,16 @@ class FirestoreService {
   Stream<List<ProductWithStock>> watchProductsInWarehouse(String warehouseId) =>
       _products.orderBy('name').snapshots().asyncMap((snap) async {
         final pDocs = snap.docs;
-        final batchSnaps = await Future.wait(
-          pDocs.map((d) => _batches(d.id)
-              .where('warehouseId', isEqualTo: warehouseId).get()));
+        final batchSnaps = await Future.wait(pDocs.map((d) =>
+            _batches(d.id).where('warehouseId', isEqualTo: warehouseId).get()));
         final result = <ProductWithStock>[];
         for (var i = 0; i < pDocs.length; i++) {
           if (batchSnaps[i].docs.isEmpty) continue;
           final pairs = batchSnaps[i].docs.fold<int>(0, (acc, b) {
-            final sq = (b.data()['sizes_quantity'] as Map<dynamic, dynamic>? ?? {});
-            return acc + sq.values.fold<int>(0, (s, v) => s + ((v as num).toInt()));
+            final sq =
+                (b.data()['sizes_quantity'] as Map<dynamic, dynamic>? ?? {});
+            return acc +
+                sq.values.fold<int>(0, (s, v) => s + ((v as num).toInt()));
           });
           result.add(ProductWithStock(
             product: ProductModel.fromFirestore(pDocs[i]),
@@ -473,13 +544,15 @@ class FirestoreService {
   Stream<List<ProductWithStock>> watchAllProductPairs() =>
       _products.orderBy('name').snapshots().asyncMap((snap) async {
         final pDocs = snap.docs;
-        final batchSnaps = await Future.wait(
-          pDocs.map((d) => _batches(d.id).get()));
+        final batchSnaps =
+            await Future.wait(pDocs.map((d) => _batches(d.id).get()));
         final result = <ProductWithStock>[];
         for (var i = 0; i < pDocs.length; i++) {
           final pairs = batchSnaps[i].docs.fold<int>(0, (acc, b) {
-            final sq = (b.data()['sizes_quantity'] as Map<dynamic, dynamic>? ?? {});
-            return acc + sq.values.fold<int>(0, (s, v) => s + ((v as num).toInt()));
+            final sq =
+                (b.data()['sizes_quantity'] as Map<dynamic, dynamic>? ?? {});
+            return acc +
+                sq.values.fold<int>(0, (s, v) => s + ((v as num).toInt()));
           });
           result.add(ProductWithStock(
             product: ProductModel.fromFirestore(pDocs[i]),
@@ -502,7 +575,8 @@ class FirestoreService {
   }
 
   Future<int> countSellersInWarehouse(String warehouseId) async {
-    final snap = await _db.collection('users')
+    final snap = await _db
+        .collection('users')
         .where('ownerId', isEqualTo: _adminUid)
         .get();
     return snap.docs
@@ -515,11 +589,11 @@ class FirestoreService {
 
   /// Seller's own user document stream — used by WarehouseContext to react
   /// instantly when an admin reassigns the seller to a different warehouse.
-  Stream<String> watchSellerAssignedWarehouseId() =>
-      _db.collection('users')
-          .doc(_auth.currentUser!.uid)
-          .snapshots()
-          .map((doc) => doc.data()?['assignedWarehouseId'] as String? ?? '');
+  Stream<String> watchSellerAssignedWarehouseId() => _db
+      .collection('users')
+      .doc(_auth.currentUser!.uid)
+      .snapshots()
+      .map((doc) => doc.data()?['assignedWarehouseId'] as String? ?? '');
 
   // ── Seller join flow ──────────────────────────────────────────────────────────
 
@@ -545,8 +619,10 @@ class FirestoreService {
 
     // Бұрын жіберілмеген бе?
     final existing = await _db
-        .collection('users').doc(adminUid)
-        .collection('join_requests').doc(sellerUid)
+        .collection('users')
+        .doc(adminUid)
+        .collection('join_requests')
+        .doc(sellerUid)
         .get();
 
     if (existing.exists &&
@@ -558,12 +634,18 @@ class FirestoreService {
 
     // join_requests-қа жаз (doc id = sellerUid, admin оңай табады)
     batch.set(
-      _db.collection('users').doc(adminUid)
-          .collection('join_requests').doc(sellerUid),
+      _db
+          .collection('users')
+          .doc(adminUid)
+          .collection('join_requests')
+          .doc(sellerUid),
       {
-        'sellerUid':   sellerUid,
-        'adminUid':    adminUid,
-        'status':      'pending',
+        'sellerId': sellerUid, // UI request['sellerId'] оқиды
+        'sellerUid': sellerUid,
+        'sellerName': AppUser.current.name,
+        'sellerEmail': _auth.currentUser?.email ?? '',
+        'adminUid': adminUid,
+        'status': 'pending',
         'requestedAt': FieldValue.serverTimestamp(),
       },
     );
@@ -573,7 +655,7 @@ class FirestoreService {
       _db.collection('users').doc(sellerUid),
       {
         'pendingOwnerId': adminUid,
-        'joinStatus':     'pending',
+        'joinStatus': 'pending',
       },
     );
 
@@ -587,17 +669,22 @@ class FirestoreService {
     final pendingOwner = sellerDoc.data()?['pendingOwnerId'] as String? ?? '';
 
     if (pendingOwner.isNotEmpty) {
-      final reqSnap = await _db.collection('users').doc(pendingOwner)
+      final reqSnap = await _db
+          .collection('users')
+          .doc(pendingOwner)
           .collection('join_requests')
           .where('sellerId', isEqualTo: sellerUid)
-          .where('status',   isEqualTo: 'pending')
-          .limit(1).get();
-      for (final d in reqSnap.docs) { await d.reference.delete(); }
+          .where('status', isEqualTo: 'pending')
+          .limit(1)
+          .get();
+      for (final d in reqSnap.docs) {
+        await d.reference.delete();
+      }
     }
 
     await _db.collection('users').doc(sellerUid).update({
-      'joinStatus':                 'none',
-      'pendingOwnerId':             FieldValue.delete(),
+      'joinStatus': 'none',
+      'pendingOwnerId': FieldValue.delete(),
     });
   }
 
@@ -610,16 +697,22 @@ class FirestoreService {
     final adminUid = _auth.currentUser!.uid;
     await _db.runTransaction((tx) async {
       tx.update(_db.collection('users').doc(sellerId), {
-        'ownerId':             adminUid,
+        'ownerId': adminUid,
         'assignedWarehouseId': warehouseId,
-        'joinStatus':          'active',
-        'pendingOwnerId':      FieldValue.delete(),
+        'joinStatus': 'active',
+        'pendingOwnerId': FieldValue.delete(),
       });
       tx.update(
-        _db.collection('users').doc(adminUid)
-            .collection('join_requests').doc(requestId),
-        {'status': 'approved', 'approvedAt': FieldValue.serverTimestamp(),
-         'assignedWarehouseId': warehouseId},
+        _db
+            .collection('users')
+            .doc(adminUid)
+            .collection('join_requests')
+            .doc(requestId),
+        {
+          'status': 'approved',
+          'approvedAt': FieldValue.serverTimestamp(),
+          'assignedWarehouseId': warehouseId
+        },
       );
     });
   }
@@ -630,11 +723,14 @@ class FirestoreService {
     required String sellerId,
   }) async {
     final adminUid = _auth.currentUser!.uid;
-    await _db.collection('users').doc(adminUid)
-        .collection('join_requests').doc(requestId)
+    await _db
+        .collection('users')
+        .doc(adminUid)
+        .collection('join_requests')
+        .doc(requestId)
         .update({'status': 'rejected'});
     await _db.collection('users').doc(sellerId).update({
-      'joinStatus':     'none',
+      'joinStatus': 'none',
       'pendingOwnerId': FieldValue.delete(),
     });
   }
@@ -642,9 +738,9 @@ class FirestoreService {
   /// Admin seller-ді дүкеннен шығарады (аккаунтты жоймайды)
   Future<void> removeSeller(String sellerId) async =>
       _db.collection('users').doc(sellerId).update({
-        'ownerId':             FieldValue.delete(),
+        'ownerId': FieldValue.delete(),
         'assignedWarehouseId': FieldValue.delete(),
-        'joinStatus':          'none',
+        'joinStatus': 'none',
       });
 
   /// Seller-дің assignedWarehouseId-ін өзгерту
@@ -654,38 +750,37 @@ class FirestoreService {
       });
 
   /// Admin-дің белсенді seller-лері (1 where + client-side filter to avoid composite index)
-  Stream<List<Map<String, dynamic>>> watchActiveSellers() =>
-      _db.collection('users')
-          .where('ownerId', isEqualTo: _adminUid)
-          .snapshots()
-          .map((s) => s.docs
-              .where((d) =>
-                  d.data()['role'] == 'seller' &&
-                  d.data()['joinStatus'] == 'active')
-              .map((d) => {...d.data(), 'id': d.id})
-              .toList());
+  Stream<List<Map<String, dynamic>>> watchActiveSellers() => _db
+      .collection('users')
+      .where('ownerId', isEqualTo: _adminUid)
+      .snapshots()
+      .map((s) => s.docs
+          .where((d) =>
+              d.data()['role'] == 'seller' &&
+              d.data()['joinStatus'] == 'active')
+          .map((d) => {...d.data(), 'id': d.id})
+          .toList());
 
   /// Admin-дің күтудегі ұсыныстары (no orderBy to avoid composite index — client-side sort)
   Stream<List<Map<String, dynamic>>> watchPendingRequests() =>
-      _joinRequests
-          .where('status', isEqualTo: 'pending')
-          .snapshots()
-          .map((s) {
-            final docs = s.docs.map((d) => {...d.data(), 'id': d.id}).toList();
-            docs.sort((a, b) {
-              final ta = (a['requestedAt'] as Timestamp?)?.toDate() ?? DateTime.now();
-              final tb = (b['requestedAt'] as Timestamp?)?.toDate() ?? DateTime.now();
-              return tb.compareTo(ta);
-            });
-            return docs;
-          });
+      _joinRequests.where('status', isEqualTo: 'pending').snapshots().map((s) {
+        final docs = s.docs.map((d) => {...d.data(), 'id': d.id}).toList();
+        docs.sort((a, b) {
+          final ta =
+              (a['requestedAt'] as Timestamp?)?.toDate() ?? DateTime.now();
+          final tb =
+              (b['requestedAt'] as Timestamp?)?.toDate() ?? DateTime.now();
+          return tb.compareTo(ta);
+        });
+        return docs;
+      });
 
   // ── Transfers ─────────────────────────────────────────────────────────────────
 
-  Stream<List<Map<String, dynamic>>> watchTransfers() =>
-      _transfers.orderBy('createdAt', descending: true)
-          .snapshots()
-          .map((s) => s.docs.map((d) => {...d.data(), 'id': d.id}).toList());
+  Stream<List<Map<String, dynamic>>> watchTransfers() => _transfers
+      .orderBy('createdAt', descending: true)
+      .snapshots()
+      .map((s) => s.docs.map((d) => {...d.data(), 'id': d.id}).toList());
 
   Future<void> transferStock({
     required String fromWarehouseId,
@@ -695,14 +790,17 @@ class FirestoreService {
     required Map<String, int> sizes,
   }) async {
     await _db.runTransaction((tx) async {
-      final fromBatchesSnap = await _products.doc(productId)
+      final fromBatchesSnap = await _products
+          .doc(productId)
           .collection('batches')
           .where('warehouseId', isEqualTo: fromWarehouseId)
           .get();
       final fromBatches = fromBatchesSnap.docs.toList()
         ..sort((a, b) {
-          final ta = (a.data()['date_arrived'] as Timestamp?)?.toDate() ?? DateTime(2000);
-          final tb = (b.data()['date_arrived'] as Timestamp?)?.toDate() ?? DateTime(2000);
+          final ta = (a.data()['date_arrived'] as Timestamp?)?.toDate() ??
+              DateTime(2000);
+          final tb = (b.data()['date_arrived'] as Timestamp?)?.toDate() ??
+              DateTime(2000);
           return ta.compareTo(tb);
         });
 
@@ -719,7 +817,7 @@ class FirestoreService {
           if (have <= 0) continue;
           final take = needed > have ? have : needed;
           batchSizes[size] = have - take;
-          remaining[size]  = needed - take;
+          remaining[size] = needed - take;
           changed = true;
         }
         if (changed) tx.update(batch.reference, {'sizes_quantity': batchSizes});
@@ -734,26 +832,26 @@ class FirestoreService {
       final firstPrice = fromBatches.isNotEmpty ? fromBatches.first.data() : {};
       final newBatchRef = _products.doc(productId).collection('batches').doc();
       tx.set(newBatchRef, {
-        'id':             newBatchRef.id,
-        'warehouseId':    toWarehouseId,
+        'id': newBatchRef.id,
+        'warehouseId': toWarehouseId,
         'purchase_price': firstPrice['purchase_price'] ?? 0,
-        'selling_price':  firstPrice['selling_price']  ?? 0,
+        'selling_price': firstPrice['selling_price'] ?? 0,
         'sizes_quantity': sizes,
-        'date_arrived':   Timestamp.now(),
-        'isTransfer':     true,
+        'date_arrived': Timestamp.now(),
+        'isTransfer': true,
       });
 
       // Transfer тарихы
       final transferRef = _transfers.doc();
       tx.set(transferRef, {
         'fromWarehouseId': fromWarehouseId,
-        'toWarehouseId':   toWarehouseId,
-        'productId':       productId,
-        'productName':     productName,
-        'sizes':           sizes,
-        'totalQuantity':   sizes.values.fold(0, (a, b) => a + b),
-        'performedBy':     _auth.currentUser?.uid ?? '',
-        'createdAt':       FieldValue.serverTimestamp(),
+        'toWarehouseId': toWarehouseId,
+        'productId': productId,
+        'productName': productName,
+        'sizes': sizes,
+        'totalQuantity': sizes.values.fold(0, (a, b) => a + b),
+        'performedBy': _auth.currentUser?.uid ?? '',
+        'createdAt': FieldValue.serverTimestamp(),
       });
     });
   }
@@ -765,14 +863,12 @@ class FirestoreService {
     return StoreModel.fromFirestore(doc);
   }
 
-  Stream<StoreModel?> watchStore() =>
-      _storeDoc.snapshots().map((doc) {
+  Stream<StoreModel?> watchStore() => _storeDoc.snapshots().map((doc) {
         if (!doc.exists) return null;
         return StoreModel.fromFirestore(doc);
       });
 
-  Future<void> saveStore(StoreModel store) =>
-      _storeDoc.set(
+  Future<void> saveStore(StoreModel store) => _storeDoc.set(
         {
           ...store.toJson(),
           'updatedAt': FieldValue.serverTimestamp(),
@@ -785,22 +881,20 @@ class FirestoreService {
   Future<void> createReservation(ReservationModel reservation) =>
       _reservations.doc(reservation.id).set(reservation.toJson());
 
-  Future<void> releaseReservation(String reservationId) =>
-      _reservations
-          .doc(reservationId)
-          .update({'status': ReservationModel.statusExpired});
+  Future<void> releaseReservation(String reservationId) => _reservations
+      .doc(reservationId)
+      .update({'status': ReservationModel.statusExpired});
 
-  Stream<List<ReservationModel>> watchActiveReservations() =>
-      _reservations
-          .where('status', isEqualTo: ReservationModel.statusActive)
-          .snapshots()
-          .map((s) => s.docs
-              .map(ReservationModel.fromFirestore)
-              .where((r) => r.expiresAt.isAfter(DateTime.now()))
-              .toList());
+  Stream<List<ReservationModel>> watchActiveReservations() => _reservations
+      .where('status', isEqualTo: ReservationModel.statusActive)
+      .snapshots()
+      .map((s) => s.docs
+          .map(ReservationModel.fromFirestore)
+          .where((r) => r.expiresAt.isAfter(DateTime.now()))
+          .toList());
 
   Future<void> cleanupExpiredReservations() async {
-    final now  = DateTime.now();
+    final now = DateTime.now();
     final snap = await _reservations
         .where('status', isEqualTo: ReservationModel.statusActive)
         .where('expiresAt', isLessThan: Timestamp.fromDate(now))
@@ -830,12 +924,10 @@ class FirestoreService {
         .where('adminUid', isEqualTo: _adminUid)
         .snapshots()
         .map((snap) {
-          final orders = snap.docs
-              .map((d) => OrderModel.fromFirestore(d))
-              .toList()
-            ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-          return orders;
-        });
+      final orders = snap.docs.map((d) => OrderModel.fromFirestore(d)).toList()
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return orders;
+    });
   }
 
   /// Finds an order by orderNumber (the numeric code shown in QR / on-screen).
@@ -871,9 +963,7 @@ class FirestoreService {
     for (final d in snap.docs) {
       final o = OrderModel.fromFirestore(d);
       if (o.items.any((i) =>
-          i.productId == productId &&
-          i.batchId == batchId &&
-          i.size == size)) {
+          i.productId == productId && i.batchId == batchId && i.size == size)) {
         return o;
       }
     }
@@ -886,6 +976,25 @@ class FirestoreService {
   ///   already deducted when the order was placed).
   Future<void> confirmOnlineOrder(OrderModel order) async {
     final seller = AppUser.current;
+
+    // Pre-read batch purchase prices outside the transaction (non-transactional
+    // reads inside runTransaction are blocked on Android/iOS).
+    final priceByBatch = <String, double>{};
+    for (final item in order.items) {
+      try {
+        final b = await _db
+            .collection('users')
+            .doc(item.adminUid)
+            .collection('products')
+            .doc(item.productId)
+            .collection('batches')
+            .doc(item.batchId)
+            .get();
+        priceByBatch['${item.productId}_${item.batchId}'] =
+            (b.data()?['purchase_price'] as num?)?.toDouble() ?? 0;
+      } catch (_) {}
+    }
+
     await _db.runTransaction((tx) async {
       final orderRef = _db.collection('orders').doc(order.id);
       final orderDoc = await tx.get(orderRef);
@@ -894,9 +1003,12 @@ class FirestoreService {
       if (order.isSmartReservation) {
         for (final item in order.items) {
           final batchRef = _db
-              .collection('users').doc(item.adminUid)
-              .collection('products').doc(item.productId)
-              .collection('batches').doc(item.batchId);
+              .collection('users')
+              .doc(item.adminUid)
+              .collection('products')
+              .doc(item.productId)
+              .collection('batches')
+              .doc(item.batchId);
           final batchDoc = await tx.get(batchRef);
           if (!batchDoc.exists) continue;
           tx.update(batchRef, {
@@ -907,30 +1019,33 @@ class FirestoreService {
       }
 
       tx.update(orderRef, {
-        'status':          OrderModel.statusCompleted,
-        'deliveredByUid':  seller.uid,
+        'status': OrderModel.statusCompleted,
+        'deliveredByUid': seller.uid,
         'deliveredByName': seller.name,
-        'sellerId':        'онлайн',
-        'sellerName':      'Онлайн',
+        'sellerId': 'онлайн',
+        'sellerName': 'Онлайн',
       });
 
       for (final item in order.items) {
         final saleRef = _salesHistory.doc();
         tx.set(saleRef, {
-          'product_id':        item.productId,
-          'batch_id':          item.batchId,
-          'seller_id':         'онлайн',
-          'seller_name':       'Онлайн',
-          'is_online':         true,
-          'order_id':          order.id,
-          'delivered_by_uid':  seller.uid,
+          'product_id': item.productId,
+          'batch_id': item.batchId,
+          'seller_id': 'онлайн',
+          'seller_name': 'Онлайн',
+          'is_online': true,
+          'order_id': order.id,
+          'delivered_by_uid': seller.uid,
           'delivered_by_name': seller.name,
-          'total_price':       item.subtotal,
-          'quantity':          item.qty,
-          'selected_size':     item.size,
-          'sizes_sold':        {item.size: item.qty},
-          'sale_date':         Timestamp.now(),
-          'warehouseId':       order.warehouseId,
+          'total_price': item.subtotal,
+          'quantity': item.qty,
+          'selected_size': item.size,
+          'sizes_sold': {item.size: item.qty},
+          'sale_date': Timestamp.now(),
+          'warehouseId': order.warehouseId,
+          'product_name': item.productName,
+          'purchase_price':
+              priceByBatch['${item.productId}_${item.batchId}'] ?? 0,
         });
       }
     });
@@ -945,9 +1060,12 @@ class FirestoreService {
 
       for (final item in order.items) {
         final batchRef = _db
-            .collection('users').doc(item.adminUid)
-            .collection('products').doc(item.productId)
-            .collection('batches').doc(item.batchId);
+            .collection('users')
+            .doc(item.adminUid)
+            .collection('products')
+            .doc(item.productId)
+            .collection('batches')
+            .doc(item.batchId);
         final batchDoc = await tx.get(batchRef);
         if (!batchDoc.exists) continue;
 
@@ -992,6 +1110,6 @@ class _ProductsCache {
 
   static void set(List<ProductModel> p) {
     _data = p;
-    _at   = DateTime.now();
+    _at = DateTime.now();
   }
 }

@@ -38,52 +38,65 @@ class _MandatoryWarehousePicker extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsets.only(
-        left: 20, right: 20, top: 20,
+        left: 20,
+        right: 20,
+        top: 20,
         bottom: MediaQuery.of(context).viewInsets.bottom + 24,
       ),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Container(width: 36, height: 4,
-            decoration: BoxDecoration(color: Colors.grey.shade300,
+        Container(
+            width: 36,
+            height: 4,
+            decoration: BoxDecoration(
+                color: Colors.grey.shade300,
                 borderRadius: BorderRadius.circular(2))),
         const SizedBox(height: 16),
         const Icon(Icons.warehouse_rounded, color: AppTheme.primary, size: 36),
         const SizedBox(height: 12),
         const Text('Қойманы таңдаңыз',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700,
+            style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
                 color: AppTheme.textPrimary)),
         const SizedBox(height: 4),
         const Text('Жалғастыру үшін қойма таңдаңыз',
             style: TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
         const SizedBox(height: 16),
         ...warehouses.map((wh) => ListTile(
-          leading: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-                color: AppTheme.primary.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(10)),
-            child: const Icon(Icons.warehouse_outlined,
-                color: AppTheme.primary, size: 20),
-          ),
-          title: Text(wh.name,
-              style: const TextStyle(fontWeight: FontWeight.w600,
-                  color: AppTheme.textPrimary)),
-          subtitle: wh.address != null && wh.address!.isNotEmpty
-              ? Text(wh.address!,
-                  style: const TextStyle(color: AppTheme.textHint, fontSize: 12))
-              : null,
-          trailing: wh.isMain
-              ? Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                      color: AppTheme.primary,
-                      borderRadius: BorderRadius.circular(4)),
-                  child: const Text('НЕГ.',
-                      style: TextStyle(color: Colors.white, fontSize: 9,
-                          fontWeight: FontWeight.w700)))
-              : null,
-          onTap: () => Navigator.pop(context, wh),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        )),
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                    color: AppTheme.primary.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(10)),
+                child: const Icon(Icons.warehouse_outlined,
+                    color: AppTheme.primary, size: 20),
+              ),
+              title: Text(wh.name,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textPrimary)),
+              subtitle: wh.address != null && wh.address!.isNotEmpty
+                  ? Text(wh.address!,
+                      style: const TextStyle(
+                          color: AppTheme.textHint, fontSize: 12))
+                  : null,
+              trailing: wh.isMain
+                  ? Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                          color: AppTheme.primary,
+                          borderRadius: BorderRadius.circular(4)),
+                      child: const Text('НЕГ.',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w700)))
+                  : null,
+              onTap: () => Navigator.pop(context, wh),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+            )),
         const SizedBox(height: 8),
       ]),
     );

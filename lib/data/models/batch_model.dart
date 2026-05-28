@@ -28,7 +28,7 @@ class BatchModel {
 
   // Available for a specific size after subtracting reservations
   int availableForSize(String size) {
-    final qty      = sizesQuantity[size] ?? 0;
+    final qty = sizesQuantity[size] ?? 0;
     final reserved = reservedSizes[size] ?? 0;
     return (qty - reserved).clamp(0, qty);
   }
@@ -65,13 +65,13 @@ class BatchModel {
     );
 
     return BatchModel(
-      id:            docId ?? json['id'] as String? ?? '',
-      dateArrived:   parseDate(json['date_arrived']),
+      id: docId ?? json['id'] as String? ?? '',
+      dateArrived: parseDate(json['date_arrived']),
       purchasePrice: (json['purchase_price'] as num?)?.toDouble() ?? 0.0,
-      sellingPrice:  (json['selling_price']  as num?)?.toDouble() ?? 0.0,
+      sellingPrice: (json['selling_price'] as num?)?.toDouble() ?? 0.0,
       sizesQuantity: sizesQuantity,
       reservedSizes: reservedSizes,
-      warehouseId:   json['warehouseId'] as String? ?? '',
+      warehouseId: json['warehouseId'] as String? ?? '',
     );
   }
 
@@ -79,14 +79,14 @@ class BatchModel {
       BatchModel.fromJson(doc.data() as Map<String, dynamic>, docId: doc.id);
 
   Map<String, dynamic> toJson() => {
-    'id':             id,
-    'date_arrived':   Timestamp.fromDate(dateArrived),
-    'purchase_price': purchasePrice,
-    'selling_price':  sellingPrice,
-    'sizes_quantity': sizesQuantity,
-    'reserved_sizes': reservedSizes,
-    'warehouseId':    warehouseId,
-  };
+        'id': id,
+        'date_arrived': Timestamp.fromDate(dateArrived),
+        'purchase_price': purchasePrice,
+        'selling_price': sellingPrice,
+        'sizes_quantity': sizesQuantity,
+        'reserved_sizes': reservedSizes,
+        'warehouseId': warehouseId,
+      };
 
   BatchModel copyWith({
     String? id,
@@ -96,15 +96,18 @@ class BatchModel {
     Map<String, int>? sizesQuantity,
     Map<String, int>? reservedSizes,
     String? warehouseId,
-  }) => BatchModel(
-    id:            id            ?? this.id,
-    dateArrived:   dateArrived   ?? this.dateArrived,
-    purchasePrice: purchasePrice ?? this.purchasePrice,
-    sellingPrice:  sellingPrice  ?? this.sellingPrice,
-    sizesQuantity: sizesQuantity ?? Map<String, int>.from(this.sizesQuantity),
-    reservedSizes: reservedSizes ?? Map<String, int>.from(this.reservedSizes),
-    warehouseId:   warehouseId   ?? this.warehouseId,
-  );
+  }) =>
+      BatchModel(
+        id: id ?? this.id,
+        dateArrived: dateArrived ?? this.dateArrived,
+        purchasePrice: purchasePrice ?? this.purchasePrice,
+        sellingPrice: sellingPrice ?? this.sellingPrice,
+        sizesQuantity:
+            sizesQuantity ?? Map<String, int>.from(this.sizesQuantity),
+        reservedSizes:
+            reservedSizes ?? Map<String, int>.from(this.reservedSizes),
+        warehouseId: warehouseId ?? this.warehouseId,
+      );
 
   BatchModel updateSize(String size, int delta) {
     final updated = Map<String, int>.from(sizesQuantity);

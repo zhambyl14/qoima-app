@@ -6,7 +6,9 @@ class ReservationTimerWidget extends StatefulWidget {
   final DateTime expiresAt;
   final VoidCallback? onExpired;
   const ReservationTimerWidget({
-    super.key, required this.expiresAt, this.onExpired,
+    super.key,
+    required this.expiresAt,
+    this.onExpired,
   });
 
   @override
@@ -27,7 +29,8 @@ class _ReservationTimerWidgetState extends State<ReservationTimerWidget> {
   void _update() {
     final remaining = widget.expiresAt.difference(DateTime.now());
     if (mounted) {
-      setState(() => _remaining = remaining.isNegative ? Duration.zero : remaining);
+      setState(
+          () => _remaining = remaining.isNegative ? Duration.zero : remaining);
     }
     if (remaining.isNegative) {
       _timer.cancel();
@@ -43,16 +46,16 @@ class _ReservationTimerWidgetState extends State<ReservationTimerWidget> {
 
   @override
   Widget build(BuildContext context) {
-    final minutes = _remaining.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final seconds = _remaining.inSeconds.remainder(60).toString().padLeft(2, '0');
+    final minutes =
+        _remaining.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final seconds =
+        _remaining.inSeconds.remainder(60).toString().padLeft(2, '0');
     final expired = _remaining == Duration.zero;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: expired
-            ? AppTheme.dangerLight
-            : AppTheme.warningLight,
+        color: expired ? AppTheme.dangerLight : AppTheme.warningLight,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [

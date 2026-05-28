@@ -8,7 +8,8 @@ import '../client/client_shell.dart';
 class ClientRegisterScreen extends StatefulWidget {
   final String uid;
   final String phone;
-  const ClientRegisterScreen({super.key, required this.uid, required this.phone});
+  const ClientRegisterScreen(
+      {super.key, required this.uid, required this.phone});
 
   @override
   State<ClientRegisterScreen> createState() => _ClientRegisterScreenState();
@@ -16,9 +17,9 @@ class ClientRegisterScreen extends StatefulWidget {
 
 class _ClientRegisterScreenState extends State<ClientRegisterScreen> {
   final _authService = AuthService();
-  final _nameCtrl    = TextEditingController();
-  final _formKey     = GlobalKey<FormState>();
-  bool _isLoading    = false;
+  final _nameCtrl = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -32,19 +33,19 @@ class _ClientRegisterScreenState extends State<ClientRegisterScreen> {
     try {
       final name = _nameCtrl.text.trim();
       await _authService.createClientDoc(
-        uid:   widget.uid,
+        uid: widget.uid,
         phone: widget.phone,
-        name:  name,
+        name: name,
       );
       if (!mounted) return;
       context.read<AppUser>().set(
-        uid:      widget.uid,
-        ownerUid: '',
-        name:     name,
-        email:    '',
-        role:     'client',
-        phone:    widget.phone,
-      );
+            uid: widget.uid,
+            ownerUid: '',
+            name: name,
+            email: '',
+            role: 'client',
+            phone: widget.phone,
+          );
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (_) => const ClientShell()),
@@ -82,7 +83,8 @@ class _ClientRegisterScreenState extends State<ClientRegisterScreen> {
                 const SizedBox(height: 16),
                 Center(
                   child: Container(
-                    width: 72, height: 72,
+                    width: 72,
+                    height: 72,
                     decoration: BoxDecoration(
                       color: AppTheme.success.withValues(alpha: 0.1),
                       shape: BoxShape.circle,
@@ -94,17 +96,23 @@ class _ClientRegisterScreenState extends State<ClientRegisterScreen> {
                 const SizedBox(height: 20),
                 const Center(
                   child: Text('Телефон расталды!',
-                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800,
-                          color: AppTheme.textPrimary, letterSpacing: -0.3)),
+                      style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          color: AppTheme.textPrimary,
+                          letterSpacing: -0.3)),
                 ),
                 const SizedBox(height: 6),
                 const Center(
                   child: Text('Атыңызды енгізіңіз',
-                      style: TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
+                      style: TextStyle(
+                          fontSize: 13, color: AppTheme.textSecondary)),
                 ),
                 const SizedBox(height: 32),
                 const Text('Атыңыз *',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
                         color: AppTheme.textPrimary)),
                 const SizedBox(height: 6),
                 TextFormField(
@@ -122,7 +130,8 @@ class _ClientRegisterScreenState extends State<ClientRegisterScreen> {
                 ),
                 const SizedBox(height: 32),
                 SizedBox(
-                  width: double.infinity, height: 52,
+                  width: double.infinity,
+                  height: 52,
                   child: ElevatedButton(
                     onPressed: _isLoading ? null : _register,
                     style: ElevatedButton.styleFrom(
@@ -133,11 +142,14 @@ class _ClientRegisterScreenState extends State<ClientRegisterScreen> {
                       elevation: 0,
                     ),
                     child: _isLoading
-                        ? const SizedBox(width: 22, height: 22,
+                        ? const SizedBox(
+                            width: 22,
+                            height: 22,
                             child: CircularProgressIndicator(
                                 color: Colors.white, strokeWidth: 2))
                         : const Text('Жалғастыру',
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                            style: TextStyle(
+                                fontSize: 16, fontWeight: FontWeight.w600)),
                   ),
                 ),
               ],

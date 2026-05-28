@@ -82,8 +82,7 @@ class ClientService {
   // ── Products with batches ──────────────────────────────────────────────────
 
   Future<List<({ProductModel product, List<BatchModel> batches})>>
-      getStoreProductsWithBatches(
-          String adminUid, List<String> whIds) async {
+      getStoreProductsWithBatches(String adminUid, List<String> whIds) async {
     final products = await getStoreProducts(adminUid);
     final result = <({ProductModel product, List<BatchModel> batches})>[];
     for (final p in products) {
@@ -135,12 +134,13 @@ class ClientService {
         final data = batchDoc.data()!;
 
         final rawSizes = data['sizes_quantity'] as Map<dynamic, dynamic>? ?? {};
-        final sizes = rawSizes.map(
-            (k, v) => MapEntry(k.toString(), (v as num).toInt()));
+        final sizes =
+            rawSizes.map((k, v) => MapEntry(k.toString(), (v as num).toInt()));
 
-        final rawReserved = data['reserved_sizes'] as Map<dynamic, dynamic>? ?? {};
-        final reserved = rawReserved.map(
-            (k, v) => MapEntry(k.toString(), (v as num).toInt()));
+        final rawReserved =
+            data['reserved_sizes'] as Map<dynamic, dynamic>? ?? {};
+        final reserved = rawReserved
+            .map((k, v) => MapEntry(k.toString(), (v as num).toInt()));
 
         final available = (sizes[item.size] ?? 0) - (reserved[item.size] ?? 0);
         if (available < item.qty) {
@@ -160,13 +160,20 @@ class ClientService {
       }
 
       final placed = order.copyWith(
-          id: orderRef.id, pickupCode: code, orderNumber: orderNumber,
-          sellerId: 'онлайн', sellerName: 'Онлайн');
+          id: orderRef.id,
+          pickupCode: code,
+          orderNumber: orderNumber,
+          sellerId: 'онлайн',
+          sellerName: 'Онлайн');
       tx.set(orderRef, placed.toJson());
       return orderRef.id;
     });
-    return order.copyWith(id: orderId, pickupCode: code, orderNumber: orderNumber,
-        sellerId: 'онлайн', sellerName: 'Онлайн');
+    return order.copyWith(
+        id: orderId,
+        pickupCode: code,
+        orderNumber: orderNumber,
+        sellerId: 'онлайн',
+        sellerName: 'Онлайн');
   }
 
   // Sort client-side to avoid needing a composite index on clientPhone+createdAt
@@ -176,12 +183,10 @@ class ClientService {
         .where('clientPhone', isEqualTo: clientPhone)
         .snapshots()
         .map((snap) {
-          final orders = snap.docs
-              .map((d) => OrderModel.fromFirestore(d))
-              .toList()
-            ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-          return orders;
-        });
+      final orders = snap.docs.map((d) => OrderModel.fromFirestore(d)).toList()
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return orders;
+    });
   }
 
   /// Client-initiated cancel: updates order status.

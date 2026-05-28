@@ -14,12 +14,12 @@ class ClientLoginScreen extends StatefulWidget {
 }
 
 class _ClientLoginScreenState extends State<ClientLoginScreen> {
-  final _authService     = AuthService();
-  final _phoneCtrl       = TextEditingController();
-  final _otpCtrl         = TextEditingController();
+  final _authService = AuthService();
+  final _phoneCtrl = TextEditingController();
+  final _otpCtrl = TextEditingController();
 
-  bool    _isLoading      = false;
-  bool    _otpSent        = false;
+  bool _isLoading = false;
+  bool _otpSent = false;
   String? _verificationId;
   String? _errorMessage;
 
@@ -41,7 +41,10 @@ class _ClientLoginScreenState extends State<ClientLoginScreen> {
       setState(() => _errorMessage = 'Телефон нөмерін толық енгізіңіз');
       return;
     }
-    setState(() { _isLoading = true; _errorMessage = null; });
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
     await _authService.verifyPhone(
       phoneNumber: _fullPhone,
       onCodeSent: (verificationId) {
@@ -49,15 +52,19 @@ class _ClientLoginScreenState extends State<ClientLoginScreen> {
           if (mounted) {
             setState(() {
               _verificationId = verificationId;
-              _otpSent        = true;
-              _isLoading      = false;
+              _otpSent = true;
+              _isLoading = false;
             });
           }
         });
       },
       onError: (error) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) setState(() { _errorMessage = error; _isLoading = false; });
+          if (mounted)
+            setState(() {
+              _errorMessage = error;
+              _isLoading = false;
+            });
         });
       },
     );
@@ -70,7 +77,10 @@ class _ClientLoginScreenState extends State<ClientLoginScreen> {
       return;
     }
     if (_verificationId == null) return;
-    setState(() { _isLoading = true; _errorMessage = null; });
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
     try {
       final cred = await _authService.signInWithOtp(
         verificationId: _verificationId!,
@@ -106,7 +116,11 @@ class _ClientLoginScreenState extends State<ClientLoginScreen> {
         });
       }
     } catch (_) {
-      if (mounted) setState(() { _errorMessage = 'Белгісіз қате'; _isLoading = false; });
+      if (mounted)
+        setState(() {
+          _errorMessage = 'Белгісіз қате';
+          _isLoading = false;
+        });
     }
   }
 
@@ -130,7 +144,8 @@ class _ClientLoginScreenState extends State<ClientLoginScreen> {
                 child: Column(
                   children: [
                     Container(
-                      width: 100, height: 100,
+                      width: 100,
+                      height: 100,
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(24),
@@ -159,14 +174,17 @@ class _ClientLoginScreenState extends State<ClientLoginScreen> {
                     const Text(
                       'Qoima',
                       style: TextStyle(
-                        fontSize: 28, fontWeight: FontWeight.w900,
-                        color: AppTheme.textPrimary, letterSpacing: -1,
+                        fontSize: 28,
+                        fontWeight: FontWeight.w900,
+                        color: AppTheme.textPrimary,
+                        letterSpacing: -1,
                       ),
                     ),
                     const SizedBox(height: 4),
                     const Text(
                       'Қойма менеджменті',
-                      style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+                      style: TextStyle(
+                          fontSize: 13, color: AppTheme.textSecondary),
                     ),
                   ],
                 ),
@@ -178,14 +196,16 @@ class _ClientLoginScreenState extends State<ClientLoginScreen> {
                       ? 'SMS-пен жіберілген 6 цифрлық кодты енгізіңіз'
                       : 'Телефон нөміріңізді енгізіңіз',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+                  style: const TextStyle(
+                      fontSize: 13, color: AppTheme.textSecondary),
                 ),
               ),
               const SizedBox(height: 32),
-
               if (!_otpSent) ...[
                 const Text('Телефон нөмірі',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
                         color: AppTheme.textPrimary)),
                 const SizedBox(height: 6),
                 TextFormField(
@@ -202,7 +222,8 @@ class _ClientLoginScreenState extends State<ClientLoginScreen> {
                 ),
                 const SizedBox(height: 24),
                 SizedBox(
-                  width: double.infinity, height: 52,
+                  width: double.infinity,
+                  height: 52,
                   child: ElevatedButton(
                     onPressed: _isLoading ? null : _sendOtp,
                     style: ElevatedButton.styleFrom(
@@ -213,16 +234,21 @@ class _ClientLoginScreenState extends State<ClientLoginScreen> {
                       elevation: 0,
                     ),
                     child: _isLoading
-                        ? const SizedBox(width: 22, height: 22,
+                        ? const SizedBox(
+                            width: 22,
+                            height: 22,
                             child: CircularProgressIndicator(
                                 color: Colors.white, strokeWidth: 2))
                         : const Text('SMS жіберу',
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                            style: TextStyle(
+                                fontSize: 16, fontWeight: FontWeight.w600)),
                   ),
                 ),
               ] else ...[
                 const Text('SMS коды',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
                         color: AppTheme.textPrimary)),
                 const SizedBox(height: 6),
                 TextFormField(
@@ -231,7 +257,9 @@ class _ClientLoginScreenState extends State<ClientLoginScreen> {
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   maxLength: 6,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 24, letterSpacing: 8,
+                  style: const TextStyle(
+                      fontSize: 24,
+                      letterSpacing: 8,
                       fontWeight: FontWeight.w700),
                   decoration: const InputDecoration(
                     hintText: '——————',
@@ -240,7 +268,8 @@ class _ClientLoginScreenState extends State<ClientLoginScreen> {
                 ),
                 const SizedBox(height: 24),
                 SizedBox(
-                  width: double.infinity, height: 52,
+                  width: double.infinity,
+                  height: 52,
                   child: ElevatedButton(
                     onPressed: _isLoading ? null : _verifyOtp,
                     style: ElevatedButton.styleFrom(
@@ -251,31 +280,34 @@ class _ClientLoginScreenState extends State<ClientLoginScreen> {
                       elevation: 0,
                     ),
                     child: _isLoading
-                        ? const SizedBox(width: 22, height: 22,
+                        ? const SizedBox(
+                            width: 22,
+                            height: 22,
                             child: CircularProgressIndicator(
                                 color: Colors.white, strokeWidth: 2))
                         : const Text('Растау',
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                            style: TextStyle(
+                                fontSize: 16, fontWeight: FontWeight.w600)),
                   ),
                 ),
                 const SizedBox(height: 12),
                 SizedBox(
-                  width: double.infinity, height: 48,
+                  width: double.infinity,
+                  height: 48,
                   child: TextButton(
                     onPressed: _isLoading
                         ? null
                         : () => setState(() {
-                              _otpSent        = false;
+                              _otpSent = false;
                               _verificationId = null;
                               _otpCtrl.clear();
-                              _errorMessage   = null;
+                              _errorMessage = null;
                             }),
                     child: const Text('Нөмірді өзгерту',
                         style: TextStyle(color: AppTheme.textSecondary)),
                   ),
                 ),
               ],
-
               if (_errorMessage != null) ...[
                 const SizedBox(height: 16),
                 Container(
@@ -283,17 +315,20 @@ class _ClientLoginScreenState extends State<ClientLoginScreen> {
                   decoration: BoxDecoration(
                     color: AppTheme.dangerLight,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppTheme.danger.withValues(alpha: 0.3)),
+                    border: Border.all(
+                        color: AppTheme.danger.withValues(alpha: 0.3)),
                   ),
                   child: Row(children: [
-                    const Icon(Icons.error_outline, color: AppTheme.danger, size: 18),
+                    const Icon(Icons.error_outline,
+                        color: AppTheme.danger, size: 18),
                     const SizedBox(width: 8),
-                    Expanded(child: Text(_errorMessage!,
-                        style: const TextStyle(color: AppTheme.danger, fontSize: 13))),
+                    Expanded(
+                        child: Text(_errorMessage!,
+                            style: const TextStyle(
+                                color: AppTheme.danger, fontSize: 13))),
                   ]),
                 ),
               ],
-
               const SizedBox(height: 16),
               const Divider(),
               const SizedBox(height: 8),

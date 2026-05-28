@@ -41,7 +41,8 @@ class GradientHeader extends StatelessWidget {
                     GestureDetector(
                       onTap: onBack ?? () => Navigator.maybePop(context),
                       child: Container(
-                        width: 36, height: 36,
+                        width: 36,
+                        height: 36,
                         decoration: BoxDecoration(
                           color: Colors.white.withValues(alpha: 0.14),
                           borderRadius: BorderRadius.circular(11),
@@ -61,13 +62,16 @@ class GradientHeader extends StatelessWidget {
                           Text(eyebrow!.toUpperCase(),
                               style: TextStyle(
                                 color: Colors.white.withValues(alpha: 0.6),
-                                fontSize: 11, fontWeight: FontWeight.w600,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
                                 letterSpacing: 0.6,
                               )),
                         Text(title,
                             style: const TextStyle(
-                              color: Colors.white, fontSize: 18,
-                              fontWeight: FontWeight.w800, letterSpacing: -0.3,
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.3,
                             )),
                         if (subtitle != null)
                           Padding(
@@ -102,7 +106,8 @@ class PremiumCard extends StatelessWidget {
   final VoidCallback? onTap;
 
   const PremiumCard({
-    super.key, required this.child,
+    super.key,
+    required this.child,
     this.padding = const EdgeInsets.all(16),
     this.margin = EdgeInsets.zero,
     this.shadow,
@@ -112,7 +117,8 @@ class PremiumCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = Container(
-      padding: padding, margin: margin,
+      padding: padding,
+      margin: margin,
       decoration: BoxDecoration(
         color: AppTheme.surface,
         borderRadius: BorderRadius.circular(AppTheme.radiusLg),
@@ -133,25 +139,33 @@ class StatusBadge extends StatelessWidget {
   final IconData? icon;
 
   const StatusBadge({
-    super.key, required this.label,
-    required this.bg, required this.fg, this.icon,
+    super.key,
+    required this.label,
+    required this.bg,
+    required this.fg,
+    this.icon,
   });
 
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-    decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(6)),
-    child: Row(mainAxisSize: MainAxisSize.min, children: [
-      if (icon != null) Padding(
-        padding: const EdgeInsets.only(right: 4),
-        child: Icon(icon, size: 11, color: fg),
-      ),
-      Text(label, style: TextStyle(
-        fontSize: 9.5, fontWeight: FontWeight.w800,
-        color: fg, letterSpacing: 0.3,
-      )),
-    ]),
-  );
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration:
+            BoxDecoration(color: bg, borderRadius: BorderRadius.circular(6)),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          if (icon != null)
+            Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: Icon(icon, size: 11, color: fg),
+            ),
+          Text(label,
+              style: TextStyle(
+                fontSize: 9.5,
+                fontWeight: FontWeight.w800,
+                color: fg,
+                letterSpacing: 0.3,
+              )),
+        ]),
+      );
 }
 
 // ─── Skeleton box (shimmer-package-free) ─────────────────────────────────────
@@ -169,7 +183,8 @@ class SkeletonBox extends StatefulWidget {
 class _SkeletonBoxState extends State<SkeletonBox>
     with SingleTickerProviderStateMixin {
   late final AnimationController _c = AnimationController(
-    vsync: this, duration: const Duration(milliseconds: 1200),
+    vsync: this,
+    duration: const Duration(milliseconds: 1200),
   )..repeat();
 
   @override
@@ -180,18 +195,23 @@ class _SkeletonBoxState extends State<SkeletonBox>
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-    animation: _c,
-    builder: (_, __) => Container(
-      width: widget.width, height: widget.height,
-      decoration: BoxDecoration(
-        borderRadius: widget.radius ?? BorderRadius.circular(12),
-        gradient: LinearGradient(
-          begin: Alignment(-1 + _c.value * 2, 0),
-          end:   Alignment( 1 + _c.value * 2, 0),
-          colors: const [AppTheme.border, AppTheme.surface2, AppTheme.border],
-          stops: const [0.0, 0.5, 1.0],
+        animation: _c,
+        builder: (_, __) => Container(
+          width: widget.width,
+          height: widget.height,
+          decoration: BoxDecoration(
+            borderRadius: widget.radius ?? BorderRadius.circular(12),
+            gradient: LinearGradient(
+              begin: Alignment(-1 + _c.value * 2, 0),
+              end: Alignment(1 + _c.value * 2, 0),
+              colors: const [
+                AppTheme.border,
+                AppTheme.surface2,
+                AppTheme.border
+              ],
+              stops: const [0.0, 0.5, 1.0],
+            ),
+          ),
         ),
-      ),
-    ),
-  );
+      );
 }

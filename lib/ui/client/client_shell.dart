@@ -13,7 +13,7 @@ class CartProvider extends ChangeNotifier {
   final List<CartItemModel> _items = [];
 
   List<CartItemModel> get items => List.unmodifiable(_items);
-  int    get count => _items.fold(0, (s, i) => s + i.qty);
+  int get count => _items.fold(0, (s, i) => s + i.qty);
   double get total => _items.fold(0.0, (s, i) => s + i.subtotal);
 
   void addItem(CartItemModel item) {
@@ -52,10 +52,11 @@ class ClientShellState extends State<ClientShell> {
   void setIndex(int i) => setState(() => _currentIndex = i);
 
   static const List<_TabDef> _tabs = [
-    _TabDef(Icons.storefront_outlined,  Icons.storefront_rounded,   'Дүкен'),
+    _TabDef(Icons.storefront_outlined, Icons.storefront_rounded, 'Дүкен'),
     _TabDef(Icons.shopping_cart_outlined, Icons.shopping_cart_rounded, 'Себет'),
-    _TabDef(Icons.receipt_long_outlined, Icons.receipt_long_rounded, 'Тапсырыстар'),
-    _TabDef(Icons.person_outline_rounded, Icons.person_rounded,     'Профиль'),
+    _TabDef(
+        Icons.receipt_long_outlined, Icons.receipt_long_rounded, 'Тапсырыстар'),
+    _TabDef(Icons.person_outline_rounded, Icons.person_rounded, 'Профиль'),
   ];
 
   static const List<Widget> _screens = [
@@ -121,7 +122,8 @@ class ClientShellState extends State<ClientShell> {
                             ),
                             if (i == 1 && cartCount > 0)
                               Positioned(
-                                top: -2, right: -2,
+                                top: -2,
+                                right: -2,
                                 child: Container(
                                   padding: const EdgeInsets.all(3),
                                   decoration: const BoxDecoration(
@@ -142,12 +144,10 @@ class ClientShellState extends State<ClientShell> {
                         Text(_tabs[i].label,
                             style: TextStyle(
                               fontSize: 10,
-                              fontWeight: active
-                                  ? FontWeight.w700
-                                  : FontWeight.w400,
-                              color: active
-                                  ? AppTheme.primary
-                                  : AppTheme.textHint,
+                              fontWeight:
+                                  active ? FontWeight.w700 : FontWeight.w400,
+                              color:
+                                  active ? AppTheme.primary : AppTheme.textHint,
                             )),
                       ],
                     ),

@@ -13,16 +13,40 @@ extension L10nContext on BuildContext {
   String money(num amount) =>
       '${NumberFormat('#,##0', 'ru').format(amount.round())} ₸';
 
-  String date(DateTime d) =>
-      DateFormat('dd.MM.yyyy').format(d);
+  String date(DateTime d) => DateFormat('dd.MM.yyyy').format(d);
 
-  List<String> get monthAbbreviations =>
-      ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
+  List<String> get monthAbbreviations => [
+        'Янв',
+        'Фев',
+        'Мар',
+        'Апр',
+        'Май',
+        'Июн',
+        'Июл',
+        'Авг',
+        'Сен',
+        'Окт',
+        'Ноя',
+        'Дек'
+      ];
 
-  List<String> get monthNames =>
-      ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+  List<String> get monthNames => [
+        'Январь',
+        'Февраль',
+        'Март',
+        'Апрель',
+        'Май',
+        'Июнь',
+        'Июль',
+        'Август',
+        'Сентябрь',
+        'Октябрь',
+        'Ноябрь',
+        'Декабрь'
+      ];
 
-  String monthShort(DateTime d) => '${monthAbbreviations[d.month - 1]} ${d.year}';
+  String monthShort(DateTime d) =>
+      '${monthAbbreviations[d.month - 1]} ${d.year}';
 
   String monthLong(DateTime d) => '${monthNames[d.month - 1]} ${d.year}';
 
