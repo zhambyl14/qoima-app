@@ -189,8 +189,9 @@ class _StoreOnboardingScreenState extends State<StoreOnboardingScreen> {
                     prefixIcon: Icon(Icons.location_on_outlined),
                   ),
                   validator: (v) {
-                    if (v == null || v.trim().isEmpty)
+                    if (v == null || v.trim().isEmpty) {
                       return 'Мекен-жай міндетті';
+                    }
                     return null;
                   },
                 ),

@@ -206,5 +206,179 @@
   "warehouseSuffix": "қойма",
   "revenueSuffix": "Түсім",
   "salesSuffix": "Сатылым",
-  "pairsSuffix": "Жұп"
+  "pairsSuffix": "Жұп",
+
+  "cartTitle": "Себет",
+  "clearCart": "Себетті тазалау",
+  "clearCartConfirm": "Барлық тауарды себеттен алып тастайсыз ба?",
+  "cartClear": "Тазалау",
+  "cartEmpty": "Себет бос",
+  "pickupMethod": "Алу тәсілі",
+  "smartReservationTitle": "Смарт-Бронь",
+  "smartReservationDesc": "1 сағатқа брондаңыз, дүкенде киіп көріңіз",
+  "smartReservationBadge": "10% депозит",
+  "clickCollectTitle": "Click & Collect",
+  "clickCollectDesc": "Онлайн төлеп, қоймадан алыңыз",
+  "clickCollectBadge": "100% онлайн",
+  "deliveryTitle": "Жеткізу",
+  "deliveryDesc": "Мекенжай көрсетіп, курьермен алыңыз",
+  "enterDeliveryAddress": "Жеткізу мекенжайын енгізіңіз",
+  "deliveryAddressLabel": "Жеткізу мекенжайы *",
+  "deliveryAddressPlaceholder": "Қала, көше, үй, пәтер",
+  "noteOptional": "Ескертпе (міндетті емес)",
+  "additionalInfoHint": "Қосымша ақпарат...",
+  "itemsUnavailable": "{names} қолжетімсіз (сатылып кетті немесе дүкен жаңартылды). Себеттен алып тастаңыз.",
+  "@itemsUnavailable": {
+    "placeholders": { "names": { "type": "String" } }
+  },
+  "ordersCreated": "{count} тапсырыс құрылды",
+  "@ordersCreated": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "soldOutUnavailable": "Сатылып кетті / қолжетімсіз",
+  "goodsTotal": "Тауар сомасы",
+  "totalToPay": "Төленетін сома",
+  "payNowDeposit": "Қазір төлеу (10%)",
+  "payAtStoreBalance": "Дүкенде доплата (90%)",
+  "confirmAndReserve": "Растап брондау",
+  "confirmAndPay": "Растап төлеу",
+  "reserveWithAmount": "Брондау — {amount} ₸",
+  "@reserveWithAmount": {
+    "placeholders": { "amount": { "type": "String" } }
+  },
+  "payWithAmount": "Төлеу — {amount} ₸",
+  "@payWithAmount": {
+    "placeholders": { "amount": { "type": "String" } }
+  },
+  "pickupAddressLabel": "Алу мекенжайы",
+  "reservationTimeframe": "Бронь мерзімі",
+  "oneHour": "1 сағат",
+  "sizeQtyLabel": "Өлшем: {size}  ×{qty}",
+  "@sizeQtyLabel": {
+    "placeholders": {
+      "size": { "type": "String" },
+      "qty": { "type": "String" }
+    }
+  },
+
+  "onlineTab": "Онлайн",
+  "totalRevenueLabel": "Жалпы Түсірілке",
+  "offlineOnlineRevSub": "Офлайн: {offline} ₸  ·  Онлайн: {online} ₸",
+  "@offlineOnlineRevSub": {
+    "placeholders": {
+      "offline": { "type": "String" },
+      "online": { "type": "String" }
+    }
+  },
+  "marginLabel": "Маржа",
+  "pairsSoldLabel": "Сатылған жұп",
+  "offlineOnlinePairsSub": "Офлайн: {offline}  ·  Онлайн: {online}",
+  "@offlineOnlinePairsSub": {
+    "placeholders": {
+      "offline": { "type": "String" },
+      "online": { "type": "String" }
+    }
+  },
+  "revenueOnline": "Түсімі (Онлайн)",
+  "ordersLabel": "Тапсырыстар",
+  "cancelledLabel": "Бас тарту",
+  "pairsSoldOnline": "Сатылған жұп (онлайн)",
+  "dailyActivityOnline": "Күндік белсенділік (онлайн)",
+  "totalChartAmount": "Жалпы: {amount} ₸",
+  "@totalChartAmount": {
+    "placeholders": { "amount": { "type": "String" } }
+  },
+  "noStaleItems": "Жатып қалған тауар жоқ 👍",
+  "staleItemsTitle": "Жатып қалған тауар (30+ күн)",
+  "topThreeSales": "Топ-3 сатылымдар",
+  "noSalesLabel": "Сатылым жоқ",
+  "topOneSeller": "🥇 Топ-1: {name}",
+  "@topOneSeller": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "sellerSalesCount": "{count} сат · {pairs} жұп",
+  "@sellerSalesCount": {
+    "placeholders": {
+      "count": { "type": "int" },
+      "pairs": { "type": "int" }
+    }
+  },
+
+  "ordersTitle": "Тапсырыстар",
+  "noPhoneNumber": "Телефон нөмірі жоқ",
+  "noOrders": "Тапсырыс жоқ",
+  "statusReserved": "Брондалды",
+  "statusPending": "Күтуде",
+  "statusCompleted": "Аяқталды",
+  "statusCancelled": "Бас тартылды",
+  "goodsAmount": "Тауар сомасы",
+  "paidDeposit": "Төленген депозит",
+  "remainsAtStore": "Дүкенде қалды",
+  "paidLabel": "Төленді",
+  "showQrToSeller": "Сатушыға осы QR кодты көрсетіңіз",
+  "showQrToStore": "Дүкенге осы QR кодты көрсетіңіз",
+
+  "onlineOrdersTitle": "Онлайн тапсырыстар",
+  "enterOrderCode": "Тапсырыс кодын енгізіңіз...",
+  "findButton": "Іздеу",
+  "invalidCodeOrNotFound": "Код қате немесе тапсырыс табылмады",
+  "orderNotForWarehouse": "Бұл тапсырыс сіздің қоймаңызға тиесілі емес",
+  "orderNotFoundLabel": "Тапсырыс табылмады",
+  "allWithCount": "Барлығы {count}",
+  "@allWithCount": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "activeWithCount": "Белсенді {count}",
+  "@activeWithCount": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "completedWithCount": "Аяқталды {count}",
+  "@completedWithCount": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "cancelledWithCount": "Бас тартылды {count}",
+  "@cancelledWithCount": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "orderFoundLabel": "Тапсырыс табылды",
+  "noActiveOrders": "Белсенді тапсырыс жоқ",
+  "noCompletedOrders": "Аяқталған тапсырыс жоқ",
+  "noCancelledOrders": "Бас тартылған тапсырыс жоқ",
+  "noOrdersLabel": "Тапсырыс жоқ",
+  "nameNotSpecified": "Аты көрсетілмеген",
+  "phoneCopied": "Телефон көшірілді",
+  "depositPaidBadge": "Депозит төленді (10%)",
+  "payAtStoreLabel": "Дүкенде доплата",
+  "totalPaidLabel": "Барлығы төленді",
+  "clientPaidFull": "Клиент толық сомасын төледі ме?",
+  "markAsDeliveredQ": "Жеткізілді деп белгілеу?",
+  "markAsGivenQ": "Берілді деп белгілеу?",
+  "confirmationTitle": "Растау",
+  "yesConfirmBtn": "Иә, растаймын",
+  "cancelOrderDialog": "Тапсырысты болдырмау",
+  "cancelOrderMsg": "Тапсырыс болдырылмайды, тауар қоймаға оралады.",
+  "cancelOrderBtn": "Тапсырысты болдырмау",
+  "fullPaymentLabel": "Толық төлем",
+  "deliveredLabel": "Жеткізілді",
+  "givenLabel": "Тауар берілді",
+  "cancelBtn": "Болдырмау",
+  "smartResBadgeUpper": "СМАРТ-БРОНЬ",
+  "clickCollectUpper": "CLICK & COLLECT",
+  "deliveryUpper": "ЖЕТКІЗУ",
+
+  "storeTitle": "Дүкен",
+  "productSearchHint": "Тауар іздеу...",
+  "noActiveStores": "Белсенді дүкен жоқ",
+  "searchNotFoundMsg": "«{query}» табылмады",
+  "@searchNotFoundMsg": {
+    "placeholders": { "query": { "type": "String" } }
+  },
+  "noProductsLabel": "Тауар жоқ",
+
+  "outOfStock": "Қолда жоқ",
+  "addedToCartMsg": "{name} себетке қосылды",
+  "@addedToCartMsg": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "addToCartBtn": "Себетке"
 }

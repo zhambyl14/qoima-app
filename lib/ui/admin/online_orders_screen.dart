@@ -46,11 +46,12 @@ class _OnlineOrdersScreenState extends State<OnlineOrdersScreen> {
             order == null ? 'Неверный код или заказ не найден' : null;
       });
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _lookupError = e.toString();
           _lookupLoading = false;
         });
+      }
     }
   }
 

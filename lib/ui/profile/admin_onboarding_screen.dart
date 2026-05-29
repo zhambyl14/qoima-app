@@ -49,11 +49,12 @@ class _AdminOnboardingScreenState extends State<AdminOnboardingScreen> {
         await context.read<WarehouseContext>().reload();
       }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _error = e.toString();
           _loading = false;
         });
+      }
     }
   }
 

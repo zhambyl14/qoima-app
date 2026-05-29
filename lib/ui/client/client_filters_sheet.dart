@@ -59,8 +59,9 @@ class _ClientFiltersSheetState extends State<ClientFiltersSheet> {
       if (_f.types.isNotEmpty && !_f.types.contains(p.type)) return false;
       if (_f.brands.isNotEmpty && !_f.brands.contains(p.brand)) return false;
       if (_f.colors.isNotEmpty && !_f.colors.contains(p.color)) return false;
-      if (_f.categories.isNotEmpty && !_f.categories.contains(p.category))
+      if (_f.categories.isNotEmpty && !_f.categories.contains(p.category)) {
         return false;
+      }
       if (_f.sizes.isNotEmpty) {
         final has = b
             .any((bt) => _f.sizes.any((s) => bt.availableSizes.containsKey(s)));

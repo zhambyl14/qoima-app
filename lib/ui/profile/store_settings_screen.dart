@@ -202,10 +202,12 @@ class _StoreSettingsScreenState extends State<StoreSettingsScreen> {
                       prefixIcon: Icon(Icons.phone_outlined),
                       prefixText: '+7 '),
                   validator: (v) {
-                    if (v == null || v.trim().isEmpty)
+                    if (v == null || v.trim().isEmpty) {
                       return 'Телефон нөмірін енгізіңіз';
-                    if (v.trim().length < 10)
+                    }
+                    if (v.trim().length < 10) {
                       return 'Телефон нөмірі дұрыс емес';
+                    }
                     return null;
                   },
                 ),

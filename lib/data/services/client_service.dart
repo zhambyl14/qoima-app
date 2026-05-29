@@ -108,52 +108,83 @@ class ClientService {
 
   // ── Orders ─────────────────────────────────────────────────────────────────
 
-  /// Places an order atomically:
-  /// - SmartReservation → increments `reserved_sizes` in each batch
-  /// - ClickCollect / Delivery → decrements `sizes_quantity` immediately
+  /// Batch availability: returns available qty per size (sizes_quantity − reserved_sizes).
+  Future<Map<String, int>> getBatchAvailability(
+      String adminUid, String productId, String batchId) async {
+    final doc = await _db
+        .collection('users')
+        .doc(adminUid)
+        .collection('products')
+        .doc(productId)
+        .collection('batches')
+        .doc(batchId)
+        .get();
+    if (!doc.exists) return {};
+    final data = doc.data()!;
+    final sizes = (data['sizes_quantity'] as Map<dynamic, dynamic>? ?? {})
+        .map((k, v) => MapEntry(k.toString(), (v as num).toInt()));
+    final reserved = (data['reserved_sizes'] as Map<dynamic, dynamic>? ?? {})
+        .map((k, v) => MapEntry(k.toString(), (v as num).toInt()));
+    return {
+      for (final k in sizes.keys) k: (sizes[k] ?? 0) - (reserved[k] ?? 0),
+    };
+  }
+
+  /// Places an order atomically — READ-BEFORE-WRITE pattern:
+  /// Phase 1: all reads, Phase 2: validation, Phase 3: all writes.
   Future<OrderModel> placeOrder(OrderModel order) async {
     final code = await _uniquePickupCode();
-    final orderNumber = 10000 + (DateTime.now().millisecondsSinceEpoch % 90000);
+    final orderNumber = 10000 + (DateTime.now().microsecondsSinceEpoch % 90000);
+
     final orderId = await _db.runTransaction<String>((tx) async {
       final orderRef = _db.collection('orders').doc();
 
+      // ── 1-КЕЗЕҢ: БАРЛЫҚ ОҚУ ────────────────────────────────────────────────
+      final batchRefs = <DocumentReference>[];
+      final batchDocs = <DocumentSnapshot>[];
       for (final item in order.items) {
-        final batchRef = _db
+        final ref = _db
             .collection('users')
             .doc(item.adminUid)
             .collection('products')
             .doc(item.productId)
             .collection('batches')
             .doc(item.batchId);
-
-        final batchDoc = await tx.get(batchRef);
-        if (!batchDoc.exists) {
-          throw Exception('«${item.productName}» партия не найдена');
+        final doc = await tx.get(ref);
+        if (!doc.exists) {
+          throw Exception('«${item.productName}» партиясы табылмады');
         }
+        batchRefs.add(ref);
+        batchDocs.add(doc);
+      }
 
-        final data = batchDoc.data()!;
-
+      // ── 2-КЕЗЕҢ: ВАЛИДАЦИЯ (жазусыз) ───────────────────────────────────────
+      for (var i = 0; i < order.items.length; i++) {
+        final item = order.items[i];
+        final data = batchDocs[i].data()! as Map<String, dynamic>;
         final rawSizes = data['sizes_quantity'] as Map<dynamic, dynamic>? ?? {};
         final sizes =
             rawSizes.map((k, v) => MapEntry(k.toString(), (v as num).toInt()));
-
-        final rawReserved =
-            data['reserved_sizes'] as Map<dynamic, dynamic>? ?? {};
-        final reserved = rawReserved
-            .map((k, v) => MapEntry(k.toString(), (v as num).toInt()));
-
-        final available = (sizes[item.size] ?? 0) - (reserved[item.size] ?? 0);
+        final rawRes = data['reserved_sizes'] as Map<dynamic, dynamic>? ?? {};
+        final reserved =
+            rawRes.map((k, v) => MapEntry(k.toString(), (v as num).toInt()));
+        final available =
+            (sizes[item.size] ?? 0) - (reserved[item.size] ?? 0);
         if (available < item.qty) {
           throw Exception(
-              '«${item.productName}» размер ${item.size}: осталось только $available пар');
+              '«${item.productName}» ${item.size} өлшемінде тек $available дана бос');
         }
+      }
 
+      // ── 3-КЕЗЕҢ: БАРЛЫҚ ЖАЗУ ───────────────────────────────────────────────
+      for (var i = 0; i < order.items.length; i++) {
+        final item = order.items[i];
         if (order.isSmartReservation) {
-          tx.update(batchRef, {
+          tx.update(batchRefs[i], {
             'reserved_sizes.${item.size}': FieldValue.increment(item.qty),
           });
         } else {
-          tx.update(batchRef, {
+          tx.update(batchRefs[i], {
             'sizes_quantity.${item.size}': FieldValue.increment(-item.qty),
           });
         }
@@ -168,6 +199,7 @@ class ClientService {
       tx.set(orderRef, placed.toJson());
       return orderRef.id;
     });
+
     return order.copyWith(
         id: orderId,
         pickupCode: code,

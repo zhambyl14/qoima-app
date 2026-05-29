@@ -450,9 +450,14 @@ class _SalesBody extends StatelessWidget {
   }
 
   static String _fmtNum(double v) {
-    if (v >= 1000000) return '${(v / 1000000).toStringAsFixed(1)}M';
-    if (v >= 1000) return '${(v / 1000).toStringAsFixed(0)}K';
-    return v.toStringAsFixed(0);
+    if (v < 0) return '-${_fmtNum(-v)}';
+    final s = v.round().toString();
+    final buf = StringBuffer();
+    for (int i = 0; i < s.length; i++) {
+      if (i > 0 && (s.length - i) % 3 == 0) buf.write(' ');
+      buf.write(s[i]);
+    }
+    return buf.toString();
   }
 
   String _fmtShort(DateTime d, BuildContext ctx) => ctx.monthShort(d);

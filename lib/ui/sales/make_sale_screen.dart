@@ -109,12 +109,13 @@ class _MakeSaleScreenState extends State<MakeSaleScreen> {
       if (mounted) setState(() => _isConfirming = false);
       return;
     }
-    if (mounted)
+    if (mounted) {
       setState(() {
         _cart = items;
         _step = 1;
         _isConfirming = false;
       });
+    }
   }
 
   // ── Сатуды растау ─────────────────────────────────────────────────────────

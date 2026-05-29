@@ -60,11 +60,12 @@ class _ClientLoginScreenState extends State<ClientLoginScreen> {
       },
       onError: (error) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted)
+          if (mounted) {
             setState(() {
               _errorMessage = error;
               _isLoading = false;
             });
+          }
         });
       },
     );
@@ -116,11 +117,12 @@ class _ClientLoginScreenState extends State<ClientLoginScreen> {
         });
       }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _errorMessage = 'Белгісіз қате';
           _isLoading = false;
         });
+      }
     }
   }
 

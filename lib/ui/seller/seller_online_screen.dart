@@ -59,11 +59,12 @@ class _SellerOnlineScreenState extends State<SellerOnlineScreen> {
                 : null;
       });
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _lookupError = e.toString();
           _lookupLoading = false;
         });
+      }
     }
   }
 

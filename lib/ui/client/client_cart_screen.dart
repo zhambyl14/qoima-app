@@ -21,6 +21,18 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
   final _noteCtrl = TextEditingController();
   bool _isLoading = false;
 
+  // Қолжетімсіз товарлардың кілттері: "productId_batchId_size"
+  Set<String> _unavailableKeys = {};
+
+  String _itemKey(CartItemModel item) =>
+      '${item.productId}_${item.batchId}_${item.size}';
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkAvailability());
+  }
+
   @override
   void dispose() {
     _addressCtrl.dispose();
@@ -28,10 +40,46 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
     super.dispose();
   }
 
+  /// Себеттегі товарлардың қолжетімдігін тексереді:
+  /// (1) қойма жасырылған ба, (2) сатылым санасы жеткілікті ме.
+  Future<void> _checkAvailability() async {
+    final cart = context.read<CartProvider>();
+    if (cart.items.isEmpty) {
+      if (mounted) setState(() => _unavailableKeys = {});
+      return;
+    }
+    try {
+      final stores = await _service.getPublishedStores();
+      final visibleByAdmin = {
+        for (final s in stores) s.adminUid: s.visibleWarehouseIds,
+      };
+      final unavailable = <String>{};
+      for (final item in cart.items) {
+        final key = _itemKey(item);
+        // Қойма көрінуін тексер
+        final visible = visibleByAdmin[item.adminUid] ?? [];
+        if (!visible.contains(item.warehouseId)) {
+          unavailable.add(key);
+          continue;
+        }
+        // Қор санасын тексер
+        try {
+          final avail = await _service.getBatchAvailability(
+              item.adminUid, item.productId, item.batchId);
+          if ((avail[item.size] ?? 0) < item.qty) {
+            unavailable.add(key);
+          }
+        } catch (_) {}
+      }
+      if (mounted) setState(() => _unavailableKeys = unavailable);
+    } catch (_) {}
+  }
+
   double _depositFor(double total) {
-    if (_orderType == OrderModel.typeSmartReservation)
+    if (_orderType == OrderModel.typeSmartReservation) {
       return (total * 0.1).ceilToDouble();
-    if (_orderType == OrderModel.typeDelivery) return total + _deliveryFeeFor();
+    }
+    if (_orderType == OrderModel.typeDelivery) { return total + _deliveryFeeFor(); }
     return total; // ClickCollect
   }
 
@@ -77,25 +125,46 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
 
     setState(() => _isLoading = true);
     try {
-      // Group items by store and place one order per store
-      final Map<String, List<CartItemModel>> byStore = {};
-      for (final item in cart.items) {
-        byStore.putIfAbsent(item.adminUid, () => []).add(item);
+      // Қолжетімдікті жаңарт — жасырылған/сатылып кеткен товарды тоқтат
+      await _checkAvailability();
+      if (!mounted) return;
+      if (_unavailableKeys.isNotEmpty) {
+        final badItems = cart.items
+            .where((i) => _unavailableKeys.contains(_itemKey(i)))
+            .map((i) => '«${i.productName}»')
+            .join(', ');
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(
+              '$badItems қолжетімсіз (сатылып кетті немесе дүкен жаңартылды). '
+              'Себеттен алып тастаңыз.'),
+          backgroundColor: AppTheme.danger,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 4),
+        ));
+        setState(() => _isLoading = false);
+        return;
       }
-      for (final entry in byStore.entries) {
-        final storeItems = entry.value;
-        final storeTotal = storeItems.fold<double>(0, (s, i) => s + i.subtotal);
-        final storeDeposit = _depositFor(storeTotal);
+
+      // warehouseId бойынша топта — әр қоймаға бөлек тапсырыс
+      final Map<String, List<CartItemModel>> byWarehouse = {};
+      for (final item in cart.items) {
+        byWarehouse.putIfAbsent(item.warehouseId, () => []).add(item);
+      }
+      int orderCount = 0;
+      for (final entry in byWarehouse.entries) {
+        final whItems = entry.value;
+        final first = whItems.first;
+        final whTotal = whItems.fold<double>(0, (s, i) => s + i.subtotal);
         final order = OrderModel(
           id: '',
           clientPhone: appUser.phone,
           clientName: appUser.name,
           clientUid: appUser.uid,
-          adminUid: storeItems.first.adminUid,
-          storeName: storeItems.first.storeName,
-          warehouseId: storeItems.first.warehouseId,
-          warehouseAddress: storeItems.first.warehouseAddress,
-          items: storeItems,
+          adminUid: first.adminUid,
+          storeName: first.storeName,
+          warehouseId: entry.key,
+          warehouseAddress: first.warehouseAddress,
+          items: List.from(whItems),
           status: _orderType == OrderModel.typeSmartReservation
               ? OrderModel.statusReserved
               : OrderModel.statusPending,
@@ -103,18 +172,25 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
           createdAt: DateTime.now(),
           address: _addressCtrl.text.trim(),
           note: _noteCtrl.text.trim(),
-          depositAmount: storeDeposit,
+          depositAmount: _depositFor(whTotal),
           deliveryFee: _deliveryFeeFor(),
         );
         await _service.placeOrder(order);
+        orderCount++;
       }
       if (!mounted) return;
       cart.clear();
       context.findAncestorStateOfType<ClientShellState>()?.setIndex(2);
+      if (orderCount > 1) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('$orderCount тапсырыс құрылды'),
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(e.toString()),
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
           backgroundColor: AppTheme.danger,
           behavior: SnackBarBehavior.floating,
         ));
@@ -181,7 +257,11 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                   final item = entry.value;
                   return _CartItemTile(
                     item: item,
-                    onRemove: () => cart.removeAt(i),
+                    onRemove: () {
+                      cart.removeAt(i);
+                      _checkAvailability();
+                    },
+                    isUnavailable: _unavailableKeys.contains(_itemKey(item)),
                   );
                 }),
                 const SizedBox(height: 16),
@@ -357,7 +437,9 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                   width: double.infinity,
                   height: 54,
                   child: ElevatedButton(
-                    onPressed: _isLoading ? null : _showPaymentConfirmation,
+                    onPressed: (_isLoading || _unavailableKeys.isNotEmpty)
+                        ? null
+                        : _showPaymentConfirmation,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppTheme.primary,
                       foregroundColor: Colors.white,
@@ -626,15 +708,25 @@ class _InfoRow extends StatelessWidget {
 class _CartItemTile extends StatelessWidget {
   final CartItemModel item;
   final VoidCallback onRemove;
-  const _CartItemTile({required this.item, required this.onRemove});
+  final bool isUnavailable;
+  const _CartItemTile({
+    required this.item,
+    required this.onRemove,
+    this.isUnavailable = false,
+  });
 
   @override
   Widget build(BuildContext context) => Container(
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: isUnavailable
+              ? AppTheme.dangerLight
+              : Colors.white,
           borderRadius: BorderRadius.circular(14),
+          border: isUnavailable
+              ? Border.all(color: AppTheme.danger.withValues(alpha: 0.4))
+              : null,
           boxShadow: [
             BoxShadow(
                 color: Colors.black.withValues(alpha: 0.04),
@@ -659,12 +751,32 @@ class _CartItemTile extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(item.productName,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      color: AppTheme.textPrimary),
+                      color: isUnavailable
+                          ? AppTheme.danger
+                          : AppTheme.textPrimary),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis),
+              if (isUnavailable) ...[
+                const SizedBox(height: 3),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppTheme.danger,
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                  child: const Text(
+                    'Сатылып кетті / қолжетімсіз',
+                    style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white),
+                  ),
+                ),
+              ],
               const SizedBox(height: 2),
               Text('Размер: ${item.size}  ×${item.qty}',
                   style: const TextStyle(

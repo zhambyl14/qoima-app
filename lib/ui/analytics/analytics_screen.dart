@@ -772,53 +772,57 @@ class _OnlineTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<List<OrderModel>>(
-      stream: FirestoreService().watchOnlineOrders(),
-      builder: (_, snap) {
-        if (snap.connectionState == ConnectionState.waiting) {
-          return const Center(
-              child: CircularProgressIndicator(color: AppTheme.primary));
-        }
+    // Онлайн өзіндік құнды sales_history-дегі purchase_price-тан есепте (N+1 жоқ)
+    return StreamBuilder<List<SaleModel>>(
+      stream: FirestoreService().watchSalesForMonth(month),
+      builder: (_, sSnap) {
+        final onlineCost = (sSnap.data ?? [])
+            .where((s) => s.isOnline)
+            .fold<double>(0, (a, s) => a + s.purchasePrice * s.quantity);
 
-        final allOrders = (snap.data ?? [])
-            .where((o) =>
-                o.createdAt.month == month.month &&
-                o.createdAt.year == month.year)
-            .toList();
+        return StreamBuilder<List<OrderModel>>(
+          stream: FirestoreService().watchOnlineOrders(),
+          builder: (_, snap) {
+            if (snap.connectionState == ConnectionState.waiting) {
+              return const Center(
+                  child: CircularProgressIndicator(color: AppTheme.primary));
+            }
 
-        final completed = allOrders
-            .where((o) => o.status == OrderModel.statusCompleted)
-            .toList();
-        final cancelled = allOrders
-            .where((o) => o.status == OrderModel.statusCancelled)
-            .length;
-        final totalCount = allOrders.length;
+            final allOrders = (snap.data ?? [])
+                .where((o) =>
+                    o.createdAt.month == month.month &&
+                    o.createdAt.year == month.year)
+                .toList();
 
-        final revenue =
-            completed.fold<double>(0, (s, o) => s + o.totalWithDelivery);
-        final pairsSold = completed.fold<int>(
-            0, (s, o) => s + o.items.fold(0, (a, i) => a + i.qty));
+            final completed = allOrders
+                .where((o) => o.status == OrderModel.statusCompleted)
+                .toList();
+            final cancelled = allOrders
+                .where((o) => o.status == OrderModel.statusCancelled)
+                .length;
+            final totalCount = allOrders.length;
 
-        return ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            _StatCard(
-              label: 'Түсімі (Онлайн)',
-              value: '${_fmt(revenue)} ₸',
-              icon: Icons.shopping_cart_rounded,
-              color: AppTheme.primary,
-            ),
-            const SizedBox(height: 10),
-            FutureBuilder<double>(
-              future: _calcOnlineCost(completed),
-              builder: (_, snap) {
-                final cost = snap.data ?? 0;
-                final margin = revenue - cost;
-                return Row(children: [
+            final revenue =
+                completed.fold<double>(0, (s, o) => s + o.totalWithDelivery);
+            final pairsSold = completed.fold<int>(
+                0, (s, o) => s + o.items.fold(0, (a, i) => a + i.qty));
+            final margin = revenue - onlineCost;
+
+            return ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                _StatCard(
+                  label: 'Түсімі (Онлайн)',
+                  value: '${_fmt(revenue)} ₸',
+                  icon: Icons.shopping_cart_rounded,
+                  color: AppTheme.primary,
+                ),
+                const SizedBox(height: 10),
+                Row(children: [
                   Expanded(
                       child: _StatCard(
                     label: 'Өзіндік құн',
-                    value: '${_fmt(cost)} ₸',
+                    value: '${_fmt(onlineCost)} ₸',
                     icon: Icons.arrow_downward_rounded,
                     color: AppTheme.danger,
                   )),
@@ -830,66 +834,50 @@ class _OnlineTab extends StatelessWidget {
                     icon: Icons.account_balance_wallet_outlined,
                     color: margin >= 0 ? AppTheme.success : AppTheme.danger,
                   )),
-                ]);
-              },
-            ),
-            const SizedBox(height: 10),
-            Row(children: [
-              Expanded(
-                  child: _StatCard(
-                label: 'Тапсырыстар',
-                value: '$totalCount',
-                icon: Icons.receipt_long_outlined,
-                color: AppTheme.primary,
-              )),
-              const SizedBox(width: 10),
-              Expanded(
-                  child: _StatCard(
-                label: 'Бас тарту',
-                value: '$cancelled',
-                icon: Icons.cancel_outlined,
-                color: AppTheme.danger,
-              )),
-            ]),
-            const SizedBox(height: 10),
-            _StatCard(
-              label: 'Сатылған жұп (онлайн)',
-              value: '$pairsSold жұп',
-              icon: Icons.shopping_bag_outlined,
-              color: AppTheme.success,
-            ),
-            const SizedBox(height: 20),
-            const Text('Күндік белсенділік (онлайн)',
-                style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: AppTheme.textPrimary)),
-            const SizedBox(height: 10),
-            _MobileDailyChart(
-              offlineSales: const [],
-              onlineOrders: completed,
-              month: month,
-            ),
-          ],
+                ]),
+                const SizedBox(height: 10),
+                Row(children: [
+                  Expanded(
+                      child: _StatCard(
+                    label: 'Тапсырыстар',
+                    value: '$totalCount',
+                    icon: Icons.receipt_long_outlined,
+                    color: AppTheme.primary,
+                  )),
+                  const SizedBox(width: 10),
+                  Expanded(
+                      child: _StatCard(
+                    label: 'Бас тарту',
+                    value: '$cancelled',
+                    icon: Icons.cancel_outlined,
+                    color: AppTheme.danger,
+                  )),
+                ]),
+                const SizedBox(height: 10),
+                _StatCard(
+                  label: 'Сатылған жұп (онлайн)',
+                  value: '$pairsSold жұп',
+                  icon: Icons.shopping_bag_outlined,
+                  color: AppTheme.success,
+                ),
+                const SizedBox(height: 20),
+                const Text('Күндік белсенділік (онлайн)',
+                    style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.textPrimary)),
+                const SizedBox(height: 10),
+                _MobileDailyChart(
+                  offlineSales: const [],
+                  onlineOrders: completed,
+                  month: month,
+                ),
+              ],
+            );
+          },
         );
       },
     );
-  }
-
-  Future<double> _calcOnlineCost(List<OrderModel> orders) async {
-    double total = 0;
-    for (final o in orders) {
-      for (final item in o.items) {
-        try {
-          final batches = await FirestoreService().getBatches(item.productId);
-          if (batches.isEmpty) continue;
-          final b = batches.firstWhere((b) => b.id == item.batchId,
-              orElse: () => batches.first);
-          total += b.purchasePrice * item.qty;
-        } catch (_) {}
-      }
-    }
-    return total;
   }
 }
 
@@ -1047,9 +1035,14 @@ class _MobileDailyChartState extends State<_MobileDailyChart> {
   }
 
   static String _fmtRev(double v) {
-    if (v >= 1000000) return '${(v / 1000000).toStringAsFixed(1)}M';
-    if (v >= 1000) return '${(v / 1000).toStringAsFixed(0)}K';
-    return v.toStringAsFixed(0);
+    if (v < 0) return '-${_fmtRev(-v)}';
+    final s = v.round().toString();
+    final buf = StringBuffer();
+    for (int i = 0; i < s.length; i++) {
+      if (i > 0 && (s.length - i) % 3 == 0) buf.write(' ');
+      buf.write(s[i]);
+    }
+    return buf.toString();
   }
 
   static String _monthShort(int m) {
@@ -1159,9 +1152,14 @@ class _KpiChip extends StatelessWidget {
       ));
 }
 
-// ── Shared: number formatter ──────────────────────────────────────────────────
+// ── Shared: number formatter — мыңдықты бос орынмен бөледі, қысқартпайды ──────
 String _fmt(double v) {
-  if (v >= 1000000) return '${(v / 1000000).toStringAsFixed(1)}M';
-  if (v >= 1000) return '${(v / 1000).toStringAsFixed(0)}K';
-  return v.toStringAsFixed(0);
+  if (v < 0) return '-${_fmt(-v)}';
+  final s = v.round().toString();
+  final buf = StringBuffer();
+  for (int i = 0; i < s.length; i++) {
+    if (i > 0 && (s.length - i) % 3 == 0) buf.write(' ');
+    buf.write(s[i]);
+  }
+  return buf.toString();
 }

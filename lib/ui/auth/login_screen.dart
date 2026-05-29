@@ -138,8 +138,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       if (v == null || v.isEmpty) {
                         return context.l10n.validationPasswordRequired;
                       }
-                      if (v.length < 6)
+                      if (v.length < 6) {
                         return context.l10n.validationPasswordMin;
+                      }
                       return null;
                     },
                   ),

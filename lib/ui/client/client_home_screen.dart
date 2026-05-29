@@ -99,8 +99,9 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
       if (f.types.isNotEmpty && !f.types.contains(p.type)) return false;
       if (f.brands.isNotEmpty && !f.brands.contains(p.brand)) return false;
       if (f.colors.isNotEmpty && !f.colors.contains(p.color)) return false;
-      if (f.categories.isNotEmpty && !f.categories.contains(p.category))
+      if (f.categories.isNotEmpty && !f.categories.contains(p.category)) {
         return false;
+      }
       if (f.search.isNotEmpty) {
         final q = f.search.toLowerCase();
         if (!p.name.toLowerCase().contains(q) &&

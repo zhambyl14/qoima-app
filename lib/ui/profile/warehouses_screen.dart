@@ -335,8 +335,9 @@ class _AddWarehouseSheetState extends State<_AddWarehouseSheet> {
                       borderSide: const BorderSide(color: AppTheme.danger)),
                 ),
                 validator: (v) {
-                  if (v == null || v.trim().isEmpty)
+                  if (v == null || v.trim().isEmpty) {
                     return 'Мекенжай міндетті!';
+                  }
                   if (v.trim().length < 5) return 'Толық мекенжай енгізіңіз';
                   return null;
                 },
@@ -367,8 +368,9 @@ class _AddWarehouseSheetState extends State<_AddWarehouseSheet> {
                     onPressed: _loading
                         ? null
                         : () async {
-                            if (!(_formKey.currentState?.validate() ?? false))
+                            if (!(_formKey.currentState?.validate() ?? false)) {
                               return;
+                            }
                             final name = _nameCtrl.text.trim();
                             if (name.isEmpty) {
                               setState(() => _error = 'Атауын енгізіңіз');
