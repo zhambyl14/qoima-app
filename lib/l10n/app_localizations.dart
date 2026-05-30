@@ -1231,6 +1231,654 @@ abstract class AppLocalizations {
   /// In kk, this message translates to:
   /// **'Жұп'**
   String get pairsSuffix;
+
+  /// No description provided for @cartTitle.
+  ///
+  /// In kk, this message translates to:
+  /// **'Себет'**
+  String get cartTitle;
+
+  /// No description provided for @clearCart.
+  ///
+  /// In kk, this message translates to:
+  /// **'Себетті тазалау'**
+  String get clearCart;
+
+  /// No description provided for @clearCartConfirm.
+  ///
+  /// In kk, this message translates to:
+  /// **'Барлық тауарды себеттен алып тастайсыз ба?'**
+  String get clearCartConfirm;
+
+  /// No description provided for @cartClear.
+  ///
+  /// In kk, this message translates to:
+  /// **'Тазалау'**
+  String get cartClear;
+
+  /// No description provided for @cartEmpty.
+  ///
+  /// In kk, this message translates to:
+  /// **'Себет бос'**
+  String get cartEmpty;
+
+  /// No description provided for @pickupMethod.
+  ///
+  /// In kk, this message translates to:
+  /// **'Алу тәсілі'**
+  String get pickupMethod;
+
+  /// No description provided for @smartReservationTitle.
+  ///
+  /// In kk, this message translates to:
+  /// **'Смарт-Бронь'**
+  String get smartReservationTitle;
+
+  /// No description provided for @smartReservationDesc.
+  ///
+  /// In kk, this message translates to:
+  /// **'1 сағатқа брондаңыз, дүкенде киіп көріңіз'**
+  String get smartReservationDesc;
+
+  /// No description provided for @smartReservationBadge.
+  ///
+  /// In kk, this message translates to:
+  /// **'10% депозит'**
+  String get smartReservationBadge;
+
+  /// No description provided for @clickCollectTitle.
+  ///
+  /// In kk, this message translates to:
+  /// **'Click & Collect'**
+  String get clickCollectTitle;
+
+  /// No description provided for @clickCollectDesc.
+  ///
+  /// In kk, this message translates to:
+  /// **'Онлайн төлеп, қоймадан алыңыз'**
+  String get clickCollectDesc;
+
+  /// No description provided for @clickCollectBadge.
+  ///
+  /// In kk, this message translates to:
+  /// **'100% онлайн'**
+  String get clickCollectBadge;
+
+  /// No description provided for @deliveryTitle.
+  ///
+  /// In kk, this message translates to:
+  /// **'Жеткізу'**
+  String get deliveryTitle;
+
+  /// No description provided for @deliveryDesc.
+  ///
+  /// In kk, this message translates to:
+  /// **'Мекенжай көрсетіп, курьермен алыңыз'**
+  String get deliveryDesc;
+
+  /// No description provided for @enterDeliveryAddress.
+  ///
+  /// In kk, this message translates to:
+  /// **'Жеткізу мекенжайын енгізіңіз'**
+  String get enterDeliveryAddress;
+
+  /// No description provided for @deliveryAddressLabel.
+  ///
+  /// In kk, this message translates to:
+  /// **'Жеткізу мекенжайы *'**
+  String get deliveryAddressLabel;
+
+  /// No description provided for @deliveryAddressPlaceholder.
+  ///
+  /// In kk, this message translates to:
+  /// **'Қала, көше, үй, пәтер'**
+  String get deliveryAddressPlaceholder;
+
+  /// No description provided for @noteOptional.
+  ///
+  /// In kk, this message translates to:
+  /// **'Ескертпе (міндетті емес)'**
+  String get noteOptional;
+
+  /// No description provided for @additionalInfoHint.
+  ///
+  /// In kk, this message translates to:
+  /// **'Қосымша ақпарат...'**
+  String get additionalInfoHint;
+
+  /// No description provided for @itemsUnavailable.
+  ///
+  /// In kk, this message translates to:
+  /// **'{names} қолжетімсіз (сатылып кетті немесе дүкен жаңартылды). Себеттен алып тастаңыз.'**
+  String itemsUnavailable(String names);
+
+  /// No description provided for @ordersCreated.
+  ///
+  /// In kk, this message translates to:
+  /// **'{count} тапсырыс құрылды'**
+  String ordersCreated(int count);
+
+  /// No description provided for @soldOutUnavailable.
+  ///
+  /// In kk, this message translates to:
+  /// **'Сатылып кетті / қолжетімсіз'**
+  String get soldOutUnavailable;
+
+  /// No description provided for @goodsTotal.
+  ///
+  /// In kk, this message translates to:
+  /// **'Тауар сомасы'**
+  String get goodsTotal;
+
+  /// No description provided for @totalToPay.
+  ///
+  /// In kk, this message translates to:
+  /// **'Төленетін сома'**
+  String get totalToPay;
+
+  /// No description provided for @payNowDeposit.
+  ///
+  /// In kk, this message translates to:
+  /// **'Қазір төлеу (10%)'**
+  String get payNowDeposit;
+
+  /// No description provided for @payAtStoreBalance.
+  ///
+  /// In kk, this message translates to:
+  /// **'Дүкенде доплата (90%)'**
+  String get payAtStoreBalance;
+
+  /// No description provided for @confirmAndReserve.
+  ///
+  /// In kk, this message translates to:
+  /// **'Растап брондау'**
+  String get confirmAndReserve;
+
+  /// No description provided for @confirmAndPay.
+  ///
+  /// In kk, this message translates to:
+  /// **'Растап төлеу'**
+  String get confirmAndPay;
+
+  /// No description provided for @reserveWithAmount.
+  ///
+  /// In kk, this message translates to:
+  /// **'Брондау — {amount} ₸'**
+  String reserveWithAmount(String amount);
+
+  /// No description provided for @payWithAmount.
+  ///
+  /// In kk, this message translates to:
+  /// **'Төлеу — {amount} ₸'**
+  String payWithAmount(String amount);
+
+  /// No description provided for @pickupAddressLabel.
+  ///
+  /// In kk, this message translates to:
+  /// **'Алу мекенжайы'**
+  String get pickupAddressLabel;
+
+  /// No description provided for @reservationTimeframe.
+  ///
+  /// In kk, this message translates to:
+  /// **'Бронь мерзімі'**
+  String get reservationTimeframe;
+
+  /// No description provided for @oneHour.
+  ///
+  /// In kk, this message translates to:
+  /// **'1 сағат'**
+  String get oneHour;
+
+  /// No description provided for @sizeQtyLabel.
+  ///
+  /// In kk, this message translates to:
+  /// **'Өлшем: {size}  ×{qty}'**
+  String sizeQtyLabel(String size, String qty);
+
+  /// No description provided for @onlineTab.
+  ///
+  /// In kk, this message translates to:
+  /// **'Онлайн'**
+  String get onlineTab;
+
+  /// No description provided for @totalRevenueLabel.
+  ///
+  /// In kk, this message translates to:
+  /// **'Жалпы Түсірілке'**
+  String get totalRevenueLabel;
+
+  /// No description provided for @offlineOnlineRevSub.
+  ///
+  /// In kk, this message translates to:
+  /// **'Офлайн: {offline} ₸  ·  Онлайн: {online} ₸'**
+  String offlineOnlineRevSub(String offline, String online);
+
+  /// No description provided for @marginLabel.
+  ///
+  /// In kk, this message translates to:
+  /// **'Маржа'**
+  String get marginLabel;
+
+  /// No description provided for @pairsSoldLabel.
+  ///
+  /// In kk, this message translates to:
+  /// **'Сатылған жұп'**
+  String get pairsSoldLabel;
+
+  /// No description provided for @offlineOnlinePairsSub.
+  ///
+  /// In kk, this message translates to:
+  /// **'Офлайн: {offline}  ·  Онлайн: {online}'**
+  String offlineOnlinePairsSub(String offline, String online);
+
+  /// No description provided for @revenueOnline.
+  ///
+  /// In kk, this message translates to:
+  /// **'Түсімі (Онлайн)'**
+  String get revenueOnline;
+
+  /// No description provided for @ordersLabel.
+  ///
+  /// In kk, this message translates to:
+  /// **'Тапсырыстар'**
+  String get ordersLabel;
+
+  /// No description provided for @cancelledLabel.
+  ///
+  /// In kk, this message translates to:
+  /// **'Бас тарту'**
+  String get cancelledLabel;
+
+  /// No description provided for @pairsSoldOnline.
+  ///
+  /// In kk, this message translates to:
+  /// **'Сатылған жұп (онлайн)'**
+  String get pairsSoldOnline;
+
+  /// No description provided for @dailyActivityOnline.
+  ///
+  /// In kk, this message translates to:
+  /// **'Күндік белсенділік (онлайн)'**
+  String get dailyActivityOnline;
+
+  /// No description provided for @totalChartAmount.
+  ///
+  /// In kk, this message translates to:
+  /// **'Жалпы: {amount} ₸'**
+  String totalChartAmount(String amount);
+
+  /// No description provided for @noStaleItems.
+  ///
+  /// In kk, this message translates to:
+  /// **'Жатып қалған тауар жоқ 👍'**
+  String get noStaleItems;
+
+  /// No description provided for @staleItemsTitle.
+  ///
+  /// In kk, this message translates to:
+  /// **'Жатып қалған тауар (30+ күн)'**
+  String get staleItemsTitle;
+
+  /// No description provided for @topThreeSales.
+  ///
+  /// In kk, this message translates to:
+  /// **'Топ-3 сатылымдар'**
+  String get topThreeSales;
+
+  /// No description provided for @noSalesLabel.
+  ///
+  /// In kk, this message translates to:
+  /// **'Сатылым жоқ'**
+  String get noSalesLabel;
+
+  /// No description provided for @topOneSeller.
+  ///
+  /// In kk, this message translates to:
+  /// **'🥇 Топ-1: {name}'**
+  String topOneSeller(String name);
+
+  /// No description provided for @sellerSalesCount.
+  ///
+  /// In kk, this message translates to:
+  /// **'{count} сат · {pairs} жұп'**
+  String sellerSalesCount(int count, int pairs);
+
+  /// No description provided for @ordersTitle.
+  ///
+  /// In kk, this message translates to:
+  /// **'Тапсырыстар'**
+  String get ordersTitle;
+
+  /// No description provided for @noPhoneNumber.
+  ///
+  /// In kk, this message translates to:
+  /// **'Телефон нөмірі жоқ'**
+  String get noPhoneNumber;
+
+  /// No description provided for @noOrders.
+  ///
+  /// In kk, this message translates to:
+  /// **'Тапсырыс жоқ'**
+  String get noOrders;
+
+  /// No description provided for @statusReserved.
+  ///
+  /// In kk, this message translates to:
+  /// **'Брондалды'**
+  String get statusReserved;
+
+  /// No description provided for @statusPending.
+  ///
+  /// In kk, this message translates to:
+  /// **'Күтуде'**
+  String get statusPending;
+
+  /// No description provided for @statusCompleted.
+  ///
+  /// In kk, this message translates to:
+  /// **'Аяқталды'**
+  String get statusCompleted;
+
+  /// No description provided for @statusCancelled.
+  ///
+  /// In kk, this message translates to:
+  /// **'Бас тартылды'**
+  String get statusCancelled;
+
+  /// No description provided for @goodsAmount.
+  ///
+  /// In kk, this message translates to:
+  /// **'Тауар сомасы'**
+  String get goodsAmount;
+
+  /// No description provided for @paidDeposit.
+  ///
+  /// In kk, this message translates to:
+  /// **'Төленген депозит'**
+  String get paidDeposit;
+
+  /// No description provided for @remainsAtStore.
+  ///
+  /// In kk, this message translates to:
+  /// **'Дүкенде қалды'**
+  String get remainsAtStore;
+
+  /// No description provided for @paidLabel.
+  ///
+  /// In kk, this message translates to:
+  /// **'Төленді'**
+  String get paidLabel;
+
+  /// No description provided for @showQrToSeller.
+  ///
+  /// In kk, this message translates to:
+  /// **'Сатушыға осы QR кодты көрсетіңіз'**
+  String get showQrToSeller;
+
+  /// No description provided for @showQrToStore.
+  ///
+  /// In kk, this message translates to:
+  /// **'Дүкенге осы QR кодты көрсетіңіз'**
+  String get showQrToStore;
+
+  /// No description provided for @onlineOrdersTitle.
+  ///
+  /// In kk, this message translates to:
+  /// **'Онлайн тапсырыстар'**
+  String get onlineOrdersTitle;
+
+  /// No description provided for @enterOrderCode.
+  ///
+  /// In kk, this message translates to:
+  /// **'Тапсырыс кодын енгізіңіз...'**
+  String get enterOrderCode;
+
+  /// No description provided for @findButton.
+  ///
+  /// In kk, this message translates to:
+  /// **'Іздеу'**
+  String get findButton;
+
+  /// No description provided for @invalidCodeOrNotFound.
+  ///
+  /// In kk, this message translates to:
+  /// **'Код қате немесе тапсырыс табылмады'**
+  String get invalidCodeOrNotFound;
+
+  /// No description provided for @orderNotForWarehouse.
+  ///
+  /// In kk, this message translates to:
+  /// **'Бұл тапсырыс сіздің қоймаңызға тиесілі емес'**
+  String get orderNotForWarehouse;
+
+  /// No description provided for @orderNotFoundLabel.
+  ///
+  /// In kk, this message translates to:
+  /// **'Тапсырыс табылмады'**
+  String get orderNotFoundLabel;
+
+  /// No description provided for @allWithCount.
+  ///
+  /// In kk, this message translates to:
+  /// **'Барлығы {count}'**
+  String allWithCount(int count);
+
+  /// No description provided for @activeWithCount.
+  ///
+  /// In kk, this message translates to:
+  /// **'Белсенді {count}'**
+  String activeWithCount(int count);
+
+  /// No description provided for @completedWithCount.
+  ///
+  /// In kk, this message translates to:
+  /// **'Аяқталды {count}'**
+  String completedWithCount(int count);
+
+  /// No description provided for @cancelledWithCount.
+  ///
+  /// In kk, this message translates to:
+  /// **'Бас тартылды {count}'**
+  String cancelledWithCount(int count);
+
+  /// No description provided for @orderFoundLabel.
+  ///
+  /// In kk, this message translates to:
+  /// **'Тапсырыс табылды'**
+  String get orderFoundLabel;
+
+  /// No description provided for @noActiveOrders.
+  ///
+  /// In kk, this message translates to:
+  /// **'Белсенді тапсырыс жоқ'**
+  String get noActiveOrders;
+
+  /// No description provided for @noCompletedOrders.
+  ///
+  /// In kk, this message translates to:
+  /// **'Аяқталған тапсырыс жоқ'**
+  String get noCompletedOrders;
+
+  /// No description provided for @noCancelledOrders.
+  ///
+  /// In kk, this message translates to:
+  /// **'Бас тартылған тапсырыс жоқ'**
+  String get noCancelledOrders;
+
+  /// No description provided for @noOrdersLabel.
+  ///
+  /// In kk, this message translates to:
+  /// **'Тапсырыс жоқ'**
+  String get noOrdersLabel;
+
+  /// No description provided for @nameNotSpecified.
+  ///
+  /// In kk, this message translates to:
+  /// **'Аты көрсетілмеген'**
+  String get nameNotSpecified;
+
+  /// No description provided for @phoneCopied.
+  ///
+  /// In kk, this message translates to:
+  /// **'Телефон көшірілді'**
+  String get phoneCopied;
+
+  /// No description provided for @depositPaidBadge.
+  ///
+  /// In kk, this message translates to:
+  /// **'Депозит төленді (10%)'**
+  String get depositPaidBadge;
+
+  /// No description provided for @payAtStoreLabel.
+  ///
+  /// In kk, this message translates to:
+  /// **'Дүкенде доплата'**
+  String get payAtStoreLabel;
+
+  /// No description provided for @totalPaidLabel.
+  ///
+  /// In kk, this message translates to:
+  /// **'Барлығы төленді'**
+  String get totalPaidLabel;
+
+  /// No description provided for @clientPaidFull.
+  ///
+  /// In kk, this message translates to:
+  /// **'Клиент толық сомасын төледі ме?'**
+  String get clientPaidFull;
+
+  /// No description provided for @markAsDeliveredQ.
+  ///
+  /// In kk, this message translates to:
+  /// **'Жеткізілді деп белгілеу?'**
+  String get markAsDeliveredQ;
+
+  /// No description provided for @markAsGivenQ.
+  ///
+  /// In kk, this message translates to:
+  /// **'Берілді деп белгілеу?'**
+  String get markAsGivenQ;
+
+  /// No description provided for @confirmationTitle.
+  ///
+  /// In kk, this message translates to:
+  /// **'Растау'**
+  String get confirmationTitle;
+
+  /// No description provided for @yesConfirmBtn.
+  ///
+  /// In kk, this message translates to:
+  /// **'Иә, растаймын'**
+  String get yesConfirmBtn;
+
+  /// No description provided for @cancelOrderDialog.
+  ///
+  /// In kk, this message translates to:
+  /// **'Тапсырысты болдырмау'**
+  String get cancelOrderDialog;
+
+  /// No description provided for @cancelOrderMsg.
+  ///
+  /// In kk, this message translates to:
+  /// **'Тапсырыс болдырылмайды, тауар қоймаға оралады.'**
+  String get cancelOrderMsg;
+
+  /// No description provided for @cancelOrderBtn.
+  ///
+  /// In kk, this message translates to:
+  /// **'Тапсырысты болдырмау'**
+  String get cancelOrderBtn;
+
+  /// No description provided for @fullPaymentLabel.
+  ///
+  /// In kk, this message translates to:
+  /// **'Толық төлем'**
+  String get fullPaymentLabel;
+
+  /// No description provided for @deliveredLabel.
+  ///
+  /// In kk, this message translates to:
+  /// **'Жеткізілді'**
+  String get deliveredLabel;
+
+  /// No description provided for @givenLabel.
+  ///
+  /// In kk, this message translates to:
+  /// **'Тауар берілді'**
+  String get givenLabel;
+
+  /// No description provided for @cancelBtn.
+  ///
+  /// In kk, this message translates to:
+  /// **'Болдырмау'**
+  String get cancelBtn;
+
+  /// No description provided for @smartResBadgeUpper.
+  ///
+  /// In kk, this message translates to:
+  /// **'СМАРТ-БРОНЬ'**
+  String get smartResBadgeUpper;
+
+  /// No description provided for @clickCollectUpper.
+  ///
+  /// In kk, this message translates to:
+  /// **'CLICK & COLLECT'**
+  String get clickCollectUpper;
+
+  /// No description provided for @deliveryUpper.
+  ///
+  /// In kk, this message translates to:
+  /// **'ЖЕТКІЗУ'**
+  String get deliveryUpper;
+
+  /// No description provided for @storeTitle.
+  ///
+  /// In kk, this message translates to:
+  /// **'Дүкен'**
+  String get storeTitle;
+
+  /// No description provided for @productSearchHint.
+  ///
+  /// In kk, this message translates to:
+  /// **'Тауар іздеу...'**
+  String get productSearchHint;
+
+  /// No description provided for @noActiveStores.
+  ///
+  /// In kk, this message translates to:
+  /// **'Белсенді дүкен жоқ'**
+  String get noActiveStores;
+
+  /// No description provided for @searchNotFoundMsg.
+  ///
+  /// In kk, this message translates to:
+  /// **'«{query}» табылмады'**
+  String searchNotFoundMsg(String query);
+
+  /// No description provided for @noProductsLabel.
+  ///
+  /// In kk, this message translates to:
+  /// **'Тауар жоқ'**
+  String get noProductsLabel;
+
+  /// No description provided for @outOfStock.
+  ///
+  /// In kk, this message translates to:
+  /// **'Қолда жоқ'**
+  String get outOfStock;
+
+  /// No description provided for @addedToCartMsg.
+  ///
+  /// In kk, this message translates to:
+  /// **'{name} себетке қосылды'**
+  String addedToCartMsg(String name);
+
+  /// No description provided for @addToCartBtn.
+  ///
+  /// In kk, this message translates to:
+  /// **'Себетке'**
+  String get addToCartBtn;
 }
 
 class _AppLocalizationsDelegate

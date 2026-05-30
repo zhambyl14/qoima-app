@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../data/models/order_model.dart';
 import '../../data/services/firestore_service.dart';
-import '../../theme/app_theme.dart';
+import '../../theme/qoima_design.dart';
 import '../client/reservation_timer_widget.dart';
 
 class OnlineOrdersScreen extends StatefulWidget {
@@ -79,32 +79,58 @@ class _OnlineOrdersScreenState extends State<OnlineOrdersScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.background,
+      backgroundColor: cBg,
       body: Column(children: [
         // ── Header ──────────────────────────────────────────────────────────
         Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFF1E3A8A), Color(0xFF2D4FB5)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
+          decoration: const BoxDecoration(gradient: kGrad),
           child: SafeArea(
               bottom: false,
               child: Column(children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+                  padding: const EdgeInsets.fromLTRB(20, 6, 20, 12),
                   child: Row(children: [
-                    const Icon(Icons.shopping_bag_outlined,
-                        color: Colors.white, size: 22),
-                    const SizedBox(width: 8),
-                    const Expanded(
-                      child: Text('Онлайн заказы',
-                          style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 20,
-                              fontWeight: FontWeight.w800)),
+                    GestureDetector(
+                      onTap: () => Navigator.maybePop(context),
+                      child: Container(
+                        width: 38, height: 38,
+                        margin: const EdgeInsets.only(right: 10),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.16),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(Icons.chevron_left_rounded,
+                            color: Colors.white, size: 22),
+                      ),
+                    ),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Онлайн-заказы',
+                              style: manrope(23, FontWeight.w800,
+                                  color: Colors.white, letterSpacing: -0.5)),
+                          StreamBuilder<List<OrderModel>>(
+                            stream: _service.watchOnlineOrders(),
+                            builder: (_, s) {
+                              final count = (s.data ?? []).where((o) =>
+                                  o.status == OrderModel.statusReserved ||
+                                  o.status == OrderModel.statusPending).length;
+                              return Text('Ждут выдачи: $count',
+                                  style: manrope(13, FontWeight.w500,
+                                      color: Colors.white.withValues(alpha: 0.78)));
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      width: 38, height: 38,
+                      decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.16),
+                          borderRadius: BorderRadius.circular(12)),
+                      child: const Icon(Icons.qr_code_scanner_rounded,
+                          color: Colors.white, size: 20),
                     ),
                   ]),
                 ),
@@ -130,7 +156,7 @@ class _OnlineOrdersScreenState extends State<OnlineOrdersScreen> {
                             hintStyle:
                                 TextStyle(color: Colors.black38, fontSize: 14),
                             prefixIcon: Icon(Icons.qr_code_scanner_rounded,
-                                color: AppTheme.primary, size: 20),
+                                color: cGreen, size: 20),
                             border: InputBorder.none,
                             contentPadding: EdgeInsets.symmetric(vertical: 12),
                           ),
@@ -153,12 +179,12 @@ class _OnlineOrdersScreenState extends State<OnlineOrdersScreen> {
                                     width: 20,
                                     height: 20,
                                     child: CircularProgressIndicator(
-                                        color: AppTheme.primary,
+                                        color: cGreen,
                                         strokeWidth: 2)))
                             : const Center(
                                 child: Text('Найти',
                                     style: TextStyle(
-                                        color: AppTheme.primary,
+                                        color: cGreen,
                                         fontWeight: FontWeight.w700,
                                         fontSize: 13))),
                       ),
@@ -236,7 +262,7 @@ class _OnlineOrdersScreenState extends State<OnlineOrdersScreen> {
             builder: (ctx, snap) {
               if (snap.connectionState == ConnectionState.waiting) {
                 return const Center(
-                    child: CircularProgressIndicator(color: AppTheme.primary));
+                    child: CircularProgressIndicator(color: cGreen));
               }
 
               final all = snap.data ?? [];
@@ -249,26 +275,26 @@ class _OnlineOrdersScreenState extends State<OnlineOrdersScreen> {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: AppTheme.dangerLight,
+                        color: cRedTint,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                            color: AppTheme.danger.withValues(alpha: 0.3)),
+                            color: cRed.withValues(alpha: 0.2)),
                       ),
                       child: Row(children: [
                         const Icon(Icons.error_outline,
-                            color: AppTheme.danger, size: 18),
+                            color: cRed, size: 18),
                         const SizedBox(width: 8),
                         Expanded(
                             child: Text(_lookupError!,
                                 style: const TextStyle(
-                                    color: AppTheme.danger, fontSize: 13))),
+                                    color: cRed, fontSize: 13))),
                         GestureDetector(
                             onTap: () => setState(() {
                                   _lookupError = null;
                                   _codeCtrl.clear();
                                 }),
                             child: const Icon(Icons.close,
-                                color: AppTheme.danger, size: 18)),
+                                color: cRed, size: 18)),
                       ]),
                     ),
                     const SizedBox(height: 12),
@@ -277,7 +303,7 @@ class _OnlineOrdersScreenState extends State<OnlineOrdersScreen> {
                   if (_lookupResult != null) ...[
                     Container(
                       decoration: BoxDecoration(
-                        border: Border.all(color: AppTheme.primary, width: 2),
+                        border: Border.all(color: cGreen, width: 2),
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Column(children: [
@@ -285,7 +311,7 @@ class _OnlineOrdersScreenState extends State<OnlineOrdersScreen> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 14, vertical: 8),
                           decoration: BoxDecoration(
-                            color: AppTheme.primary,
+                            color: cGreen,
                             borderRadius: const BorderRadius.vertical(
                                 top: Radius.circular(14)),
                           ),
@@ -344,7 +370,7 @@ class _OnlineOrdersScreenState extends State<OnlineOrdersScreen> {
                                       ? 'Нет отменённых заказов'
                                       : 'Заказов нет',
                           style: const TextStyle(
-                              fontSize: 15, color: AppTheme.textSecondary),
+                              fontSize: 15, color: cInk2),
                         ),
                       ]),
                     ),
@@ -393,11 +419,11 @@ class _OrderCardState extends State<_OrderCard> {
       case OrderModel.typeSmartReservation:
         return const Color(0xFF3B82F6);
       case OrderModel.typeClickCollect:
-        return AppTheme.success;
+        return cGreen;
       case OrderModel.typeDelivery:
         return const Color(0xFFF59E0B);
       default:
-        return AppTheme.textHint;
+        return cInk3;
     }
   }
 
@@ -432,15 +458,15 @@ class _OrderCardState extends State<_OrderCard> {
   Color get _statusColor {
     switch (o.status) {
       case OrderModel.statusReserved:
-        return AppTheme.warning;
+        return cAmber;
       case OrderModel.statusPending:
-        return AppTheme.primary;
+        return cGreen;
       case OrderModel.statusCompleted:
-        return AppTheme.success;
+        return cGreen;
       case OrderModel.statusCancelled:
-        return AppTheme.danger;
+        return cRed;
       default:
-        return AppTheme.textHint;
+        return cInk3;
     }
   }
 
@@ -467,7 +493,7 @@ class _OrderCardState extends State<_OrderCard> {
           ElevatedButton(
               onPressed: () => Navigator.pop(context, true),
               style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.success,
+                  backgroundColor: cGreen,
                   foregroundColor: Colors.white),
               child: const Text('Да, подтвердить')),
         ],
@@ -487,7 +513,7 @@ class _OrderCardState extends State<_OrderCard> {
         setState(() => _loading = false);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text(e.toString()),
-            backgroundColor: AppTheme.danger,
+            backgroundColor: cRed,
             behavior: SnackBarBehavior.floating));
       }
     }
@@ -507,7 +533,7 @@ class _OrderCardState extends State<_OrderCard> {
           ElevatedButton(
               onPressed: () => Navigator.pop(context, true),
               style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.danger,
+                  backgroundColor: cRed,
                   foregroundColor: Colors.white),
               child: const Text('Отменить заказ')),
         ],
@@ -523,7 +549,7 @@ class _OrderCardState extends State<_OrderCard> {
         setState(() => _loading = false);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text(e.toString()),
-            backgroundColor: AppTheme.danger,
+            backgroundColor: cRed,
             behavior: SnackBarBehavior.floating));
       }
     }
@@ -550,7 +576,7 @@ class _OrderCardState extends State<_OrderCard> {
                   padding: EdgeInsets.all(24),
                   child: Center(
                       child:
-                          CircularProgressIndicator(color: AppTheme.primary)))
+                          CircularProgressIndicator(color: cGreen)))
               : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   // Type + status header
                   Container(
@@ -604,7 +630,7 @@ class _OrderCardState extends State<_OrderCard> {
                           // Client info
                           Row(children: [
                             const Icon(Icons.person_outline,
-                                size: 16, color: AppTheme.textHint),
+                                size: 16, color: cInk3),
                             const SizedBox(width: 6),
                             Expanded(
                                 child: Text(
@@ -614,17 +640,17 @@ class _OrderCardState extends State<_OrderCard> {
                                     style: const TextStyle(
                                         fontSize: 14,
                                         fontWeight: FontWeight.w600,
-                                        color: AppTheme.textPrimary))),
+                                        color: cInk))),
                           ]),
                           const SizedBox(height: 2),
                           Row(children: [
                             const Icon(Icons.phone_outlined,
-                                size: 14, color: AppTheme.textHint),
+                                size: 14, color: cInk3),
                             const SizedBox(width: 6),
                             Text(o.clientPhone,
                                 style: const TextStyle(
                                     fontSize: 12,
-                                    color: AppTheme.textSecondary)),
+                                    color: cInk2)),
                             const SizedBox(width: 12),
                             GestureDetector(
                                 onTap: () {
@@ -637,7 +663,7 @@ class _OrderCardState extends State<_OrderCard> {
                                           duration: Duration(seconds: 1)));
                                 },
                                 child: const Icon(Icons.copy_outlined,
-                                    size: 14, color: AppTheme.textHint)),
+                                    size: 14, color: cInk3)),
                           ]),
 
                           const Divider(height: 16),
@@ -652,12 +678,12 @@ class _OrderCardState extends State<_OrderCard> {
                                           '${item.productName}  (EU ${item.size})',
                                           style: const TextStyle(
                                               fontSize: 13,
-                                              color: AppTheme.textPrimary))),
+                                              color: cInk))),
                                   Text(
                                       '×${item.qty}  ${item.subtotal.toStringAsFixed(0)} ₸',
                                       style: const TextStyle(
                                           fontSize: 12,
-                                          color: AppTheme.textSecondary)),
+                                          color: cInk2)),
                                 ]),
                               )),
 
@@ -668,13 +694,13 @@ class _OrderCardState extends State<_OrderCard> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   const Icon(Icons.location_on_outlined,
-                                      size: 14, color: AppTheme.textHint),
+                                      size: 14, color: cInk3),
                                   const SizedBox(width: 4),
                                   Expanded(
                                       child: Text(o.warehouseAddress,
                                           style: const TextStyle(
                                               fontSize: 12,
-                                              color: AppTheme.textSecondary))),
+                                              color: cInk2))),
                                 ]),
                           ],
 
@@ -685,13 +711,13 @@ class _OrderCardState extends State<_OrderCard> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   const Icon(Icons.local_shipping_outlined,
-                                      size: 14, color: AppTheme.textHint),
+                                      size: 14, color: cInk3),
                                   const SizedBox(width: 4),
                                   Expanded(
                                       child: Text(o.address,
                                           style: const TextStyle(
                                               fontSize: 12,
-                                              color: AppTheme.textSecondary))),
+                                              color: cInk2))),
                                 ]),
                           ],
 
@@ -706,12 +732,12 @@ class _OrderCardState extends State<_OrderCard> {
                                 label: 'Депозит оплачен (10%)',
                                 value:
                                     '${o.depositAmount.toStringAsFixed(0)} ₸',
-                                valueColor: AppTheme.success),
+                                valueColor: cGreen),
                             _PayRow(
                                 label: 'Доплата в магазине',
                                 value:
                                     '${o.remainingAmount.toStringAsFixed(0)} ₸',
-                                valueColor: AppTheme.warning,
+                                valueColor: cAmber,
                                 bold: true),
                           ] else if (o.isDelivery) ...[
                             _PayRow(
@@ -726,13 +752,13 @@ class _OrderCardState extends State<_OrderCard> {
                                 label: 'Итого оплачено',
                                 value:
                                     '${o.totalWithDelivery.toStringAsFixed(0)} ₸',
-                                valueColor: AppTheme.success,
+                                valueColor: cGreen,
                                 bold: true),
                           ] else ...[
                             _PayRow(
                                 label: 'Итого оплачено',
                                 value: '${o.total.toStringAsFixed(0)} ₸',
-                                valueColor: AppTheme.success,
+                                valueColor: cGreen,
                                 bold: true),
                           ],
 
@@ -744,7 +770,7 @@ class _OrderCardState extends State<_OrderCard> {
                                 child: ElevatedButton(
                                   onPressed: _confirm,
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppTheme.success,
+                                    backgroundColor: cGreen,
                                     foregroundColor: Colors.white,
                                     shape: RoundedRectangleBorder(
                                         borderRadius:
@@ -769,9 +795,9 @@ class _OrderCardState extends State<_OrderCard> {
                                 child: OutlinedButton(
                                   onPressed: _cancel,
                                   style: OutlinedButton.styleFrom(
-                                    foregroundColor: AppTheme.danger,
+                                    foregroundColor: cRed,
                                     side: const BorderSide(
-                                        color: AppTheme.danger),
+                                        color: cRed),
                                     shape: RoundedRectangleBorder(
                                         borderRadius:
                                             BorderRadius.circular(10)),
@@ -801,9 +827,9 @@ class _OrderCardState extends State<_OrderCard> {
             numberOfParticles: 25,
             gravity: 0.2,
             colors: const [
-              AppTheme.primary,
-              AppTheme.success,
-              AppTheme.warning,
+              cGreen,
+              cGreen,
+              cAmber,
               Color(0xFF3B82F6),
               Colors.purple,
             ],
@@ -832,12 +858,12 @@ class _PayRow extends StatelessWidget {
           children: [
             Text(label,
                 style: const TextStyle(
-                    fontSize: 12, color: AppTheme.textSecondary)),
+                    fontSize: 12, color: cInk2)),
             Text(value,
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
-                  color: valueColor ?? AppTheme.textPrimary,
+                  color: valueColor ?? cInk,
                 )),
           ],
         ),
@@ -869,7 +895,7 @@ class _FilterChip extends StatelessWidget {
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w700,
-              color: active ? AppTheme.primary : Colors.white,
+              color: active ? cGreen : Colors.white,
             )),
       ),
     );

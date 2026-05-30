@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import '../../core/app_user.dart';
 import '../../data/models/store_model.dart';
 import '../../data/services/firestore_service.dart';
-import '../../theme/app_theme.dart';
+import '../../theme/qoima_design.dart';
 
 const List<String> _kzCities = [
   'Алматы',
@@ -78,7 +78,7 @@ class _StoreOnboardingScreenState extends State<StoreOnboardingScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(e.toString()),
-          backgroundColor: AppTheme.danger,
+          backgroundColor: cRed,
           behavior: SnackBarBehavior.floating,
         ));
       }
@@ -90,7 +90,7 @@ class _StoreOnboardingScreenState extends State<StoreOnboardingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.background,
+      backgroundColor: cBg,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -106,10 +106,10 @@ class _StoreOnboardingScreenState extends State<StoreOnboardingScreen> {
                     width: 72,
                     height: 72,
                     decoration: BoxDecoration(
-                        color: AppTheme.primary.withValues(alpha: 0.1),
+                        color: cGreen.withValues(alpha: 0.1),
                         shape: BoxShape.circle),
                     child: const Icon(Icons.storefront_rounded,
-                        color: AppTheme.primary, size: 36),
+                        color: cGreen, size: 36),
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -118,7 +118,7 @@ class _StoreOnboardingScreenState extends State<StoreOnboardingScreen> {
                       style: TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.w800,
-                          color: AppTheme.textPrimary,
+                          color: cInk,
                           letterSpacing: -0.3)),
                 ),
                 const SizedBox(height: 6),
@@ -126,7 +126,7 @@ class _StoreOnboardingScreenState extends State<StoreOnboardingScreen> {
                   child: Text('Сатып алушылар үшін витрина алдын ала баптау',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                          fontSize: 13, color: AppTheme.textSecondary)),
+                          fontSize: 13, color: cInk2)),
                 ),
                 const SizedBox(height: 32),
 
@@ -222,7 +222,7 @@ class _StoreOnboardingScreenState extends State<StoreOnboardingScreen> {
                   child: ElevatedButton(
                     onPressed: _isLoading ? null : _create,
                     style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.primary,
+                        backgroundColor: cGreen,
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14)),
@@ -246,7 +246,7 @@ class _StoreOnboardingScreenState extends State<StoreOnboardingScreen> {
                     onPressed: _isLoading ? null : widget.onDone,
                     child: const Text('Өткізіп жіберу',
                         style: TextStyle(
-                            color: AppTheme.textSecondary, fontSize: 14)),
+                            color: cInk2, fontSize: 14)),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -267,5 +267,5 @@ class _Label extends StatelessWidget {
       style: const TextStyle(
           fontSize: 13,
           fontWeight: FontWeight.w600,
-          color: AppTheme.textPrimary));
+          color: cInk));
 }

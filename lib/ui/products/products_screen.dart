@@ -5,7 +5,7 @@ import '../../core/l10n_ext.dart';
 import '../../core/warehouse_context.dart';
 import '../../data/models/models.dart';
 import '../../data/services/firestore_service.dart';
-import '../../theme/app_theme.dart';
+import '../../theme/qoima_design.dart';
 import '../shared/skeletons.dart';
 import 'add_product_screen.dart';
 import 'product_detail_screen.dart';
@@ -120,7 +120,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                     style: const TextStyle(
                         fontSize: 17,
                         fontWeight: FontWeight.w700,
-                        color: AppTheme.textPrimary)),
+                        color: cInk)),
                 const SizedBox(height: 16),
                 _SortOption(
                     icon: '🔤',
@@ -169,7 +169,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
         context.read<AppUser>().assignedWarehouseId;
 
     return Scaffold(
-      backgroundColor: AppTheme.background,
+      backgroundColor: cBg,
       body: StreamBuilder<List<ProductModel>>(
         key: ValueKey(warehouseId),
         initialData: _service.cachedProducts,
@@ -199,7 +199,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
               child: Container(
                 decoration: const BoxDecoration(
                     gradient: LinearGradient(
-                        colors: [Color(0xFF1E3A8A), Color(0xFF2D4FB5)],
+                        colors: [Color(0xFF00713F), Color(0xFF00A862)],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight)),
                 child: SafeArea(
@@ -299,33 +299,35 @@ class _ProductsScreenState extends State<ProductsScreen> {
                           ),
 
                           const SizedBox(height: 14),
-                          // Search + sort
+                          // Search + filter
                           Row(children: [
                             Expanded(
                               child: Container(
-                                height: 42,
+                                height: 46,
                                 decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(11)),
+                                    color: Colors.white.withValues(alpha: 0.16),
+                                    borderRadius: BorderRadius.circular(14)),
                                 child: TextField(
                                   controller: _searchCtrl,
                                   onChanged: (v) =>
                                       setState(() => _q = v.toLowerCase()),
-                                  style: const TextStyle(
-                                      fontSize: 14,
-                                      color: AppTheme.textPrimary),
+                                  style: manrope(14.5, FontWeight.w500,
+                                      color: Colors.white),
                                   decoration: InputDecoration(
                                       hintText: context.l10n.searchHint,
-                                      hintStyle: const TextStyle(
-                                          color: AppTheme.textHint,
-                                          fontSize: 13),
-                                      prefixIcon: const Icon(Icons.search,
-                                          color: AppTheme.primary, size: 19),
+                                      hintStyle: manrope(14.5, FontWeight.w500,
+                                          color: Colors.white.withValues(
+                                              alpha: 0.8)),
+                                      prefixIcon: Icon(Icons.search_rounded,
+                                          color: Colors.white.withValues(
+                                              alpha: 0.8),
+                                          size: 19),
                                       suffixIcon: _q.isNotEmpty
                                           ? IconButton(
-                                              icon: const Icon(Icons.close,
+                                              icon: Icon(Icons.close_rounded,
                                                   size: 15,
-                                                  color: AppTheme.textHint),
+                                                  color: Colors.white
+                                                      .withValues(alpha: 0.8)),
                                               onPressed: () {
                                                 _searchCtrl.clear();
                                                 setState(() => _q = '');
@@ -335,20 +337,20 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                       border: InputBorder.none,
                                       contentPadding:
                                           const EdgeInsets.symmetric(
-                                              vertical: 12)),
+                                              vertical: 13)),
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 8),
+                            const SizedBox(width: 10),
                             GestureDetector(
                               onTap: _showSortSheet,
                               child: Container(
-                                  width: 42,
-                                  height: 42,
+                                  width: 46,
+                                  height: 46,
                                   decoration: BoxDecoration(
                                       color:
-                                          Colors.white.withValues(alpha: 0.2),
-                                      borderRadius: BorderRadius.circular(11)),
+                                          Colors.white.withValues(alpha: 0.16),
+                                      borderRadius: BorderRadius.circular(14)),
                                   child: const Icon(Icons.tune_rounded,
                                       color: Colors.white, size: 20)),
                             ),
@@ -404,12 +406,12 @@ class _ProductsScreenState extends State<ProductsScreen> {
                         Container(
                             padding: const EdgeInsets.all(24),
                             decoration: BoxDecoration(
-                                color: AppTheme.primary.withValues(alpha: 0.06),
+                                color: cGreen.withValues(alpha: 0.1),
                                 shape: BoxShape.circle),
                             child: Icon(Icons.inventory_2_outlined,
                                 size: 48,
                                 color:
-                                    AppTheme.primary.withValues(alpha: 0.4))),
+                                    cGreen.withValues(alpha: 0.1))),
                         const SizedBox(height: 16),
                         Text(
                             _tab == 2
@@ -420,12 +422,12 @@ class _ProductsScreenState extends State<ProductsScreen> {
                             style: const TextStyle(
                                 fontSize: 17,
                                 fontWeight: FontWeight.w600,
-                                color: AppTheme.textSecondary)),
+                                color: cInk2)),
                         if (_tab != 2 && _q.isEmpty) ...[
                           const SizedBox(height: 6),
                           const Text('Нажмите «+» чтобы добавить товар',
                               style: TextStyle(
-                                  fontSize: 13, color: AppTheme.textHint)),
+                                  fontSize: 13, color: cInk3)),
                         ],
                       ]),
                 ),
@@ -454,7 +456,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
           ? FloatingActionButton.extended(
               onPressed: () => Navigator.push(context,
                   MaterialPageRoute(builder: (_) => const AddProductScreen())),
-              backgroundColor: AppTheme.primary,
+              backgroundColor: cGreen,
               foregroundColor: Colors.white,
               elevation: 6,
               icon: const Icon(Icons.add_rounded),
@@ -511,15 +513,15 @@ class _ProductCard extends StatelessWidget {
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
-          color: AppTheme.surface,
-          borderRadius: BorderRadius.circular(16),
+          color: cSurface,
+          borderRadius: BorderRadius.circular(18),
           boxShadow: [
             BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
+                color: Color(0x0D0C120F),
                 blurRadius: 12,
                 offset: const Offset(0, 3)),
             BoxShadow(
-                color: AppTheme.primary.withValues(alpha: 0.04),
+                color: cGreen.withValues(alpha: 0.1),
                 blurRadius: 6,
                 offset: const Offset(0, 1)),
           ],
@@ -550,7 +552,7 @@ class _ProductCard extends StatelessWidget {
                           style: const TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w800,
-                              color: AppTheme.primary,
+                              color: cGreen,
                               letterSpacing: 1)),
                       const Spacer(),
                       Container(
@@ -570,7 +572,7 @@ class _ProductCard extends StatelessWidget {
                                 fontWeight: FontWeight.w700,
                                 color: inStock
                                     ? const Color(0xFF065F46)
-                                    : AppTheme.textHint)),
+                                    : cInk3)),
                       ),
                     ]),
                     const SizedBox(height: 4),
@@ -578,33 +580,33 @@ class _ProductCard extends StatelessWidget {
                         style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w700,
-                            color: AppTheme.textPrimary,
+                            color: cInk,
                             letterSpacing: -0.3),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis),
                     const SizedBox(height: 2),
                     Text('${product.type} · ${product.category}',
                         style: const TextStyle(
-                            fontSize: 12, color: AppTheme.textSecondary)),
+                            fontSize: 12, color: cInk2)),
                     const SizedBox(height: 8),
                     Row(children: [
                       Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 7, vertical: 3),
                         decoration: BoxDecoration(
-                            color: AppTheme.background,
+                            color: cBg,
                             borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: AppTheme.border)),
+                            border: Border.all(color: cLine)),
                         child: Text(product.articul,
                             style: const TextStyle(
                                 fontSize: 11,
                                 fontFamily: 'monospace',
-                                color: AppTheme.textSecondary,
+                                color: cInk2,
                                 fontWeight: FontWeight.w500)),
                       ),
                       const Spacer(),
                       const Icon(Icons.chevron_right_rounded,
-                          color: AppTheme.textHint, size: 20),
+                          color: cInk3, size: 20),
                     ]),
                     // Batch summary from pre-loaded cache (no Firebase call here).
                     _buildBatchSummary(context),
@@ -636,7 +638,7 @@ class _ProductCard extends StatelessWidget {
             style: const TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w800,
-                color: AppTheme.success)),
+                color: cGreen)),
       );
     }
 
@@ -654,12 +656,12 @@ class _ProductCard extends StatelessWidget {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                     decoration: BoxDecoration(
-                        color: AppTheme.primary.withValues(alpha: 0.08),
+                        color: cGreen.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(5)),
                     child: Text('${e.key}·${e.value}',
                         style: const TextStyle(
                             fontSize: 10,
-                            color: AppTheme.primary,
+                            color: cGreen,
                             fontWeight: FontWeight.w600)),
                   ))
               .toList(),
@@ -673,7 +675,7 @@ class _ProductCard extends StatelessWidget {
       height: 115,
       color: const Color(0xFFEEF2FF),
       child: const Icon(Icons.inventory_2_outlined,
-          color: AppTheme.primary, size: 32));
+          color: cGreen, size: 32));
 }
 
 // ── Аналитика header — N видов × M пар ────────────────────────────────────────
@@ -687,20 +689,20 @@ class StockSummaryWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     return RichText(
       text: TextSpan(
-        style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+        style: const TextStyle(fontSize: 13, color: cInk2),
         children: [
           TextSpan(
               text: '$kinds',
               style: const TextStyle(
                   fontWeight: FontWeight.w800,
-                  color: AppTheme.primary,
+                  color: cGreen,
                   fontSize: 15)),
           const TextSpan(text: ' вид. товаров  ×  '),
           TextSpan(
               text: '$pairs',
               style: const TextStyle(
                   fontWeight: FontWeight.w800,
-                  color: AppTheme.primary,
+                  color: cGreen,
                   fontSize: 15)),
           const TextSpan(text: ' пар'),
         ],
@@ -785,20 +787,20 @@ class _WarehousePickerSheet extends StatelessWidget {
             style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
-                color: AppTheme.textPrimary)),
+                color: cInk)),
         const SizedBox(height: 12),
         ...warehouses.map((wh) => ListTile(
               leading: Icon(Icons.warehouse_outlined,
                   color: wh.id == currentId
-                      ? AppTheme.primary
-                      : AppTheme.textHint),
+                      ? cGreen
+                      : cInk3),
               title: Text(wh.name),
               subtitle: wh.isMain
                   ? const Text('Негізгі қойма',
-                      style: TextStyle(fontSize: 11, color: AppTheme.textHint))
+                      style: TextStyle(fontSize: 11, color: cInk3))
                   : null,
               trailing: wh.id == currentId
-                  ? const Icon(Icons.check_rounded, color: AppTheme.primary)
+                  ? const Icon(Icons.check_rounded, color: cGreen)
                   : null,
               onTap: () => onSelect(wh),
             )),
@@ -831,7 +833,7 @@ class _TabChip extends StatelessWidget {
             borderRadius: BorderRadius.circular(20)),
         child: Text(label,
             style: TextStyle(
-                color: active ? AppTheme.primary : Colors.white,
+                color: active ? cGreen : Colors.white,
                 fontWeight: active ? FontWeight.w700 : FontWeight.w500,
                 fontSize: 13)),
       ),
@@ -858,11 +860,11 @@ class _SortOption extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
             color: selected
-                ? AppTheme.primary.withValues(alpha: 0.07)
+                ? cGreen.withValues(alpha: 0.1)
                 : Colors.white,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-                color: selected ? AppTheme.primary : AppTheme.border,
+                color: selected ? cGreen : cLine,
                 width: selected ? 1.5 : 1)),
         child: Row(children: [
           Text(icon, style: const TextStyle(fontSize: 18)),
@@ -873,9 +875,9 @@ class _SortOption extends StatelessWidget {
                       fontWeight: FontWeight.w600,
                       fontSize: 14,
                       color:
-                          selected ? AppTheme.primary : AppTheme.textPrimary))),
+                          selected ? cGreen : cInk))),
           if (selected)
-            const Icon(Icons.check_rounded, color: AppTheme.primary, size: 20),
+            const Icon(Icons.check_rounded, color: cGreen, size: 20),
         ]),
       ),
     );

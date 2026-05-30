@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../data/models/warehouse_model.dart';
 import '../../data/services/firestore_service.dart';
-import '../../theme/app_theme.dart';
+import '../../theme/qoima_design.dart';
 
 class WarehousesScreen extends StatelessWidget {
   const WarehousesScreen({super.key});
@@ -10,7 +10,7 @@ class WarehousesScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final service = FirestoreService();
     return Scaffold(
-      backgroundColor: AppTheme.background,
+      backgroundColor: cBg,
       body: StreamBuilder<List<WarehouseModel>>(
         stream: service.watchWarehouses(),
         builder: (context, snap) {
@@ -21,47 +21,44 @@ class WarehousesScreen extends StatelessWidget {
           return CustomScrollView(slivers: [
             SliverToBoxAdapter(
                 child: Container(
-              decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                      colors: [Color(0xFF1E3A8A), Color(0xFF2D4FB5)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight)),
+              decoration: const BoxDecoration(gradient: kGrad),
               child: SafeArea(
                   bottom: false,
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+                    padding: const EdgeInsets.fromLTRB(20, 6, 20, 18),
                     child: Row(children: [
                       GestureDetector(
                           onTap: () => Navigator.pop(context),
                           child: Container(
-                              padding: const EdgeInsets.all(8),
+                              width: 38,
+                              height: 38,
+                              margin: const EdgeInsets.only(right: 10),
                               decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.15),
-                                  borderRadius: BorderRadius.circular(10)),
-                              child: const Icon(Icons.arrow_back_ios_new,
-                                  color: Colors.white, size: 16))),
-                      const SizedBox(width: 12),
-                      const Expanded(
+                                  color: Colors.white.withValues(alpha: 0.16),
+                                  borderRadius: BorderRadius.circular(12)),
+                              child: const Icon(Icons.chevron_left_rounded,
+                                  color: Colors.white, size: 22))),
+                      Expanded(
                           child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                            Text('Қоймалар',
-                                style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w700)),
-                            Text('Қойма желісін басқару',
-                                style: TextStyle(
-                                    color: Colors.white60, fontSize: 12)),
+                            Text('Склады',
+                                style: manrope(23, FontWeight.w800,
+                                    color: Colors.white, letterSpacing: -0.5)),
+                            Text(
+                                '${warehouses.length} склада · ${warehouses.fold(0, (a, w) => a + w.totalPairs)} пар',
+                                style: manrope(13, FontWeight.w500,
+                                    color: Colors.white.withValues(alpha: 0.78))),
                           ])),
                       GestureDetector(
                           onTap: () => _showAddSheet(context, service),
                           child: Container(
-                              padding: const EdgeInsets.all(10),
+                              width: 38,
+                              height: 38,
                               decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.15),
-                                  borderRadius: BorderRadius.circular(10)),
-                              child: const Icon(Icons.add,
+                                  color: Colors.white.withValues(alpha: 0.16),
+                                  borderRadius: BorderRadius.circular(12)),
+                              child: const Icon(Icons.add_rounded,
                                   color: Colors.white, size: 22))),
                     ]),
                   )),
@@ -78,22 +75,51 @@ class WarehousesScreen extends StatelessWidget {
                       const Text('Қойма жоқ',
                           style: TextStyle(
                               fontSize: 16,
-                              color: AppTheme.textSecondary,
+                              color: cInk2,
                               fontWeight: FontWeight.w500)),
                       const SizedBox(height: 8),
                       const Text('+ батырмасын басып қосыңыз',
                           style: TextStyle(
-                              fontSize: 13, color: AppTheme.textHint)),
+                              fontSize: 13, color: cInk3)),
                     ]),
               ))
             else
               SliverPadding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                 sliver: SliverList(
                   delegate: SliverChildBuilderDelegate(
                     (_, i) =>
                         _WarehouseCard(wh: warehouses[i], service: service),
                     childCount: warehouses.length,
+                  ),
+                ),
+              ),
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                sliver: SliverToBoxAdapter(
+                  child: GestureDetector(
+                    onTap: () => _showAddSheet(context, service),
+                    child: Container(
+                      padding: const EdgeInsets.all(18),
+                      decoration: BoxDecoration(
+                        color: cGreenTint,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                            color: cGreen.withValues(alpha: 0.4),
+                            width: 1.5,
+                            style: BorderStyle.solid),
+                      ),
+                      child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.add_rounded,
+                                color: cGreen, size: 20),
+                            const SizedBox(width: 8),
+                            Text('Добавить склад',
+                                style: manrope(14, FontWeight.w700,
+                                    color: cGreen)),
+                          ]),
+                    ),
                   ),
                 ),
               ),
@@ -125,54 +151,38 @@ class _WarehouseCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: [
-            BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 2))
-          ]),
+          color: cSurface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: cLine),
+          boxShadow: kShadowSm),
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
         leading: Container(
-            width: 44,
-            height: 44,
+            width: 46,
+            height: 46,
             decoration: BoxDecoration(
-              color: wh.isMain
-                  ? AppTheme.primary.withValues(alpha: 0.1)
-                  : AppTheme.background,
-              borderRadius: BorderRadius.circular(12),
+              color: wh.isMain ? cGreenTint : cBlueTint,
+              borderRadius: BorderRadius.circular(13),
             ),
-            child: Icon(Icons.warehouse_rounded,
-                color: wh.isMain ? AppTheme.primary : AppTheme.textHint,
+            child: Icon(Icons.storefront_outlined,
+                color: wh.isMain ? cGreen : cBlue,
                 size: 22)),
         title: Row(children: [
-          Text(wh.name,
-              style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
-                  color: AppTheme.textPrimary)),
+          Expanded(
+            child: Text(wh.name,
+                style: manrope(15, FontWeight.w700, color: cInk)),
+          ),
           if (wh.isMain) ...[
             const SizedBox(width: 8),
-            Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                    color: AppTheme.primary,
-                    borderRadius: BorderRadius.circular(4)),
-                child: const Text('НЕГ.',
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 9,
-                        fontWeight: FontWeight.w700))),
+            QPill('Главный', tone: 'green'),
           ],
         ]),
         subtitle: wh.address != null && wh.address!.isNotEmpty
             ? Text(wh.address!,
-                style: const TextStyle(color: AppTheme.textHint, fontSize: 12))
+                style: manrope(12.5, FontWeight.w500, color: cInk3))
             : null,
         trailing: PopupMenuButton<String>(
-          icon: const Icon(Icons.more_vert, color: AppTheme.textHint, size: 20),
+          icon: const Icon(Icons.more_vert, color: cInk3, size: 20),
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           onSelected: (val) async {
@@ -195,7 +205,7 @@ class _WarehouseCard extends StatelessWidget {
                     ElevatedButton(
                         onPressed: () => Navigator.pop(context, true),
                         style: ElevatedButton.styleFrom(
-                            backgroundColor: AppTheme.danger,
+                            backgroundColor: cRed,
                             foregroundColor: Colors.white),
                         child: const Text('Жою')),
                   ],
@@ -210,7 +220,7 @@ class _WarehouseCard extends StatelessWidget {
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20)),
                   title: const Text('Сенімдісіз бе?',
-                      style: TextStyle(color: AppTheme.danger)),
+                      style: TextStyle(color: cRed)),
                   content: const Text(
                     'Бұл әрекетті болдырмау мүмкін емес. '
                     'Қойма түпкілікті жойылады.',
@@ -222,7 +232,7 @@ class _WarehouseCard extends StatelessWidget {
                     ElevatedButton(
                         onPressed: () => Navigator.pop(context, true),
                         style: ElevatedButton.styleFrom(
-                            backgroundColor: AppTheme.danger,
+                            backgroundColor: cRed,
                             foregroundColor: Colors.white),
                         child: const Text('Иә, жою')),
                   ],
@@ -239,9 +249,9 @@ class _WarehouseCard extends StatelessWidget {
                   value: 'delete',
                   child: Row(children: [
                     Icon(Icons.delete_outline,
-                        size: 16, color: AppTheme.danger),
+                        size: 16, color: cRed),
                     SizedBox(width: 8),
-                    Text('Жою', style: TextStyle(color: AppTheme.danger)),
+                    Text('Жою', style: TextStyle(color: cRed)),
                   ])),
           ],
         ),
@@ -300,7 +310,7 @@ class _AddWarehouseSheetState extends State<_AddWarehouseSheet> {
                   style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
-                      color: AppTheme.textPrimary)),
+                      color: cInk)),
               const SizedBox(height: 16),
               _Field(
                   ctrl: _nameCtrl,
@@ -311,28 +321,28 @@ class _AddWarehouseSheetState extends State<_AddWarehouseSheet> {
               TextFormField(
                 controller: _addressCtrl,
                 style:
-                    const TextStyle(fontSize: 14, color: AppTheme.textPrimary),
+                    const TextStyle(fontSize: 14, color: cInk),
                 decoration: InputDecoration(
                   labelText: 'Мекен-жай *',
                   hintText: 'Алматы, Абай к-сі 10',
-                  hintStyle: const TextStyle(color: AppTheme.textHint),
+                  hintStyle: const TextStyle(color: cInk3),
                   prefixIcon: const Icon(Icons.location_on_outlined,
-                      color: AppTheme.primary, size: 20),
+                      color: cGreen, size: 20),
                   filled: true,
                   fillColor: Colors.white,
                   border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: AppTheme.border)),
+                      borderSide: const BorderSide(color: cLine)),
                   enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: AppTheme.border)),
+                      borderSide: const BorderSide(color: cLine)),
                   focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: const BorderSide(
-                          color: AppTheme.primary, width: 1.5)),
+                          color: cGreen, width: 1.5)),
                   errorBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: AppTheme.danger)),
+                      borderSide: const BorderSide(color: cRed)),
                 ),
                 validator: (v) {
                   if (v == null || v.trim().isEmpty) {
@@ -352,7 +362,7 @@ class _AddWarehouseSheetState extends State<_AddWarehouseSheet> {
                 const SizedBox(height: 10),
                 Text(_error!,
                     style:
-                        const TextStyle(color: AppTheme.danger, fontSize: 13)),
+                        const TextStyle(color: cRed, fontSize: 13)),
               ],
               const SizedBox(height: 16),
               SizedBox(
@@ -360,7 +370,7 @@ class _AddWarehouseSheetState extends State<_AddWarehouseSheet> {
                   height: 48,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.primary,
+                        backgroundColor: cGreen,
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12)),
@@ -424,24 +434,24 @@ class _Field extends StatelessWidget {
   @override
   Widget build(BuildContext context) => TextField(
         controller: ctrl,
-        style: const TextStyle(fontSize: 14, color: AppTheme.textPrimary),
+        style: const TextStyle(fontSize: 14, color: cInk),
         decoration: InputDecoration(
           labelText: label,
           hintText: hint,
-          hintStyle: const TextStyle(color: AppTheme.textHint),
-          prefixIcon: Icon(icon, color: AppTheme.primary, size: 20),
+          hintStyle: const TextStyle(color: cInk3),
+          prefixIcon: Icon(icon, color: cGreen, size: 20),
           filled: true,
           fillColor: Colors.white,
           border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppTheme.border)),
+              borderSide: const BorderSide(color: cLine)),
           enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppTheme.border)),
+              borderSide: const BorderSide(color: cLine)),
           focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide:
-                  const BorderSide(color: AppTheme.primary, width: 1.5)),
+                  const BorderSide(color: cGreen, width: 1.5)),
         ),
       );
 }

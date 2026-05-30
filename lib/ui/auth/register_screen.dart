@@ -4,7 +4,7 @@ import '../../core/l10n_ext.dart';
 import '../../data/services/auth_service.dart';
 import 'package:provider/provider.dart';
 import '../../core/app_user.dart';
-import '../../theme/app_theme.dart';
+import '../../theme/qoima_design.dart';
 import '../main_shell.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -104,7 +104,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.background,
+      backgroundColor: cBg,
       body: SafeArea(
         child: CustomScrollView(slivers: [
           // ── Header ────────────────────────────────────────────────────
@@ -112,7 +112,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               child: Container(
             decoration: const BoxDecoration(
                 gradient: LinearGradient(
-                    colors: [Color(0xFF1E3A8A), Color(0xFF2D4FB5)],
+                    colors: [Color(0xFF00713F), Color(0xFF00A862)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight)),
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
@@ -149,7 +149,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   style: const TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
-                      color: AppTheme.textPrimary)),
+                      color: cInk)),
               const SizedBox(height: 10),
               Row(children: [
                 Expanded(
@@ -176,19 +176,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                      color: AppTheme.primary.withValues(alpha: 0.05),
+                      color: cGreen.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                          color: AppTheme.primary.withValues(alpha: 0.2))),
+                          color: cGreen.withValues(alpha: 0.08))),
                   child: Row(children: [
                     const Icon(Icons.info_outline_rounded,
-                        color: AppTheme.primary, size: 16),
+                        color: cGreen, size: 16),
                     const SizedBox(width: 8),
                     Expanded(
                         child: Text(
                       context.l10n.sellerRegisterHint,
                       style: const TextStyle(
-                          fontSize: 12, color: AppTheme.primary),
+                          fontSize: 12, color: cGreen),
                     )),
                   ]),
                 ),
@@ -220,7 +220,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           _obscurePass
                               ? Icons.visibility_outlined
                               : Icons.visibility_off_outlined,
-                          color: AppTheme.textHint,
+                          color: cInk3,
                           size: 20),
                       onPressed: () =>
                           setState(() => _obscurePass = !_obscurePass))),
@@ -236,7 +236,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           _obscureConfirm
                               ? Icons.visibility_outlined
                               : Icons.visibility_off_outlined,
-                          color: AppTheme.textHint,
+                          color: cInk3,
                           size: 20),
                       onPressed: () =>
                           setState(() => _obscureConfirm = !_obscureConfirm))),
@@ -247,18 +247,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                        color: AppTheme.dangerLight,
+                        color: cRedTint,
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
-                            color: AppTheme.danger.withValues(alpha: 0.3))),
+                            color: cRed.withValues(alpha: 0.3))),
                     child: Row(children: [
                       const Icon(Icons.error_outline,
-                          color: AppTheme.danger, size: 18),
+                          color: cRed, size: 18),
                       const SizedBox(width: 8),
                       Expanded(
                           child: Text(_error!,
                               style: const TextStyle(
-                                  color: AppTheme.danger, fontSize: 13))),
+                                  color: cRed, fontSize: 13))),
                     ])),
               const SizedBox(height: 20),
 
@@ -269,7 +269,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   child: ElevatedButton(
                       onPressed: _isLoading ? null : _register,
                       style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.primary,
+                          backgroundColor: cGreen,
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(14)),
@@ -287,12 +287,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
               Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                 Text(context.l10n.haveAccount,
-                    style: const TextStyle(color: AppTheme.textSecondary)),
+                    style: const TextStyle(color: cInk2)),
                 TextButton(
                     onPressed: () => Navigator.pop(context),
                     child: Text(context.l10n.signIn,
                         style: const TextStyle(
-                            color: AppTheme.primary,
+                            color: cGreen,
                             fontWeight: FontWeight.w700))),
               ]),
             ])),
@@ -315,24 +315,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
       controller: controller,
       keyboardType: keyboard,
       obscureText: obscure,
-      style: const TextStyle(fontSize: 15, color: AppTheme.textPrimary),
+      style: const TextStyle(fontSize: 15, color: cInk),
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,
-        hintStyle: const TextStyle(color: AppTheme.textHint, fontSize: 14),
-        prefixIcon: Icon(icon, color: AppTheme.primary, size: 20),
+        hintStyle: const TextStyle(color: cInk3, fontSize: 14),
+        prefixIcon: Icon(icon, color: cGreen, size: 20),
         suffixIcon: suffixIcon,
         filled: true,
         fillColor: Colors.white,
         border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: AppTheme.border)),
+            borderSide: const BorderSide(color: cLine)),
         enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: AppTheme.border)),
+            borderSide: const BorderSide(color: cLine)),
         focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: AppTheme.primary, width: 1.5)),
+            borderSide: const BorderSide(color: cGreen, width: 1.5)),
       ),
     );
   }
@@ -362,16 +362,16 @@ class _RoleTile extends StatelessWidget {
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: selected
-              ? AppTheme.primary.withValues(alpha: 0.06)
+              ? cGreen.withValues(alpha: 0.08)
               : Colors.white,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-              color: selected ? AppTheme.primary : AppTheme.border,
+              color: selected ? cGreen : cLine,
               width: selected ? 2 : 1),
           boxShadow: selected
               ? [
                   BoxShadow(
-                      color: AppTheme.primary.withValues(alpha: 0.12),
+                      color: cGreen.withValues(alpha: 0.08),
                       blurRadius: 8,
                       offset: const Offset(0, 2))
                 ]
@@ -384,22 +384,22 @@ class _RoleTile extends StatelessWidget {
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Icon(icon,
-              color: selected ? AppTheme.primary : AppTheme.textHint, size: 26),
+              color: selected ? cGreen : cInk3, size: 26),
           const SizedBox(height: 8),
           Text(title,
               style: TextStyle(
                   fontWeight: FontWeight.w700,
                   fontSize: 14,
-                  color: selected ? AppTheme.primary : AppTheme.textPrimary)),
+                  color: selected ? cGreen : cInk)),
           Text(subtitle,
               style:
-                  const TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+                  const TextStyle(fontSize: 11, color: cInk2)),
           const SizedBox(height: 4),
           if (selected)
             Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                    color: AppTheme.primary,
+                    color: cGreen,
                     borderRadius: BorderRadius.circular(4)),
                 child: Text(context.l10n.selected,
                     style: const TextStyle(

@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../../theme/app_theme.dart';
+import '../../theme/qoima_design.dart';
 
 class ReservationTimerWidget extends StatefulWidget {
   final DateTime expiresAt;
@@ -55,14 +55,14 @@ class _ReservationTimerWidgetState extends State<ReservationTimerWidget> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: expired ? AppTheme.dangerLight : AppTheme.warningLight,
+        color: expired ? cRedTint : cAmberTint,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         Icon(
           expired ? Icons.timer_off_outlined : Icons.timer_outlined,
           size: 16,
-          color: expired ? AppTheme.danger : AppTheme.warning,
+          color: expired ? cRed : cAmber,
         ),
         const SizedBox(width: 6),
         Text(
@@ -70,7 +70,7 @@ class _ReservationTimerWidgetState extends State<ReservationTimerWidget> {
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w700,
-            color: expired ? AppTheme.danger : AppTheme.warning,
+            color: expired ? cRed : cAmber,
           ),
         ),
       ]),

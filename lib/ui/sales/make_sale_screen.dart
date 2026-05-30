@@ -5,7 +5,7 @@ import '../../core/app_user.dart';
 import '../../core/warehouse_context.dart';
 import '../../data/models/models.dart';
 import '../../data/services/firestore_service.dart';
-import '../../theme/app_theme.dart';
+import '../../theme/qoima_design.dart';
 import '../shared/mandatory_warehouse_picker.dart';
 
 // ── CartItem ──────────────────────────────────────────────────────────────────
@@ -37,6 +37,8 @@ class MakeSaleScreen extends StatefulWidget {
 
 class _MakeSaleScreenState extends State<MakeSaleScreen> {
   final _service = FirestoreService();
+  final _headerSearchCtrl = TextEditingController();
+  String _headerQ = '';
 
   int _step = 0;
   final Set<String> _selectedIds = {};
@@ -48,6 +50,12 @@ class _MakeSaleScreenState extends State<MakeSaleScreen> {
   void initState() {
     super.initState();
     _service.cleanupExpiredReservations().ignore();
+  }
+
+  @override
+  void dispose() {
+    _headerSearchCtrl.dispose();
+    super.dispose();
   }
 
   String _activeWarehouseId(BuildContext ctx) =>
@@ -169,9 +177,10 @@ class _MakeSaleScreenState extends State<MakeSaleScreen> {
                     ElevatedButton(
                         onPressed: () => Navigator.pop(context),
                         style: ElevatedButton.styleFrom(
-                            backgroundColor: AppTheme.primary,
-                            foregroundColor: Colors.white),
-                        child: const Text('Түсіндім')),
+                            backgroundColor: cGreen,
+                            foregroundColor: Colors.white,
+                            elevation: 0),
+                        child: const Text('Понятно')),
                   ],
                 ),
               );
@@ -206,7 +215,7 @@ class _MakeSaleScreenState extends State<MakeSaleScreen> {
             const SizedBox(width: 8),
             Text('Продано $totalQty пар · ${totalPrice.toStringAsFixed(0)} ₸'),
           ]),
-          backgroundColor: AppTheme.success,
+          backgroundColor: cGreen,
           behavior: SnackBarBehavior.floating,
         ));
       }
@@ -220,7 +229,7 @@ class _MakeSaleScreenState extends State<MakeSaleScreen> {
   void _snack(String msg, {bool isError = false}) =>
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(msg),
-        backgroundColor: isError ? AppTheme.danger : AppTheme.success,
+        backgroundColor: isError ? cRed : cGreen,
         behavior: SnackBarBehavior.floating,
       ));
 
@@ -235,25 +244,13 @@ class _MakeSaleScreenState extends State<MakeSaleScreen> {
     final whName = wCtx.current?.name ?? 'Нет склада';
 
     return Scaffold(
-      backgroundColor: AppTheme.background,
+      backgroundColor: cBg,
       body: SafeArea(
           child: Column(children: [
-        // ── Premium Header ────────────────────────────────────────────────
+        // ── Header ────────────────────────────────────────────────────────
         Container(
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(colors: [
-              Color(0xFF0F1F5C),
-              Color(0xFF1E3A8A),
-              Color(0xFF2D4FB5)
-            ], begin: Alignment.topLeft, end: Alignment.bottomRight),
-            boxShadow: [
-              BoxShadow(
-                  color: const Color(0xFF1E3A8A).withValues(alpha: 0.3),
-                  blurRadius: 20,
-                  offset: const Offset(0, 6))
-            ],
-          ),
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+          decoration: const BoxDecoration(gradient: kGrad),
+          padding: const EdgeInsets.fromLTRB(20, 6, 20, 16),
           child: Column(children: [
             Row(children: [
               GestureDetector(
@@ -265,115 +262,109 @@ class _MakeSaleScreenState extends State<MakeSaleScreen> {
                   }
                 },
                 child: Container(
-                    width: 36,
-                    height: 36,
+                    width: 38,
+                    height: 38,
                     decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.12),
-                        border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.18)),
-                        borderRadius: BorderRadius.circular(11)),
-                    child: const Icon(Icons.arrow_back_ios_new,
-                        color: Colors.white, size: 15)),
+                        color: Colors.white.withValues(alpha: 0.16),
+                        borderRadius: BorderRadius.circular(12)),
+                    child: const Icon(Icons.chevron_left_rounded,
+                        color: Colors.white, size: 22)),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               Expanded(
                   child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                     Text(_step == 0 ? 'Новая продажа' : 'Размер и скидка',
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: -0.3)),
-                    Text('Шаг ${_step + 1}/2',
-                        style: const TextStyle(
-                            color: Colors.white54, fontSize: 11)),
+                        style: manrope(21, FontWeight.w800,
+                            color: Colors.white, letterSpacing: -0.4)),
+                    Text('Склад: $whName',
+                        style: manrope(13, FontWeight.w500,
+                            color: Colors.white.withValues(alpha: 0.78))),
                   ])),
+              // Warehouse switch (admin)
+              if (context.read<AppUser>().isAdmin && _step == 0)
+                GestureDetector(
+                  onTap: () async {
+                    final whs = await _service.getWarehouses();
+                    if (!context.mounted) return;
+                    final wCtx = context.read<WarehouseContext>();
+                    showModalBottomSheet(
+                      context: context,
+                      shape: const RoundedRectangleBorder(
+                          borderRadius: BorderRadius.vertical(
+                              top: Radius.circular(22))),
+                      builder: (_) => _WhPickerSheet(
+                        warehouses: whs,
+                        currentId: wCtx.current?.id ?? '',
+                        onSelect: (wh) {
+                          wCtx.switchTo(wh);
+                          Navigator.pop(context);
+                        },
+                      ),
+                    );
+                  },
+                  child: Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.16),
+                        borderRadius: BorderRadius.circular(12)),
+                    child: const Icon(Icons.swap_horiz_rounded,
+                        color: Colors.white, size: 20),
+                  ),
+                ),
+              // Scan button
+              const SizedBox(width: 8),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                width: 38,
+                height: 38,
                 decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.12),
-                    border:
-                        Border.all(color: Colors.white.withValues(alpha: 0.2)),
-                    borderRadius: BorderRadius.circular(20)),
-                child: Text('${_step + 1} / 2',
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13)),
+                    color: Colors.white.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(12)),
+                child: const Icon(Icons.qr_code_scanner_rounded,
+                    color: Colors.white, size: 20),
               ),
             ]),
             const SizedBox(height: 12),
-            // Warehouse pill
+            // Search bar — real TextField
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              height: 46,
               decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.1),
-                  border:
-                      Border.all(color: Colors.white.withValues(alpha: 0.18)),
-                  borderRadius: BorderRadius.circular(14)),
+                color: Colors.white.withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(14),
+              ),
               child: Row(children: [
-                Container(
-                    width: 28,
-                    height: 28,
-                    decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(8)),
-                    child: const Icon(Icons.warehouse_outlined,
-                        color: Colors.white, size: 15)),
-                const SizedBox(width: 10),
+                const SizedBox(width: 12),
+                Icon(Icons.search_rounded,
+                    color: Colors.white.withValues(alpha: 0.8), size: 19),
+                const SizedBox(width: 8),
                 Expanded(
-                    child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                      const Text('СКЛАД ПРОДАЖИ',
-                          style: TextStyle(
-                              color: Colors.white38,
-                              fontSize: 9,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0.8)),
-                      Text(whName,
-                          style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700)),
-                    ])),
-                if (context.read<AppUser>().isAdmin && _step == 0)
-                  GestureDetector(
-                    onTap: () async {
-                      final whs = await _service.getWarehouses();
-                      if (!context.mounted) return;
-                      final wCtx = context.read<WarehouseContext>();
-                      showModalBottomSheet(
-                        context: context,
-                        shape: const RoundedRectangleBorder(
-                            borderRadius: BorderRadius.vertical(
-                                top: Radius.circular(22))),
-                        builder: (_) => _WhPickerSheet(
-                          warehouses: whs,
-                          currentId: wCtx.current?.id ?? '',
-                          onSelect: (wh) {
-                            wCtx.switchTo(wh);
-                            Navigator.pop(context);
-                          },
-                        ),
-                      );
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(8)),
-                      child: const Text('Сменить',
-                          style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600)),
+                  child: TextField(
+                    controller: _headerSearchCtrl,
+                    onChanged: (v) => setState(() => _headerQ = v.trim()),
+                    style: manrope(14.5, FontWeight.w500, color: Colors.white),
+                    decoration: InputDecoration(
+                      hintText: 'Найти товар или сканировать...',
+                      hintStyle: manrope(14.5, FontWeight.w500,
+                          color: Colors.white.withValues(alpha: 0.8)),
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.zero,
+                      isDense: true,
+                      suffixIcon: _headerQ.isNotEmpty
+                          ? GestureDetector(
+                              onTap: () {
+                                _headerSearchCtrl.clear();
+                                setState(() => _headerQ = '');
+                              },
+                              child: Icon(Icons.close_rounded,
+                                  color: Colors.white.withValues(alpha: 0.8),
+                                  size: 18))
+                          : null,
                     ),
                   ),
+                ),
+                const SizedBox(width: 8),
               ]),
             ),
           ]),
@@ -385,6 +376,7 @@ class _MakeSaleScreenState extends State<MakeSaleScreen> {
               ? _Step1(
                   productStream: _productStream(whId),
                   selectedIds: _selectedIds,
+                  externalQuery: _headerQ,
                   onToggle: (id) => setState(() {
                     if (_selectedIds.contains(id)) {
                       _selectedIds.remove(id);
@@ -461,14 +453,10 @@ class _MakeSaleScreenState extends State<MakeSaleScreen> {
                               borderRadius: BorderRadius.circular(2)))),
                   const SizedBox(height: 14),
                   Text('${item.product.name} — Скидка',
-                      style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: AppTheme.textPrimary)),
+                      style: manrope(16, FontWeight.w700, color: cInk)),
                   const SizedBox(height: 4),
                   Text('Базовая цена: ${item.base.toStringAsFixed(0)} ₸',
-                      style: const TextStyle(
-                          fontSize: 13, color: AppTheme.textSecondary)),
+                      style: manrope(13, FontWeight.w500, color: cInk2)),
                   const SizedBox(height: 14),
                   Row(children: [
                     _ToggleBtn(
@@ -496,17 +484,12 @@ class _MakeSaleScreenState extends State<MakeSaleScreen> {
                                       padding: const EdgeInsets.symmetric(
                                           horizontal: 14, vertical: 6),
                                       decoration: BoxDecoration(
-                                          color: AppTheme.primary
-                                              .withValues(alpha: 0.08),
+                                          color: cGreenTint,
                                           borderRadius:
-                                              BorderRadius.circular(20),
-                                          border: Border.all(
-                                              color: AppTheme.primary
-                                                  .withValues(alpha: 0.2))),
+                                              BorderRadius.circular(20)),
                                       child: Text('$p%',
-                                          style: const TextStyle(
-                                              fontWeight: FontWeight.w600,
-                                              color: AppTheme.primary))),
+                                          style: manrope(13, FontWeight.w700,
+                                              color: cGreenDeep))),
                                 ))
                             .toList()),
                   const SizedBox(height: 12),
@@ -517,20 +500,21 @@ class _MakeSaleScreenState extends State<MakeSaleScreen> {
                     inputFormatters: [
                       FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))
                     ],
-                    style: const TextStyle(
-                        fontSize: 15, color: AppTheme.textPrimary),
+                    style: manrope(15, FontWeight.w600, color: cInk),
                     decoration: InputDecoration(
                       labelText: byPercent ? 'Скидка %' : 'Финальная цена ₸',
                       suffixText: byPercent ? '%' : '₸',
                       filled: true,
-                      fillColor: Colors.white,
+                      fillColor: cSurface,
                       border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: AppTheme.border)),
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: const BorderSide(color: cLine, width: 1.5)),
+                      enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: const BorderSide(color: cLine, width: 1.5)),
                       focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(
-                              color: AppTheme.primary, width: 1.5)),
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: const BorderSide(color: cGreen, width: 1.5)),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -539,10 +523,10 @@ class _MakeSaleScreenState extends State<MakeSaleScreen> {
                       height: 50,
                       child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                              backgroundColor: AppTheme.primary,
+                              backgroundColor: cGreen,
                               foregroundColor: Colors.white,
                               shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12)),
+                                  borderRadius: BorderRadius.circular(15)),
                               elevation: 0),
                           onPressed: () {
                             final val = double.tryParse(ctrl.text) ?? 0;
@@ -595,17 +579,17 @@ class _WhPickerSheet extends StatelessWidget {
             style: TextStyle(
                 fontSize: 17,
                 fontWeight: FontWeight.w700,
-                color: AppTheme.textPrimary)),
+                color: cInk)),
         const SizedBox(height: 12),
         ...warehouses.map((wh) => ListTile(
               leading: Icon(Icons.warehouse_outlined,
                   color: wh.id == currentId
-                      ? AppTheme.primary
-                      : AppTheme.textHint),
+                      ? cGreen
+                      : cInk3),
               title: Text(wh.name,
                   style: const TextStyle(fontWeight: FontWeight.w600)),
               trailing: wh.id == currentId
-                  ? const Icon(Icons.check_rounded, color: AppTheme.primary)
+                  ? const Icon(Icons.check_rounded, color: cGreen)
                   : null,
               onTap: () => onSelect(wh),
             )),
@@ -618,11 +602,13 @@ class _WhPickerSheet extends StatelessWidget {
 class _Step1 extends StatefulWidget {
   final Stream<List<ProductModel>> productStream;
   final Set<String> selectedIds;
+  final String externalQuery;
   final void Function(String) onToggle;
 
   const _Step1(
       {required this.productStream,
       required this.selectedIds,
+      this.externalQuery = '',
       required this.onToggle});
 
   @override
@@ -659,7 +645,7 @@ class _Step1State extends State<_Step1> {
       builder: (_, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
           return const Center(
-              child: CircularProgressIndicator(color: AppTheme.primary));
+              child: CircularProgressIndicator(color: cGreen));
         }
         final allProducts = (snap.data ?? [])
             .where((p) => p.status == ProductModel.statusInStock)
@@ -674,20 +660,20 @@ class _Step1State extends State<_Step1> {
                   width: 80,
                   height: 80,
                   decoration: BoxDecoration(
-                      color: AppTheme.primary.withValues(alpha: 0.07),
+                      color: cGreenTint,
                       shape: BoxShape.circle),
                   child: Icon(Icons.inventory_2_outlined,
-                      size: 36, color: AppTheme.primary.withValues(alpha: 0.4)),
+                      size: 36, color: cGreen.withValues(alpha: 0.4)),
                 ),
                 const SizedBox(height: 16),
                 const Text('На этом складе нет товаров',
                     style: TextStyle(
                         fontSize: 15,
-                        color: AppTheme.textSecondary,
+                        color: cInk2,
                         fontWeight: FontWeight.w500)),
                 const SizedBox(height: 6),
                 const Text('Выберите другой склад',
-                    style: TextStyle(fontSize: 12, color: AppTheme.textHint)),
+                    style: TextStyle(fontSize: 12, color: cInk3)),
               ]));
         }
 
@@ -714,7 +700,7 @@ class _Step1State extends State<_Step1> {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: AppTheme.border),
+                border: Border.all(color: cLine),
                 boxShadow: [
                   BoxShadow(
                       color: Colors.black.withValues(alpha: 0.04),
@@ -726,13 +712,13 @@ class _Step1State extends State<_Step1> {
                 controller: _searchCtrl,
                 onChanged: (v) => setState(() => _query = v.trim()),
                 style:
-                    const TextStyle(fontSize: 14, color: AppTheme.textPrimary),
+                    const TextStyle(fontSize: 14, color: cInk),
                 decoration: InputDecoration(
                   hintText: 'Название, бренд, категория...',
                   hintStyle:
-                      const TextStyle(color: AppTheme.textHint, fontSize: 13),
+                      const TextStyle(color: cInk3, fontSize: 13),
                   prefixIcon: const Icon(Icons.search_rounded,
-                      color: AppTheme.textHint, size: 20),
+                      color: cInk3, size: 20),
                   suffixIcon: _query.isNotEmpty
                       ? GestureDetector(
                           onTap: () {
@@ -740,7 +726,7 @@ class _Step1State extends State<_Step1> {
                             setState(() => _query = '');
                           },
                           child: const Icon(Icons.close_rounded,
-                              color: AppTheme.textHint, size: 18))
+                              color: cInk3, size: 18))
                       : null,
                   border: InputBorder.none,
                   contentPadding:
@@ -762,7 +748,7 @@ class _Step1State extends State<_Step1> {
                     const SizedBox(height: 12),
                     Text('«$_query» не найдено',
                         style: const TextStyle(
-                            fontSize: 14, color: AppTheme.textSecondary)),
+                            fontSize: 14, color: cInk2)),
                   ])),
             )
           else
@@ -781,11 +767,11 @@ class _Step1State extends State<_Step1> {
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: sel
-                            ? AppTheme.primary.withValues(alpha: 0.06)
+                            ? cGreenTint
                             : Colors.white,
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                            color: sel ? AppTheme.primary : AppTheme.border,
+                            color: sel ? cGreen : cLine,
                             width: sel ? 1.5 : 1),
                         boxShadow: [
                           BoxShadow(
@@ -802,11 +788,11 @@ class _Step1State extends State<_Step1> {
                             height: 22,
                             decoration: BoxDecoration(
                                 color:
-                                    sel ? AppTheme.primary : Colors.transparent,
+                                    sel ? cGreen : Colors.transparent,
                                 border: Border.all(
                                     color: sel
-                                        ? AppTheme.primary
-                                        : AppTheme.border,
+                                        ? cGreen
+                                        : cLine,
                                     width: 2),
                                 borderRadius: BorderRadius.circular(7)),
                             child: sel
@@ -835,27 +821,27 @@ class _Step1State extends State<_Step1> {
                                   style: const TextStyle(
                                       fontSize: 9,
                                       fontWeight: FontWeight.w800,
-                                      color: AppTheme.primary,
+                                      color: cGreen,
                                       letterSpacing: 1)),
                               const SizedBox(height: 2),
                               Text(p.name,
                                   style: const TextStyle(
                                       fontWeight: FontWeight.w700,
                                       fontSize: 14,
-                                      color: AppTheme.textPrimary),
+                                      color: cInk),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis),
                               Text('${p.type} · ${p.category}',
                                   style: const TextStyle(
                                       fontSize: 11,
-                                      color: AppTheme.textSecondary)),
+                                      color: cInk2)),
                             ])),
                         if (sel)
                           Container(
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 8, vertical: 4),
                               decoration: BoxDecoration(
-                                  color: AppTheme.primary,
+                                  color: cGreen,
                                   borderRadius: BorderRadius.circular(6)),
                               child: const Text('✓',
                                   style: TextStyle(
@@ -877,10 +863,10 @@ class _Step1State extends State<_Step1> {
       width: 46,
       height: 46,
       decoration: BoxDecoration(
-          color: AppTheme.primary.withValues(alpha: 0.08),
+          color: cGreenTint,
           borderRadius: BorderRadius.circular(10)),
       child: const Icon(Icons.inventory_2_outlined,
-          color: AppTheme.primary, size: 20));
+          color: cGreen, size: 20));
 }
 
 // ── Қадам 2: Размерлер + скидка ──────────────────────────────────────────────
@@ -966,7 +952,7 @@ class _CartCard extends StatelessWidget {
                 blurRadius: 12,
                 offset: const Offset(0, 3)),
             BoxShadow(
-                color: AppTheme.primary.withValues(alpha: 0.03),
+                color: cGreenTint.withValues(alpha: 0.5),
                 blurRadius: 6,
                 offset: const Offset(0, 1)),
           ]),
@@ -993,19 +979,19 @@ class _CartCard extends StatelessWidget {
                       style: const TextStyle(
                           fontSize: 9,
                           fontWeight: FontWeight.w800,
-                          color: AppTheme.primary,
+                          color: cGreen,
                           letterSpacing: 1)),
                   Text(item.product.name,
                       style: const TextStyle(
                           fontWeight: FontWeight.w700,
                           fontSize: 14,
-                          color: AppTheme.textPrimary),
+                          color: cInk),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis),
                   Text('${item.batch.sellingPrice.toStringAsFixed(0)} ₸/пара',
                       style: const TextStyle(
                           fontSize: 12,
-                          color: AppTheme.success,
+                          color: cGreen,
                           fontWeight: FontWeight.w700)),
                 ])),
             GestureDetector(
@@ -1013,10 +999,10 @@ class _CartCard extends StatelessWidget {
                 child: Container(
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
-                        color: AppTheme.dangerLight,
+                        color: cRedTint,
                         borderRadius: BorderRadius.circular(8)),
                     child: const Icon(Icons.close,
-                        size: 14, color: AppTheme.danger))),
+                        size: 14, color: cRed))),
           ]),
           const SizedBox(height: 12),
 
@@ -1025,14 +1011,14 @@ class _CartCard extends StatelessWidget {
               style: TextStyle(
                   fontSize: 9,
                   fontWeight: FontWeight.w800,
-                  color: AppTheme.textSecondary,
+                  color: cInk2,
                   letterSpacing: 0.8)),
           const SizedBox(height: 8),
 
           // Размер чиптері
           if (_availSizes.isEmpty)
             const Text('В этой партии нет остатка',
-                style: TextStyle(color: AppTheme.danger, fontSize: 12))
+                style: TextStyle(color: cRed, fontSize: 12))
           else
             Wrap(
                 spacing: 8,
@@ -1073,19 +1059,19 @@ class _CartCard extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
                   color: item.discountPercent > 0
-                      ? AppTheme.warning.withValues(alpha: 0.08)
-                      : AppTheme.background,
+                      ? cAmberTint
+                      : cBg,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                       color: item.discountPercent > 0
-                          ? AppTheme.warning.withValues(alpha: 0.4)
-                          : AppTheme.border)),
+                          ? cAmber.withValues(alpha: 0.4)
+                          : cLine)),
               child: Row(children: [
                 Icon(Icons.discount_outlined,
                     size: 16,
                     color: item.discountPercent > 0
-                        ? AppTheme.warning
-                        : AppTheme.textHint),
+                        ? cAmber
+                        : cInk3),
                 const SizedBox(width: 8),
                 Expanded(
                     child: item.discountPercent > 0
@@ -1094,17 +1080,17 @@ class _CartCard extends StatelessWidget {
                             '${item.total.toStringAsFixed(0)} ₸',
                             style: const TextStyle(
                                 fontSize: 12,
-                                color: AppTheme.warning,
+                                color: cAmber,
                                 fontWeight: FontWeight.w600))
                         : const Text('Добавить скидку',
                             style: TextStyle(
-                                fontSize: 12, color: AppTheme.textHint))),
+                                fontSize: 12, color: cInk3))),
                 if (item.qty > 0)
                   Text('${item.total.toStringAsFixed(0)} ₸',
                       style: const TextStyle(
                           fontWeight: FontWeight.w800,
                           fontSize: 16,
-                          color: AppTheme.primary)),
+                          color: cGreen)),
               ]),
             ),
           ),
@@ -1117,10 +1103,10 @@ class _CartCard extends StatelessWidget {
       width: 42,
       height: 42,
       decoration: BoxDecoration(
-          color: AppTheme.primary.withValues(alpha: 0.08),
+          color: cGreenTint,
           borderRadius: BorderRadius.circular(10)),
       child: const Icon(Icons.inventory_2_outlined,
-          color: AppTheme.primary, size: 18));
+          color: cGreen, size: 18));
 
   void _showQtyInput(BuildContext ctx, String size, int max, int current) {
     final ctrl = TextEditingController(text: '$current');
@@ -1142,12 +1128,12 @@ class _CartCard extends StatelessWidget {
                 focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
                     borderSide: const BorderSide(
-                        color: AppTheme.primary, width: 1.5)))),
+                        color: cGreen, width: 1.5)))),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(dCtx),
               child: const Text('Отмена',
-                  style: TextStyle(color: AppTheme.textSecondary))),
+                  style: TextStyle(color: cInk2))),
           ElevatedButton(
               onPressed: () {
                 final v = int.tryParse(ctrl.text) ?? 0;
@@ -1155,7 +1141,7 @@ class _CartCard extends StatelessWidget {
                 Navigator.pop(dCtx);
               },
               style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primary,
+                  backgroundColor: cGreen,
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8))),
@@ -1214,13 +1200,13 @@ class _SizeChip extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
           color: active
-              ? AppTheme.primary.withValues(alpha: 0.06)
-              : AppTheme.background,
+              ? cGreenTint
+              : cBg,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
               color: active
-                  ? AppTheme.primary.withValues(alpha: 0.4)
-                  : AppTheme.border,
+                  ? cGreen.withValues(alpha: 0.4)
+                  : cLine,
               width: active ? 1.5 : 1)),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         GestureDetector(
@@ -1230,7 +1216,7 @@ class _SizeChip extends StatelessWidget {
                 height: 28,
                 decoration: BoxDecoration(
                     color: cartQty > 0
-                        ? AppTheme.danger.withValues(alpha: 0.8)
+                        ? cRed.withValues(alpha: 0.8)
                         : Colors.grey.shade100,
                     borderRadius: const BorderRadius.only(
                         topLeft: Radius.circular(9),
@@ -1251,12 +1237,12 @@ class _SizeChip extends StatelessWidget {
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
                           color: active
-                              ? AppTheme.primary
-                              : AppTheme.textPrimary)),
+                              ? cGreen
+                              : cInk)),
                   Text(cartQty > 0 ? '$cartQty' : '0',
                       style: TextStyle(
                           fontSize: 11,
-                          color: active ? AppTheme.primary : AppTheme.textHint,
+                          color: active ? cGreen : cInk3,
                           fontWeight:
                               active ? FontWeight.w700 : FontWeight.w400)),
                 ],
@@ -1269,7 +1255,7 @@ class _SizeChip extends StatelessWidget {
                 height: 28,
                 decoration: BoxDecoration(
                     color:
-                        cartQty < max ? AppTheme.primary : Colors.grey.shade100,
+                        cartQty < max ? cGreen : Colors.grey.shade100,
                     borderRadius: const BorderRadius.only(
                         topRight: Radius.circular(9),
                         bottomRight: Radius.circular(9))),
@@ -1317,22 +1303,22 @@ class _Footer extends StatelessWidget {
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
               const Text('Итого:',
                   style:
-                      TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
+                      TextStyle(color: cInk2, fontSize: 13)),
               Text('${baseTotal.toStringAsFixed(0)} ₸',
                   style: const TextStyle(
                       fontSize: 13,
-                      color: AppTheme.textHint,
+                      color: cInk3,
                       decoration: TextDecoration.lineThrough)),
             ]),
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
             Text('Итого: $totalQty пар',
                 style: const TextStyle(
-                    color: AppTheme.textSecondary, fontSize: 14)),
+                    color: cInk2, fontSize: 14)),
             Text('${finalTotal.toStringAsFixed(0)} ₸',
                 style: const TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.w800,
-                    color: AppTheme.primary,
+                    color: cGreen,
                     letterSpacing: -0.5)),
           ]),
           const SizedBox(height: 10),
@@ -1348,7 +1334,7 @@ class _Footer extends StatelessWidget {
                       : onNext,
               style: ElevatedButton.styleFrom(
                   backgroundColor:
-                      step == 1 ? AppTheme.success : AppTheme.primary,
+                      step == 1 ? cGreen : cGreen,
                   foregroundColor: Colors.white,
                   disabledBackgroundColor: Colors.grey.shade200,
                   shape: RoundedRectangleBorder(
@@ -1394,15 +1380,15 @@ class _ToggleBtn extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
-              color: active ? AppTheme.primary : AppTheme.background,
+              color: active ? cGreen : cBg,
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                  color: active ? AppTheme.primary : AppTheme.border)),
+                  color: active ? cGreen : cLine)),
           child: Text(label,
               style: TextStyle(
                   fontWeight: FontWeight.w600,
                   fontSize: 13,
-                  color: active ? Colors.white : AppTheme.textSecondary)),
+                  color: active ? Colors.white : cInk2)),
         ),
       );
 }

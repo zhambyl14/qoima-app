@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../core/app_user.dart';
+import '../../core/warehouse_context.dart';
 import '../../core/contact_utils.dart';
 import '../../core/locale_context.dart';
 import '../../core/l10n_ext.dart';
+import '../../data/models/models.dart';
 import '../../data/services/auth_service.dart';
 import '../../data/services/firestore_service.dart';
-import '../../theme/app_theme.dart';
+import '../../theme/qoima_design.dart';
 import 'sellers_screen.dart';
 import 'warehouses_screen.dart';
 import 'store_settings_screen.dart';
@@ -29,16 +31,18 @@ class ProfileScreen extends StatelessWidget {
         .take(2)
         .join();
     final service = FirestoreService();
+    final wCtx = context.watch<WarehouseContext>();
+    final warehouseName = wCtx.current?.name ?? '';
 
     return Scaffold(
-      backgroundColor: AppTheme.background,
+      backgroundColor: cBg,
       body: CustomScrollView(slivers: [
         // ── Header ──────────────────────────────────────────────────────
         SliverToBoxAdapter(
             child: Container(
           decoration: const BoxDecoration(
               gradient: LinearGradient(
-                  colors: [Color(0xFF1E3A8A), Color(0xFF2D4FB5)],
+                  colors: [Color(0xFF00713F), Color(0xFF00A862)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight)),
           child: SafeArea(
@@ -125,7 +129,11 @@ class ProfileScreen extends StatelessWidget {
                           border: Border.all(
                               color: Colors.white.withValues(alpha: 0.3))),
                       child: Text(
-                        isAdmin ? l.adminBadge : l.sellerBadge,
+                        isAdmin
+                            ? l.adminBadge
+                            : (warehouseName.isNotEmpty
+                                ? '${l.sellerBadge} · $warehouseName'
+                                : l.sellerBadge),
                         style: const TextStyle(
                             color: Colors.white,
                             fontSize: 12,
@@ -200,10 +208,143 @@ class ProfileScreen extends StatelessWidget {
               delegate: SliverChildListDelegate([
             const SizedBox(height: 8),
 
+            // ── Seller stats ──────────────────────────────────────────────
+            if (!isAdmin) ...[
+              StreamBuilder<List<SaleModel>>(
+                stream: service.watchSalesHistory(),
+                builder: (_, snap) {
+                  final now = DateTime.now();
+                  final mySales = (snap.data ?? [])
+                      .where((s) =>
+                          s.sellerId == appUser.uid &&
+                          s.saleDate.month == now.month &&
+                          s.saleDate.year == now.year)
+                      .toList();
+                  final total =
+                      mySales.fold<double>(0, (a, b) => a + b.totalPrice);
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      QSecLabel('Статистика за месяц'),
+                      Row(children: [
+                        Expanded(
+                          child: QCard(
+                            padding: const EdgeInsets.all(15),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('${mySales.length}',
+                                    style: manrope(22, FontWeight.w800,
+                                        color: cInk)),
+                                Text('Продаж за месяц',
+                                    style: manrope(12, FontWeight.w600,
+                                        color: cInk3)),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: QCard(
+                            padding: const EdgeInsets.all(15),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(money(total),
+                                    style: manrope(18, FontWeight.w800,
+                                        color: cGreen)),
+                                Text('Выручка, ₸',
+                                    style: manrope(12, FontWeight.w600,
+                                        color: cInk3)),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ]),
+                      const SizedBox(height: 16),
+                    ],
+                  );
+                },
+              ),
+              QSecLabel('Настройки'),
+              QMenuItem(
+                icon: Icons.storefront_outlined,
+                tone: 'blue',
+                title: 'Мой склад',
+                subtitle: warehouseName.isNotEmpty ? warehouseName : null,
+                value: warehouseName.isNotEmpty ? 'Привязан' : null,
+              ),
+              const SizedBox(height: 8),
+              QMenuItem(
+                icon: Icons.language_rounded,
+                tone: 'ink',
+                title: l.language,
+                value: context.watch<LocaleContext>().locale.languageCode ==
+                        'kk'
+                    ? l.kazakh
+                    : l.russian,
+                onTap: () => _showLanguageDialog(context),
+              ),
+              const SizedBox(height: 8),
+              QMenuItem(
+                icon: Icons.info_outline_rounded,
+                tone: 'ink',
+                title: l.about,
+                subtitle: l.appVersion,
+                onTap: () => showAboutDialog(
+                  context: context,
+                  applicationName: 'Qoima',
+                  applicationVersion: '2.3',
+                  applicationLegalese: '© 2024 Qoima',
+                ),
+              ),
+              const SizedBox(height: 8),
+              QMenuItem(
+                icon: Icons.logout_rounded,
+                tone: 'red',
+                title: l.signOut,
+                danger: true,
+                onTap: () async {
+                  final ok = await showDialog<bool>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20)),
+                            title: Text(l.signOutConfirmTitle,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w700)),
+                            content: Text(l.signOutConfirmBody),
+                            actions: [
+                              TextButton(
+                                  onPressed: () => Navigator.pop(ctx, false),
+                                  child: Text(l.cancel,
+                                      style:
+                                          const TextStyle(color: cInk2))),
+                              ElevatedButton(
+                                  onPressed: () => Navigator.pop(ctx, true),
+                                  style: ElevatedButton.styleFrom(
+                                      backgroundColor: cRed,
+                                      foregroundColor: Colors.white,
+                                      shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(10))),
+                                  child: Text(l.signOut)),
+                            ],
+                          ));
+                  if (ok == true && context.mounted) {
+                    await AuthService().signOut();
+                  }
+                },
+              ),
+              const SizedBox(height: 24),
+              const _ContactCard(),
+              const SizedBox(height: 32),
+            ],
+
             if (isAdmin) ...[
               _MenuItem(
                 icon: Icons.group_outlined,
-                color: AppTheme.primary,
+                color: cGreen,
                 title: l.sellers,
                 subtitle: l.manageSellers,
                 onTap: () => Navigator.push(context,
@@ -241,6 +382,7 @@ class ProfileScreen extends StatelessWidget {
               const SizedBox(height: 8),
             ],
 
+            if (isAdmin) ...[
             _MenuItem(
               icon: Icons.language_rounded,
               color: const Color(0xFF0891B2),
@@ -254,10 +396,24 @@ class ProfileScreen extends StatelessWidget {
             const SizedBox(height: 8),
             _MenuItem(
               icon: Icons.info_outline_rounded,
-              color: AppTheme.primary,
+              color: cGreen,
               title: l.about,
               subtitle: l.appVersion,
-              onTap: () {},
+              onTap: () => showDialog(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20)),
+                      title: const Text('Qoima',
+                          style: TextStyle(fontWeight: FontWeight.w700)),
+                      content: const Text('Версия 2.3\n© 2024 Qoima'),
+                      actions: [
+                        TextButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            child: const Text('OK')),
+                      ],
+                    ),
+                  ),
             ),
             const SizedBox(height: 16),
 
@@ -280,15 +436,15 @@ class ProfileScreen extends StatelessWidget {
                 leading: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                        color: AppTheme.dangerLight,
+                        color: cRedTint,
                         borderRadius: BorderRadius.circular(8)),
                     child: const Icon(Icons.logout_rounded,
-                        color: AppTheme.danger, size: 20)),
+                        color: cRed, size: 20)),
                 title: Text(l.signOut,
                     style: const TextStyle(
-                        color: AppTheme.danger, fontWeight: FontWeight.w600)),
+                        color: cRed, fontWeight: FontWeight.w600)),
                 trailing: const Icon(Icons.chevron_right_rounded,
-                    color: AppTheme.textHint),
+                    color: cInk3),
                 onTap: () async {
                   final ok = await showDialog<bool>(
                       context: context,
@@ -304,11 +460,11 @@ class ProfileScreen extends StatelessWidget {
                                   onPressed: () => Navigator.pop(ctx, false),
                                   child: Text(l.cancel,
                                       style: const TextStyle(
-                                          color: AppTheme.textSecondary))),
+                                          color: cInk2))),
                               ElevatedButton(
                                   onPressed: () => Navigator.pop(ctx, true),
                                   style: ElevatedButton.styleFrom(
-                                      backgroundColor: AppTheme.danger,
+                                      backgroundColor: cRed,
                                       foregroundColor: Colors.white,
                                       shape: RoundedRectangleBorder(
                                           borderRadius:
@@ -324,6 +480,7 @@ class ProfileScreen extends StatelessWidget {
             ),
 
             const SizedBox(height: 32),
+            ], // end if (isAdmin)
           ])),
         ),
       ]),
@@ -385,7 +542,7 @@ class _ContactCard extends StatelessWidget {
     messenger.showSnackBar(SnackBar(
       content: Text(text),
       behavior: SnackBarBehavior.floating,
-      backgroundColor: AppTheme.danger,
+      backgroundColor: cRed,
     ));
   }
 
@@ -411,24 +568,24 @@ class _ContactCard extends StatelessWidget {
             Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                    color: AppTheme.primary.withValues(alpha: 0.08),
+                    color: cGreen.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8)),
                 child: const Icon(Icons.support_agent_rounded,
-                    color: AppTheme.primary, size: 20)),
+                    color: cGreen, size: 20)),
             const SizedBox(width: 10),
             Text(l.contactTitle,
                 style: const TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: 15,
-                    color: AppTheme.textPrimary)),
+                    color: cInk)),
           ]),
           const SizedBox(height: 14),
 
           // ── Телефон — прямой звонок ─────────────────────────────────
           _ContactTile(
             icon: Icons.phone_rounded,
-            iconColor: const Color(0xFF1E3A8A),
-            bgColor: const Color(0xFFEFF6FF),
+            iconColor: cBlue,
+            bgColor: cBlueTint,
             label: l.contactPhone,
             value: _phone,
             actionLabel: 'Қоңырау / Звонок',
@@ -537,7 +694,7 @@ class _ContactTile extends StatelessWidget {
                 Text(value,
                     style: const TextStyle(
                         fontSize: 14,
-                        color: AppTheme.textPrimary,
+                        color: cInk,
                         fontWeight: FontWeight.w700)),
               ],
             )),
@@ -574,31 +731,36 @@ class _MenuItem extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) => Container(
-        decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            boxShadow: [
-              BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2))
-            ]),
-        child: ListTile(
-          leading: Container(
-              padding: const EdgeInsets.all(8),
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
+          decoration: BoxDecoration(
+              color: cSurface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: cLine)),
+          child: Row(children: [
+            Container(
+              width: 40,
+              height: 40,
               decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(8)),
-              child: Icon(icon, color: color, size: 20)),
-          title: Text(title,
-              style: const TextStyle(
-                  fontWeight: FontWeight.w500, color: AppTheme.textPrimary)),
-          subtitle: Text(subtitle,
-              style: const TextStyle(color: AppTheme.textHint, fontSize: 12)),
-          trailing:
-              const Icon(Icons.chevron_right_rounded, color: AppTheme.textHint),
-          onTap: onTap,
+                  color: color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(13)),
+              child: Icon(icon, color: color, size: 20),
+            ),
+            const SizedBox(width: 13),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: manrope(14.5, FontWeight.w700, color: cInk)),
+                  Text(subtitle,
+                      style: manrope(12.5, FontWeight.w500, color: cInk3)),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded, color: cInk3, size: 20),
+          ]),
         ),
       );
 }
@@ -636,26 +798,26 @@ class _StoreMenuItem extends StatelessWidget {
           title: Row(children: [
             const Text('Менің дүкенім',
                 style: TextStyle(
-                    fontWeight: FontWeight.w500, color: AppTheme.textPrimary)),
+                    fontWeight: FontWeight.w500, color: cInk)),
             if (showBadge) ...[
               const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                    color: AppTheme.warning.withValues(alpha: 0.15),
+                    color: cAmber.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(6)),
                 child: const Text('Жарияланбаған',
                     style: TextStyle(
                         fontSize: 9,
                         fontWeight: FontWeight.w700,
-                        color: AppTheme.warning)),
+                        color: cAmber)),
               ),
             ],
           ]),
           subtitle: Text(subtitle,
-              style: const TextStyle(color: AppTheme.textHint, fontSize: 12)),
+              style: const TextStyle(color: cInk3, fontSize: 12)),
           trailing:
-              const Icon(Icons.chevron_right_rounded, color: AppTheme.textHint),
+              const Icon(Icons.chevron_right_rounded, color: cInk3),
           onTap: onTap,
         ),
       );
@@ -679,11 +841,11 @@ class _LangTile extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
           color: selected
-              ? AppTheme.primary.withValues(alpha: 0.06)
-              : AppTheme.background,
+              ? cGreen.withValues(alpha: 0.1)
+              : cBg,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-              color: selected ? AppTheme.primary : AppTheme.border,
+              color: selected ? cGreen : cLine,
               width: selected ? 1.5 : 1),
         ),
         child: Row(children: [
@@ -692,10 +854,10 @@ class _LangTile extends StatelessWidget {
                   style: TextStyle(
                       fontWeight: FontWeight.w600,
                       color:
-                          selected ? AppTheme.primary : AppTheme.textPrimary))),
+                          selected ? cGreen : cInk))),
           if (selected)
             const Icon(Icons.check_circle_rounded,
-                color: AppTheme.primary, size: 18),
+                color: cGreen, size: 18),
         ]),
       ),
     );

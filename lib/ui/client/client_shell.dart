@@ -1,7 +1,8 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import '../../theme/app_theme.dart';
+import '../../theme/qoima_design.dart';
 import '../../data/models/cart_item_model.dart';
 import 'client_home_screen.dart';
 import 'client_cart_screen.dart';
@@ -52,10 +53,9 @@ class ClientShellState extends State<ClientShell> {
   void setIndex(int i) => setState(() => _currentIndex = i);
 
   static const List<_TabDef> _tabs = [
-    _TabDef(Icons.storefront_outlined, Icons.storefront_rounded, 'Дүкен'),
-    _TabDef(Icons.shopping_cart_outlined, Icons.shopping_cart_rounded, 'Себет'),
-    _TabDef(
-        Icons.receipt_long_outlined, Icons.receipt_long_rounded, 'Тапсырыстар'),
+    _TabDef(Icons.storefront_outlined, Icons.storefront_rounded, 'Каталог'),
+    _TabDef(Icons.shopping_cart_outlined, Icons.shopping_cart_rounded, 'Корзина'),
+    _TabDef(Icons.receipt_long_outlined, Icons.receipt_long_rounded, 'Заказы'),
     _TabDef(Icons.person_outline_rounded, Icons.person_rounded, 'Профиль'),
   ];
 
@@ -69,24 +69,22 @@ class ClientShellState extends State<ClientShell> {
   @override
   Widget build(BuildContext context) {
     final cartCount = context.watch<CartProvider>().count;
+    final bottomPad = MediaQuery.of(context).padding.bottom;
 
     return Scaffold(
+      backgroundColor: cBg,
       body: IndexedStack(index: _currentIndex, children: _screens),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
-              blurRadius: 20,
-              offset: const Offset(0, -4),
+      bottomNavigationBar: ClipRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.92),
+              border: const Border(top: BorderSide(color: cLine, width: 1)),
             ),
-          ],
-        ),
-        child: SafeArea(
-          child: SizedBox(
-            height: 64,
+            padding: EdgeInsets.fromLTRB(12, 9, 12, 26 + bottomPad),
             child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: List.generate(_tabs.length, (i) {
                 final active = i == _currentIndex;
                 return Expanded(
@@ -97,58 +95,45 @@ class ClientShellState extends State<ClientShell> {
                     },
                     behavior: HitTestBehavior.opaque,
                     child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Stack(
                           clipBehavior: Clip.none,
                           children: [
-                            AnimatedContainer(
-                              duration: const Duration(milliseconds: 200),
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: active
-                                    ? AppTheme.primary.withValues(alpha: 0.1)
-                                    : Colors.transparent,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Icon(
-                                active ? _tabs[i].activeIcon : _tabs[i].icon,
-                                color: active
-                                    ? AppTheme.primary
-                                    : AppTheme.textHint,
-                                size: 22,
-                              ),
+                            Icon(
+                              active ? _tabs[i].activeIcon : _tabs[i].icon,
+                              color: active ? cGreen : cInk3,
+                              size: 24,
                             ),
                             if (i == 1 && cartCount > 0)
                               Positioned(
-                                top: -2,
-                                right: -2,
+                                top: -4,
+                                right: -6,
                                 child: Container(
-                                  padding: const EdgeInsets.all(3),
+                                  width: 14,
+                                  height: 14,
                                   decoration: const BoxDecoration(
-                                      color: AppTheme.danger,
-                                      shape: BoxShape.circle),
-                                  child: Text(
-                                    cartCount > 9 ? '9+' : '$cartCount',
-                                    style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 9,
-                                        fontWeight: FontWeight.w700),
+                                      color: cRed, shape: BoxShape.circle),
+                                  child: Center(
+                                    child: Text(
+                                      cartCount > 9 ? '9+' : '$cartCount',
+                                      style: manrope(8, FontWeight.w800,
+                                          color: Colors.white),
+                                    ),
                                   ),
                                 ),
                               ),
                           ],
                         ),
-                        const SizedBox(height: 2),
-                        Text(_tabs[i].label,
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight:
-                                  active ? FontWeight.w700 : FontWeight.w400,
-                              color:
-                                  active ? AppTheme.primary : AppTheme.textHint,
-                            )),
+                        const SizedBox(height: 3),
+                        Text(
+                          _tabs[i].label,
+                          style: manrope(
+                            10.5,
+                            active ? FontWeight.w700 : FontWeight.w600,
+                            color: active ? cGreen : cInk3,
+                          ),
+                        ),
                       ],
                     ),
                   ),

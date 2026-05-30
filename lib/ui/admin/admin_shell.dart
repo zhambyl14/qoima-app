@@ -1,12 +1,13 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../analytics/analytics_screen.dart';
 import '../products/products_screen.dart';
 import '../profile/profile_screen.dart';
 import '../sales/sales_screen.dart';
-import 'online_orders_screen.dart';
+import 'admin_home_screen.dart';
 import '../../data/services/firestore_service.dart';
-import '../../theme/app_theme.dart';
+import '../../theme/qoima_design.dart';
 
 class AdminShell extends StatefulWidget {
   const AdminShell({super.key});
@@ -18,45 +19,40 @@ class _AdminShellState extends State<AdminShell> {
   int _index = 0;
 
   static const List<_TabDef> _tabs = [
-    _TabDef(Icons.bar_chart_outlined, Icons.bar_chart_rounded, 'Аналитика'),
-    _TabDef(Icons.inventory_2_outlined, Icons.inventory_2_rounded, 'Склад'),
-    _TabDef(Icons.shopping_bag_outlined, Icons.shopping_bag_rounded, 'Онлайн'),
+    _TabDef(Icons.home_outlined, Icons.home_rounded, 'Главная'),
+    _TabDef(Icons.inventory_2_outlined, Icons.inventory_2_rounded, 'Товары'),
     _TabDef(Icons.receipt_long_outlined, Icons.receipt_long_rounded, 'Продажи'),
+    _TabDef(Icons.bar_chart_outlined, Icons.bar_chart_rounded, 'Аналитика'),
     _TabDef(Icons.person_outline_rounded, Icons.person_rounded, 'Профиль'),
   ];
 
-  static const List<Widget> _screens = [
-    AnalyticsScreen(),
-    ProductsScreen(),
-    OnlineOrdersScreen(),
-    SalesScreen(),
-    ProfileScreen(),
+  static final List<Widget> _screens = [
+    const AdminHomeScreen(),
+    const ProductsScreen(),
+    const SalesScreen(),
+    const AnalyticsScreen(),
+    const ProfileScreen(),
   ];
 
   @override
   Widget build(BuildContext context) {
+    final bottomPad = MediaQuery.of(context).padding.bottom;
     return Scaffold(
-      backgroundColor: AppTheme.background,
+      backgroundColor: cBg,
       body: _FadeIndexedStack(index: _index, children: _screens),
-      bottomNavigationBar: Container(
-        decoration: const BoxDecoration(
-          color: AppTheme.surface,
-          border: Border(top: BorderSide(color: AppTheme.border)),
-          boxShadow: [
-            BoxShadow(
-              color: Color(0x0F0F172A),
-              blurRadius: 24,
-              offset: Offset(0, -8),
+      bottomNavigationBar: ClipRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.92),
+              border: const Border(top: BorderSide(color: cLine, width: 1)),
             ),
-          ],
-        ),
-        child: SafeArea(
-          child: SizedBox(
-            height: 64,
+            padding: EdgeInsets.fromLTRB(12, 9, 12, 26 + bottomPad),
             child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: List.generate(_tabs.length, (i) {
                 final active = i == _index;
-                final tab = _tabs[i];
                 return Expanded(
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
@@ -65,43 +61,26 @@ class _AdminShellState extends State<AdminShell> {
                       setState(() => _index = i);
                     },
                     child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Stack(clipBehavior: Clip.none, children: [
-                          AnimatedContainer(
-                            duration: const Duration(milliseconds: 200),
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 14, vertical: 5),
-                            decoration: BoxDecoration(
-                              color: active
-                                  ? AppTheme.primarySoft
-                                  : Colors.transparent,
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            child: Icon(
-                              active ? tab.activeIcon : tab.icon,
-                              size: 20,
-                              color:
-                                  active ? AppTheme.primary : AppTheme.textHint,
-                            ),
+                          Icon(
+                            active ? _tabs[i].activeIcon : _tabs[i].icon,
+                            color: active ? cGreen : cInk3,
+                            size: 24,
                           ),
-                          if (i == 2)
-                            const Positioned(
-                              right: 0,
-                              top: 0,
-                              child: _OnlineBadge(),
-                            ),
+                          if (i == 0) Positioned(
+                            top: -4, right: -6,
+                            child: _OnlineBadge(),
+                          ),
                         ]),
                         const SizedBox(height: 3),
                         Text(
-                          tab.label,
-                          style: TextStyle(
-                            fontSize: 9.5,
-                            fontWeight:
-                                active ? FontWeight.w700 : FontWeight.w500,
-                            color:
-                                active ? AppTheme.primary : AppTheme.textHint,
-                            letterSpacing: 0.2,
+                          _tabs[i].label,
+                          style: manrope(
+                            10.5,
+                            active ? FontWeight.w700 : FontWeight.w600,
+                            color: active ? cGreen : cInk3,
                           ),
                         ),
                       ],
@@ -117,19 +96,13 @@ class _AdminShellState extends State<AdminShell> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-
 class _TabDef {
   final IconData icon, activeIcon;
   final String label;
   const _TabDef(this.icon, this.activeIcon, this.label);
 }
 
-// ─── Active online orders badge ───────────────────────────────────────────────
-
 class _OnlineBadge extends StatelessWidget {
-  const _OnlineBadge();
-
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<int>(
@@ -138,20 +111,18 @@ class _OnlineBadge extends StatelessWidget {
         final count = snap.data ?? 0;
         if (count == 0) return const SizedBox.shrink();
         return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-          constraints: const BoxConstraints(minWidth: 16),
+          constraints: const BoxConstraints(minWidth: 14, minHeight: 14),
+          padding: const EdgeInsets.all(2),
           decoration: BoxDecoration(
-            color: AppTheme.hot,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.white, width: 2),
+            color: cRed,
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: 1.5),
           ),
-          child: Text(
-            count > 99 ? '99+' : '$count',
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 9,
-              fontWeight: FontWeight.w800,
+          child: Center(
+            child: Text(
+              count > 99 ? '99+' : '$count',
+              textAlign: TextAlign.center,
+              style: manrope(8, FontWeight.w800, color: Colors.white),
             ),
           ),
         );
@@ -159,8 +130,6 @@ class _OnlineBadge extends StatelessWidget {
     );
   }
 }
-
-// ─── Fade + IndexedStack (preserves screen state across tab switches) ─────────
 
 class _FadeIndexedStack extends StatefulWidget {
   final int index;

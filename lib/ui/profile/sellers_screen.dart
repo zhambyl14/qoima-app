@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../data/models/warehouse_model.dart';
 import '../../data/services/firestore_service.dart';
-import '../../theme/app_theme.dart';
+import '../../theme/qoima_design.dart';
 
 class SellersScreen extends StatefulWidget {
   const SellersScreen({super.key});
@@ -23,64 +23,98 @@ class _SellersScreenState extends State<SellersScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.background,
+      backgroundColor: cBg,
       body: CustomScrollView(slivers: [
         // ── Header ──────────────────────────────────────────────────────
         SliverToBoxAdapter(
             child: Container(
-          decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                  colors: [Color(0xFF1E3A8A), Color(0xFF2D4FB5)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight)),
+          decoration: const BoxDecoration(gradient: kGrad),
           child: SafeArea(
               bottom: false,
-              child: Column(children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                  child: Row(children: [
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 6, 20, 16),
+                child: Column(children: [
+                  Row(children: [
                     GestureDetector(
                         onTap: () => Navigator.pop(context),
                         child: Container(
-                            padding: const EdgeInsets.all(8),
+                            width: 38,
+                            height: 38,
+                            margin: const EdgeInsets.only(right: 10),
                             decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(10)),
-                            child: const Icon(Icons.arrow_back_ios_new,
-                                color: Colors.white, size: 16))),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                        child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                          Text('Сатушылар',
-                              style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w700)),
-                          Text('Жалданбал сатушылар тізімі',
-                              style: TextStyle(
-                                  color: Colors.white60, fontSize: 12)),
-                        ])),
+                                color: Colors.white.withValues(alpha: 0.16),
+                                borderRadius: BorderRadius.circular(12)),
+                            child: const Icon(Icons.chevron_left_rounded,
+                                color: Colors.white, size: 22))),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Продавцы',
+                              style: manrope(23, FontWeight.w800,
+                                  color: Colors.white, letterSpacing: -0.5)),
+                          StreamBuilder<List<Map<String, dynamic>>>(
+                            stream: _service.watchActiveSellers(),
+                            builder: (_, s) => StreamBuilder<
+                                List<Map<String, dynamic>>>(
+                              stream: _service.watchPendingRequests(),
+                              builder: (_, p) => Text(
+                                '${s.data?.length ?? 0} активных · ${p.data?.length ?? 0} запросов',
+                                style: manrope(13, FontWeight.w500,
+                                    color:
+                                        Colors.white.withValues(alpha: 0.78)),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ]),
-                ),
-                const SizedBox(height: 12),
-                TabBar(
-                  controller: _tab,
-                  indicatorColor: Colors.white,
-                  indicatorWeight: 2.5,
-                  labelColor: Colors.white,
-                  unselectedLabelColor: Colors.white54,
-                  labelStyle: const TextStyle(
-                      fontWeight: FontWeight.w700, fontSize: 13),
-                  unselectedLabelStyle: const TextStyle(
-                      fontWeight: FontWeight.w400, fontSize: 13),
-                  tabs: const [
-                    Tab(text: 'Белсенді'),
-                    Tab(text: 'Күтуде'),
-                  ],
-                ),
-              ])),
+                  const SizedBox(height: 14),
+                  // Pill tabs
+                  AnimatedBuilder(
+                    animation: _tab,
+                    builder: (_, __) => Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(13)),
+                      child: Row(
+                        children: ['Активные', 'Запросы']
+                            .asMap()
+                            .entries
+                            .map((e) {
+                          final active = _tab.index == e.key;
+                          return Expanded(
+                            child: GestureDetector(
+                              onTap: () => _tab.animateTo(e.key),
+                              child: Container(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 9),
+                                decoration: BoxDecoration(
+                                    color: active
+                                        ? Colors.white
+                                        : Colors.transparent,
+                                    borderRadius:
+                                        BorderRadius.circular(10)),
+                                child: Text(e.value,
+                                    textAlign: TextAlign.center,
+                                    style: manrope(
+                                        13,
+                                        FontWeight.w700,
+                                        color: active
+                                            ? cGreenDeep
+                                            : Colors.white.withValues(
+                                                alpha: 0.85))),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ),
+                ]),
+              )),
         )),
 
         // ── Tab content ──────────────────────────────────────────────────
@@ -109,7 +143,7 @@ class _ActiveTab extends StatelessWidget {
       builder: (_, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
           return const Center(
-              child: CircularProgressIndicator(color: AppTheme.primary));
+              child: CircularProgressIndicator(color: cGreen));
         }
         final sellers = snap.data ?? [];
         if (sellers.isEmpty) {
@@ -122,7 +156,7 @@ class _ActiveTab extends StatelessWidget {
               const Text('Белсенді сатушы жоқ',
                   style: TextStyle(
                       fontSize: 15,
-                      color: AppTheme.textSecondary,
+                      color: cInk2,
                       fontWeight: FontWeight.w500)),
             ],
           ));
@@ -159,37 +193,33 @@ class _ActiveSellerCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: [
-            BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 2))
-          ]),
+          color: cSurface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: cLine),
+          boxShadow: kShadowSm),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         leading: Container(
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-                color: AppTheme.primary.withValues(alpha: 0.1),
+                color: cGreen.withValues(alpha: 0.1),
                 shape: BoxShape.circle),
             child: Center(
                 child: Text(initials.isEmpty ? '?' : initials,
                     style: const TextStyle(
                         fontWeight: FontWeight.w700,
                         fontSize: 14,
-                        color: AppTheme.primary)))),
+                        color: cGreen)))),
         title: Text(name,
             style: const TextStyle(
                 fontWeight: FontWeight.w600,
                 fontSize: 14,
-                color: AppTheme.textPrimary)),
+                color: cInk)),
         subtitle:
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(email,
-              style: const TextStyle(color: AppTheme.textHint, fontSize: 12)),
+              style: const TextStyle(color: cInk3, fontSize: 12)),
           StreamBuilder<List<WarehouseModel>>(
             stream: service.watchWarehouses(),
             builder: (_, snap) {
@@ -199,21 +229,21 @@ class _ActiveSellerCard extends StatelessWidget {
                 child: DropdownButton<String>(
                   value: warehouses.any((w) => w.id == whId) ? whId : null,
                   hint: const Text('Қойма таңдаңыз',
-                      style: TextStyle(fontSize: 12, color: AppTheme.textHint)),
+                      style: TextStyle(fontSize: 12, color: cInk3)),
                   isDense: true,
                   style: const TextStyle(
                       fontSize: 12,
-                      color: AppTheme.textPrimary,
+                      color: cInk,
                       fontWeight: FontWeight.w500),
                   icon: const Icon(Icons.arrow_drop_down,
-                      size: 18, color: AppTheme.textHint),
+                      size: 18, color: cInk3),
                   items: warehouses
                       .map((wh) => DropdownMenuItem(
                             value: wh.id,
                             child:
                                 Row(mainAxisSize: MainAxisSize.min, children: [
                               const Icon(Icons.warehouse_outlined,
-                                  size: 12, color: AppTheme.primary),
+                                  size: 12, color: cGreen),
                               const SizedBox(width: 4),
                               Text(wh.name,
                                   style: const TextStyle(fontSize: 12)),
@@ -230,7 +260,7 @@ class _ActiveSellerCard extends StatelessWidget {
           ),
         ]),
         trailing: PopupMenuButton<String>(
-          icon: const Icon(Icons.more_vert, color: AppTheme.textHint, size: 20),
+          icon: const Icon(Icons.more_vert, color: cInk3, size: 20),
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           onSelected: (val) async {
@@ -249,7 +279,7 @@ class _ActiveSellerCard extends StatelessWidget {
                           ElevatedButton(
                               onPressed: () => Navigator.pop(context, true),
                               style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppTheme.danger,
+                                  backgroundColor: cRed,
                                   foregroundColor: Colors.white),
                               child: const Text('Жою')),
                         ],
@@ -262,9 +292,9 @@ class _ActiveSellerCard extends StatelessWidget {
                 value: 'remove',
                 child: Row(children: [
                   Icon(Icons.person_remove_outlined,
-                      size: 16, color: AppTheme.danger),
+                      size: 16, color: cRed),
                   SizedBox(width: 8),
-                  Text('Жою', style: TextStyle(color: AppTheme.danger)),
+                  Text('Жою', style: TextStyle(color: cRed)),
                 ])),
           ],
         ),
@@ -299,16 +329,16 @@ class _WarehousePicker extends StatelessWidget {
             style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
-                color: AppTheme.textPrimary)),
+                color: cInk)),
         const SizedBox(height: 12),
         ...warehouses.map((wh) => ListTile(
               leading: Icon(Icons.warehouse_outlined,
                   color: wh.id == currentId
-                      ? AppTheme.primary
-                      : AppTheme.textHint),
+                      ? cGreen
+                      : cInk3),
               title: Text(wh.name),
               trailing: wh.id == currentId
-                  ? const Icon(Icons.check_rounded, color: AppTheme.primary)
+                  ? const Icon(Icons.check_rounded, color: cGreen)
                   : null,
               onTap: () => onSelect(wh),
             )),
@@ -329,7 +359,7 @@ class _PendingTab extends StatelessWidget {
       builder: (_, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
           return const Center(
-              child: CircularProgressIndicator(color: AppTheme.primary));
+              child: CircularProgressIndicator(color: cGreen));
         }
         final requests = snap.data ?? [];
         if (requests.isEmpty) {
@@ -343,7 +373,7 @@ class _PendingTab extends StatelessWidget {
               const Text('Күтуде өтінім жоқ',
                   style: TextStyle(
                       fontSize: 15,
-                      color: AppTheme.textSecondary,
+                      color: cInk2,
                       fontWeight: FontWeight.w500)),
             ],
           ));
@@ -397,16 +427,10 @@ class _PendingCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border:
-              Border.all(color: const Color(0xFFFBBF24).withValues(alpha: 0.5)),
-          boxShadow: [
-            BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 2))
-          ]),
+          color: cSurface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: cAmber.withValues(alpha: 0.44), width: 1.5),
+          boxShadow: kShadowSm),
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Row(children: [
@@ -431,10 +455,10 @@ class _PendingCard extends StatelessWidget {
                     style: const TextStyle(
                         fontWeight: FontWeight.w600,
                         fontSize: 14,
-                        color: AppTheme.textPrimary)),
+                        color: cInk)),
                 Text(email,
                     style: const TextStyle(
-                        color: AppTheme.textHint, fontSize: 12)),
+                        color: cInk3, fontSize: 12)),
               ])),
           const SizedBox(width: 8),
           // Қабылдау
@@ -469,7 +493,7 @@ class _PendingCard extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
-                    color: AppTheme.success,
+                    color: cGreen,
                     borderRadius: BorderRadius.circular(8)),
                 child: const Text('Қабылдау',
                     style: TextStyle(
@@ -489,11 +513,11 @@ class _PendingCard extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
-                    color: AppTheme.dangerLight,
+                    color: cRedTint,
                     borderRadius: BorderRadius.circular(8)),
                 child: const Text('Бас тарту',
                     style: TextStyle(
-                        color: AppTheme.danger,
+                        color: cRed,
                         fontSize: 12,
                         fontWeight: FontWeight.w700))),
           ),

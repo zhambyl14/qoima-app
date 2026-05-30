@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../data/models/models.dart';
 import '../../data/services/firestore_service.dart';
-import '../../theme/app_theme.dart';
+import '../../theme/qoima_design.dart';
 
 class SellerDrilldownScreen extends StatelessWidget {
   final String sellerId;
@@ -18,7 +18,7 @@ class SellerDrilldownScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.background,
+      backgroundColor: cBg,
       body: StreamBuilder<List<ProductModel>>(
         stream: FirestoreService().watchProducts(),
         builder: (_, pSnap) {
@@ -30,7 +30,7 @@ class SellerDrilldownScreen extends StatelessWidget {
             builder: (_, snap) {
               if (snap.connectionState == ConnectionState.waiting) {
                 return const Center(
-                    child: CircularProgressIndicator(color: AppTheme.primary));
+                    child: CircularProgressIndicator(color: cGreen));
               }
               final all = snap.data ?? [];
               final sales = all
@@ -68,19 +68,19 @@ class SellerDrilldownScreen extends StatelessWidget {
                               label: 'Сатулар',
                               value: '${sales.length}',
                               sub: 'транзакция',
-                              color: AppTheme.primary),
+                              color: cGreen),
                           const SizedBox(width: 8),
                           _KpiCard(
                               label: 'Жұптар',
                               value: '$totalPairs',
                               sub: 'дана',
-                              color: AppTheme.primaryLight),
+                              color: cGreenBright),
                           const SizedBox(width: 8),
                           _KpiCard(
                               label: 'Орт. чек',
                               value: _fmt(avgCheck),
                               sub: '₸',
-                              color: AppTheme.success),
+                              color: cGreen),
                         ],
                       ),
                     ),
@@ -106,7 +106,7 @@ class SellerDrilldownScreen extends StatelessWidget {
                             style: TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,
-                                color: AppTheme.textPrimary)),
+                                color: cInk)),
                       ),
                     ),
                     SliverToBoxAdapter(
@@ -138,7 +138,7 @@ class SellerDrilldownScreen extends StatelessWidget {
                           style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w700,
-                              color: AppTheme.textPrimary)),
+                              color: cInk)),
                     ),
                   ),
 
@@ -150,7 +150,7 @@ class SellerDrilldownScreen extends StatelessWidget {
                           padding: EdgeInsets.all(32),
                           child: Text('Осы айда сатулар жоқ',
                               style: TextStyle(
-                                  color: AppTheme.textSecondary, fontSize: 14)),
+                                  color: cInk2, fontSize: 14)),
                         ),
                       ),
                     )
@@ -213,7 +213,7 @@ class _Header extends StatelessWidget {
       child: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [AppTheme.primary, AppTheme.primaryLight],
+            colors: [cGreen, cGreenBright],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -286,7 +286,7 @@ class _KpiCard extends StatelessWidget {
                 overflow: TextOverflow.ellipsis),
             Text(sub,
                 style: const TextStyle(
-                    fontSize: 11, color: AppTheme.textSecondary)),
+                    fontSize: 11, color: cInk2)),
           ]),
         ),
       );
@@ -323,11 +323,11 @@ class _RevenueCard extends StatelessWidget {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: AppTheme.success.withValues(alpha: 0.12),
+              color: cGreen.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(12),
             ),
             child: const Icon(Icons.payments_outlined,
-                color: AppTheme.success, size: 22),
+                color: cGreen, size: 22),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -335,24 +335,24 @@ class _RevenueCard extends StatelessWidget {
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               const Text('Жалпы түсім',
                   style:
-                      TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+                      TextStyle(fontSize: 12, color: cInk2)),
               Text(_fmt(totalRevenue),
                   style: const TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w800,
-                      color: AppTheme.success)),
+                      color: cGreen)),
             ]),
           ),
           if (totalDiscount > 0)
             Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
               const Text('Жеңілдік',
                   style:
-                      TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+                      TextStyle(fontSize: 11, color: cInk2)),
               Text('−${_fmt(totalDiscount)}',
                   style: const TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
-                      color: AppTheme.warning)),
+                      color: cAmber)),
             ]),
         ],
       ),
@@ -377,12 +377,12 @@ class _DiscountCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppTheme.warningLight,
+        color: cAmberTint,
         borderRadius: BorderRadius.circular(14),
       ),
       child: Row(children: [
         const Icon(Icons.local_offer_outlined,
-            color: AppTheme.warning, size: 20),
+            color: cAmber, size: 20),
         const SizedBox(width: 10),
         Expanded(
             child: Text(
@@ -446,16 +446,16 @@ class _DailyChartState extends State<_DailyChart> {
                     style: const TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: AppTheme.textSecondary)),
+                        color: cInk2)),
                 const Spacer(),
                 Text(_fmtRevenue(byDay[_tapped!]),
                     style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w800,
-                        color: AppTheme.success)),
+                        color: cGreen)),
               ] else ...[
                 const Text('Барлығы',
-                    style: TextStyle(fontSize: 12, color: AppTheme.textHint)),
+                    style: TextStyle(fontSize: 12, color: cInk3)),
                 const Spacer(),
                 Text(
                   _fmtRevenue(
@@ -463,7 +463,7 @@ class _DailyChartState extends State<_DailyChart> {
                   style: const TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
-                      color: AppTheme.primary),
+                      color: cGreen),
                 ),
               ],
             ]),
@@ -487,10 +487,10 @@ class _DailyChartState extends State<_DailyChart> {
                         height: v > 0 ? (v / effectiveMax) * 66 + 3 : 2,
                         decoration: BoxDecoration(
                           color: isSel
-                              ? AppTheme.success
+                              ? cGreen
                               : v > 0
-                                  ? AppTheme.primary
-                                  : AppTheme.border,
+                                  ? cGreen
+                                  : cLine,
                           borderRadius: const BorderRadius.vertical(
                               top: Radius.circular(2)),
                         ),
@@ -516,7 +516,7 @@ class _DailyChartState extends State<_DailyChart> {
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 9,
-                    color: isSel ? AppTheme.primary : AppTheme.textHint,
+                    color: isSel ? cGreen : cInk3,
                     fontWeight: isSel ? FontWeight.w700 : FontWeight.w400,
                   ),
                 ),
@@ -569,7 +569,7 @@ class _SaleRow extends StatelessWidget {
           width: 36,
           height: 36,
           decoration: BoxDecoration(
-            color: AppTheme.primary.withValues(alpha: 0.08),
+            color: cGreen.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(10),
           ),
           child: Center(
@@ -577,7 +577,7 @@ class _SaleRow extends StatelessWidget {
                 style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
-                    color: AppTheme.primary)),
+                    color: cGreen)),
           ),
         ),
         const SizedBox(width: 12),
@@ -589,7 +589,7 @@ class _SaleRow extends StatelessWidget {
                   style: const TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
-                      color: AppTheme.textPrimary),
+                      color: cInk),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis),
             Text('Өл. ${sale.selectedSize} · $dateStr',
@@ -599,8 +599,8 @@ class _SaleRow extends StatelessWidget {
                         ? FontWeight.w400
                         : FontWeight.w600,
                     color: productName.isNotEmpty
-                        ? AppTheme.textHint
-                        : AppTheme.textPrimary)),
+                        ? cInk3
+                        : cInk)),
           ]),
         ),
         Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
@@ -608,12 +608,12 @@ class _SaleRow extends StatelessWidget {
               style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
-                  color: AppTheme.textPrimary)),
+                  color: cInk)),
           if (hasDiscount)
             Text('−${sale.discountAmount.toStringAsFixed(0)} ₸',
                 style: const TextStyle(
                     fontSize: 11,
-                    color: AppTheme.warning,
+                    color: cAmber,
                     fontWeight: FontWeight.w500)),
         ]),
       ]),

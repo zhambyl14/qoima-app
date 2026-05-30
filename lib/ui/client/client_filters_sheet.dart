@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../data/models/store_model.dart';
 import '../../data/models/product_model.dart';
 import '../../data/models/batch_model.dart';
-import '../../theme/app_theme.dart';
+import '../../theme/qoima_design.dart';
 import 'client_home_screen.dart';
 
 class ClientFiltersSheet extends StatefulWidget {
@@ -97,7 +97,7 @@ class _ClientFiltersSheetState extends State<ClientFiltersSheet> {
             height: 4,
             margin: const EdgeInsets.symmetric(vertical: 12),
             decoration: BoxDecoration(
-                color: AppTheme.border, borderRadius: BorderRadius.circular(2)),
+                color: cLine, borderRadius: BorderRadius.circular(2)),
           ),
           // Header
           Padding(
@@ -107,13 +107,13 @@ class _ClientFiltersSheetState extends State<ClientFiltersSheet> {
                   style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w800,
-                      color: AppTheme.textPrimary)),
+                      color: cInk)),
               const Spacer(),
               if (_f.activeCount > 0)
                 TextButton(
                   onPressed: () => setState(() => _f = const ClientFilters()),
                   child: const Text('Сбросить',
-                      style: TextStyle(color: AppTheme.danger, fontSize: 13)),
+                      style: TextStyle(color: cRed, fontSize: 13)),
                 ),
             ]),
           ),
@@ -291,7 +291,7 @@ class _ClientFiltersSheetState extends State<ClientFiltersSheet> {
               child: ElevatedButton(
                 onPressed: () => Navigator.pop(context, _f),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primary,
+                  backgroundColor: cGreen,
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14)),
@@ -335,7 +335,7 @@ class _SectionTitle extends StatelessWidget {
       style: const TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.w700,
-          color: AppTheme.textPrimary));
+          color: cInk));
 }
 
 class _OptionChip extends StatelessWidget {
@@ -352,16 +352,16 @@ class _OptionChip extends StatelessWidget {
           duration: const Duration(milliseconds: 150),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
           decoration: BoxDecoration(
-            color: selected ? AppTheme.primary : AppTheme.background,
+            color: selected ? cGreen : cBg,
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-                color: selected ? AppTheme.primary : AppTheme.border),
+                color: selected ? cGreen : cLine),
           ),
           child: Text(label,
               style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  color: selected ? Colors.white : AppTheme.textPrimary)),
+                  color: selected ? Colors.white : cInk)),
         ),
       );
 }
@@ -381,10 +381,10 @@ class _SizeChip extends StatelessWidget {
           width: 52,
           height: 42,
           decoration: BoxDecoration(
-            color: selected ? AppTheme.primary : AppTheme.background,
+            color: selected ? cGreen : cBg,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
-                color: selected ? AppTheme.primary : AppTheme.border,
+                color: selected ? cGreen : cLine,
                 width: selected ? 2 : 1),
           ),
           child: Center(
@@ -392,7 +392,7 @@ class _SizeChip extends StatelessWidget {
                 style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
-                    color: selected ? Colors.white : AppTheme.textPrimary)),
+                    color: selected ? Colors.white : cInk)),
           ),
         ),
       );
@@ -437,14 +437,14 @@ class _PriceFieldState extends State<_PriceField> {
           hintText: widget.hint,
           suffixText: '₸',
           filled: true,
-          fillColor: AppTheme.background,
+          fillColor: cBg,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
-            borderSide: const BorderSide(color: AppTheme.border),
+            borderSide: const BorderSide(color: cLine),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
-            borderSide: const BorderSide(color: AppTheme.border),
+            borderSide: const BorderSide(color: cLine),
           ),
           contentPadding:
               const EdgeInsets.symmetric(horizontal: 12, vertical: 12),

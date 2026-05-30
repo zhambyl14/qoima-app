@@ -5,7 +5,7 @@ import '../../data/models/store_model.dart';
 import '../../data/models/batch_model.dart';
 import '../../data/models/cart_item_model.dart';
 import '../../data/services/client_service.dart';
-import '../../theme/app_theme.dart';
+import '../../theme/qoima_design.dart';
 import 'client_shell.dart';
 
 class ClientProductDetail extends StatefulWidget {
@@ -22,12 +22,11 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
   final _service = ClientService();
 
   List<BatchModel> _batches = [];
-  Map<String, String> _warehouseAddress = {}; // warehouseId → address
+  Map<String, String> _warehouseAddress = {};
   bool _loading = true;
   String? _selectedSize;
   int _pageIndex = 0;
 
-  // Aggregated: size → total *available* (unreserved) qty across batches
   Map<String, int> get _available {
     final map = <String, int>{};
     for (final b in _batches) {
@@ -38,9 +37,9 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
     return map;
   }
 
-  double get _price => _batches.isNotEmpty ? _batches.first.sellingPrice : 0.0;
+  double get _price =>
+      _batches.isNotEmpty ? _batches.first.sellingPrice : 0.0;
 
-  // Find batch with available (unreserved) stock for the selected size
   BatchModel? get _batchForSize {
     for (final b in _batches) {
       if (b.availableForSize(_selectedSize ?? '') > 0) return b;
@@ -67,7 +66,6 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
         widget.product.id,
         widget.store.visibleWarehouseIds,
       );
-      // Load warehouse addresses for all unique warehouse IDs in these batches
       final ids = batches.map((b) => b.warehouseId).toSet().toList();
       final Map<String, String> addresses = {};
       for (final id in ids) {
@@ -115,11 +113,14 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
         ));
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text('${widget.product.name} добавлен в корзину'),
-      backgroundColor: AppTheme.success,
+      backgroundColor: cGreen,
       behavior: SnackBarBehavior.floating,
     ));
     Navigator.pop(context);
   }
+
+  int get _totalAvail =>
+      _available.values.fold(0, (s, v) => s + v);
 
   @override
   Widget build(BuildContext context) {
@@ -127,239 +128,333 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
     final avail = _available;
 
     return Scaffold(
-      backgroundColor: AppTheme.background,
-      appBar: AppBar(
-        title: Text(widget.product.name),
-        backgroundColor: AppTheme.primary,
-      ),
+      backgroundColor: cBg,
       body: _loading
-          ? const Center(
-              child: CircularProgressIndicator(color: AppTheme.primary))
-          : CustomScrollView(
-              slivers: [
-                SliverToBoxAdapter(
-                    child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Images
-                    if (images.isNotEmpty)
-                      SizedBox(
-                        height: 300,
-                        child: Stack(children: [
-                          PageView.builder(
-                            itemCount: images.length,
-                            onPageChanged: (i) =>
-                                setState(() => _pageIndex = i),
-                            itemBuilder: (_, i) => Image.network(
-                              images[i],
-                              fit: BoxFit.cover,
-                              width: double.infinity,
-                              errorBuilder: (_, __, ___) => Container(
-                                color: AppTheme.primary.withValues(alpha: 0.06),
-                                child: const Center(
-                                    child: Icon(Icons.image_outlined,
-                                        color: AppTheme.textHint, size: 60)),
-                              ),
-                            ),
-                          ),
-                          if (images.length > 1)
-                            Positioned(
-                              bottom: 12,
-                              left: 0,
-                              right: 0,
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: List.generate(
-                                    images.length,
-                                    (i) => AnimatedContainer(
-                                          duration:
-                                              const Duration(milliseconds: 200),
-                                          width: i == _pageIndex ? 20 : 6,
-                                          height: 6,
-                                          margin: const EdgeInsets.symmetric(
-                                              horizontal: 2),
-                                          decoration: BoxDecoration(
-                                            color: i == _pageIndex
-                                                ? AppTheme.primary
-                                                : Colors.white
-                                                    .withValues(alpha: 0.6),
-                                            borderRadius:
-                                                BorderRadius.circular(3),
-                                          ),
-                                        )),
-                              ),
-                            ),
-                        ]),
-                      )
-                    else
-                      Container(
-                        height: 200,
-                        color: AppTheme.primary.withValues(alpha: 0.06),
-                        child: const Center(
-                            child: Icon(Icons.image_outlined,
-                                color: AppTheme.textHint, size: 60)),
-                      ),
-
+          ? const Center(child: CircularProgressIndicator(color: cGreen))
+          : Column(children: [
+              // ── Hero image area ───────────────────────────────────────
+              Container(
+                color: const Color(0xFFE4F7EE),
+                child: SafeArea(
+                  bottom: false,
+                  child: Column(children: [
+                    // Back + favourite buttons
                     Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Brand + name
-                          Text(widget.product.brand,
-                              style: const TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppTheme.primary)),
-                          const SizedBox(height: 4),
-                          Text(widget.product.name,
-                              style: const TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w800,
-                                  color: AppTheme.textPrimary,
-                                  letterSpacing: -0.3)),
-                          const SizedBox(height: 8),
-
-                          // Price
-                          if (_price > 0)
-                            Text(
-                              '${_price.toStringAsFixed(0)} ₸',
-                              style: const TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.w800,
-                                  color: AppTheme.primary),
+                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+                      child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            _RoundBtn(
+                              icon: Icons.chevron_left_rounded,
+                              onTap: () => Navigator.pop(context),
                             ),
-                          const SizedBox(height: 16),
-
-                          // Details row
-                          Wrap(spacing: 8, runSpacing: 8, children: [
-                            _Chip(label: widget.product.type),
-                            _Chip(label: widget.product.category),
-                            _Chip(label: widget.product.color),
-                            if (widget.product.material.isNotEmpty)
-                              _Chip(label: widget.product.material),
-                          ]),
-                          const SizedBox(height: 20),
-
-                          // Sizes
-                          if (avail.isEmpty)
-                            const Text('Нет в наличии',
-                                style: TextStyle(color: AppTheme.textSecondary))
-                          else ...[
-                            const Text('Выберите размер',
-                                style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppTheme.textPrimary)),
-                            const SizedBox(height: 10),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: avail.entries.map((e) {
-                                final available = e.value > 0;
-                                final selected = _selectedSize == e.key;
-                                return GestureDetector(
-                                  onTap: available
-                                      ? () =>
-                                          setState(() => _selectedSize = e.key)
-                                      : null,
-                                  child: AnimatedContainer(
-                                    duration: const Duration(milliseconds: 150),
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 16, vertical: 10),
-                                    decoration: BoxDecoration(
-                                      color: !available
-                                          ? const Color(0xFFF3F4F6)
-                                          : selected
-                                              ? AppTheme.primary
-                                              : Colors.white,
-                                      borderRadius: BorderRadius.circular(10),
-                                      border: Border.all(
-                                        color: !available
-                                            ? AppTheme.border
-                                            : selected
-                                                ? AppTheme.primary
-                                                : AppTheme.border,
-                                        width: selected ? 2 : 1,
-                                      ),
-                                    ),
-                                    child: Stack(
-                                      alignment: Alignment.center,
-                                      children: [
-                                        Text(e.key,
-                                            style: TextStyle(
-                                                fontSize: 14,
-                                                fontWeight: FontWeight.w700,
-                                                color: !available
-                                                    ? AppTheme.textHint
-                                                    : selected
-                                                        ? Colors.white
-                                                        : AppTheme
-                                                            .textPrimary)),
-                                        if (!available)
-                                          Positioned.fill(
-                                            child: CustomPaint(
-                                                painter: _StrikePainter()),
-                                          ),
-                                      ],
-                                    ),
+                            _RoundBtn(
+                              icon: Icons.favorite_border_rounded,
+                              iconColor: cRed,
+                              onTap: () {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Избранное — скоро'),
+                                    behavior: SnackBarBehavior.floating,
+                                    duration: Duration(seconds: 2),
                                   ),
                                 );
-                              }).toList(),
+                              },
                             ),
-                          ],
-                          const SizedBox(height: 100),
-                        ],
-                      ),
+                          ]),
                     ),
-                  ],
-                )),
-              ],
-            ),
+                    // Image / placeholder
+                    SizedBox(
+                      height: 220,
+                      child: images.isNotEmpty
+                          ? Stack(children: [
+                              PageView.builder(
+                                itemCount: images.length,
+                                onPageChanged: (i) =>
+                                    setState(() => _pageIndex = i),
+                                itemBuilder: (_, i) => Padding(
+                                  padding: const EdgeInsets.all(24),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(14),
+                                    child: Image.network(images[i],
+                                        fit: BoxFit.contain,
+                                        errorBuilder: (_, __, ___) =>
+                                            _shoePlaceholder()),
+                                  ),
+                                ),
+                              ),
+                              if (images.length > 1)
+                                Positioned(
+                                  bottom: 12,
+                                  left: 0,
+                                  right: 0,
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: List.generate(
+                                        images.length,
+                                        (i) => AnimatedContainer(
+                                              duration: const Duration(
+                                                  milliseconds: 200),
+                                              width: i == _pageIndex ? 20 : 7,
+                                              height: 7,
+                                              margin:
+                                                  const EdgeInsets.symmetric(
+                                                      horizontal: 2),
+                                              decoration: BoxDecoration(
+                                                color: i == _pageIndex
+                                                    ? cGreen
+                                                    : cInk.withValues(
+                                                        alpha: 0.18),
+                                                borderRadius:
+                                                    BorderRadius.circular(4),
+                                              ),
+                                            )),
+                                  ),
+                                ),
+                            ])
+                          : _shoePlaceholder(),
+                    ),
+                    const SizedBox(height: 10),
+                  ]),
+                ),
+              ),
+
+              // ── Details ───────────────────────────────────────────────
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(18, 18, 18, 100),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Name + stock pill
+                      Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    Text(widget.product.name,
+                                        style: manrope(22, FontWeight.w800,
+                                            color: cInk,
+                                            letterSpacing: -0.4)),
+                                    if (widget.product.type.isNotEmpty)
+                                      Text(widget.product.type,
+                                          style: manrope(13.5, FontWeight.w500,
+                                              color: cInk3)),
+                                  ]),
+                            ),
+                            if (_totalAvail > 0)
+                              QPill(
+                                '$_totalAvail в наличии',
+                                tone: 'green',
+                                icon: const Icon(Icons.check_rounded,
+                                    size: 13, color: cGreenDeep),
+                              ),
+                          ]),
+                      const SizedBox(height: 10),
+
+                      // Price
+                      if (_price > 0)
+                        Text(money(_price),
+                            style: manrope(28, FontWeight.w800, color: cInk)),
+
+                      const SizedBox(height: 16),
+
+                      // Sizes
+                      if (avail.isEmpty)
+                        Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: cRedTint,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Row(children: [
+                            const Icon(Icons.remove_shopping_cart_outlined,
+                                color: cRed, size: 20),
+                            const SizedBox(width: 10),
+                            Text('Нет в наличии',
+                                style: manrope(14, FontWeight.w600,
+                                    color: cRed)),
+                          ]),
+                        )
+                      else ...[
+                        QSecLabel('Размер'),
+                        Wrap(
+                          spacing: 9,
+                          runSpacing: 9,
+                          children: avail.entries.map((e) {
+                            final available = e.value > 0;
+                            final selected = _selectedSize == e.key;
+                            return GestureDetector(
+                              onTap: available
+                                  ? () =>
+                                      setState(() => _selectedSize = e.key)
+                                  : null,
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 150),
+                                width: 56,
+                                height: 50,
+                                decoration: BoxDecoration(
+                                  color: !available
+                                      ? cLine2
+                                      : selected
+                                          ? cGreenTint
+                                          : cSurface,
+                                  borderRadius: BorderRadius.circular(13),
+                                  border: Border.all(
+                                    color: selected ? cGreen : cLine,
+                                    width: 1.5,
+                                  ),
+                                  boxShadow: selected
+                                      ? [
+                                          BoxShadow(
+                                              color: cGreenTint,
+                                              blurRadius: 0,
+                                              spreadRadius: 3)
+                                        ]
+                                      : null,
+                                ),
+                                child: Stack(
+                                  alignment: Alignment.center,
+                                  children: [
+                                    Opacity(
+                                      opacity: !available ? 0.45 : 1,
+                                      child: Text(e.key,
+                                          style: manrope(
+                                              15.5, FontWeight.w800,
+                                              color: cInk)),
+                                    ),
+                                    if (!available)
+                                      Positioned.fill(
+                                        child: CustomPaint(
+                                            painter: _StrikePainter()),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ],
+
+                      const SizedBox(height: 16),
+
+                      // Store card
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: cGreenTint,
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        child: Row(children: [
+                          const Icon(Icons.storefront_outlined,
+                              color: cGreenDeep, size: 22),
+                          const SizedBox(width: 11),
+                          Expanded(
+                            child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(widget.store.storeName,
+                                      style: manrope(13.5, FontWeight.w700,
+                                          color: cGreenDeep)),
+                                  if (widget.store.address.isNotEmpty)
+                                    Text(widget.store.address,
+                                        style: manrope(12, FontWeight.w500,
+                                            color: cGreenDeep.withValues(
+                                                alpha: 0.8))),
+                                ]),
+                          ),
+                          const Icon(Icons.chevron_right_rounded,
+                              color: cGreenDeep, size: 18),
+                        ]),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ]),
       bottomNavigationBar: avail.isEmpty
           ? null
           : SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                child: SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: ElevatedButton.icon(
-                    onPressed: _addToCart,
-                    icon: const Icon(Icons.shopping_cart_outlined),
-                    label: const Text('В корзину',
-                        style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.w600)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.primary,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14)),
-                      elevation: 0,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
+                decoration: const BoxDecoration(
+                  color: cSurface,
+                  border: Border(top: BorderSide(color: cLine)),
+                ),
+                child: Row(children: [
+                  // Cart icon button
+                  GestureDetector(
+                    onTap: _addToCart,
+                    child: Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        color: cGreenTint,
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                      child: const Icon(Icons.shopping_cart_outlined,
+                          color: cGreenDeep, size: 22),
                     ),
                   ),
-                ),
+                  const SizedBox(width: 11),
+                  // Buy button
+                  Expanded(
+                    child: QPrimaryButton(
+                      label: _price > 0
+                          ? 'Купить · ${money(_price)}'
+                          : 'В корзину',
+                      onPressed: _addToCart,
+                      height: 52,
+                    ),
+                  ),
+                ]),
               ),
             ),
     );
   }
+
+  Widget _shoePlaceholder() => Container(
+        height: 180,
+        margin: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFFE4F7EE), Color(0xFFC8EEDB)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: const Center(
+          child: Icon(Icons.inventory_2_outlined,
+              size: 64, color: Color(0x380C120F)),
+        ),
+      );
 }
 
-class _Chip extends StatelessWidget {
-  final String label;
-  const _Chip({required this.label});
+class _RoundBtn extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final VoidCallback onTap;
+  const _RoundBtn(
+      {required this.icon,
+      this.iconColor = cInk,
+      required this.onTap});
+
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        decoration: BoxDecoration(
-          color: AppTheme.primary.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(8),
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.85),
+            borderRadius: BorderRadius.circular(13),
+          ),
+          child: Icon(icon, color: iconColor, size: 20),
         ),
-        child: Text(label,
-            style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: AppTheme.primary)),
       );
 }
 
@@ -370,7 +465,7 @@ class _StrikePainter extends CustomPainter {
       Offset(0, size.height),
       Offset(size.width, 0),
       Paint()
-        ..color = AppTheme.textHint.withValues(alpha: 0.5)
+        ..color = cInk3.withValues(alpha: 0.5)
         ..strokeWidth = 1.5,
     );
   }

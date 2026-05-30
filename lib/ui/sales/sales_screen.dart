@@ -5,7 +5,7 @@ import '../../core/l10n_ext.dart';
 import '../../core/warehouse_context.dart';
 import '../../data/models/models.dart';
 import '../../data/services/firestore_service.dart';
-import '../../theme/app_theme.dart';
+import '../../theme/qoima_design.dart';
 import 'make_sale_screen.dart';
 
 class SalesScreen extends StatefulWidget {
@@ -17,11 +17,44 @@ class SalesScreen extends StatefulWidget {
 class _SalesScreenState extends State<SalesScreen> {
   final _service = FirestoreService();
   DateTime _month = DateTime.now();
+  String _sellerPeriod = 'today'; // 'today'|'week'|'month'
+
+  static String _fmtRevenue(double v) {
+    final s = v.round().toString();
+    final buf = StringBuffer();
+    for (int i = 0; i < s.length; i++) {
+      if (i > 0 && (s.length - i) % 3 == 0) buf.write(' ');
+      buf.write(s[i]);
+    }
+    return buf.toString();
+  }
 
   List<SaleModel> _filterMonth(List<SaleModel> all) => all
       .where((s) =>
           s.saleDate.month == _month.month && s.saleDate.year == _month.year)
       .toList();
+
+  List<SaleModel> _filterPeriod(List<SaleModel> all) {
+    final now = DateTime.now();
+    switch (_sellerPeriod) {
+      case 'today':
+        return all
+            .where((s) =>
+                s.saleDate.year == now.year &&
+                s.saleDate.month == now.month &&
+                s.saleDate.day == now.day)
+            .toList();
+      case 'week':
+        final cutoff = now.subtract(const Duration(days: 7));
+        return all.where((s) => s.saleDate.isAfter(cutoff)).toList();
+      default: // month
+        return all
+            .where((s) =>
+                s.saleDate.month == now.month &&
+                s.saleDate.year == now.year)
+            .toList();
+    }
+  }
 
   // Саттушы: тек өз сатылымдарын көреді
   List<SaleModel> _filterSeller(List<SaleModel> all, AppUser appUser) =>
@@ -56,15 +89,15 @@ class _SalesScreenState extends State<SalesScreen> {
     final appUser = context.watch<AppUser>();
     final warehouses = context.watch<WarehouseContext>().all;
     return Scaffold(
-      backgroundColor: AppTheme.background,
+      backgroundColor: cBg,
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => Navigator.push(
             context, MaterialPageRoute(builder: (_) => const MakeSaleScreen())),
-        backgroundColor: AppTheme.primary,
-        icon: const Icon(Icons.add_shopping_cart_rounded, color: Colors.white),
+        backgroundColor: cGreen,
+        elevation: 0,
+        icon: const Icon(Icons.add_rounded, color: Colors.white, size: 22),
         label: Text(context.l10n.makeSale,
-            style: const TextStyle(
-                color: Colors.white, fontWeight: FontWeight.w700)),
+            style: manrope(14.5, FontWeight.w700, color: Colors.white)),
       ),
       body: StreamBuilder<List<SaleModel>>(
         stream: _service.watchSalesHistory(),
@@ -74,70 +107,147 @@ class _SalesScreenState extends State<SalesScreen> {
             stream: _service.watchProducts(),
             builder: (_, prodSnap) {
               final products = prodSnap.data ?? [];
-              final monthSales = _filterSeller(_filterMonth(allSales), appUser);
+              final sellerSales = _filterSeller(allSales, appUser);
+              final monthSales = appUser.isAdmin
+                  ? _filterMonth(sellerSales)
+                  : _filterPeriod(sellerSales);
               final total =
                   monthSales.fold<double>(0, (s, e) => s + e.totalPrice);
+              // Today's revenue used in the header card for admin
+              final now = DateTime.now();
+              final today = DateTime(now.year, now.month, now.day);
+              final todayRevenue = sellerSales
+                  .where((s) {
+                    final d = s.saleDate;
+                    return d.year == today.year &&
+                        d.month == today.month &&
+                        d.day == today.day;
+                  })
+                  .fold<double>(0, (a, b) => a + b.totalPrice);
 
               return CustomScrollView(slivers: [
                 // ── Header ─────────────────────────────────────────────
                 SliverToBoxAdapter(
                   child: Container(
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                          colors: [Color(0xFF1E3A8A), Color(0xFF2D4FB5)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight),
-                    ),
+                    decoration: const BoxDecoration(gradient: kGrad),
                     child: SafeArea(
                       bottom: false,
                       child: Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 16, 16, 20),
-                        child: Row(children: [
-                          Expanded(
-                            child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(context.l10n.salesTitle,
-                                      style: const TextStyle(
+                        padding: const EdgeInsets.fromLTRB(20, 6, 20, 0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(children: [
+                              Expanded(
+                                child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                          appUser.isAdmin
+                                              ? context.l10n.salesTitle
+                                              : 'Мои продажи',
+                                          style: manrope(23, FontWeight.w800,
+                                              color: Colors.white,
+                                              letterSpacing: -0.5)),
+                                      Text(
+                                        appUser.isAdmin
+                                            ? context.l10n.overviewSub
+                                            : 'Сегодня · ${monthSales.where((s) { final n = DateTime.now(); return s.saleDate.year == n.year && s.saleDate.month == n.month && s.saleDate.day == n.day; }).length} продаж',
+                                        style: manrope(13, FontWeight.w500,
+                                            color: Colors.white
+                                                .withValues(alpha: 0.78)),
+                                      ),
+                                    ]),
+                              ),
+                              GestureDetector(
+                                onTap: () => _showHistorySheet(
+                                    allSales, products, warehouses),
+                                child: Container(
+                                  width: 38,
+                                  height: 38,
+                                  decoration: BoxDecoration(
+                                    color:
+                                        Colors.white.withValues(alpha: 0.16),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Icon(Icons.history_rounded,
+                                      color: Colors.white, size: 20),
+                                ),
+                              ),
+                            ]),
+                            // Revenue card inside header
+                            const SizedBox(height: 14),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.14),
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      appUser.isAdmin
+                                          ? 'Выручка за сегодня'
+                                          : _sellerPeriod == 'today'
+                                              ? 'Выручка за сегодня'
+                                              : _sellerPeriod == 'week'
+                                                  ? 'Выручка за неделю'
+                                                  : 'Выручка за месяц',
+                                      style: manrope(12.5, FontWeight.w600,
+
+                                          color: Colors.white
+                                              .withValues(alpha: 0.8)),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      appUser.isAdmin
+                                          ? '${_fmtRevenue(todayRevenue)} ₸'
+                                          : '${_fmtRevenue(total)} ₸',
+                                      style: manrope(30, FontWeight.w800,
                                           color: Colors.white,
-                                          fontSize: 26,
-                                          fontWeight: FontWeight.w800,
-                                          letterSpacing: -0.5)),
-                                  Text(
-                                    appUser.isAdmin
-                                        ? context.l10n.overviewSub
-                                        : context.l10n.makeSaleHint,
-                                    style: const TextStyle(
-                                        color: Colors.white60, fontSize: 13),
+                                          letterSpacing: -0.8),
+                                    ),
+                                  ]),
+                            ),
+                            // Period chips — only for seller
+                            if (!appUser.isAdmin) ...[
+                              const SizedBox(height: 10),
+                              SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: Row(children: [
+                                  _PeriodChip(
+                                    label: 'Сегодня',
+                                    value: 'today',
+                                    current: _sellerPeriod,
+                                    onTap: (v) =>
+                                        setState(() => _sellerPeriod = v),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  _PeriodChip(
+                                    label: 'Неделя',
+                                    value: 'week',
+                                    current: _sellerPeriod,
+                                    onTap: (v) =>
+                                        setState(() => _sellerPeriod = v),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  _PeriodChip(
+                                    label: 'Месяц',
+                                    value: 'month',
+                                    current: _sellerPeriod,
+                                    onTap: (v) =>
+                                        setState(() => _sellerPeriod = v),
                                   ),
                                 ]),
-                          ),
-                          // Тарих батырмасы
-                          GestureDetector(
-                            onTap: () => _showHistorySheet(
-                                allSales, products, warehouses),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 8),
-                              decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.15),
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(
-                                      color:
-                                          Colors.white.withValues(alpha: 0.3))),
-                              child: Row(children: [
-                                const Icon(Icons.history_rounded,
-                                    color: Colors.white, size: 16),
-                                const SizedBox(width: 4),
-                                Text(context.l10n.history,
-                                    style: const TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 13)),
-                              ]),
-                            ),
-                          ),
-                        ]),
+                              ),
+                            ],
+                            const SizedBox(height: 16),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -170,8 +280,7 @@ class _SalesScreenState extends State<SalesScreen> {
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(context.l10n.selectMonth,
-            style: const TextStyle(
-                fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
+            style: manrope(17, FontWeight.w700, color: cInk)),
         content: StatefulBuilder(
             builder: (_, setS) => SizedBox(
                   width: 280,
@@ -181,17 +290,17 @@ class _SalesScreenState extends State<SalesScreen> {
                         children: [
                           IconButton(
                               icon: const Icon(Icons.chevron_left,
-                                  color: AppTheme.primary),
+                                  color: cGreen),
                               onPressed: () => setS(() =>
                                   temp = DateTime(temp.year - 1, temp.month))),
                           Text('${temp.year}',
                               style: const TextStyle(
                                   fontWeight: FontWeight.w700,
                                   fontSize: 17,
-                                  color: AppTheme.textPrimary)),
+                                  color: cInk)),
                           IconButton(
                               icon: const Icon(Icons.chevron_right,
-                                  color: AppTheme.primary),
+                                  color: cGreen),
                               onPressed: () => setS(() =>
                                   temp = DateTime(temp.year + 1, temp.month))),
                         ]),
@@ -214,9 +323,7 @@ class _SalesScreenState extends State<SalesScreen> {
                                 setS(() => temp = DateTime(temp.year, i + 1)),
                             child: Container(
                                 decoration: BoxDecoration(
-                                    color: sel
-                                        ? AppTheme.primary
-                                        : AppTheme.background,
+                                    color: sel ? cGreen : cBg,
                                     borderRadius: BorderRadius.circular(8)),
                                 child: Center(
                                     child: Text(mn[i],
@@ -225,7 +332,7 @@ class _SalesScreenState extends State<SalesScreen> {
                                             fontWeight: FontWeight.w600,
                                             color: sel
                                                 ? Colors.white
-                                                : AppTheme.textSecondary)))));
+                                                : cInk2)))));
                       },
                     ),
                   ]),
@@ -234,18 +341,20 @@ class _SalesScreenState extends State<SalesScreen> {
           TextButton(
               onPressed: () => Navigator.pop(ctx),
               child: Text(context.l10n.cancel,
-                  style: const TextStyle(color: AppTheme.textSecondary))),
+                  style: manrope(14, FontWeight.w600, color: cInk2))),
           ElevatedButton(
               onPressed: () {
                 setState(() => _month = temp);
                 Navigator.pop(ctx);
               },
               style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primary,
+                  backgroundColor: cGreen,
                   foregroundColor: Colors.white,
+                  elevation: 0,
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10))),
-              child: Text(context.l10n.apply)),
+                      borderRadius: BorderRadius.circular(12))),
+              child: Text(context.l10n.apply,
+                  style: manrope(14, FontWeight.w700, color: Colors.white))),
         ],
       ),
     );
@@ -285,27 +394,17 @@ class _SalesBody extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: AppTheme.border),
-                  boxShadow: [
-                    BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.04),
-                        blurRadius: 6,
-                        offset: const Offset(0, 2))
-                  ]),
+                  color: cGreenTint,
+                  borderRadius: BorderRadius.circular(20)),
               child: Row(children: [
                 const Icon(Icons.calendar_today_outlined,
-                    size: 14, color: AppTheme.primary),
+                    size: 14, color: cGreen),
                 const SizedBox(width: 6),
                 Text(_fmtShort(month, context),
-                    style: const TextStyle(
-                        color: AppTheme.primary,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13)),
+                    style: manrope(13, FontWeight.w600, color: cGreen)),
                 const SizedBox(width: 4),
                 const Icon(Icons.keyboard_arrow_down_rounded,
-                    color: AppTheme.primary, size: 16),
+                    color: cGreen, size: 16),
               ]),
             ),
           ),
@@ -313,21 +412,14 @@ class _SalesBody extends StatelessWidget {
           if (showRevenue)
             Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
               Text('${_fmtNum(total)} ₸',
-                  style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
-                      color: AppTheme.textPrimary)),
+                  style: manrope(20, FontWeight.w800, color: cInk)),
               Text('${sales.length} ${context.l10n.salesSuffix}',
-                  style:
-                      const TextStyle(fontSize: 12, color: AppTheme.textHint)),
+                  style: manrope(12, FontWeight.w500, color: cInk3)),
             ])
           else
             Text(
-                'Бүгінгі: ${sales.where((s) => _isToday(s.saleDate)).length} сат.',
-                style: const TextStyle(
-                    fontSize: 13,
-                    color: AppTheme.textSecondary,
-                    fontWeight: FontWeight.w600)),
+                'Сегодня: ${sales.where((s) => _isToday(s.saleDate)).length} прод.',
+                style: manrope(13, FontWeight.w600, color: cInk2)),
         ]),
       ),
 
@@ -342,7 +434,7 @@ class _SalesBody extends StatelessWidget {
             Text(context.l10n.noSalesThisMonth,
                 style: const TextStyle(
                     fontSize: 16,
-                    color: AppTheme.textSecondary,
+                    color: cInk2,
                     fontWeight: FontWeight.w500)),
           ]),
         )
@@ -355,7 +447,7 @@ class _SalesBody extends StatelessWidget {
                 style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
-                    color: AppTheme.textPrimary)),
+                    color: cInk)),
             const SizedBox(height: 10),
             ..._buildGroupedSales(context, sales, products, warehouses),
           ]),
@@ -402,20 +494,13 @@ class _SalesBody extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-                color: AppTheme.primary.withValues(alpha: 0.08),
+                color: cGreenTint,
                 borderRadius: BorderRadius.circular(20)),
-            child: Text(label,
-                style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: AppTheme.primary)),
+            child: Text(label, style: manrope(12, FontWeight.w700, color: cGreenDeep)),
           ),
           const Spacer(),
           Text('${dayTotal.toStringAsFixed(0)} ₸',
-              style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: AppTheme.success)),
+              style: manrope(13, FontWeight.w700, color: cGreen)),
         ]),
       ));
 
@@ -478,36 +563,29 @@ class _SaleCard extends StatelessWidget {
         '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
     final timeStr =
         '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
-    final sizesText = sale.sizesSold.entries
-        .where((e) => e.value > 0)
-        .map((e) => 'Р.${e.key}×${e.value}')
-        .join('  ');
-
     return GestureDetector(
       onTap: () => _showDetail(context, dateStr, timeStr),
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            boxShadow: [
-              BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2))
-            ]),
+            color: cSurface,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: cLine),
+            boxShadow: kShadowSm),
         child: Padding(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(13),
           child: Row(children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: product.images.isNotEmpty
-                  ? Image.network(product.images.first,
-                      width: 48,
-                      height: 48,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _icon())
-                  : _icon(),
+            QIconTile(
+              icon: product.images.isNotEmpty
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Image.network(product.images.first,
+                          width: 40, height: 40, fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const Icon(
+                              Icons.check_rounded, color: cGreen, size: 19)))
+                  : const Icon(Icons.check_rounded, color: cGreen, size: 19),
+              tone: 'green',
+              size: 40,
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -515,81 +593,34 @@ class _SaleCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                   Text(product.name,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
-                          color: AppTheme.textPrimary),
+                      style: manrope(13.5, FontWeight.w700, color: cInk),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis),
                   const SizedBox(height: 2),
-                  Text('$dateStr · $timeStr',
-                      style: const TextStyle(
-                          color: AppTheme.textHint, fontSize: 11)),
-                  if (sizesText.isNotEmpty) ...[
-                    const SizedBox(height: 3),
-                    Text(sizesText,
-                        style: const TextStyle(
-                            color: AppTheme.textSecondary, fontSize: 11)),
-                  ],
-                  if (sale.sellerName.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Row(children: [
-                      const Icon(Icons.badge_outlined,
-                          size: 11, color: AppTheme.textHint),
-                      const SizedBox(width: 3),
-                      Text(sale.sellerName,
-                          style: const TextStyle(
-                              color: AppTheme.textHint, fontSize: 11)),
-                    ]),
-                  ],
+                  Text('Р: ${sale.sizesSold.entries.where((e) => e.value > 0).map((e) => e.key).join(', ')}  ·  $timeStr',
+                      style: manrope(12, FontWeight.w500, color: cInk3)),
                   if (warehouseName.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Row(children: [
-                      const Icon(Icons.warehouse_outlined,
-                          size: 11, color: AppTheme.textHint),
-                      const SizedBox(width: 3),
-                      Text(warehouseName,
-                          style: const TextStyle(
-                              color: AppTheme.textHint, fontSize: 11)),
-                    ]),
+                    const SizedBox(height: 1),
+                    Text(warehouseName,
+                        style: manrope(11, FontWeight.w500, color: cInk3)),
                   ],
                 ])),
             Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
               if (sale.discountPercent > 0)
                 Text('${sale.basePrice.toStringAsFixed(0)} ₸',
-                    style: const TextStyle(
-                        fontSize: 11,
-                        color: AppTheme.textHint,
-                        decoration: TextDecoration.lineThrough)),
+                    style: manrope(11, FontWeight.w500, color: cInk3)
+                        .copyWith(decoration: TextDecoration.lineThrough)),
               Text('${sale.totalPrice.toStringAsFixed(0)} ₸',
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 16,
-                      color: AppTheme.success)),
+                  style: manrope(14.5, FontWeight.w800, color: cInk)),
               if (sale.discountPercent > 0)
                 Text('-${sale.discountPercent.toStringAsFixed(0)}%',
-                    style: const TextStyle(
-                        fontSize: 11,
-                        color: AppTheme.warning,
-                        fontWeight: FontWeight.w600)),
-              Text('${sale.quantity} жұп',
-                  style:
-                      const TextStyle(fontSize: 11, color: AppTheme.textHint)),
+                    style: manrope(11, FontWeight.w700, color: cAmber)),
             ]),
           ]),
         ),
       ),
     );
   }
-
-  Widget _icon() => Container(
-      width: 48,
-      height: 48,
-      decoration: BoxDecoration(
-          color: AppTheme.primary.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(10)),
-      child: const Icon(Icons.inventory_2_outlined,
-          color: AppTheme.primary, size: 22));
 
   void _showDetail(BuildContext context, String dateStr, String timeStr) {
     showModalBottomSheet(
@@ -630,10 +661,10 @@ class _SaleCard extends StatelessWidget {
                           style: const TextStyle(
                               fontWeight: FontWeight.w700,
                               fontSize: 16,
-                              color: AppTheme.textPrimary)),
+                              color: cInk)),
                       Text('${product.brand} · ${product.type}',
                           style: const TextStyle(
-                              color: AppTheme.textSecondary, fontSize: 12)),
+                              color: cInk2, fontSize: 12)),
                     ])),
               ]),
               const SizedBox(height: 16),
@@ -659,7 +690,7 @@ class _SaleCard extends StatelessWidget {
                   style: TextStyle(
                       fontWeight: FontWeight.w600,
                       fontSize: 13,
-                      color: AppTheme.textPrimary)),
+                      color: cInk)),
               const SizedBox(height: 8),
               Wrap(
                 spacing: 8,
@@ -670,12 +701,12 @@ class _SaleCard extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(
-                            color: AppTheme.primary.withValues(alpha: 0.08),
+                            color: cGreenTint,
                             borderRadius: BorderRadius.circular(8)),
                         child: Text('Р.${e.key} × ${e.value} жұп',
                             style: const TextStyle(
                                 fontWeight: FontWeight.w600,
-                                color: AppTheme.primary,
+                                color: cGreen,
                                 fontSize: 13))))
                     .toList(),
               ),
@@ -685,12 +716,12 @@ class _SaleCard extends StatelessWidget {
               Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                 const Text('Барлығы:',
                     style:
-                        TextStyle(fontSize: 15, color: AppTheme.textSecondary)),
+                        TextStyle(fontSize: 15, color: cInk2)),
                 Text('${sale.totalPrice.toStringAsFixed(0)} ₸',
                     style: const TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.w800,
-                        color: AppTheme.success)),
+                        color: cGreen)),
               ]),
             ]),
       ),
@@ -700,8 +731,8 @@ class _SaleCard extends StatelessWidget {
   Widget _detailIcon() => Container(
       width: 56,
       height: 56,
-      color: AppTheme.primary.withValues(alpha: 0.08),
-      child: const Icon(Icons.inventory_2_outlined, color: AppTheme.primary));
+      color: cGreenTint,
+      child: const Icon(Icons.inventory_2_outlined, color: cGreen));
 }
 
 // ── History Sheet ─────────────────────────────────────────────────────────────
@@ -758,10 +789,10 @@ class _HistorySheet extends StatelessWidget {
                 style: TextStyle(
                     fontSize: 17,
                     fontWeight: FontWeight.w700,
-                    color: AppTheme.textPrimary)),
+                    color: cInk)),
             const Spacer(),
             Text('${sales.length} жазба',
-                style: const TextStyle(color: AppTheme.textHint, fontSize: 13)),
+                style: const TextStyle(color: cInk3, fontSize: 13)),
           ]),
           const SizedBox(height: 12),
           const Divider(height: 1),
@@ -771,7 +802,7 @@ class _HistorySheet extends StatelessWidget {
         child: sales.isEmpty
             ? const Center(
                 child: Text('Сатылым жоқ',
-                    style: TextStyle(color: AppTheme.textSecondary)))
+                    style: TextStyle(color: cInk2)))
             : ListView.builder(
                 controller: scrollCtrl,
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
@@ -798,20 +829,14 @@ class _HistorySheet extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
-                              color: AppTheme.primary.withValues(alpha: 0.08),
+                              color: cGreenTint,
                               borderRadius: BorderRadius.circular(20)),
                           child: Text(label,
-                              style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppTheme.primary)),
+                              style: manrope(12, FontWeight.w700, color: cGreenDeep)),
                         ),
                         const Spacer(),
                         Text('${total.toStringAsFixed(0)} ₸',
-                            style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: AppTheme.success)),
+                            style: manrope(13, FontWeight.w700, color: cGreen)),
                       ]),
                     );
                   }
@@ -853,15 +878,45 @@ class _InfoRow extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.only(bottom: 6),
         child: Row(children: [
-          Text(label,
-              style:
-                  const TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
+          Text(label, style: manrope(13, FontWeight.w500, color: cInk2)),
           const Spacer(),
-          Text(value,
-              style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                  color: AppTheme.textPrimary)),
+          Text(value, style: manrope(13, FontWeight.w700, color: cInk)),
         ]),
       );
+}
+
+class _PeriodChip extends StatelessWidget {
+  final String label, value, current;
+  final void Function(String) onTap;
+  const _PeriodChip(
+      {required this.label,
+      required this.value,
+      required this.current,
+      required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final active = value == current;
+    return GestureDetector(
+      onTap: () => onTap(value),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: active
+              ? Colors.white
+              : Colors.white.withValues(alpha: 0.18),
+          borderRadius: BorderRadius.circular(11),
+        ),
+        child: Text(
+          label,
+          style: manrope(
+            12.5,
+            FontWeight.w700,
+            color: active ? cInk : Colors.white.withValues(alpha: 0.9),
+          ),
+        ),
+      ),
+    );
+  }
 }

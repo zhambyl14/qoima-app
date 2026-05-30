@@ -4,7 +4,7 @@ import '../../core/app_user.dart';
 import '../../data/models/cart_item_model.dart';
 import '../../data/models/order_model.dart';
 import '../../data/services/client_service.dart';
-import '../../theme/app_theme.dart';
+import '../../theme/qoima_design.dart';
 import 'client_shell.dart';
 
 class ClientCartScreen extends StatefulWidget {
@@ -21,7 +21,6 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
   final _noteCtrl = TextEditingController();
   bool _isLoading = false;
 
-  // Қолжетімсіз товарлардың кілттері: "productId_batchId_size"
   Set<String> _unavailableKeys = {};
 
   String _itemKey(CartItemModel item) =>
@@ -40,8 +39,6 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
     super.dispose();
   }
 
-  /// Себеттегі товарлардың қолжетімдігін тексереді:
-  /// (1) қойма жасырылған ба, (2) сатылым санасы жеткілікті ме.
   Future<void> _checkAvailability() async {
     final cart = context.read<CartProvider>();
     if (cart.items.isEmpty) {
@@ -56,13 +53,11 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
       final unavailable = <String>{};
       for (final item in cart.items) {
         final key = _itemKey(item);
-        // Қойма көрінуін тексер
         final visible = visibleByAdmin[item.adminUid] ?? [];
         if (!visible.contains(item.warehouseId)) {
           unavailable.add(key);
           continue;
         }
-        // Қор санасын тексер
         try {
           final avail = await _service.getBatchAvailability(
               item.adminUid, item.productId, item.batchId);
@@ -79,8 +74,8 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
     if (_orderType == OrderModel.typeSmartReservation) {
       return (total * 0.1).ceilToDouble();
     }
-    if (_orderType == OrderModel.typeDelivery) { return total + _deliveryFeeFor(); }
-    return total; // ClickCollect
+    if (_orderType == OrderModel.typeDelivery) return total + _deliveryFeeFor();
+    return total;
   }
 
   double _deliveryFeeFor() =>
@@ -125,7 +120,6 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
 
     setState(() => _isLoading = true);
     try {
-      // Қолжетімдікті жаңарт — жасырылған/сатылып кеткен товарды тоқтат
       await _checkAvailability();
       if (!mounted) return;
       if (_unavailableKeys.isNotEmpty) {
@@ -134,10 +128,8 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
             .map((i) => '«${i.productName}»')
             .join(', ');
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(
-              '$badItems қолжетімсіз (сатылып кетті немесе дүкен жаңартылды). '
-              'Себеттен алып тастаңыз.'),
-          backgroundColor: AppTheme.danger,
+          content: Text('$badItems недоступен. Удалите из корзины.'),
+          backgroundColor: cRed,
           behavior: SnackBarBehavior.floating,
           duration: const Duration(seconds: 4),
         ));
@@ -145,16 +137,25 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
         return;
       }
 
-      // warehouseId бойынша топта — әр қоймаға бөлек тапсырыс
       final Map<String, List<CartItemModel>> byWarehouse = {};
       for (final item in cart.items) {
         byWarehouse.putIfAbsent(item.warehouseId, () => []).add(item);
       }
+      // Delivery fee is charged once (first order only) regardless of how many
+      // warehouses are involved, so the client always pays a single 1500 ₸ fee.
       int orderCount = 0;
+      bool deliveryCharged = false;
       for (final entry in byWarehouse.entries) {
         final whItems = entry.value;
         final first = whItems.first;
         final whTotal = whItems.fold<double>(0, (s, i) => s + i.subtotal);
+        final appliedFee = (!deliveryCharged) ? _deliveryFeeFor() : 0.0;
+        if (appliedFee > 0) deliveryCharged = true;
+        final depositAmt = _orderType == OrderModel.typeSmartReservation
+            ? (whTotal * 0.1).ceilToDouble()
+            : _orderType == OrderModel.typeDelivery
+                ? whTotal + appliedFee
+                : whTotal;
         final order = OrderModel(
           id: '',
           clientPhone: appUser.phone,
@@ -172,8 +173,8 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
           createdAt: DateTime.now(),
           address: _addressCtrl.text.trim(),
           note: _noteCtrl.text.trim(),
-          depositAmount: _depositFor(whTotal),
-          deliveryFee: _deliveryFeeFor(),
+          depositAmount: depositAmt,
+          deliveryFee: appliedFee,
         );
         await _service.placeOrder(order);
         orderCount++;
@@ -183,7 +184,7 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
       context.findAncestorStateOfType<ClientShellState>()?.setIndex(2);
       if (orderCount > 1) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('$orderCount тапсырыс құрылды'),
+          content: Text('$orderCount заказа создано'),
           behavior: SnackBarBehavior.floating,
         ));
       }
@@ -191,7 +192,7 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(e.toString().replaceFirst('Exception: ', '')),
-          backgroundColor: AppTheme.danger,
+          backgroundColor: cRed,
           behavior: SnackBarBehavior.floating,
         ));
       }
@@ -203,351 +204,395 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
   @override
   Widget build(BuildContext context) {
     final cart = context.watch<CartProvider>();
+    final itemCount = cart.items.length;
 
     return Scaffold(
-      backgroundColor: AppTheme.background,
-      appBar: AppBar(
-        title: const Text('Корзина'),
-        backgroundColor: AppTheme.primary,
-        actions: [
-          if (cart.items.isNotEmpty)
-            TextButton(
-              onPressed: () => showDialog(
-                context: context,
-                builder: (_) => AlertDialog(
-                  title: const Text('Очистить корзину'),
-                  content: const Text('Убрать все товары из корзины?'),
-                  actions: [
-                    TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text('Нет')),
-                    TextButton(
-                        onPressed: () {
-                          cart.clear();
-                          Navigator.pop(context);
-                        },
-                        child: const Text('Да',
-                            style: TextStyle(color: AppTheme.danger))),
-                  ],
-                ),
-              ),
-              child:
-                  const Text('Очистить', style: TextStyle(color: Colors.white)),
-            ),
-        ],
-      ),
-      body: cart.items.isEmpty
-          ? const Center(
-              child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
+      backgroundColor: cBg,
+      body: Column(children: [
+        QGradientHeader(
+          title: 'Корзина',
+          subtitle: itemCount == 0
+              ? 'Пусто'
+              : '$itemCount ${_pluralItem(itemCount)}',
+          action: itemCount > 0
+              ? QHeaderBtn(
+                  Icons.delete_sweep_outlined,
+                  onTap: () => showDialog(
+                    context: context,
+                    builder: (_) => AlertDialog(
+                      title: Text('Очистить корзину',
+                          style: manrope(17, FontWeight.w700, color: cInk)),
+                      content: Text('Убрать все товары?',
+                          style: manrope(14, FontWeight.w500, color: cInk2)),
+                      actions: [
+                        TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: Text('Нет',
+                                style: manrope(14, FontWeight.w600,
+                                    color: cInk2))),
+                        TextButton(
+                            onPressed: () {
+                              cart.clear();
+                              Navigator.pop(context);
+                            },
+                            child: Text('Да',
+                                style: manrope(14, FontWeight.w600,
+                                    color: cRed))),
+                      ],
+                    ),
+                  ),
+                )
+              : null,
+        ),
+        Expanded(
+          child: cart.items.isEmpty
+              ? Center(
+                  child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                      const Icon(Icons.shopping_cart_outlined,
+                          size: 64, color: cInk3),
+                      const SizedBox(height: 16),
+                      Text('Корзина пуста',
+                          style: manrope(16, FontWeight.w500, color: cInk2)),
+                    ]))
+              : ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
                   children: [
-                    Icon(Icons.shopping_cart_outlined,
-                        size: 64, color: AppTheme.textHint),
-                    SizedBox(height: 16),
-                    Text('Корзина пуста',
-                        style: TextStyle(
-                            fontSize: 16, color: AppTheme.textSecondary)),
-                  ]),
-            )
-          : ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                ...cart.items.asMap().entries.map((entry) {
-                  final i = entry.key;
-                  final item = entry.value;
-                  return _CartItemTile(
-                    item: item,
-                    onRemove: () {
-                      cart.removeAt(i);
-                      _checkAvailability();
-                    },
-                    isUnavailable: _unavailableKeys.contains(_itemKey(item)),
-                  );
-                }),
-                const SizedBox(height: 16),
-                const Text('Способ получения',
-                    style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: AppTheme.textPrimary)),
-                const SizedBox(height: 10),
-                ...[
-                  (
-                    OrderModel.typeSmartReservation,
-                    Icons.timer_outlined,
-                    'Смарт-Бронь',
-                    'Забронируйте на 1 час, чтобы примерить в магазине',
-                    '10% депозит',
-                    const Color(0xFF3B82F6),
-                  ),
-                  (
-                    OrderModel.typeClickCollect,
-                    Icons.qr_code_rounded,
-                    'Click & Collect',
-                    'Оплатите онлайн и заберите из склада',
-                    '100% онлайн',
-                    AppTheme.success,
-                  ),
-                  (
-                    OrderModel.typeDelivery,
-                    Icons.local_shipping_outlined,
-                    'Доставка',
-                    'Укажите адрес и получите курьером',
-                    '+1500 ₸',
-                    const Color(0xFFF59E0B),
-                  ),
-                ].map((t) {
-                  final (type, icon, title, subtitle, badge, color) = t;
-                  final selected = _orderType == type;
-                  return GestureDetector(
-                    onTap: () => setState(() => _orderType = type),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 150),
-                      margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: selected
-                            ? color.withValues(alpha: 0.07)
-                            : Colors.white,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: selected ? color : AppTheme.border,
-                          width: selected ? 2 : 1,
+                    // Cart items
+                    ...cart.items.asMap().entries.map((entry) {
+                      final i = entry.key;
+                      final item = entry.value;
+                      return _CartItemCard(
+                        item: item,
+                        isUnavailable:
+                            _unavailableKeys.contains(_itemKey(item)),
+                        onRemove: () {
+                          cart.removeAt(i);
+                          _checkAvailability();
+                        },
+                      );
+                    }),
+
+                    const SizedBox(height: 8),
+                    QSecLabel('Способ получения'),
+
+                    // Delivery methods
+                    ...[
+                      (
+                        OrderModel.typeSmartReservation,
+                        Icons.timer_outlined,
+                        'Смарт-Бронь',
+                        'Бронь на 1 час, 10% депозит',
+                        'blue',
+                      ),
+                      (
+                        OrderModel.typeClickCollect,
+                        Icons.qr_code_rounded,
+                        'Click & Collect',
+                        '100% онлайн, самовывоз',
+                        'green',
+                      ),
+                      (
+                        OrderModel.typeDelivery,
+                        Icons.local_shipping_outlined,
+                        'Доставка',
+                        'Курьером по адресу +1 500 ₸',
+                        'amber',
+                      ),
+                    ].map((t) {
+                      final (type, icon, title, subtitle, tone) = t;
+                      final selected = _orderType == type;
+                      return GestureDetector(
+                        onTap: () => setState(() => _orderType = type),
+                        child: Container(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          padding: const EdgeInsets.all(13),
+                          decoration: BoxDecoration(
+                            color: cSurface,
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(
+                              color: selected ? cGreen : cLine,
+                              width: selected ? 1.5 : 1,
+                            ),
+                            boxShadow: kShadowSm,
+                          ),
+                          child: Row(children: [
+                            QIconTile(
+                              icon: Icon(_iconFor(type),
+                                  color: _iconColor(tone), size: 19),
+                              tone: tone,
+                              size: 40,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    Text(title,
+                                        style: manrope(
+                                            14, FontWeight.w700,
+                                            color: cInk)),
+                                    Text(subtitle,
+                                        style: manrope(
+                                            12, FontWeight.w500,
+                                            color: cInk3)),
+                                  ]),
+                            ),
+                            Container(
+                              width: 22,
+                              height: 22,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: selected ? cGreen : cSurface,
+                                border: Border.all(
+                                  color: selected ? cGreen : cLine,
+                                  width: 2,
+                                ),
+                              ),
+                              child: selected
+                                  ? const Icon(Icons.check_rounded,
+                                      size: 13, color: Colors.white)
+                                  : null,
+                            ),
+                          ]),
+                        ),
+                      );
+                    }),
+
+                    // Pickup address info
+                    if (_orderType != OrderModel.typeDelivery &&
+                        _warehouseAddress(cart.items).isNotEmpty) ...[
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: cGreenTint,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Row(children: [
+                          const Icon(Icons.location_on_outlined,
+                              color: cGreenDeep, size: 16),
+                          const SizedBox(width: 8),
+                          Expanded(
+                              child: Text(
+                            'Получение: ${_warehouseAddress(cart.items)}',
+                            style: manrope(12, FontWeight.w500,
+                                color: cGreenDeep),
+                          )),
+                        ]),
+                      ),
+                      const SizedBox(height: 10),
+                    ],
+
+                    // Delivery address input
+                    if (_orderType == OrderModel.typeDelivery) ...[
+                      Text('Адрес доставки *',
+                          style: manrope(12.5, FontWeight.w700, color: cInk2)),
+                      const SizedBox(height: 6),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: cSurface,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: cLine, width: 1.5),
+                        ),
+                        child: TextField(
+                          controller: _addressCtrl,
+                          style: manrope(14, FontWeight.w500, color: cInk),
+                          decoration: InputDecoration(
+                            hintText: 'Город, улица, дом',
+                            hintStyle:
+                                manrope(14, FontWeight.w500, color: cInk3),
+                            prefixIcon: const Icon(Icons.location_on_outlined,
+                                color: cInk3, size: 19),
+                            border: InputBorder.none,
+                            contentPadding:
+                                const EdgeInsets.symmetric(vertical: 14),
+                          ),
                         ),
                       ),
-                      child: Row(children: [
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: (selected ? color : AppTheme.textHint)
-                                .withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Icon(icon,
-                              color: selected ? color : AppTheme.textHint,
-                              size: 20),
+                      const SizedBox(height: 10),
+                    ],
+
+                    // Note
+                    Text('Примечание',
+                        style: manrope(12.5, FontWeight.w700, color: cInk2)),
+                    const SizedBox(height: 6),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: cSurface,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: cLine, width: 1.5),
+                      ),
+                      child: TextField(
+                        controller: _noteCtrl,
+                        maxLines: 2,
+                        style: manrope(14, FontWeight.w500, color: cInk),
+                        decoration: InputDecoration(
+                          hintText: 'Дополнительная информация...',
+                          hintStyle:
+                              manrope(14, FontWeight.w500, color: cInk3),
+                          border: InputBorder.none,
+                          contentPadding: const EdgeInsets.all(14),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                            child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(children: [
-                              Text(title,
-                                  style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w700,
-                                      color: selected
-                                          ? color
-                                          : AppTheme.textPrimary)),
-                              const SizedBox(width: 6),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: color.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(5),
-                                ),
-                                child: Text(badge,
-                                    style: TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w700,
-                                        color: color)),
-                              ),
-                            ]),
-                            const SizedBox(height: 2),
-                            Text(subtitle,
-                                style: const TextStyle(
-                                    fontSize: 12,
-                                    color: AppTheme.textSecondary)),
-                          ],
-                        )),
-                        if (selected)
-                          Icon(Icons.check_circle_rounded,
-                              color: color, size: 22),
+                      ),
+                    ),
+                    const SizedBox(height: 120),
+                  ],
+                ),
+        ),
+      ]),
+      bottomNavigationBar: cart.items.isEmpty
+          ? null
+          : SafeArea(
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(18, 14, 18, 16),
+                decoration: const BoxDecoration(
+                  color: cSurface,
+                  border: Border(top: BorderSide(color: cLine)),
+                ),
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          _orderType == OrderModel.typeSmartReservation
+                              ? 'К оплате сейчас (депозит 10%)'
+                              : 'К оплате',
+                          style: manrope(13.5, FontWeight.w600, color: cInk2),
+                        ),
+                        Text(
+                          money(_depositFor(cart.total)),
+                          style: manrope(20, FontWeight.w800, color: cInk),
+                        ),
                       ]),
-                    ),
-                  );
-                }),
-                if (_orderType != OrderModel.typeDelivery &&
-                    _warehouseAddress(cart.items).isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AppTheme.primary.withValues(alpha: 0.05),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                          color: AppTheme.primary.withValues(alpha: 0.2)),
-                    ),
-                    child: Row(children: [
-                      const Icon(Icons.location_on_outlined,
-                          color: AppTheme.primary, size: 16),
-                      const SizedBox(width: 8),
-                      Expanded(
-                          child: Text(
-                        'Адрес получения: ${_warehouseAddress(cart.items)}',
-                        style: const TextStyle(
-                            fontSize: 12,
-                            color: AppTheme.primary,
-                            fontWeight: FontWeight.w500),
-                      )),
-                    ]),
-                  ),
-                ],
-                if (_orderType == OrderModel.typeDelivery) ...[
-                  const SizedBox(height: 12),
-                  const Text('Адрес доставки *',
-                      style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: AppTheme.textPrimary)),
-                  const SizedBox(height: 6),
-                  TextFormField(
-                    controller: _addressCtrl,
-                    decoration: const InputDecoration(
-                      hintText: 'Город, улица, дом, квартира',
-                      prefixIcon: Icon(Icons.location_on_outlined),
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 12),
-                const Text('Примечание (необязательно)',
-                    style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: AppTheme.textPrimary)),
-                const SizedBox(height: 6),
-                TextFormField(
-                  controller: _noteCtrl,
-                  maxLines: 2,
-                  decoration: const InputDecoration(
-                      hintText: 'Дополнительная информация...'),
-                ),
-                const SizedBox(height: 20),
-                _PaymentSummaryCard(
-                  orderType: _orderType,
-                  total: cart.total,
-                  deposit: _depositFor(cart.total),
-                  deliveryFee: _deliveryFeeFor(),
-                ),
-                const SizedBox(height: 14),
-                SizedBox(
-                  width: double.infinity,
-                  height: 54,
-                  child: ElevatedButton(
+                  const SizedBox(height: 11),
+                  QPrimaryButton(
+                    label: _orderType == OrderModel.typeSmartReservation
+                        ? 'Забронировать'
+                        : 'Оплатить',
+                    isLoading: _isLoading,
                     onPressed: (_isLoading || _unavailableKeys.isNotEmpty)
                         ? null
                         : _showPaymentConfirmation,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.primary,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14)),
-                      elevation: 0,
-                    ),
-                    child: _isLoading
-                        ? const SizedBox(
-                            width: 22,
-                            height: 22,
-                            child: CircularProgressIndicator(
-                                color: Colors.white, strokeWidth: 2))
-                        : Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                                const Icon(Icons.lock_outline, size: 18),
-                                const SizedBox(width: 8),
-                                Text(
-                                  _orderType == OrderModel.typeSmartReservation
-                                      ? 'Забронировать — ${_depositFor(cart.total).toStringAsFixed(0)} ₸'
-                                      : 'Оплатить — ${_depositFor(cart.total).toStringAsFixed(0)} ₸',
-                                  style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w700),
-                                ),
-                              ]),
+                    height: 54,
                   ),
-                ),
-                const SizedBox(height: 32),
-              ],
+                ]),
+              ),
             ),
     );
   }
+
+  IconData _iconFor(String type) {
+    switch (type) {
+      case OrderModel.typeClickCollect:
+        return Icons.qr_code_rounded;
+      case OrderModel.typeDelivery:
+        return Icons.local_shipping_outlined;
+      default:
+        return Icons.timer_outlined;
+    }
+  }
+
+  Color _iconColor(String tone) {
+    switch (tone) {
+      case 'amber':
+        return cAmber;
+      case 'green':
+        return cGreen;
+      default:
+        return cBlue;
+    }
+  }
+
+  String _pluralItem(int n) {
+    if (n % 10 == 1 && n % 100 != 11) return 'товар';
+    if (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) {
+      return 'товара';
+    }
+    return 'товаров';
+  }
 }
 
-// ── Payment summary card ───────────────────────────────────────────────────────
-class _PaymentSummaryCard extends StatelessWidget {
-  final String orderType;
-  final double total, deposit, deliveryFee;
-  const _PaymentSummaryCard({
-    required this.orderType,
-    required this.total,
-    required this.deposit,
-    required this.deliveryFee,
-  });
+// ── Cart item card ─────────────────────────────────────────────────────────────
+class _CartItemCard extends StatelessWidget {
+  final CartItemModel item;
+  final bool isUnavailable;
+  final VoidCallback onRemove;
+  const _CartItemCard(
+      {required this.item,
+      required this.isUnavailable,
+      required this.onRemove});
 
   @override
   Widget build(BuildContext context) {
-    final isSmartRes = orderType == OrderModel.typeSmartReservation;
-    final isDelivery = orderType == OrderModel.typeDelivery;
-
     return Container(
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(11),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 8,
-              offset: const Offset(0, 2))
-        ],
+        color: cSurface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: isUnavailable ? cRed.withValues(alpha: 0.44) : cLine,
+        ),
+        boxShadow: kShadowSm,
       ),
-      child: Column(children: [
-        _Row('Сумма товаров', '${total.toStringAsFixed(0)} ₸'),
-        if (isDelivery)
-          _Row('Доставка', '+${deliveryFee.toStringAsFixed(0)} ₸',
-              valueColor: const Color(0xFFF59E0B)),
-        const Divider(height: 16),
-        if (isSmartRes) ...[
-          _Row('Оплата сейчас (10%)', '${deposit.toStringAsFixed(0)} ₸',
-              valueColor: AppTheme.primary, bold: true),
-          _Row('Доплата в магазине (90%)',
-              '${(total - deposit).clamp(0, total).toStringAsFixed(0)} ₸',
-              valueColor: AppTheme.textSecondary),
-        ] else
-          _Row('Сумма к оплате', '${deposit.toStringAsFixed(0)} ₸',
-              valueColor: AppTheme.primary, bold: true),
+      child: Row(children: [
+        Opacity(
+          opacity: isUnavailable ? 0.55 : 1.0,
+          child: QShoeImage(
+            imageUrl: item.imageUrl.isNotEmpty ? item.imageUrl : null,
+            height: 72,
+            tone: item.productId.hashCode % 5,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(item.productName,
+                  style: manrope(13.5, FontWeight.w700, color: cInk),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis),
+              const SizedBox(height: 2),
+              Text('Размер ${item.size}',
+                  style: manrope(12, FontWeight.w500, color: cInk3)),
+              const SizedBox(height: 6),
+              isUnavailable
+                  ? QPill('Товар закончился', tone: 'red',
+                      icon: const Icon(Icons.info_outline,
+                          size: 12, color: Color(0xFFB11A2B)))
+                  : item.qty > 1
+                      ? RichText(
+                          text: TextSpan(children: [
+                            TextSpan(
+                                text: '${item.qty} × ',
+                                style: manrope(13, FontWeight.w500, color: cInk3)),
+                            TextSpan(
+                                text: money(item.price),
+                                style: manrope(15.5, FontWeight.w800, color: cInk)),
+                          ]),
+                        )
+                      : Text(money(item.price),
+                          style: manrope(15.5, FontWeight.w800, color: cInk)),
+            ],
+          ),
+        ),
+        GestureDetector(
+          onTap: onRemove,
+          child: Padding(
+            padding: const EdgeInsets.all(4),
+            child: Icon(Icons.delete_outline_rounded,
+                color: isUnavailable ? cRed : cInk3, size: 19),
+          ),
+        ),
       ]),
     );
   }
 }
 
-class _Row extends StatelessWidget {
-  final String label, value;
-  final Color? valueColor;
-  final bool bold;
-  const _Row(this.label, this.value, {this.valueColor, this.bold = false});
-
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child:
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Text(label,
-              style:
-                  const TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
-          Text(value,
-              style: TextStyle(
-                  fontSize: bold ? 16 : 13,
-                  fontWeight: bold ? FontWeight.w800 : FontWeight.w600,
-                  color: valueColor ?? AppTheme.textPrimary)),
-        ]),
-      );
-}
-
-// ── Payment confirmation bottom sheet ─────────────────────────────────────────
+// ── Payment sheet ──────────────────────────────────────────────────────────────
 class _PaymentSheet extends StatelessWidget {
   final String orderType, warehouseAddress, deliveryAddress;
   final double total, deposit, deliveryFee;
@@ -566,82 +611,59 @@ class _PaymentSheet extends StatelessWidget {
     final isDelivery = orderType == OrderModel.typeDelivery;
     final isCC = orderType == OrderModel.typeClickCollect;
 
-    final Color accentColor = isSmartRes
-        ? const Color(0xFF3B82F6)
-        : isCC
-            ? AppTheme.success
-            : const Color(0xFFF59E0B);
+    final Color accentColor =
+        isSmartRes ? cBlue : isCC ? cGreen : cAmber;
 
-    final String typeLabel = isSmartRes
-        ? 'Смарт-Бронь'
-        : isCC
-            ? 'Click & Collect'
-            : 'Доставка';
+    final String typeLabel =
+        isSmartRes ? 'Смарт-Бронь' : isCC ? 'Click & Collect' : 'Доставка';
 
     return Container(
       decoration: const BoxDecoration(
-        color: Colors.white,
+        color: cSurface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       padding: EdgeInsets.fromLTRB(
           20, 16, 20, MediaQuery.of(context).viewInsets.bottom + 24),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         Container(
-          width: 40,
-          height: 4,
+          width: 40, height: 4,
           margin: const EdgeInsets.only(bottom: 20),
           decoration: BoxDecoration(
-              color: AppTheme.border, borderRadius: BorderRadius.circular(2)),
+              color: cLine, borderRadius: BorderRadius.circular(2)),
         ),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-          decoration: BoxDecoration(
-            color: accentColor.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Text(typeLabel,
-              style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: accentColor)),
-        ),
+        QPill(typeLabel, tone: isSmartRes ? 'blue' : isCC ? 'green' : 'amber'),
         const SizedBox(height: 16),
-        Text(
-          '${deposit.toStringAsFixed(0)} ₸',
-          style: const TextStyle(
-              fontSize: 34,
-              fontWeight: FontWeight.w900,
-              color: AppTheme.textPrimary,
-              letterSpacing: -1),
-        ),
+        Text(money(deposit),
+            style: manrope(34, FontWeight.w800, color: cInk, letterSpacing: -1)),
         const SizedBox(height: 4),
         Text(
-          isSmartRes ? 'Сумма к оплате сейчас (10% депозит)' : 'Итого к оплате',
-          style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+          isSmartRes ? 'К оплате сейчас (10% депозит)' : 'Итого к оплате',
+          style: manrope(13, FontWeight.w500, color: cInk2),
         ),
         if (isSmartRes) ...[
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
-            'В магазине: ${(total - deposit).clamp(0, total).toStringAsFixed(0)} ₸',
-            style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+            'В магазине: ${money((total - deposit).clamp(0, total))}',
+            style: manrope(13, FontWeight.w500, color: cInk3),
           ),
         ],
         if (isDelivery) ...[
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
-            'Товары: ${total.toStringAsFixed(0)} ₸  +  Доставка: ${deliveryFee.toStringAsFixed(0)} ₸',
-            style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+            'Товары: ${money(total)}  +  Доставка: ${money(deliveryFee)}',
+            style: manrope(13, FontWeight.w500, color: cInk3),
           ),
         ],
         const SizedBox(height: 16),
-        const Divider(),
+        Container(height: 1, color: cLine),
         const SizedBox(height: 12),
         if (!isDelivery && warehouseAddress.isNotEmpty)
-          _InfoRow(
-              Icons.location_on_outlined, 'Адрес получения', warehouseAddress),
+          _InfoRow(Icons.location_on_outlined, 'Адрес получения',
+              warehouseAddress),
         if (isDelivery && deliveryAddress.isNotEmpty)
           _InfoRow(Icons.local_shipping_outlined, 'Доставка', deliveryAddress),
-        if (isSmartRes) _InfoRow(Icons.timer_outlined, 'Срок брони', '1 час'),
+        if (isSmartRes)
+          _InfoRow(Icons.timer_outlined, 'Срок брони', '1 час'),
         const SizedBox(height: 20),
         SizedBox(
           width: double.infinity,
@@ -651,23 +673,23 @@ class _PaymentSheet extends StatelessWidget {
             style: ElevatedButton.styleFrom(
               backgroundColor: accentColor,
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14)),
               elevation: 0,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(15)),
             ),
             child: Text(
               isSmartRes
                   ? 'Подтвердить и забронировать'
                   : 'Подтвердить и оплатить',
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+              style: manrope(15.5, FontWeight.w700, color: Colors.white),
             ),
           ),
         ),
         const SizedBox(height: 10),
         TextButton(
           onPressed: () => Navigator.pop(context, false),
-          child: const Text('Отмена',
-              style: TextStyle(color: AppTheme.textHint, fontSize: 14)),
+          child: Text('Отмена',
+              style: manrope(14, FontWeight.w600, color: cInk3)),
         ),
       ]),
     );
@@ -683,150 +705,18 @@ class _InfoRow extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.only(bottom: 8),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Icon(icon, size: 16, color: AppTheme.primary),
+          Icon(icon, size: 16, color: cGreen),
           const SizedBox(width: 8),
           Expanded(
               child: RichText(
-                  text: TextSpan(
-            style: const TextStyle(fontSize: 13),
-            children: [
-              TextSpan(
-                  text: '$label: ',
-                  style: const TextStyle(color: AppTheme.textSecondary)),
-              TextSpan(
-                  text: value,
-                  style: const TextStyle(
-                      color: AppTheme.textPrimary,
-                      fontWeight: FontWeight.w600)),
-            ],
-          ))),
+                  text: TextSpan(children: [
+            TextSpan(
+                text: '$label: ',
+                style: manrope(13, FontWeight.w500, color: cInk2)),
+            TextSpan(
+                text: value,
+                style: manrope(13, FontWeight.w700, color: cInk)),
+          ]))),
         ]),
-      );
-}
-
-// ── Cart item tile ─────────────────────────────────────────────────────────────
-class _CartItemTile extends StatelessWidget {
-  final CartItemModel item;
-  final VoidCallback onRemove;
-  final bool isUnavailable;
-  const _CartItemTile({
-    required this.item,
-    required this.onRemove,
-    this.isUnavailable = false,
-  });
-
-  @override
-  Widget build(BuildContext context) => Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: isUnavailable
-              ? AppTheme.dangerLight
-              : Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: isUnavailable
-              ? Border.all(color: AppTheme.danger.withValues(alpha: 0.4))
-              : null,
-          boxShadow: [
-            BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 2))
-          ],
-        ),
-        child: Row(children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: item.imageUrl.isNotEmpty
-                ? Image.network(item.imageUrl,
-                    width: 60,
-                    height: 60,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => _Placeholder())
-                : _Placeholder(),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-              child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(item.productName,
-                  style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: isUnavailable
-                          ? AppTheme.danger
-                          : AppTheme.textPrimary),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis),
-              if (isUnavailable) ...[
-                const SizedBox(height: 3),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: AppTheme.danger,
-                    borderRadius: BorderRadius.circular(5),
-                  ),
-                  child: const Text(
-                    'Сатылып кетті / қолжетімсіз',
-                    style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white),
-                  ),
-                ),
-              ],
-              const SizedBox(height: 2),
-              Text('Размер: ${item.size}  ×${item.qty}',
-                  style: const TextStyle(
-                      fontSize: 12, color: AppTheme.textSecondary)),
-              Text('${item.subtotal.toStringAsFixed(0)} ₸',
-                  style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.primary)),
-              if (item.storeName.isNotEmpty) ...[
-                const SizedBox(height: 2),
-                Row(children: [
-                  const Icon(Icons.store_outlined,
-                      size: 10, color: AppTheme.textHint),
-                  const SizedBox(width: 3),
-                  Text(item.storeName,
-                      style: const TextStyle(
-                          fontSize: 11, color: AppTheme.textHint)),
-                ]),
-              ],
-              if (item.warehouseAddress.isNotEmpty)
-                Row(children: [
-                  const Icon(Icons.location_on_outlined,
-                      size: 10, color: AppTheme.textHint),
-                  const SizedBox(width: 3),
-                  Expanded(
-                      child: Text(item.warehouseAddress,
-                          style: const TextStyle(
-                              fontSize: 10, color: AppTheme.textHint),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis)),
-                ]),
-            ],
-          )),
-          IconButton(
-            icon: const Icon(Icons.delete_outline,
-                color: AppTheme.danger, size: 20),
-            onPressed: onRemove,
-          ),
-        ]),
-      );
-}
-
-class _Placeholder extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) => Container(
-        width: 60,
-        height: 60,
-        color: AppTheme.primary.withValues(alpha: 0.06),
-        child: const Icon(Icons.image_outlined,
-            color: AppTheme.textHint, size: 24),
       );
 }

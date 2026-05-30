@@ -5,7 +5,7 @@ import '../../core/l10n_ext.dart';
 import '../../core/warehouse_context.dart';
 import '../../data/models/models.dart';
 import '../../data/services/firestore_service.dart';
-import '../../theme/app_theme.dart';
+import '../../theme/qoima_design.dart';
 import 'seller_drilldown_screen.dart';
 
 class AnalyticsScreen extends StatefulWidget {
@@ -45,7 +45,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(context.l10n.selectMonth,
             style: const TextStyle(
-                fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
+                fontWeight: FontWeight.w700, color: cInk)),
         content: StatefulBuilder(
             builder: (_, setS) => SizedBox(
                   width: 280,
@@ -55,17 +55,17 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
                         children: [
                           IconButton(
                               icon: const Icon(Icons.chevron_left,
-                                  color: AppTheme.primary),
+                                  color: cGreen),
                               onPressed: () => setS(() =>
                                   temp = DateTime(temp.year - 1, temp.month))),
                           Text('${temp.year}',
                               style: const TextStyle(
                                   fontWeight: FontWeight.w700,
                                   fontSize: 17,
-                                  color: AppTheme.textPrimary)),
+                                  color: cInk)),
                           IconButton(
                               icon: const Icon(Icons.chevron_right,
-                                  color: AppTheme.primary),
+                                  color: cGreen),
                               onPressed: () => setS(() =>
                                   temp = DateTime(temp.year + 1, temp.month))),
                         ]),
@@ -89,8 +89,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
                             child: Container(
                                 decoration: BoxDecoration(
                                     color: sel
-                                        ? AppTheme.primary
-                                        : AppTheme.background,
+                                        ? cGreen
+                                        : cBg,
                                     borderRadius: BorderRadius.circular(8)),
                                 child: Center(
                                     child: Text(mn[i],
@@ -99,7 +99,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
                                             fontWeight: FontWeight.w600,
                                             color: sel
                                                 ? Colors.white
-                                                : AppTheme.textSecondary)))));
+                                                : cInk2)))));
                       },
                     ),
                   ]),
@@ -108,14 +108,14 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
           TextButton(
               onPressed: () => Navigator.pop(ctx),
               child: Text(context.l10n.cancel,
-                  style: const TextStyle(color: AppTheme.textSecondary))),
+                  style: const TextStyle(color: cInk2))),
           ElevatedButton(
               onPressed: () {
                 setState(() => _month = temp);
                 Navigator.pop(ctx);
               },
               style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primary,
+                  backgroundColor: cGreen,
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10))),
@@ -128,79 +128,93 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.background,
+      backgroundColor: cBg,
       body: CustomScrollView(
         slivers: [
           SliverToBoxAdapter(
             child: Container(
-              decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                      colors: [Color(0xFF1E3A8A), Color(0xFF2D4FB5)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight)),
+              decoration: const BoxDecoration(gradient: kGrad),
               child: SafeArea(
                   bottom: false,
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 16, 12, 0),
+                    padding: const EdgeInsets.fromLTRB(20, 6, 20, 16),
                     child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          // Title + calendar btn
                           Row(children: [
-                            Column(
+                            Expanded(
+                              child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(context.l10n.analyticsTitle,
-                                      style: const TextStyle(
+                                      style: manrope(23, FontWeight.w800,
                                           color: Colors.white,
-                                          fontSize: 26,
-                                          fontWeight: FontWeight.w800,
                                           letterSpacing: -0.5)),
-                                  Text(context.l10n.financialDashboard,
-                                      style: const TextStyle(
-                                          color: Colors.white60, fontSize: 13)),
-                                ]),
-                            const Spacer(),
-                            GestureDetector(
-                              onTap: _pickMonth,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 14, vertical: 8),
-                                decoration: BoxDecoration(
-                                    color: Colors.white.withValues(alpha: 0.15),
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(
-                                        color: Colors.white
-                                            .withValues(alpha: 0.3))),
-                                child: Row(children: [
                                   Text(context.monthShort(_month),
-                                      style: const TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 13)),
-                                  const SizedBox(width: 4),
-                                  const Icon(Icons.keyboard_arrow_down_rounded,
-                                      color: Colors.white, size: 18),
-                                ]),
+                                      style: manrope(13, FontWeight.w500,
+                                          color: Colors.white
+                                              .withValues(alpha: 0.78))),
+                                ],
                               ),
                             ),
+                            GestureDetector(
+                              onTap: _pickMonth,
+                              child: QHeaderBtn(
+                                  Icons.calendar_today_outlined),
+                            ),
                           ]),
-                          const SizedBox(height: 12),
-                          TabBar(
-                            controller: _tabCtrl,
-                            indicatorColor: Colors.white,
-                            indicatorWeight: 3,
-                            labelColor: Colors.white,
-                            unselectedLabelColor: Colors.white60,
-                            labelStyle: const TextStyle(
-                                fontWeight: FontWeight.w700, fontSize: 13),
-                            unselectedLabelStyle: const TextStyle(
-                                fontWeight: FontWeight.w500, fontSize: 13),
-                            tabs: [
-                              Tab(text: context.l10n.generalTab),
-                              Tab(text: context.l10n.sellersTab),
-                              Tab(text: context.l10n.warehouseTab),
-                              const Tab(text: 'Онлайн'),
-                            ],
+                          const SizedBox(height: 14),
+                          // Pill-style tab switcher
+                          Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.14),
+                              borderRadius: BorderRadius.circular(13),
+                            ),
+                            child: AnimatedBuilder(
+                              animation: _tabCtrl,
+                              builder: (_, __) => Row(
+                                children: [
+                                  context.l10n.generalTab,
+                                  context.l10n.sellersTab,
+                                  context.l10n.warehouseTab,
+                                  'Онлайн',
+                                ].asMap().entries.map((e) {
+                                  final active =
+                                      _tabCtrl.index == e.key;
+                                  return Expanded(
+                                    child: GestureDetector(
+                                      onTap: () => _tabCtrl.animateTo(
+                                          e.key),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            vertical: 8),
+                                        decoration: BoxDecoration(
+                                          color: active
+                                              ? Colors.white
+                                              : Colors.transparent,
+                                          borderRadius:
+                                              BorderRadius.circular(10),
+                                        ),
+                                        child: Text(
+                                          e.value,
+                                          textAlign: TextAlign.center,
+                                          style: manrope(
+                                            12.5,
+                                            FontWeight.w700,
+                                            color: active
+                                                ? cGreenDeep
+                                                : Colors.white.withValues(
+                                                    alpha: 0.85),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
+                            ),
                           ),
                         ]),
                   )),
@@ -244,7 +258,7 @@ class _OverviewTabState extends State<_OverviewTab> {
           builder: (_, sSnap) {
             if (sSnap.connectionState == ConnectionState.waiting) {
               return const Center(
-                  child: CircularProgressIndicator(color: AppTheme.primary));
+                  child: CircularProgressIndicator(color: cGreen));
             }
 
             final mSales = sSnap.data ?? [];
@@ -285,7 +299,7 @@ class _OverviewTabState extends State<_OverviewTab> {
                     sub:
                         'Офлайн: ${_fmt(offlineRevenue)} ₸  ·  Онлайн: ${_fmt(onlineRevenue)} ₸',
                     icon: Icons.trending_up_rounded,
-                    color: AppTheme.primary,
+                    color: cGreen,
                   ),
                   const SizedBox(height: 10),
                   Row(children: [
@@ -294,7 +308,7 @@ class _OverviewTabState extends State<_OverviewTab> {
                       label: 'Өзіндік құн',
                       value: '${_fmt(totalCost)} ₸',
                       icon: Icons.arrow_downward_rounded,
-                      color: AppTheme.danger,
+                      color: cRed,
                     )),
                     const SizedBox(width: 10),
                     Expanded(
@@ -302,7 +316,7 @@ class _OverviewTabState extends State<_OverviewTab> {
                       label: 'Маржа',
                       value: '${_fmt(margin)} ₸',
                       icon: Icons.account_balance_wallet_outlined,
-                      color: margin >= 0 ? AppTheme.success : AppTheme.danger,
+                      color: margin >= 0 ? cGreen : cRed,
                     )),
                   ]),
                   const SizedBox(height: 10),
@@ -311,14 +325,14 @@ class _OverviewTabState extends State<_OverviewTab> {
                     value: '$totalPairs жұп',
                     sub: 'Офлайн: $offlinePairs  ·  Онлайн: $onlinePairs',
                     icon: Icons.shopping_bag_outlined,
-                    color: AppTheme.success,
+                    color: cGreen,
                   ),
                   const SizedBox(height: 20),
                   const Text('Күндік белсенділік',
                       style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
-                          color: AppTheme.textPrimary)),
+                          color: cInk)),
                   const SizedBox(height: 10),
                   _MobileDailyChart(
                     offlineSales: pureSales,
@@ -348,7 +362,7 @@ class _SellersTab extends StatelessWidget {
       builder: (_, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
           return const Center(
-              child: CircularProgressIndicator(color: AppTheme.primary));
+              child: CircularProgressIndicator(color: cGreen));
         }
 
         final sales = snap.data ?? [];
@@ -370,7 +384,7 @@ class _SellersTab extends StatelessWidget {
         if (ranked.isEmpty) {
           return const Center(
               child: Text('Сатылым жоқ',
-                  style: TextStyle(color: AppTheme.textSecondary)));
+                  style: TextStyle(color: cInk2)));
         }
 
         return ListView(
@@ -380,12 +394,12 @@ class _SellersTab extends StatelessWidget {
               _KpiChip(
                   label: 'Сатушылар',
                   value: '${ranked.length}',
-                  color: AppTheme.primary),
+                  color: cGreen),
               const SizedBox(width: 8),
               _KpiChip(
                   label: 'Жалпы түсімі',
                   value: '${_fmt(grandTotal)} ₸',
-                  color: AppTheme.success),
+                  color: cGreen),
             ]),
             const SizedBox(height: 8),
             Container(
@@ -454,17 +468,17 @@ class _SellersTab extends StatelessWidget {
                                 fontSize: 14, fontWeight: FontWeight.w700)),
                         Text('${stat.count} сат · ${stat.pairs} жұп',
                             style: const TextStyle(
-                                fontSize: 11, color: AppTheme.textSecondary)),
+                                fontSize: 11, color: cInk2)),
                       ],
                     )),
                     Text('${_fmt(stat.revenue)} ₸',
                         style: const TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w800,
-                            color: AppTheme.success)),
+                            color: cGreen)),
                     const SizedBox(width: 8),
                     const Icon(Icons.chevron_right_rounded,
-                        color: AppTheme.textHint, size: 22),
+                        color: cInk3, size: 22),
                   ]),
                 ),
               );
@@ -504,7 +518,7 @@ class _WarehousesTab extends StatelessWidget {
           builder: (_, snap) {
             if (snap.connectionState == ConnectionState.waiting) {
               return const Center(
-                  child: CircularProgressIndicator(color: AppTheme.primary));
+                  child: CircularProgressIndicator(color: cGreen));
             }
             final allSales =
                 (snap.data ?? []).where((s) => !s.isOnline).toList();
@@ -512,7 +526,7 @@ class _WarehousesTab extends StatelessWidget {
             if (warehouses.isEmpty) {
               return const Center(
                   child: Text('Қойма жоқ',
-                      style: TextStyle(color: AppTheme.textSecondary)));
+                      style: TextStyle(color: cInk2)));
             }
 
             return ListView.builder(
@@ -590,24 +604,24 @@ class _WarehouseAnalyticsCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(14),
             decoration: const BoxDecoration(
-              color: AppTheme.primarySoft,
+              color: cGreenTint,
               borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
             ),
             child: Row(children: [
               const Icon(Icons.warehouse_rounded,
-                  color: AppTheme.primary, size: 20),
+                  color: cGreen, size: 20),
               const SizedBox(width: 10),
               Expanded(
                   child: Text(warehouse.name,
                       style: const TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
-                          color: AppTheme.primary))),
+                          color: cGreen))),
               Text('${_fmt(revenue)} ₸',
                   style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w900,
-                      color: AppTheme.primary)),
+                      color: cGreen)),
             ]),
           ),
           Padding(
@@ -619,7 +633,7 @@ class _WarehouseAnalyticsCard extends StatelessWidget {
                     style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: AppTheme.textSecondary)),
+                        color: cInk2)),
                 const SizedBox(height: 8),
                 _MobileDailyChart(
                   offlineSales: sales,
@@ -632,7 +646,7 @@ class _WarehouseAnalyticsCard extends StatelessWidget {
                       style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: AppTheme.textSecondary)),
+                          color: cInk2)),
                   const SizedBox(height: 8),
                   ...top3.asMap().entries.map((e) => Padding(
                         padding: const EdgeInsets.only(bottom: 6),
@@ -641,7 +655,7 @@ class _WarehouseAnalyticsCard extends StatelessWidget {
                             width: 22,
                             height: 22,
                             decoration: BoxDecoration(
-                              color: AppTheme.primary.withValues(alpha: 0.1),
+                              color: cGreen.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Center(
@@ -649,7 +663,7 @@ class _WarehouseAnalyticsCard extends StatelessWidget {
                                     style: const TextStyle(
                                         fontSize: 10,
                                         fontWeight: FontWeight.w800,
-                                        color: AppTheme.primary))),
+                                        color: cGreen))),
                           ),
                           const SizedBox(width: 8),
                           Expanded(child: Text(
@@ -657,7 +671,7 @@ class _WarehouseAnalyticsCard extends StatelessWidget {
                                 ? '${e.value.key.substring(0, 20)}...'
                                 : e.value.key,
                             style: const TextStyle(
-                                fontSize: 12, color: AppTheme.textPrimary),
+                                fontSize: 12, color: cInk),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           )),
@@ -665,7 +679,7 @@ class _WarehouseAnalyticsCard extends StatelessWidget {
                               style: const TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w700,
-                                  color: AppTheme.success)),
+                                  color: cGreen)),
                         ]),
                       )),
                 ],
@@ -674,7 +688,7 @@ class _WarehouseAnalyticsCard extends StatelessWidget {
                     style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: AppTheme.textSecondary)),
+                        color: cInk2)),
                 const SizedBox(height: 8),
                 FutureBuilder<List<_StaleItem>>(
                   future: _loadStale(warehouse.id),
@@ -684,12 +698,12 @@ class _WarehouseAnalyticsCard extends StatelessWidget {
                           height: 30,
                           child: Center(
                               child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: AppTheme.primary)));
+                                  strokeWidth: 2, color: cGreen)));
                     }
                     if (snap.data!.isEmpty) {
                       return const Text('Жатып қалған тауар жоқ 👍',
                           style: TextStyle(
-                              fontSize: 12, color: AppTheme.textHint));
+                              fontSize: 12, color: cInk3));
                     }
                     return Column(
                       children: snap.data!
@@ -697,27 +711,27 @@ class _WarehouseAnalyticsCard extends StatelessWidget {
                                 padding: const EdgeInsets.only(bottom: 6),
                                 child: Row(children: [
                                   const Icon(Icons.warning_amber_rounded,
-                                      color: AppTheme.warning, size: 16),
+                                      color: cAmber, size: 16),
                                   const SizedBox(width: 8),
                                   Expanded(
                                       child: Text(item.product.name,
                                           style: const TextStyle(
                                               fontSize: 12,
-                                              color: AppTheme.textPrimary),
+                                              color: cInk),
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis)),
                                   Container(
                                     padding: const EdgeInsets.symmetric(
                                         horizontal: 6, vertical: 2),
                                     decoration: BoxDecoration(
-                                      color: AppTheme.warningSoft,
+                                      color: cAmberTint,
                                       borderRadius: BorderRadius.circular(4),
                                     ),
                                     child: Text('${item.days} күн',
                                         style: const TextStyle(
                                             fontSize: 10,
                                             fontWeight: FontWeight.w700,
-                                            color: AppTheme.warning)),
+                                            color: cAmber)),
                                   ),
                                 ]),
                               ))
@@ -785,7 +799,7 @@ class _OnlineTab extends StatelessWidget {
           builder: (_, snap) {
             if (snap.connectionState == ConnectionState.waiting) {
               return const Center(
-                  child: CircularProgressIndicator(color: AppTheme.primary));
+                  child: CircularProgressIndicator(color: cGreen));
             }
 
             final allOrders = (snap.data ?? [])
@@ -815,7 +829,7 @@ class _OnlineTab extends StatelessWidget {
                   label: 'Түсімі (Онлайн)',
                   value: '${_fmt(revenue)} ₸',
                   icon: Icons.shopping_cart_rounded,
-                  color: AppTheme.primary,
+                  color: cGreen,
                 ),
                 const SizedBox(height: 10),
                 Row(children: [
@@ -824,7 +838,7 @@ class _OnlineTab extends StatelessWidget {
                     label: 'Өзіндік құн',
                     value: '${_fmt(onlineCost)} ₸',
                     icon: Icons.arrow_downward_rounded,
-                    color: AppTheme.danger,
+                    color: cRed,
                   )),
                   const SizedBox(width: 10),
                   Expanded(
@@ -832,7 +846,7 @@ class _OnlineTab extends StatelessWidget {
                     label: 'Маржа',
                     value: '${_fmt(margin)} ₸',
                     icon: Icons.account_balance_wallet_outlined,
-                    color: margin >= 0 ? AppTheme.success : AppTheme.danger,
+                    color: margin >= 0 ? cGreen : cRed,
                   )),
                 ]),
                 const SizedBox(height: 10),
@@ -842,7 +856,7 @@ class _OnlineTab extends StatelessWidget {
                     label: 'Тапсырыстар',
                     value: '$totalCount',
                     icon: Icons.receipt_long_outlined,
-                    color: AppTheme.primary,
+                    color: cGreen,
                   )),
                   const SizedBox(width: 10),
                   Expanded(
@@ -850,7 +864,7 @@ class _OnlineTab extends StatelessWidget {
                     label: 'Бас тарту',
                     value: '$cancelled',
                     icon: Icons.cancel_outlined,
-                    color: AppTheme.danger,
+                    color: cRed,
                   )),
                 ]),
                 const SizedBox(height: 10),
@@ -858,14 +872,14 @@ class _OnlineTab extends StatelessWidget {
                   label: 'Сатылған жұп (онлайн)',
                   value: '$pairsSold жұп',
                   icon: Icons.shopping_bag_outlined,
-                  color: AppTheme.success,
+                  color: cGreen,
                 ),
                 const SizedBox(height: 20),
                 const Text('Күндік белсенділік (онлайн)',
                     style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
-                        color: AppTheme.textPrimary)),
+                        color: cInk)),
                 const SizedBox(height: 10),
                 _MobileDailyChart(
                   offlineSales: const [],
@@ -940,14 +954,14 @@ class _MobileDailyChartState extends State<_MobileDailyChart> {
                     Text(
                       '${_tapped! + 1} ${_monthShort(widget.month.month)}: ',
                       style: const TextStyle(
-                          fontSize: 12, color: AppTheme.textSecondary),
+                          fontSize: 12, color: cInk2),
                     ),
                     Text(
                       '${_fmtRev(byDay[_tapped!])} ₸',
                       style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w800,
-                          color: AppTheme.success),
+                          color: cGreen),
                     ),
                   ])
                 : Text(
@@ -955,7 +969,7 @@ class _MobileDailyChartState extends State<_MobileDailyChart> {
                     style: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
-                        color: AppTheme.primary),
+                        color: cGreen),
                   ),
           ),
           const SizedBox(height: 8),
@@ -983,13 +997,13 @@ class _MobileDailyChartState extends State<_MobileDailyChart> {
                                 ? null
                                 : const LinearGradient(
                                     colors: [
-                                      AppTheme.primaryLight,
-                                      AppTheme.primary
+                                      cGreenBright,
+                                      cGreen
                                     ],
                                     begin: Alignment.topCenter,
                                     end: Alignment.bottomCenter,
                                   ),
-                            color: isSel ? AppTheme.success : null,
+                            color: isSel ? cGreen : null,
                             borderRadius: const BorderRadius.vertical(
                                 top: Radius.circular(3)),
                           ),
@@ -1017,7 +1031,7 @@ class _MobileDailyChartState extends State<_MobileDailyChart> {
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 8,
-                            color: isSel ? AppTheme.primary : AppTheme.textHint,
+                            color: isSel ? cGreen : cInk3,
                             fontWeight:
                                 isSel ? FontWeight.w700 : FontWeight.w400,
                           ),
@@ -1080,43 +1094,33 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(15),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: [
-            BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 2))
-          ],
+          color: cSurface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: cLine),
+          boxShadow: kShadowSm,
         ),
         child: Row(children: [
           Container(
-            padding: const EdgeInsets.all(10),
+            width: 38,
+            height: 38,
             decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(10),
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(13),
             ),
-            child: Icon(icon, color: color, size: 20),
+            child: Icon(icon, color: color, size: 19),
           ),
           const SizedBox(width: 12),
           Expanded(
               child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label,
-                  style: const TextStyle(
-                      fontSize: 11,
-                      color: AppTheme.textSecondary,
-                      fontWeight: FontWeight.w500)),
+              Text(label, style: manrope(12, FontWeight.w600, color: cInk3)),
               Text(value,
-                  style: TextStyle(
-                      fontSize: 18, fontWeight: FontWeight.w800, color: color)),
+                  style: manrope(20, FontWeight.w800, color: color)),
               if (sub != null)
-                Text(sub!,
-                    style: const TextStyle(
-                        fontSize: 10, color: AppTheme.textHint)),
+                Text(sub!, style: manrope(11, FontWeight.w500, color: cInk3)),
             ],
           )),
         ]),

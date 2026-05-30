@@ -6,13 +6,9 @@ import '../../core/app_user.dart';
 import '../../core/l10n_ext.dart';
 import '../../data/services/auth_service.dart';
 import '../../data/services/firestore_service.dart';
-import '../../theme/app_theme.dart';
+import '../../theme/qoima_design.dart';
 import '../main_shell.dart';
 
-/// Seller-дің joinStatus-на байланысты 3 күй кепілдейді:
-///  none    → бизнес-код енгізу UI
-///  pending → күту экраны
-///  active  → MainShell-ге жібереді (бұл экран көрінбейді)
 class SellerJoinScreen extends StatefulWidget {
   const SellerJoinScreen({super.key});
   @override
@@ -20,11 +16,9 @@ class SellerJoinScreen extends StatefulWidget {
 }
 
 class _SellerJoinScreenState extends State<SellerJoinScreen> {
-  final _codeCtrl = TextEditingController();
   bool _loading = false;
   String? _error;
 
-  // 6 жеке input field үшін controllers
   final List<TextEditingController> _digits =
       List.generate(6, (_) => TextEditingController());
   final List<FocusNode> _focuses = List.generate(6, (_) => FocusNode());
@@ -33,13 +27,8 @@ class _SellerJoinScreenState extends State<SellerJoinScreen> {
 
   @override
   void dispose() {
-    _codeCtrl.dispose();
-    for (final c in _digits) {
-      c.dispose();
-    }
-    for (final f in _focuses) {
-      f.dispose();
-    }
+    for (final c in _digits) { c.dispose(); }
+    for (final f in _focuses) { f.dispose(); }
     super.dispose();
   }
 
@@ -80,7 +69,6 @@ class _SellerJoinScreenState extends State<SellerJoinScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Егер active болса — MainShell-ге жібереміз
     if (context.watch<AppUser>().joinStatus == 'active') {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
@@ -92,7 +80,6 @@ class _SellerJoinScreenState extends State<SellerJoinScreen> {
       return const SizedBox.shrink();
     }
 
-    // Firestore-дан joinStatus live тыңдаймыз
     return StreamBuilder<DocumentSnapshot>(
       stream: FirebaseFirestore.instance
           .collection('users')
@@ -115,173 +102,211 @@ class _SellerJoinScreenState extends State<SellerJoinScreen> {
         }
 
         return Scaffold(
-          backgroundColor: AppTheme.background,
+          backgroundColor: cBg,
           body: status == 'pending' ? _buildPending() : _buildNone(),
         );
       },
     );
   }
 
-  // ── Бизнес-код енгізу UI ───────────────────────────────────────────────────
+  // ── None state: enter code ─────────────────────────────────────────────────
   Widget _buildNone() {
-    return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(children: [
-          const SizedBox(height: 40),
-          Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              color: AppTheme.primary.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.storefront_rounded,
-                color: AppTheme.primary, size: 40),
-          ),
-          const SizedBox(height: 24),
-          Text(context.l10n.joinTitle,
-              style: const TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w800,
-                  color: AppTheme.textPrimary,
-                  letterSpacing: -0.5)),
-          const SizedBox(height: 8),
-          Text(context.l10n.businessCodeSubtitle,
-              textAlign: TextAlign.center,
-              style:
-                  const TextStyle(fontSize: 14, color: AppTheme.textSecondary)),
-          const SizedBox(height: 40),
-
-          // 6 жеке жасуша
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(
-                6,
-                (i) => _DigitBox(
-                      controller: _digits[i],
-                      focusNode: _focuses[i],
-                      onChanged: (v) {
-                        if (v.isNotEmpty && i < 5) {
-                          FocusScope.of(context).requestFocus(_focuses[i + 1]);
-                        }
-                        setState(() => _error = null);
-                      },
-                      onBackspace: () {
-                        if (_digits[i].text.isEmpty && i > 0) {
-                          FocusScope.of(context).requestFocus(_focuses[i - 1]);
-                          _digits[i - 1].clear();
-                        }
-                      },
-                    )),
-          ),
-
-          if (_error != null) ...[
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                  color: AppTheme.dangerLight,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                      color: AppTheme.danger.withValues(alpha: 0.3))),
-              child: Row(children: [
-                const Icon(Icons.error_outline,
-                    color: AppTheme.danger, size: 18),
-                const SizedBox(width: 8),
-                Expanded(
-                    child: Text(_error!,
-                        style: const TextStyle(
-                            color: AppTheme.danger, fontSize: 13))),
-              ]),
-            ),
-          ],
-
-          const SizedBox(height: 32),
-          SizedBox(
-            width: double.infinity,
-            height: 52,
-            child: ElevatedButton(
-              onPressed: _loading ? null : _sendRequest,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primary,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
-                elevation: 0,
-              ),
-              child: _loading
-                  ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(
-                          color: Colors.white, strokeWidth: 2))
-                  : Text(context.l10n.sendRequest,
-                      style: const TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.w700)),
-            ),
-          ),
-
-          const SizedBox(height: 16),
-          TextButton(
-            onPressed: _signOut,
-            child: Text(context.l10n.signOut,
-                style: const TextStyle(color: AppTheme.textSecondary)),
-          ),
-        ]),
+    return Column(children: [
+      QGradientHeader(
+        title: 'Привязка к складу',
+        subtitle: 'Шаг подключения',
       ),
-    );
+      Expanded(
+        child: SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(
+              22, 24, 22, MediaQuery.of(context).viewInsets.bottom + 30),
+          child: Column(children: [
+            // Icon box
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: cGreenTint,
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: const Icon(Icons.storefront_outlined,
+                  color: cGreen, size: 40),
+            ),
+            const SizedBox(height: 16),
+            Text('Привяжитесь к складу',
+                style: manrope(20, FontWeight.w800, color: cInk),
+                textAlign: TextAlign.center),
+            const SizedBox(height: 6),
+            Text(
+              'Введите код склада или отправьте запрос владельцу',
+              style: manrope(13.5, FontWeight.w500, color: cInk2),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 28),
+
+            // 6-digit code input
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(
+                  6,
+                  (i) => _DigitBox(
+                        controller: _digits[i],
+                        focusNode: _focuses[i],
+                        onChanged: (v) {
+                          if (v.isNotEmpty && i < 5) {
+                            FocusScope.of(context)
+                                .requestFocus(_focuses[i + 1]);
+                          }
+                          setState(() => _error = null);
+                        },
+                        onBackspace: () {
+                          if (_digits[i].text.isEmpty && i > 0) {
+                            FocusScope.of(context)
+                                .requestFocus(_focuses[i - 1]);
+                            _digits[i - 1].clear();
+                          }
+                        },
+                      )),
+            ),
+
+            if (_error != null) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: cRedTint,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: cRed.withValues(alpha: 0.3)),
+                ),
+                child: Row(children: [
+                  const Icon(Icons.error_outline, color: cRed, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                      child: Text(_error!,
+                          style: manrope(13, FontWeight.w500, color: cRed))),
+                ]),
+              ),
+            ],
+
+            const SizedBox(height: 28),
+            QPrimaryButton(
+              label: context.l10n.sendRequest,
+              isLoading: _loading,
+              onPressed: _sendRequest,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Владелец увидит запрос и подтвердит привязку',
+              style: manrope(12.5, FontWeight.w500, color: cInk3),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            GestureDetector(
+              onTap: _signOut,
+              child: Text(context.l10n.signOut,
+                  style: manrope(14, FontWeight.w600, color: cInk2)),
+            ),
+          ]),
+        ),
+      ),
+    ]);
   }
 
-  // ── Күту экраны ───────────────────────────────────────────────────────────
+  // ── Pending state ──────────────────────────────────────────────────────────
   Widget _buildPending() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          const SizedBox(
-            width: 56,
-            height: 56,
-            child: CircularProgressIndicator(
-                color: AppTheme.primary, strokeWidth: 3),
-          ),
-          const SizedBox(height: 32),
-          Text(context.l10n.waitingApproval,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: AppTheme.textPrimary)),
-          const SizedBox(height: 12),
-          Text(context.l10n.requestSentBody,
-              textAlign: TextAlign.center,
-              style:
-                  const TextStyle(fontSize: 14, color: AppTheme.textSecondary)),
-          const SizedBox(height: 40),
-          OutlinedButton(
-            onPressed: _loading ? null : _cancelRequest,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppTheme.danger,
-              side: const BorderSide(color: AppTheme.danger),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-            ),
-            child: Text(context.l10n.cancelRequest),
-          ),
-          const SizedBox(height: 12),
-          TextButton(
-            onPressed: _signOut,
-            child: Text(context.l10n.signOut,
-                style: const TextStyle(color: AppTheme.textSecondary)),
-          ),
-        ]),
+    return Column(children: [
+      QGradientHeader(
+        title: 'Привязка к складу',
+        subtitle: 'Ожидание',
       ),
-    );
+      Expanded(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // Amber clock circle
+                Container(
+                  width: 80,
+                  height: 80,
+                  decoration: const BoxDecoration(
+                      color: cAmberTint, shape: BoxShape.circle),
+                  child: const Icon(Icons.access_time_rounded,
+                      color: cAmber, size: 46),
+                ),
+                const SizedBox(height: 20),
+                Text('Запрос отправлен',
+                    style: manrope(20, FontWeight.w800, color: cInk),
+                    textAlign: TextAlign.center),
+                const SizedBox(height: 8),
+                Text(
+                  'Ожидаем подтверждения владельца склада',
+                  style: manrope(13.5, FontWeight.w500, color: cInk2),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+
+                // Warehouse info card
+                QCard(
+                  padding: const EdgeInsets.all(14),
+                  child: Row(children: [
+                    QIconTile(
+                      icon: const Icon(Icons.storefront_outlined,
+                          color: cBlue, size: 20),
+                      tone: 'blue',
+                      size: 40,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text('Ожидание ответа',
+                          style: manrope(14, FontWeight.w600, color: cInk)),
+                    ),
+                    QPill('На рассмотрении',
+                        tone: 'amber',
+                        icon: const Icon(Icons.access_time_rounded,
+                            size: 13, color: Color(0xFF9A6A06))),
+                  ]),
+                ),
+
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: OutlinedButton(
+                    onPressed: _loading ? null : _cancelRequest,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: cRed,
+                      side: const BorderSide(color: cRed),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(15)),
+                    ),
+                    child: _loading
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                                color: cRed, strokeWidth: 2))
+                        : Text(context.l10n.cancelRequest,
+                            style: manrope(14, FontWeight.w700, color: cRed)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                GestureDetector(
+                  onTap: _signOut,
+                  child: Text(context.l10n.signOut,
+                      style: manrope(14, FontWeight.w600, color: cInk2)),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ]);
   }
 }
 
-// ── 6 жеке сандық ұяшық ───────────────────────────────────────────────────────
+// ── 6-digit cell ───────────────────────────────────────────────────────────────
 class _DigitBox extends StatelessWidget {
   final TextEditingController controller;
   final FocusNode focusNode;
@@ -307,22 +332,21 @@ class _DigitBox extends StatelessWidget {
         textAlign: TextAlign.center,
         keyboardType: TextInputType.number,
         maxLength: 1,
-        style: const TextStyle(
-            fontSize: 22, fontWeight: FontWeight.w700, color: AppTheme.primary),
+        style: manrope(22, FontWeight.w800, color: cGreen),
         decoration: InputDecoration(
           counterText: '',
           filled: true,
-          fillColor: Colors.white,
+          fillColor: cSurface,
           contentPadding: EdgeInsets.zero,
           border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppTheme.border)),
+              borderRadius: BorderRadius.circular(13),
+              borderSide: const BorderSide(color: cLine, width: 1.5)),
           enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppTheme.border)),
+              borderRadius: BorderRadius.circular(13),
+              borderSide: const BorderSide(color: cLine, width: 1.5)),
           focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppTheme.primary, width: 2)),
+              borderRadius: BorderRadius.circular(13),
+              borderSide: const BorderSide(color: cGreen, width: 1.5)),
         ),
         onChanged: (v) {
           if (v.isEmpty) {

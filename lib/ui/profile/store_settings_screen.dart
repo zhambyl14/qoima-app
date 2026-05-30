@@ -5,7 +5,7 @@ import '../../core/app_user.dart';
 import '../../core/warehouse_context.dart';
 import '../../data/models/store_model.dart';
 import '../../data/services/firestore_service.dart';
-import '../../theme/app_theme.dart';
+import '../../theme/qoima_design.dart';
 
 const List<String> _kzCities = [
   'Алматы',
@@ -104,7 +104,7 @@ class _StoreSettingsScreenState extends State<StoreSettingsScreen> {
         });
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('Сақталды'),
-          backgroundColor: AppTheme.success,
+          backgroundColor: cGreen,
           behavior: SnackBarBehavior.floating,
         ));
       }
@@ -112,7 +112,7 @@ class _StoreSettingsScreenState extends State<StoreSettingsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(e.toString()),
-          backgroundColor: AppTheme.danger,
+          backgroundColor: cRed,
           behavior: SnackBarBehavior.floating,
         ));
       }
@@ -128,7 +128,7 @@ class _StoreSettingsScreenState extends State<StoreSettingsScreen> {
     final warehouses = context.watch<WarehouseContext>().all;
 
     return Scaffold(
-      backgroundColor: AppTheme.background,
+      backgroundColor: cBg,
       appBar: AppBar(
         title: const Text('Менің дүкенім'),
         actions: [
@@ -241,16 +241,16 @@ class _StoreSettingsScreenState extends State<StoreSettingsScreen> {
                           style: TextStyle(
                               fontWeight: FontWeight.w600,
                               fontSize: 14,
-                              color: AppTheme.textPrimary)),
+                              color: cInk)),
                       SizedBox(height: 2),
                       Text('Сатып алушылар дүкенді көреді',
                           style: TextStyle(
-                              fontSize: 11, color: AppTheme.textSecondary)),
+                              fontSize: 11, color: cInk2)),
                     ],
                   )),
                   Switch(
                     value: _isPublished,
-                    activeThumbColor: AppTheme.success,
+                    activeThumbColor: cGreen,
                     onChanged: (v) => setState(() {
                       _isPublished = v;
                       _isDirty = true;
@@ -266,7 +266,7 @@ class _StoreSettingsScreenState extends State<StoreSettingsScreen> {
               const Text(
                   'Сатып алушыларға қандай қоймалардан тауар көрсету керек?',
                   style:
-                      TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+                      TextStyle(fontSize: 12, color: cInk2)),
               const SizedBox(height: 10),
 
               if (warehouses.isEmpty)
@@ -279,17 +279,17 @@ class _StoreSettingsScreenState extends State<StoreSettingsScreen> {
                       padding: const EdgeInsets.symmetric(vertical: 4),
                       child: Row(children: [
                         const Icon(Icons.warehouse_outlined,
-                            color: AppTheme.primary, size: 18),
+                            color: cGreen, size: 18),
                         const SizedBox(width: 10),
                         Expanded(
                             child: Text(wh.name,
                                 style: const TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w500,
-                                    color: AppTheme.textPrimary))),
+                                    color: cInk))),
                         Switch(
                           value: visible,
-                          activeThumbColor: AppTheme.primary,
+                          activeThumbColor: cGreen,
                           onChanged: (v) {
                             setState(() {
                               _isDirty = true;
@@ -328,7 +328,7 @@ class _StoreSettingsScreenState extends State<StoreSettingsScreen> {
                   child: ElevatedButton(
                     onPressed: _isLoading ? null : _save,
                     style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.primary,
+                        backgroundColor: cGreen,
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14)),
@@ -373,8 +373,8 @@ class _StorePreviewCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
             color: isPublished
-                ? AppTheme.success.withValues(alpha: 0.3)
-                : AppTheme.border),
+                ? cGreen.withValues(alpha: 0.3)
+                : cLine),
         boxShadow: [
           BoxShadow(
               color: Colors.black.withValues(alpha: 0.04),
@@ -388,10 +388,10 @@ class _StorePreviewCard extends StatelessWidget {
               width: 48,
               height: 48,
               decoration: BoxDecoration(
-                  color: AppTheme.primary.withValues(alpha: 0.1),
+                  color: cGreen.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12)),
               child: const Icon(Icons.storefront_rounded,
-                  color: AppTheme.primary, size: 26)),
+                  color: cGreen, size: 26)),
           const SizedBox(width: 12),
           Expanded(
               child: Column(
@@ -401,17 +401,17 @@ class _StorePreviewCard extends StatelessWidget {
                   style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
-                      color: AppTheme.textPrimary)),
+                      color: cInk)),
               if (city.isNotEmpty)
                 Text(city,
                     style: const TextStyle(
-                        fontSize: 12, color: AppTheme.textSecondary)),
+                        fontSize: 12, color: cInk2)),
             ],
           )),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(
-                color: (isPublished ? AppTheme.success : AppTheme.textHint)
+                color: (isPublished ? cGreen : cInk3)
                     .withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(6)),
             child: Text(
@@ -419,7 +419,7 @@ class _StorePreviewCard extends StatelessWidget {
               style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.w700,
-                  color: isPublished ? AppTheme.success : AppTheme.textHint),
+                  color: isPublished ? cGreen : cInk3),
             ),
           ),
         ]),
@@ -427,17 +427,17 @@ class _StorePreviewCard extends StatelessWidget {
           const SizedBox(height: 10),
           Text(description,
               style:
-                  const TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
+                  const TextStyle(fontSize: 13, color: cInk2)),
         ],
         if (phone.isNotEmpty) ...[
           const SizedBox(height: 8),
           Row(children: [
             const Icon(Icons.phone_outlined,
-                size: 14, color: AppTheme.textHint),
+                size: 14, color: cInk3),
             const SizedBox(width: 4),
             Text('+7 $phone',
                 style: const TextStyle(
-                    fontSize: 12, color: AppTheme.textSecondary)),
+                    fontSize: 12, color: cInk2)),
           ]),
         ],
       ]),
@@ -454,7 +454,7 @@ class _SectionHeader extends StatelessWidget {
       style: const TextStyle(
           fontSize: 15,
           fontWeight: FontWeight.w700,
-          color: AppTheme.textPrimary));
+          color: cInk));
 }
 
 class _FieldLabel extends StatelessWidget {
@@ -465,7 +465,7 @@ class _FieldLabel extends StatelessWidget {
       style: const TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w600,
-          color: AppTheme.textSecondary));
+          color: cInk2));
 }
 
 class _SettingsCard extends StatelessWidget {
@@ -494,5 +494,5 @@ class _EmptyNote extends StatelessWidget {
   const _EmptyNote(this.text);
   @override
   Widget build(BuildContext context) => Text(text,
-      style: const TextStyle(fontSize: 13, color: AppTheme.textHint));
+      style: const TextStyle(fontSize: 13, color: cInk3));
 }

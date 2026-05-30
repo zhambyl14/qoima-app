@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import '../../core/app_user.dart';
 import '../../data/models/models.dart';
 import '../../data/services/firestore_service.dart';
-import '../../theme/app_theme.dart';
+import '../../theme/qoima_design.dart';
 
 class ProductDetailScreen extends StatefulWidget {
   final ProductModel product;
@@ -31,7 +31,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.danger),
+            style: ElevatedButton.styleFrom(backgroundColor: cRed),
             child: const Text('Удалить'),
           ),
         ],
@@ -153,7 +153,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     final inStock = p.status == ProductModel.statusInStock;
 
     return Scaffold(
-      backgroundColor: AppTheme.background,
+      backgroundColor: cBg,
       body: StreamBuilder<List<BatchModel>>(
         stream: _service.watchBatches(p.id),
         builder: (context, batchSnap) {
@@ -275,7 +275,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: inStock ? AppTheme.success : Colors.grey,
+                          color: inStock ? cGreen : Colors.grey,
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(p.status,
@@ -323,14 +323,14 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                 style: const TextStyle(
                                     fontSize: 11,
                                     fontWeight: FontWeight.w800,
-                                    color: AppTheme.primary,
+                                    color: cGreen,
                                     letterSpacing: 1)),
                             const SizedBox(height: 4),
                             Text(p.name,
                                 style: const TextStyle(
                                     fontSize: 22,
                                     fontWeight: FontWeight.w800,
-                                    color: AppTheme.textPrimary,
+                                    color: cInk,
                                     letterSpacing: -0.5)),
                           ]),
                     ),
@@ -338,15 +338,15 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       Container(
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
-                              color: AppTheme.primary.withValues(alpha: 0.08),
+                              color: cGreen.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(12)),
                           child: const Icon(Icons.inventory_2_outlined,
-                              color: AppTheme.primary, size: 22)),
+                              color: cGreen, size: 22)),
                       const SizedBox(height: 4),
                       Text('$totalPairs пар',
                           style: const TextStyle(
                               fontSize: 11,
-                              color: AppTheme.textSecondary,
+                              color: cInk2,
                               fontWeight: FontWeight.w600)),
                     ]),
                   ]),
@@ -379,11 +379,11 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                     color: Colors.white,
                                     borderRadius: BorderRadius.circular(10),
                                     border: Border.all(
-                                        color: AppTheme.primary
+                                        color: cGreen
                                             .withValues(alpha: 0.3)),
                                     boxShadow: [
                                       BoxShadow(
-                                          color: AppTheme.primary
+                                          color: cGreen
                                               .withValues(alpha: 0.06),
                                           blurRadius: 6,
                                           offset: const Offset(0, 2))
@@ -394,11 +394,11 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                         style: const TextStyle(
                                             fontWeight: FontWeight.w800,
                                             fontSize: 15,
-                                            color: AppTheme.primary)),
+                                            color: cGreen)),
                                     Text('${e.value} шт',
                                         style: const TextStyle(
                                             fontSize: 10,
-                                            color: AppTheme.textSecondary)),
+                                            color: cInk2)),
                                   ]),
                                 ))
                             .toList(),
@@ -419,10 +419,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   if (batchSnap.connectionState == ConnectionState.waiting)
                     const Center(
                         child:
-                            CircularProgressIndicator(color: AppTheme.primary))
+                            CircularProgressIndicator(color: cGreen))
                   else if (batches.isEmpty)
                     const Text('Нет партий',
-                        style: TextStyle(color: AppTheme.textHint))
+                        style: TextStyle(color: cInk3))
                   else ...[
                     if (activeBatches.isNotEmpty) ...[
                       const _SecTitle('В наличии'),
@@ -483,13 +483,13 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         return Container(
           decoration: BoxDecoration(
             color: avail
-                ? AppTheme.primary.withValues(alpha: 0.06)
+                ? cGreen.withValues(alpha: 0.1)
                 : Colors.grey.shade50,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: avail
-                  ? AppTheme.primary.withValues(alpha: 0.3)
-                  : AppTheme.border,
+                  ? cGreen.withValues(alpha: 0.1)
+                  : cLine,
               width: 1.5,
             ),
           ),
@@ -498,12 +498,12 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
-                  color: avail ? AppTheme.primary : AppTheme.textHint,
+                  color: avail ? cGreen : cInk3,
                 )),
             Text(avail ? '$qty пар' : 'жоқ',
                 style: TextStyle(
                   fontSize: 11,
-                  color: avail ? AppTheme.textSecondary : AppTheme.textHint,
+                  color: avail ? cInk2 : cInk3,
                 )),
           ]),
         );
@@ -515,7 +515,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       color: const Color(0xFFEEF2FF),
       child: const Center(
           child: Icon(Icons.inventory_2_outlined,
-              size: 60, color: AppTheme.primary)));
+              size: 60, color: cGreen)));
 }
 
 // ── Партия + её продажи ───────────────────────────────────────────────────────
@@ -570,17 +570,17 @@ class _BatchWithSales extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(7),
                 decoration: BoxDecoration(
-                    color: AppTheme.primary.withValues(alpha: 0.08),
+                    color: cGreen.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8)),
                 child: const Icon(Icons.local_shipping_outlined,
-                    size: 16, color: AppTheme.primary),
+                    size: 16, color: cGreen),
               ),
               const SizedBox(width: 8),
               Text('Поставка от $dateStr',
                   style: const TextStyle(
                       fontWeight: FontWeight.w600,
                       fontSize: 14,
-                      color: AppTheme.textPrimary)),
+                      color: cInk)),
               if (isArchived) ...[
                 const SizedBox(width: 8),
                 Container(
@@ -605,19 +605,19 @@ class _BatchWithSales extends StatelessWidget {
                 IconButton(
                   onPressed: onEdit,
                   icon: const Icon(Icons.edit_outlined, size: 18),
-                  color: AppTheme.primary,
+                  color: cGreen,
                   visualDensity: VisualDensity.compact,
                 ),
                 IconButton(
                   onPressed: onDelete,
                   icon: const Icon(Icons.delete_outline, size: 18),
-                  color: AppTheme.danger,
+                  color: cRed,
                   visualDensity: VisualDensity.compact,
                 ),
               ],
               Text('${batch.totalQuantity} пар',
                   style: const TextStyle(
-                      color: AppTheme.textSecondary,
+                      color: cInk2,
                       fontSize: 13,
                       fontWeight: FontWeight.w500)),
             ]),
@@ -627,27 +627,27 @@ class _BatchWithSales extends StatelessWidget {
                 _PriceTag(
                     label: 'Закуп',
                     value: '${batch.purchasePrice.toStringAsFixed(0)} ₸',
-                    color: AppTheme.danger),
+                    color: cRed),
                 const SizedBox(width: 8),
               ],
               _PriceTag(
                   label: 'Продажа',
                   value: '${batch.sellingPrice.toStringAsFixed(0)} ₸',
-                  color: AppTheme.success),
+                  color: cGreen),
               if (context.read<AppUser>().isAdmin) ...[
                 const SizedBox(width: 8),
                 _PriceTag(
                     label: 'Маржа',
                     value:
                         '${margin >= 0 ? "+" : ""}${margin.toStringAsFixed(0)} ₸',
-                    color: margin >= 0 ? AppTheme.primary : AppTheme.danger),
+                    color: margin >= 0 ? cGreen : cRed),
               ],
             ]),
             if (sizes.isNotEmpty) ...[
               const SizedBox(height: 8),
               Text(sizes,
                   style: const TextStyle(
-                      fontSize: 11, color: AppTheme.textSecondary)),
+                      fontSize: 11, color: cInk2)),
             ],
           ]),
         ),
@@ -669,13 +669,13 @@ class _BatchWithSales extends StatelessWidget {
                     padding: const EdgeInsets.fromLTRB(14, 10, 14, 4),
                     child: Row(children: [
                       const Icon(Icons.receipt_long_outlined,
-                          size: 14, color: AppTheme.textHint),
+                          size: 14, color: cInk3),
                       const SizedBox(width: 6),
                       Text('Продажи из этой партии — ${sales.length} опер.',
                           style: const TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
-                              color: AppTheme.textSecondary)),
+                              color: cInk2)),
                     ]),
                   ),
                   ...sales.map((s) => _SaleRow(sale: s)),
@@ -708,7 +708,7 @@ class _SaleRow extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: AppTheme.background,
+          color: cBg,
           borderRadius: BorderRadius.circular(10),
         ),
         child: Row(children: [
@@ -716,10 +716,10 @@ class _SaleRow extends StatelessWidget {
             width: 30,
             height: 30,
             decoration: BoxDecoration(
-                color: AppTheme.successLight,
+                color: cGreenTint,
                 borderRadius: BorderRadius.circular(8)),
             child: const Icon(Icons.shopping_bag_outlined,
-                color: AppTheme.success, size: 16),
+                color: cGreen, size: 16),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -729,14 +729,14 @@ class _SaleRow extends StatelessWidget {
                   style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: AppTheme.textPrimary)),
+                      color: cInk)),
               Row(children: [
                 Text(
                     sale.sellerName.isNotEmpty
                         ? '• $dateStr • ${sale.sellerName}'
                         : '• $dateStr',
                     style: const TextStyle(
-                        fontSize: 10, color: AppTheme.textHint)),
+                        fontSize: 10, color: cInk3)),
               ]),
             ]),
           ),
@@ -744,7 +744,7 @@ class _SaleRow extends StatelessWidget {
               style: const TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
-                  color: AppTheme.success)),
+                  color: cGreen)),
         ]),
       ),
     );
@@ -783,16 +783,16 @@ class _Tag extends StatelessWidget {
   Widget build(BuildContext context) => Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-          color: AppTheme.background,
+          color: cBg,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: AppTheme.border)),
+          border: Border.all(color: cLine)),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 12, color: AppTheme.textSecondary),
+        Icon(icon, size: 12, color: cInk2),
         const SizedBox(width: 4),
         Text(label,
             style: const TextStyle(
                 fontSize: 11,
-                color: AppTheme.textSecondary,
+                color: cInk2,
                 fontWeight: FontWeight.w500)),
       ]));
 }
@@ -805,5 +805,5 @@ class _SecTitle extends StatelessWidget {
       style: const TextStyle(
           fontSize: 15,
           fontWeight: FontWeight.w700,
-          color: AppTheme.textPrimary));
+          color: cInk));
 }

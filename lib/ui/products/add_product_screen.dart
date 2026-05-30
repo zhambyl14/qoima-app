@@ -6,7 +6,7 @@ import '../../core/warehouse_context.dart';
 import '../../data/models/models.dart';
 import '../../data/services/firestore_service.dart';
 import '../../data/services/cloudinary_service.dart';
-import '../../theme/app_theme.dart';
+import '../../theme/qoima_design.dart';
 import '../shared/mandatory_warehouse_picker.dart';
 
 class AddProductScreen extends StatefulWidget {
@@ -159,7 +159,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
       builder: (ctx, child) => Theme(
         data: Theme.of(ctx).copyWith(
           colorScheme: const ColorScheme.light(
-            primary: AppTheme.primary,
+            primary: cGreen,
             onPrimary: Colors.white,
             surface: Colors.white,
           ),
@@ -203,10 +203,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
               leading: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                      color: AppTheme.primary.withValues(alpha: 0.08),
+                      color: cGreen.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8)),
                   child: const Icon(Icons.camera_alt_outlined,
-                      color: AppTheme.primary)),
+                      color: cGreen)),
               title: const Text('Сфотографировать',
                   style: TextStyle(fontWeight: FontWeight.w500)),
               subtitle: const Text('Камера телефона'),
@@ -215,10 +215,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
               leading: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                      color: AppTheme.primary.withValues(alpha: 0.08),
+                      color: cGreen.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8)),
                   child: const Icon(Icons.photo_library_outlined,
-                      color: AppTheme.primary)),
+                      color: cGreen)),
               title: const Text('Из галереи',
                   style: TextStyle(fontWeight: FontWeight.w500)),
               subtitle: const Text('Выбрать существующее фото'),
@@ -321,7 +321,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                   child:
                       Text('Новая партия добавлена к существующему товару!')),
             ]),
-            backgroundColor: AppTheme.primary,
+            backgroundColor: cGreen,
             behavior: SnackBarBehavior.floating,
           ));
         }
@@ -353,7 +353,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
               SizedBox(width: 8),
               Text('Товар добавлен на склад!'),
             ]),
-            backgroundColor: AppTheme.success,
+            backgroundColor: cGreen,
             behavior: SnackBarBehavior.floating,
           ));
         }
@@ -367,7 +367,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
 
   void _err(String msg) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(msg),
-      backgroundColor: AppTheme.danger,
+      backgroundColor: cRed,
       behavior: SnackBarBehavior.floating));
 
   // ── Build ─────────────────────────────────────────────────────────────
@@ -375,14 +375,14 @@ class _AddProductScreenState extends State<AddProductScreen> {
   Widget build(BuildContext context) {
     final steps = ['Товар', 'Цены', 'Размеры', 'Фото'];
     return Scaffold(
-      backgroundColor: AppTheme.background,
+      backgroundColor: cBg,
       body: SafeArea(
           child: Column(children: [
         // Header
         Container(
           decoration: const BoxDecoration(
               gradient: LinearGradient(
-                  colors: [Color(0xFF1E3A8A), Color(0xFF2D4FB5)],
+                  colors: [Color(0xFF00713F), Color(0xFF00A862)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight)),
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
@@ -436,7 +436,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                         height: active ? 32 : 26,
                         decoration: BoxDecoration(
                             color: done
-                                ? AppTheme.success
+                                ? cGreen
                                 : active
                                     ? Colors.white
                                     : Colors.white.withValues(alpha: 0.2),
@@ -453,7 +453,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                                 : Text('${i + 1}',
                                     style: TextStyle(
                                         color: active
-                                            ? AppTheme.primary
+                                            ? cGreen
                                             : Colors.white,
                                         fontSize: active ? 13 : 11,
                                         fontWeight: FontWeight.w700)))),
@@ -473,7 +473,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                       height: 1.5,
                       width: 20,
                       color: i < _step
-                          ? AppTheme.success
+                          ? cGreen
                           : Colors.white.withValues(alpha: 0.25)),
               ]));
             })),
@@ -506,12 +506,12 @@ class _AddProductScreenState extends State<AddProductScreen> {
                   child: OutlinedButton(
                       onPressed: () => setState(() => _step--),
                       style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: AppTheme.border),
+                          side: const BorderSide(color: cLine),
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12)),
                           padding: const EdgeInsets.symmetric(vertical: 14)),
                       child: const Text('Назад',
-                          style: TextStyle(color: AppTheme.textSecondary)))),
+                          style: TextStyle(color: cInk2)))),
             if (_step > 0) const SizedBox(width: 12),
             Expanded(
                 flex: 2,
@@ -527,7 +527,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                             }
                           },
                     style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.primary,
+                        backgroundColor: cGreen,
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12)),
@@ -645,7 +645,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
               color: selected ? color : Colors.white,
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
-                color: selected ? color : AppTheme.border,
+                color: selected ? color : cLine,
                 width: selected ? 2 : 1,
               ),
               boxShadow: selected
@@ -676,8 +676,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                     color: selected
-                        ? (isLight ? AppTheme.textPrimary : Colors.white)
-                        : AppTheme.textSecondary,
+                        ? (isLight ? cInk : Colors.white)
+                        : cInk2,
                   )),
             ]),
           ),
@@ -710,21 +710,21 @@ class _AddProductScreenState extends State<AddProductScreen> {
           decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppTheme.border)),
+              border: Border.all(color: cLine)),
           child: Row(children: [
             Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                    color: AppTheme.primary.withValues(alpha: 0.08),
+                    color: cGreen.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8)),
                 child: const Icon(Icons.calendar_today_outlined,
-                    color: AppTheme.primary, size: 18)),
+                    color: cGreen, size: 18)),
             const SizedBox(width: 12),
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               const Text('Дата поставки',
                   style: TextStyle(
                       fontSize: 12,
-                      color: AppTheme.textSecondary,
+                      color: cInk2,
                       fontWeight: FontWeight.w500)),
               const SizedBox(height: 2),
               Text(
@@ -732,10 +732,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
                   style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
-                      color: AppTheme.textPrimary)),
+                      color: cInk)),
             ]),
             const Spacer(),
-            const Icon(Icons.edit_outlined, color: AppTheme.primary, size: 18),
+            const Icon(Icons.edit_outlined, color: cGreen, size: 18),
           ]),
         ),
       ),
@@ -747,17 +747,17 @@ class _AddProductScreenState extends State<AddProductScreen> {
           decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppTheme.border)),
+              border: Border.all(color: cLine)),
           child:
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
               Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                      color: AppTheme.dangerLight,
+                      color: cRedTint,
                       borderRadius: BorderRadius.circular(8)),
                   child: const Icon(Icons.arrow_downward_rounded,
-                      color: AppTheme.danger, size: 18)),
+                      color: cRed, size: 18)),
               const SizedBox(width: 10),
               const Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -766,10 +766,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
                         style: TextStyle(
                             fontWeight: FontWeight.w600,
                             fontSize: 14,
-                            color: AppTheme.textPrimary)),
+                            color: cInk)),
                     Text('Сколько заплатили за партию',
                         style: TextStyle(
-                            fontSize: 11, color: AppTheme.textSecondary)),
+                            fontSize: 11, color: cInk2)),
                   ]),
             ]),
             const SizedBox(height: 12),
@@ -784,14 +784,14 @@ class _AddProductScreenState extends State<AddProductScreen> {
                 style: const TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.w700,
-                    color: AppTheme.textPrimary),
+                    color: cInk),
                 decoration: const InputDecoration(
                     hintText: '0',
                     hintStyle:
-                        TextStyle(color: AppTheme.textHint, fontSize: 22),
+                        TextStyle(color: cInk3, fontSize: 22),
                     suffixText: '₸',
                     suffixStyle:
-                        TextStyle(fontSize: 18, color: AppTheme.textSecondary),
+                        TextStyle(fontSize: 18, color: cInk2),
                     border: InputBorder.none,
                     filled: false,
                     contentPadding: EdgeInsets.zero)),
@@ -804,17 +804,17 @@ class _AddProductScreenState extends State<AddProductScreen> {
           decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppTheme.border)),
+              border: Border.all(color: cLine)),
           child:
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
               Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                      color: AppTheme.successLight,
+                      color: cGreenTint,
                       borderRadius: BorderRadius.circular(8)),
                   child: const Icon(Icons.arrow_upward_rounded,
-                      color: AppTheme.success, size: 18)),
+                      color: cGreen, size: 18)),
               const SizedBox(width: 10),
               const Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -823,10 +823,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
                         style: TextStyle(
                             fontWeight: FontWeight.w600,
                             fontSize: 14,
-                            color: AppTheme.textPrimary)),
+                            color: cInk)),
                     Text('По какой цене будете продавать',
                         style: TextStyle(
-                            fontSize: 11, color: AppTheme.textSecondary)),
+                            fontSize: 11, color: cInk2)),
                   ]),
             ]),
             const SizedBox(height: 12),
@@ -841,14 +841,14 @@ class _AddProductScreenState extends State<AddProductScreen> {
                 style: const TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.w700,
-                    color: AppTheme.textPrimary),
+                    color: cInk),
                 decoration: const InputDecoration(
                     hintText: '0',
                     hintStyle:
-                        TextStyle(color: AppTheme.textHint, fontSize: 22),
+                        TextStyle(color: cInk3, fontSize: 22),
                     suffixText: '₸',
                     suffixStyle:
-                        TextStyle(fontSize: 18, color: AppTheme.textSecondary),
+                        TextStyle(fontSize: 18, color: cInk2),
                     border: InputBorder.none,
                     filled: false,
                     contentPadding: EdgeInsets.zero)),
@@ -860,25 +860,25 @@ class _AddProductScreenState extends State<AddProductScreen> {
           duration: const Duration(milliseconds: 300),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-              color: profit >= 0 ? AppTheme.successLight : AppTheme.dangerLight,
+              color: profit >= 0 ? cGreenTint : cRedTint,
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
                   color: profit >= 0
-                      ? AppTheme.success.withValues(alpha: 0.3)
-                      : AppTheme.danger.withValues(alpha: 0.3))),
+                      ? cGreen.withValues(alpha: 0.3)
+                      : cRed.withValues(alpha: 0.2))),
           child: Row(children: [
             Icon(
                 profit >= 0
                     ? Icons.trending_up_rounded
                     : Icons.trending_down_rounded,
-                color: profit >= 0 ? AppTheme.success : AppTheme.danger,
+                color: profit >= 0 ? cGreen : cRed,
                 size: 24),
             const SizedBox(width: 12),
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Маржа с одной пары',
                   style: TextStyle(
                       fontSize: 12,
-                      color: profit >= 0 ? AppTheme.success : AppTheme.danger)),
+                      color: profit >= 0 ? cGreen : cRed)),
               Text(
                   '${profit >= 0 ? "+" : ""}${profit.toStringAsFixed(0)} ₸  '
                   '(${margin.toStringAsFixed(1)}%)',
@@ -887,7 +887,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                       fontWeight: FontWeight.w800,
                       color: profit >= 0
                           ? const Color(0xFF065F46)
-                          : AppTheme.danger)),
+                          : cRed)),
             ]),
           ]),
         ),
@@ -900,10 +900,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
       return Center(
           child: Column(children: [
         const SizedBox(height: 40),
-        const Icon(Icons.arrow_back, size: 48, color: AppTheme.textHint),
+        const Icon(Icons.arrow_back, size: 48, color: cInk3),
         const SizedBox(height: 12),
         const Text('Вернитесь и выберите категорию',
-            style: TextStyle(color: AppTheme.textSecondary, fontSize: 15)),
+            style: TextStyle(color: cInk2, fontSize: 15)),
         const SizedBox(height: 16),
         ElevatedButton(
             onPressed: () => setState(() => _step = 0),
@@ -922,7 +922,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
               gradient: const LinearGradient(
-                  colors: [Color(0xFF1E3A8A), Color(0xFF3B5FCC)],
+                  colors: [Color(0xFF00A862), Color(0xFF3B5FCC)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight),
               borderRadius: BorderRadius.circular(14)),
@@ -956,13 +956,13 @@ class _AddProductScreenState extends State<AddProductScreen> {
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
                           color: isRec
-                              ? AppTheme.success.withValues(alpha: 0.06)
+                              ? cGreen.withValues(alpha: 0.06)
                               : Colors.white,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                               color: isRec
-                                  ? AppTheme.success.withValues(alpha: 0.4)
-                                  : AppTheme.primary.withValues(alpha: 0.3))),
+                                  ? cGreen.withValues(alpha: 0.4)
+                                  : cGreen.withValues(alpha: 0.1))),
                       child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -973,7 +973,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                                   padding: const EdgeInsets.symmetric(
                                       horizontal: 6, vertical: 2),
                                   decoration: BoxDecoration(
-                                      color: AppTheme.success,
+                                      color: cGreen,
                                       borderRadius: BorderRadius.circular(4)),
                                   child: const Text('ҰСЫНЫЛАДЫ',
                                       style: TextStyle(
@@ -985,15 +985,15 @@ class _AddProductScreenState extends State<AddProductScreen> {
                                     fontSize: 11,
                                     fontWeight: FontWeight.w700,
                                     color: isRec
-                                        ? AppTheme.success
-                                        : AppTheme.primary),
+                                        ? cGreen
+                                        : cGreen),
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis),
                             const SizedBox(height: 2),
                             Text(p['desc'] as String,
                                 style: const TextStyle(
                                     fontSize: 10,
-                                    color: AppTheme.textSecondary)),
+                                    color: cInk2)),
                           ])));
             }).toList(),
           )),
@@ -1008,12 +1008,12 @@ class _AddProductScreenState extends State<AddProductScreen> {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                    color: AppTheme.dangerLight,
+                    color: cRedTint,
                     borderRadius: BorderRadius.circular(6)),
                 child: const Text('Сбросить',
                     style: TextStyle(
                         fontSize: 11,
-                        color: AppTheme.danger,
+                        color: cRed,
                         fontWeight: FontWeight.w600)))),
       ]),
       const SizedBox(height: 8),
@@ -1032,13 +1032,13 @@ class _AddProductScreenState extends State<AddProductScreen> {
           return Container(
             decoration: BoxDecoration(
                 color: qty > 0
-                    ? AppTheme.primary.withValues(alpha: 0.06)
+                    ? cGreen.withValues(alpha: 0.1)
                     : Colors.white,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                     color: qty > 0
-                        ? AppTheme.primary.withValues(alpha: 0.4)
-                        : AppTheme.border,
+                        ? cGreen.withValues(alpha: 0.1)
+                        : cLine,
                     width: qty > 0 ? 1.5 : 1)),
             child: Row(children: [
               const SizedBox(width: 10),
@@ -1047,7 +1047,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                       fontWeight: FontWeight.w700,
                       fontSize: 14,
                       color:
-                          qty > 0 ? AppTheme.primary : AppTheme.textSecondary)),
+                          qty > 0 ? cGreen : cInk2)),
               const Spacer(),
               GestureDetector(
                   onTap: () {
@@ -1058,7 +1058,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                       height: 28,
                       decoration: BoxDecoration(
                           color:
-                              qty > 0 ? AppTheme.primary : Colors.grey.shade100,
+                              qty > 0 ? cGreen : Colors.grey.shade100,
                           borderRadius: BorderRadius.circular(7)),
                       child: Icon(Icons.remove,
                           size: 14,
@@ -1072,14 +1072,14 @@ class _AddProductScreenState extends State<AddProductScreen> {
                           fontSize: 15,
                           fontWeight: FontWeight.w800,
                           color:
-                              qty > 0 ? AppTheme.primary : AppTheme.textHint))),
+                              qty > 0 ? cGreen : cInk3))),
               GestureDetector(
                   onTap: () => setState(() => _sizesQuantity[size] = qty + 1),
                   child: Container(
                       width: 28,
                       height: 28,
                       decoration: BoxDecoration(
-                          color: AppTheme.primary,
+                          color: cGreen,
                           borderRadius: BorderRadius.circular(7)),
                       child: const Icon(Icons.add,
                           size: 14, color: Colors.white))),
@@ -1105,10 +1105,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
               width: double.infinity,
               height: 100,
               decoration: BoxDecoration(
-                  color: AppTheme.primary.withValues(alpha: 0.04),
+                  color: cGreen.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
-                      color: AppTheme.primary.withValues(alpha: 0.3),
+                      color: cGreen.withValues(alpha: 0.1),
                       style: BorderStyle.solid,
                       width: 1.5)),
               child: Column(
@@ -1116,23 +1116,23 @@ class _AddProductScreenState extends State<AddProductScreen> {
                   children: [
                     Icon(Icons.add_a_photo_outlined,
                         size: 32,
-                        color: AppTheme.primary.withValues(alpha: 0.7)),
+                        color: cGreen.withValues(alpha: 0.1)),
                     const SizedBox(height: 8),
                     const Text('Добавить фото',
                         style: TextStyle(
-                            color: AppTheme.primary,
+                            color: cGreen,
                             fontWeight: FontWeight.w600,
                             fontSize: 14)),
                     const Text('Камера или галерея',
                         style:
-                            TextStyle(color: AppTheme.textHint, fontSize: 11)),
+                            TextStyle(color: cInk3, fontSize: 11)),
                   ])),
         ),
         const SizedBox(height: 16),
         if (_images.isNotEmpty) ...[
           Text('Добавлено: ${_images.length} фото',
               style: const TextStyle(
-                  fontWeight: FontWeight.w600, color: AppTheme.textPrimary)),
+                  fontWeight: FontWeight.w600, color: cInk)),
           const SizedBox(height: 10),
           GridView.builder(
             shrinkWrap: true,
@@ -1153,7 +1153,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                             fit: BoxFit.cover,
                             width: double.infinity,
                             height: double.infinity)
-                        : Container(color: AppTheme.background)),
+                        : Container(color: cBg)),
                 Positioned(
                     top: 4,
                     right: 4,
@@ -1176,7 +1176,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
-                              color: AppTheme.primary,
+                              color: cGreen,
                               borderRadius: BorderRadius.circular(4)),
                           child: const Text('Главное',
                               style: TextStyle(
@@ -1193,14 +1193,14 @@ class _AddProductScreenState extends State<AddProductScreen> {
             decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppTheme.border)),
+                border: Border.all(color: cLine)),
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               const Text('Итоговые данные товара',
                   style: TextStyle(
                       fontWeight: FontWeight.w700,
                       fontSize: 14,
-                      color: AppTheme.textPrimary)),
+                      color: cInk)),
               const SizedBox(height: 12),
               _SummaryRow(
                   label: 'Название',
@@ -1234,19 +1234,19 @@ class _StepHeader extends StatelessWidget {
         Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-                color: AppTheme.primary.withValues(alpha: 0.08),
+                color: cGreen.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12)),
-            child: Icon(icon, color: AppTheme.primary, size: 22)),
+            child: Icon(icon, color: cGreen, size: 22)),
         const SizedBox(width: 12),
         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(title,
               style: const TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.w700,
-                  color: AppTheme.textPrimary)),
+                  color: cInk)),
           Text(subtitle,
               style:
-                  const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+                  const TextStyle(fontSize: 12, color: cInk2)),
         ]),
       ]);
 }
@@ -1259,7 +1259,7 @@ class _Label extends StatelessWidget {
       style: const TextStyle(
           fontSize: 13,
           fontWeight: FontWeight.w600,
-          color: AppTheme.textSecondary));
+          color: cInk2));
 }
 
 class _Field extends StatelessWidget {
@@ -1274,23 +1274,23 @@ class _Field extends StatelessWidget {
   @override
   Widget build(BuildContext context) => TextFormField(
       controller: controller,
-      style: const TextStyle(fontSize: 15, color: AppTheme.textPrimary),
+      style: const TextStyle(fontSize: 15, color: cInk),
       decoration: InputDecoration(
           labelText: label,
           hintText: hint,
-          prefixIcon: Icon(icon, color: AppTheme.primary, size: 20),
+          prefixIcon: Icon(icon, color: cGreen, size: 20),
           filled: true,
           fillColor: Colors.white,
           border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppTheme.border)),
+              borderSide: const BorderSide(color: cLine)),
           enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppTheme.border)),
+              borderSide: const BorderSide(color: cLine)),
           focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide:
-                  const BorderSide(color: AppTheme.primary, width: 1.5))));
+                  const BorderSide(color: cGreen, width: 1.5))));
 }
 
 class _SelectChip extends StatelessWidget {
@@ -1306,16 +1306,16 @@ class _SelectChip extends StatelessWidget {
           duration: const Duration(milliseconds: 180),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
-              color: selected ? AppTheme.primary : Colors.white,
+              color: selected ? cGreen : Colors.white,
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
-                  color: selected ? AppTheme.primary : AppTheme.border,
+                  color: selected ? cGreen : cLine,
                   width: selected ? 1.5 : 1)),
           child: Text(label,
               style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  color: selected ? Colors.white : AppTheme.textSecondary))));
+                  color: selected ? Colors.white : cInk2))));
 }
 
 class _SummaryRow extends StatelessWidget {
@@ -1327,12 +1327,12 @@ class _SummaryRow extends StatelessWidget {
       child: Row(children: [
         Text(label,
             style:
-                const TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
+                const TextStyle(fontSize: 13, color: cInk2)),
         const Spacer(),
         Text(value,
             style: const TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: AppTheme.textPrimary)),
+                color: cInk)),
       ]));
 }

@@ -63,7 +63,12 @@ class QoimaApp extends StatelessWidget {
       title: 'Qoima',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.theme.copyWith(
-        textTheme: GoogleFonts.interTextTheme(AppTheme.theme.textTheme),
+        textTheme: GoogleFonts.manropeTextTheme(AppTheme.theme.textTheme),
+        scaffoldBackgroundColor: const Color(0xFFF1F4F3),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF00A862),
+          brightness: Brightness.light,
+        ),
       ),
       locale: locale,
       supportedLocales: const [Locale('ru')],
@@ -179,7 +184,7 @@ class _Splash extends StatelessWidget {
   const _Splash();
   @override
   Widget build(BuildContext context) => const Scaffold(
-        backgroundColor: AppTheme.primary,
+        backgroundColor: Color(0xFF00A862),
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
