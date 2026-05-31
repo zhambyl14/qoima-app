@@ -1,7 +1,9 @@
+import 'dart:convert';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../theme/qoima_design.dart';
 import '../../data/models/cart_item_model.dart';
 import 'client_home_screen.dart';
@@ -11,11 +13,41 @@ import 'client_profile_screen.dart';
 
 // ── Cart state ─────────────────────────────────────────────────────────────────
 class CartProvider extends ChangeNotifier {
+  static const _kKey = 'cart_items_v1';
+
   final List<CartItemModel> _items = [];
+  bool _loaded = false;
+
+  CartProvider() {
+    _load();
+  }
 
   List<CartItemModel> get items => List.unmodifiable(_items);
   int get count => _items.fold(0, (s, i) => s + i.qty);
   double get total => _items.fold(0.0, (s, i) => s + i.subtotal);
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_kKey);
+    if (raw != null) {
+      try {
+        final list = jsonDecode(raw) as List<dynamic>;
+        _items.addAll(list
+            .map((e) => CartItemModel.fromJson(e as Map<String, dynamic>))
+            .toList());
+      } catch (_) {}
+    }
+    _loaded = true;
+    notifyListeners();
+  }
+
+  Future<void> _persist() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+        _kKey, jsonEncode(_items.map((e) => e.toJson()).toList()));
+  }
+
+  bool get isLoaded => _loaded;
 
   void addItem(CartItemModel item) {
     final idx = _items.indexWhere(
@@ -26,16 +58,38 @@ class CartProvider extends ChangeNotifier {
       _items.add(item);
     }
     notifyListeners();
+    _persist();
   }
 
   void removeAt(int index) {
     _items.removeAt(index);
     notifyListeners();
+    _persist();
+  }
+
+  void decrementAt(int index) {
+    if (index < 0 || index >= _items.length) return;
+    final item = _items[index];
+    if (item.qty <= 1) {
+      _items.removeAt(index);
+    } else {
+      _items[index] = item.copyWith(qty: item.qty - 1);
+    }
+    notifyListeners();
+    _persist();
+  }
+
+  void incrementAt(int index) {
+    if (index < 0 || index >= _items.length) return;
+    _items[index] = _items[index].copyWith(qty: _items[index].qty + 1);
+    notifyListeners();
+    _persist();
   }
 
   void clear() {
     _items.clear();
     notifyListeners();
+    _persist();
   }
 }
 

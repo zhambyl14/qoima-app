@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../data/models/product_model.dart';
@@ -26,6 +27,9 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
   bool _loading = true;
   String? _selectedSize;
   int _pageIndex = 0;
+  bool _isFavorite = false;
+  bool _togglingFav = false;
+  StreamSubscription<List<String>>? _favSub;
 
   Map<String, int> get _available {
     final map = <String, int>{};
@@ -57,6 +61,42 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
   void initState() {
     super.initState();
     _loadBatches();
+    _favSub = _service.watchFavoriteIds().listen((ids) {
+      if (mounted) {
+        setState(() => _isFavorite = ids.contains(widget.product.id));
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _favSub?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _toggleFavorite() async {
+    if (_togglingFav) return;
+    setState(() => _togglingFav = true);
+    try {
+      if (_isFavorite) {
+        await _service.removeFavorite(widget.product.id);
+      } else {
+        final price = _batches.isNotEmpty ? _batches.first.sellingPrice : 0.0;
+        final img = widget.product.images.isNotEmpty
+            ? widget.product.images.first
+            : '';
+        await _service.addFavorite(
+          productId: widget.product.id,
+          productName: widget.product.name,
+          imageUrl: img,
+          adminUid: widget.store.adminUid,
+          storeName: widget.store.storeName,
+          price: price,
+        );
+      }
+    } catch (_) {} finally {
+      if (mounted) setState(() => _togglingFav = false);
+    }
   }
 
   Future<void> _loadBatches() async {
@@ -149,17 +189,11 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
                               onTap: () => Navigator.pop(context),
                             ),
                             _RoundBtn(
-                              icon: Icons.favorite_border_rounded,
+                              icon: _isFavorite
+                                  ? Icons.favorite_rounded
+                                  : Icons.favorite_border_rounded,
                               iconColor: cRed,
-                              onTap: () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Избранное — скоро'),
-                                    behavior: SnackBarBehavior.floating,
-                                    duration: Duration(seconds: 2),
-                                  ),
-                                );
-                              },
+                              onTap: _toggleFavorite,
                             ),
                           ]),
                     ),

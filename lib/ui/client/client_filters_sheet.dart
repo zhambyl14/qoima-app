@@ -9,12 +9,14 @@ class ClientFiltersSheet extends StatefulWidget {
   final List<({ProductModel product, List<BatchModel> batches})> pairs;
   final List<StoreModel> stores;
   final ClientFilters current;
+  final Map<String, StoreModel> productStoreMap;
 
   const ClientFiltersSheet({
     super.key,
     required this.pairs,
     required this.stores,
     required this.current,
+    this.productStoreMap = const {},
   });
 
   @override
@@ -56,6 +58,10 @@ class _ClientFiltersSheetState extends State<ClientFiltersSheet> {
     return widget.pairs.where((pair) {
       final p = pair.product;
       final b = pair.batches;
+      if (_f.storeId != null) {
+        final store = widget.productStoreMap[p.id];
+        if (store?.adminUid != _f.storeId) return false;
+      }
       if (_f.types.isNotEmpty && !_f.types.contains(p.type)) return false;
       if (_f.brands.isNotEmpty && !_f.brands.contains(p.brand)) return false;
       if (_f.colors.isNotEmpty && !_f.colors.contains(p.color)) return false;

@@ -6,6 +6,7 @@ class CloudinaryService {
   static const String _cloudName = 'divynstru';
   static const String _uploadPreset = 'qoima_unsigned';
   static const String _folder = 'qoima_products';
+  static const String _receiptsFolder = 'qoima_receipts';
 
   static final String _uploadUrl =
       'https://api.cloudinary.com/v1_1/$_cloudName/image/upload';
@@ -22,10 +23,60 @@ class CloudinaryService {
     return Future.wait(files.map(uploadXFile));
   }
 
-  Future<String> _upload(List<int> bytes, String fileName) async {
+  /// Чек жүктеу (XFile, тек фото) — бөлек қалтаға (`qoima_receipts`)
+  Future<String> uploadReceipt(XFile xFile) async {
+    final bytes = await xFile.readAsBytes();
+    return _upload(bytes, _resolveFileName(xFile.path),
+        folder: _receiptsFolder);
+  }
+
+  /// Чек жүктеу (bytes + атау) — PDF + фото. image/upload: PDF → image ретінде
+  /// сақталады, `receiptPreviewUrl` арқылы pg_1,f_jpg трансформациясы қолданылады.
+  Future<String> uploadReceiptBytes(List<int> bytes, String fileName) async {
+    final request =
+        http.MultipartRequest('POST', Uri.parse(_uploadUrl))
+          ..fields['upload_preset'] = _uploadPreset
+          ..fields['folder'] = _receiptsFolder
+          ..files.add(http.MultipartFile.fromBytes('file', bytes,
+              filename: fileName));
+    final streamed = await request.send().timeout(
+      const Duration(seconds: 60),
+      onTimeout: () =>
+          throw CloudinaryException('Время ожидания истекло. Проверьте интернет.'),
+    );
+    final resp = await http.Response.fromStream(streamed);
+    if (resp.statusCode == 200) {
+      final url =
+          (jsonDecode(resp.body) as Map<String, dynamic>)['secure_url']
+              as String?;
+      if (url == null || url.isEmpty) {
+        throw CloudinaryException('Cloudinary не вернул URL.');
+      }
+      return url;
+    }
+    final errorBody =
+        jsonDecode(resp.body) as Map<String, dynamic>?;
+    final msg =
+        (errorBody?['error'] as Map?)?['message'] as String? ??
+            'Неизвестная ошибка';
+    throw CloudinaryException('Ошибка [${resp.statusCode}]: $msg');
+  }
+
+  /// PDF чекті апп ІШІНДЕ inline көрсету үшін 1-бет JPG preview URL жасайды.
+  /// Фото болса өзгертусіз қайтарады.
+  static String receiptPreviewUrl(String url) {
+    if (url.isEmpty) return url;
+    if (!url.toLowerCase().contains('.pdf')) return url;
+    return url
+        .replaceFirst('/upload/', '/upload/pg_1,f_jpg,w_1000/')
+        .replaceFirst(RegExp(r'\.pdf$', caseSensitive: false), '.jpg');
+  }
+
+  Future<String> _upload(List<int> bytes, String fileName,
+      {String? folder}) async {
     final request = http.MultipartRequest('POST', Uri.parse(_uploadUrl))
       ..fields['upload_preset'] = _uploadPreset
-      ..fields['folder'] = _folder
+      ..fields['folder'] = folder ?? _folder
       ..files.add(
         http.MultipartFile.fromBytes('file', bytes, filename: fileName),
       );

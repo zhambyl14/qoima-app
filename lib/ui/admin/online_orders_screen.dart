@@ -1,7 +1,9 @@
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../data/models/order_model.dart';
+import '../../data/services/cloudinary_service.dart';
 import '../../data/services/firestore_service.dart';
 import '../../theme/qoima_design.dart';
 import '../client/reservation_timer_widget.dart';
@@ -16,7 +18,7 @@ class OnlineOrdersScreen extends StatefulWidget {
 class _OnlineOrdersScreenState extends State<OnlineOrdersScreen> {
   final _service = FirestoreService();
   final _codeCtrl = TextEditingController();
-  String _filter = 'active';
+  String _filter = 'review'; // default: orders awaiting receipt review
 
   OrderModel? _lookupResult;
   bool _lookupLoading = false;
@@ -57,11 +59,15 @@ class _OnlineOrdersScreenState extends State<OnlineOrdersScreen> {
 
   List<OrderModel> _applyFilter(List<OrderModel> all) {
     switch (_filter) {
+      case 'review':
+        return all.where((o) => o.isAwaitingReview).toList();
       case 'active':
         return all
             .where((o) =>
+                o.status == OrderModel.statusPending ||
                 o.status == OrderModel.statusReserved ||
-                o.status == OrderModel.statusPending)
+                o.status == OrderModel.statusRejected ||
+                o.status == OrderModel.statusConfirmed)
             .toList();
       case 'done':
         return all
@@ -113,24 +119,19 @@ class _OnlineOrdersScreenState extends State<OnlineOrdersScreen> {
                           StreamBuilder<List<OrderModel>>(
                             stream: _service.watchOnlineOrders(),
                             builder: (_, s) {
-                              final count = (s.data ?? []).where((o) =>
-                                  o.status == OrderModel.statusReserved ||
-                                  o.status == OrderModel.statusPending).length;
-                              return Text('Ждут выдачи: $count',
-                                  style: manrope(13, FontWeight.w500,
-                                      color: Colors.white.withValues(alpha: 0.78)));
+                              final review = (s.data ?? [])
+                                  .where((o) => o.isAwaitingReview)
+                                  .length;
+                              return Text(
+                                review > 0
+                                    ? 'Ждут проверки: $review'
+                                    : 'Нет заказов на проверке',
+                                style: manrope(13, FontWeight.w500,
+                                    color: Colors.white.withValues(alpha: 0.78)));
                             },
                           ),
                         ],
                       ),
-                    ),
-                    Container(
-                      width: 38, height: 38,
-                      decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.16),
-                          borderRadius: BorderRadius.circular(12)),
-                      child: const Icon(Icons.qr_code_scanner_rounded,
-                          color: Colors.white, size: 20),
                     ),
                   ]),
                 ),
@@ -200,10 +201,14 @@ class _OnlineOrdersScreenState extends State<OnlineOrdersScreen> {
                     stream: _service.watchOnlineOrders(),
                     builder: (ctx, snap) {
                       final all = snap.data ?? [];
+                      final review =
+                          all.where((o) => o.isAwaitingReview).length;
                       final active = all
                           .where((o) =>
+                              o.status == OrderModel.statusPending ||
                               o.status == OrderModel.statusReserved ||
-                              o.status == OrderModel.statusPending)
+                              o.status == OrderModel.statusRejected ||
+                              o.status == OrderModel.statusConfirmed)
                           .length;
                       final done = all
                           .where((o) => o.status == OrderModel.statusCompleted)
@@ -214,16 +219,17 @@ class _OnlineOrdersScreenState extends State<OnlineOrdersScreen> {
 
                       return Row(children: [
                         _FilterChip(
-                            label: 'Все ${all.length}',
-                            value: 'all',
+                            label: 'Проверка $review',
+                            value: 'review',
                             current: _filter,
+                            highlight: review > 0,
                             onTap: (v) => setState(() {
                                   _filter = v;
                                   _lookupResult = null;
                                 })),
                         const SizedBox(width: 8),
                         _FilterChip(
-                            label: 'Активных $active',
+                            label: 'Активные $active',
                             value: 'active',
                             current: _filter,
                             onTap: (v) => setState(() {
@@ -234,6 +240,15 @@ class _OnlineOrdersScreenState extends State<OnlineOrdersScreen> {
                         _FilterChip(
                             label: 'Завершено $done',
                             value: 'done',
+                            current: _filter,
+                            onTap: (v) => setState(() {
+                                  _filter = v;
+                                  _lookupResult = null;
+                                })),
+                        const SizedBox(width: 8),
+                        _FilterChip(
+                            label: 'Всё ${all.length}',
+                            value: 'all',
                             current: _filter,
                             onTap: (v) => setState(() {
                                   _filter = v;
@@ -266,6 +281,17 @@ class _OnlineOrdersScreenState extends State<OnlineOrdersScreen> {
               }
 
               final all = snap.data ?? [];
+
+              // Мерзімі өткен тапсырыстарды on-read авто-болдырмаймыз
+              for (final o in all) {
+                if (o.isExpired &&
+                    (o.status == OrderModel.statusRejected ||
+                        o.status == OrderModel.statusReserved ||
+                        (o.status == OrderModel.statusPending &&
+                            o.receiptUrl.isEmpty))) {
+                  _service.cancelOnlineOrder(o).ignore();
+                }
+              }
 
               return ListView(
                 padding: const EdgeInsets.fromLTRB(14, 14, 14, 20),
@@ -362,13 +388,15 @@ class _OnlineOrdersScreenState extends State<OnlineOrdersScreen> {
                             size: 56, color: Colors.grey.shade300),
                         const SizedBox(height: 12),
                         Text(
-                          _filter == 'active'
-                              ? 'Нет активных заказов'
-                              : _filter == 'done'
-                                  ? 'Нет завершённых заказов'
-                                  : _filter == 'cancelled'
-                                      ? 'Нет отменённых заказов'
-                                      : 'Заказов нет',
+                          _filter == 'review'
+                              ? 'Нет чеков на проверке'
+                              : _filter == 'active'
+                                  ? 'Нет активных заказов'
+                                  : _filter == 'done'
+                                      ? 'Нет завершённых заказов'
+                                      : _filter == 'cancelled'
+                                          ? 'Нет отменённых заказов'
+                                          : 'Заказов нет',
                           style: const TextStyle(
                               fontSize: 15, color: cInk2),
                         ),
@@ -442,10 +470,14 @@ class _OrderCardState extends State<_OrderCard> {
 
   String get _statusLabel {
     switch (o.status) {
-      case OrderModel.statusReserved:
-        return 'Зарезервирован';
       case OrderModel.statusPending:
-        return 'В ожидании';
+        return o.receiptUrl.isEmpty ? 'Ожидает чека' : 'На проверке оплаты';
+      case OrderModel.statusReserved:
+        return 'Бронь подтверждена';
+      case OrderModel.statusRejected:
+        return 'Чек отклонён';
+      case OrderModel.statusConfirmed:
+        return 'Оплачено · Готов к выдаче';
       case OrderModel.statusCompleted:
         return 'Завершён';
       case OrderModel.statusCancelled:
@@ -457,10 +489,13 @@ class _OrderCardState extends State<_OrderCard> {
 
   Color get _statusColor {
     switch (o.status) {
-      case OrderModel.statusReserved:
-        return cAmber;
       case OrderModel.statusPending:
-        return cGreen;
+        return cAmber;
+      case OrderModel.statusReserved:
+        return const Color(0xFF3B82F6);
+      case OrderModel.statusRejected:
+        return cRed;
+      case OrderModel.statusConfirmed:
       case OrderModel.statusCompleted:
         return cGreen;
       case OrderModel.statusCancelled:
@@ -470,22 +505,16 @@ class _OrderCardState extends State<_OrderCard> {
     }
   }
 
-  bool get _isActive =>
-      o.status == OrderModel.statusReserved ||
-      o.status == OrderModel.statusPending;
-
-  Future<void> _confirm() async {
-    final action = o.isSmartReservation
-        ? 'Клиент оплатил полную сумму?'
-        : o.isDelivery
-            ? 'Отметить товар как доставленный?'
-            : 'Отметить товар как выданный?';
+  Future<void> _confirmPayment() async {
+    final label = o.isSmartReservation
+        ? 'Подтвердить получение задатка?'
+        : 'Подтвердить оплату и разрешить выдачу?';
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Подтверждение'),
-        content: Text(action),
+        title: const Text('Подтверждение оплаты'),
+        content: Text(label),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),
@@ -502,12 +531,207 @@ class _OrderCardState extends State<_OrderCard> {
     if (ok != true || !mounted) return;
     setState(() => _loading = true);
     try {
-      await widget.service.confirmOnlineOrder(o);
+      if (o.isSmartReservation) {
+        await widget.service.confirmReservationDeposit(o);
+      } else {
+        await widget.service.confirmOnlinePayment(o);
+      }
       if (mounted) {
         _confetti.play();
         HapticFeedback.mediumImpact();
         widget.onChanged();
       }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _loading = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(e.toString()),
+            backgroundColor: cRed,
+            behavior: SnackBarBehavior.floating));
+      }
+    }
+  }
+
+  Future<void> _handOver() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Выдача товара'),
+        content: const Text('Выдать товар клиенту?'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Нет')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: cGreen, foregroundColor: Colors.white),
+              child: const Text('Да, выдать')),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _loading = true);
+    try {
+      await widget.service.markHandedOver(o);
+      if (mounted) {
+        _confetti.play();
+        HapticFeedback.mediumImpact();
+        widget.onChanged();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _loading = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(e.toString()),
+            backgroundColor: cRed,
+            behavior: SnackBarBehavior.floating));
+      }
+    }
+  }
+
+  Future<void> _acceptInStorePayment() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Принять доплату'),
+        content: Text(
+            'Клиент оплатил остаток ${o.remainingAmount.toStringAsFixed(0)} ₸ на складе?'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Нет')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: cGreen, foregroundColor: Colors.white),
+              child: const Text('Да, принять')),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _loading = true);
+    try {
+      await widget.service.confirmInStorePayment(o);
+      if (mounted) {
+        HapticFeedback.lightImpact();
+        widget.onChanged();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _loading = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(e.toString()),
+            backgroundColor: cRed,
+            behavior: SnackBarBehavior.floating));
+      }
+    }
+  }
+
+  Future<void> _rejectReceipt() async {
+    final reasons = [
+      'Деньги не поступили',
+      'Сумма не совпадает',
+      'Чек нечитаемый / подделка',
+      'Оплата на другие реквизиты',
+    ];
+    String selected = reasons.first;
+    final TextEditingController customCtrl = TextEditingController();
+
+    final confirmed = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setBS) => Container(
+          padding: EdgeInsets.only(
+              bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Container(
+                  width: 36, height: 4,
+                  decoration: BoxDecoration(
+                      color: cLine,
+                      borderRadius: BorderRadius.circular(2))),
+              const SizedBox(height: 14),
+              Text('Причина отклонения',
+                  style: manrope(17, FontWeight.w700, color: cInk)),
+              const SizedBox(height: 14),
+              ...reasons.map((r) => GestureDetector(
+                    onTap: () => setBS(() => selected = r),
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 11),
+                      decoration: BoxDecoration(
+                        color: selected == r ? cRedTint : cBg,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                            color: selected == r
+                                ? cRed.withValues(alpha: 0.4)
+                                : cLine),
+                      ),
+                      child: Row(children: [
+                        Expanded(
+                            child: Text(r,
+                                style: manrope(13.5, FontWeight.w600,
+                                    color: selected == r ? cRed : cInk))),
+                        if (selected == r)
+                          const Icon(Icons.check_circle_rounded,
+                              color: cRed, size: 18),
+                      ]),
+                    ),
+                  )),
+              const SizedBox(height: 8),
+              TextField(
+                controller: customCtrl,
+                decoration: InputDecoration(
+                  hintText: 'Или введите причину вручную...',
+                  hintStyle: manrope(13, FontWeight.w400, color: cInk3),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: cLine)),
+                  contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 11),
+                ),
+                onChanged: (v) => setBS(() => selected = v.isEmpty ? reasons.first : v),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: cRed,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12))),
+                  child: Text('Отклонить чек',
+                      style: manrope(14, FontWeight.w700)),
+                ),
+              ),
+            ]),
+          ),
+        ),
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+    final reason = customCtrl.text.trim().isNotEmpty
+        ? customCtrl.text.trim()
+        : selected;
+    setState(() => _loading = true);
+    try {
+      await widget.service.rejectReceipt(o, reason);
+      if (mounted) widget.onChanged();
     } catch (e) {
       if (mounted) {
         setState(() => _loading = false);
@@ -555,8 +779,57 @@ class _OrderCardState extends State<_OrderCard> {
     }
   }
 
+  Future<void> _openOriginalReceipt() async {
+    final uri = Uri.tryParse(o.receiptUrl);
+    if (uri == null) return;
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  void _viewReceipt() {
+    final previewUrl = CloudinaryService.receiptPreviewUrl(o.receiptUrl);
+    showDialog<void>(
+      context: context,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.black,
+        insetPadding: const EdgeInsets.all(12),
+        child: Stack(children: [
+          InteractiveViewer(
+            child: Image.network(
+              previewUrl,
+              fit: BoxFit.contain,
+              loadingBuilder: (_, child, prog) => prog == null
+                  ? child
+                  : const Center(
+                      child: CircularProgressIndicator(color: Colors.white)),
+              errorBuilder: (_, __, ___) => const Center(
+                child: Icon(Icons.broken_image, color: Colors.white, size: 48)),
+            ),
+          ),
+          Positioned(
+            top: 8, right: 8,
+            child: GestureDetector(
+              onTap: () => Navigator.pop(context),
+              child: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(8)),
+                child: const Icon(Icons.close, color: Colors.white, size: 20),
+              ),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isActive = o.status == OrderModel.statusPending ||
+        o.status == OrderModel.statusReserved ||
+        o.status == OrderModel.statusRejected ||
+        o.status == OrderModel.statusConfirmed;
+
     return Stack(
       children: [
         Container(
@@ -564,6 +837,9 @@ class _OrderCardState extends State<_OrderCard> {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
+            border: o.isAwaitingReview
+                ? Border.all(color: cAmber, width: 1.5)
+                : null,
             boxShadow: [
               BoxShadow(
                   color: Colors.black.withValues(alpha: 0.05),
@@ -575,8 +851,7 @@ class _OrderCardState extends State<_OrderCard> {
               ? const Padding(
                   padding: EdgeInsets.all(24),
                   child: Center(
-                      child:
-                          CircularProgressIndicator(color: cGreen)))
+                      child: CircularProgressIndicator(color: cGreen)))
               : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   // Type + status header
                   Container(
@@ -603,7 +878,8 @@ class _OrderCardState extends State<_OrderCard> {
                       ),
                       const Spacer(),
                       if (o.isSmartReservation &&
-                          o.status == OrderModel.statusReserved)
+                          (o.status == OrderModel.statusPending ||
+                              o.status == OrderModel.statusReserved))
                         ReservationTimerWidget(expiresAt: o.expiresAt),
                       const SizedBox(width: 8),
                       Container(
@@ -627,7 +903,15 @@ class _OrderCardState extends State<_OrderCard> {
                     child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          // Order number
+                          if (o.orderNumber > 0)
+                            Text(
+                              '#${o.orderNumber.toString().padLeft(5, '0')}',
+                              style: manrope(13, FontWeight.w700, color: cInk3),
+                            ),
+
                           // Client info
+                          const SizedBox(height: 4),
                           Row(children: [
                             const Icon(Icons.person_outline,
                                 size: 16, color: cInk3),
@@ -687,7 +971,7 @@ class _OrderCardState extends State<_OrderCard> {
                                 ]),
                               )),
 
-                          // Pickup address
+                          // Addresses
                           if (o.warehouseAddress.isNotEmpty) ...[
                             const SizedBox(height: 8),
                             Row(
@@ -703,8 +987,6 @@ class _OrderCardState extends State<_OrderCard> {
                                               color: cInk2))),
                                 ]),
                           ],
-
-                          // Delivery address
                           if (o.isDelivery && o.address.isNotEmpty) ...[
                             const SizedBox(height: 4),
                             Row(
@@ -729,14 +1011,12 @@ class _OrderCardState extends State<_OrderCard> {
                                 label: 'Сумма товаров',
                                 value: '${o.total.toStringAsFixed(0)} ₸'),
                             _PayRow(
-                                label: 'Депозит оплачен (10%)',
-                                value:
-                                    '${o.depositAmount.toStringAsFixed(0)} ₸',
+                                label: 'Задаток (10%)',
+                                value: '${o.depositAmount.toStringAsFixed(0)} ₸',
                                 valueColor: cGreen),
                             _PayRow(
                                 label: 'Доплата в магазине',
-                                value:
-                                    '${o.remainingAmount.toStringAsFixed(0)} ₸',
+                                value: '${o.remainingAmount.toStringAsFixed(0)} ₸',
                                 valueColor: cAmber,
                                 bold: true),
                           ] else if (o.isDelivery) ...[
@@ -746,71 +1026,256 @@ class _OrderCardState extends State<_OrderCard> {
                             if (o.deliveryFee > 0)
                               _PayRow(
                                   label: 'Доставка',
-                                  value:
-                                      '${o.deliveryFee.toStringAsFixed(0)} ₸'),
+                                  value: '${o.deliveryFee.toStringAsFixed(0)} ₸'),
                             _PayRow(
-                                label: 'Итого оплачено',
-                                value:
-                                    '${o.totalWithDelivery.toStringAsFixed(0)} ₸',
+                                label: 'Итого к оплате',
+                                value: '${o.totalWithDelivery.toStringAsFixed(0)} ₸',
                                 valueColor: cGreen,
                                 bold: true),
                           ] else ...[
                             _PayRow(
-                                label: 'Итого оплачено',
+                                label: 'Итого к оплате',
                                 value: '${o.total.toStringAsFixed(0)} ₸',
                                 valueColor: cGreen,
                                 bold: true),
                           ],
 
-                          // Action buttons
-                          if (_isActive) ...[
+                          // Receipt image (tap to view full-screen)
+                          if (o.receiptUrl.isNotEmpty) ...[
                             const SizedBox(height: 12),
-                            Row(children: [
-                              Expanded(
-                                child: ElevatedButton(
-                                  onPressed: _confirm,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: cGreen,
-                                    foregroundColor: Colors.white,
-                                    shape: RoundedRectangleBorder(
-                                        borderRadius:
-                                            BorderRadius.circular(10)),
-                                    elevation: 0,
-                                    padding: const EdgeInsets.symmetric(
-                                        vertical: 10),
+                            GestureDetector(
+                              onTap: _viewReceipt,
+                              child: Container(
+                                height: 120,
+                                decoration: BoxDecoration(
+                                  color: cBg,
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: cLine),
+                                ),
+                                child: Stack(children: [
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: Image.network(
+                                      CloudinaryService.receiptPreviewUrl(
+                                          o.receiptUrl),
+                                      width: double.infinity,
+                                      height: 120,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) => const Center(
+                                        child: Icon(Icons.receipt_long_outlined,
+                                            size: 36, color: cInk3),
+                                      ),
+                                    ),
                                   ),
-                                  child: Text(
-                                      o.isSmartReservation
-                                          ? 'Полная оплата'
-                                          : o.isDelivery
-                                              ? 'Доставлено'
-                                              : 'Товар выдан',
-                                      style: const TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w700)),
+                                  Positioned(
+                                    right: 8, bottom: 8,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.black54,
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: const Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(Icons.zoom_in,
+                                                color: Colors.white, size: 14),
+                                            SizedBox(width: 4),
+                                            Text('Просмотр',
+                                                style: TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 11,
+                                                    fontWeight:
+                                                        FontWeight.w600)),
+                                          ]),
+                                    ),
+                                  ),
+                                ]),
+                              ),
+                            ),
+                            // «Открыть оригинал» — PDF или фото в браузере
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton.icon(
+                                onPressed: _openOriginalReceipt,
+                                icon: const Icon(Icons.open_in_new,
+                                    size: 14, color: cInk3),
+                                label: Text('Открыть оригинал',
+                                    style:
+                                        manrope(12, FontWeight.w500, color: cInk3)),
+                                style: TextButton.styleFrom(
+                                    padding: EdgeInsets.zero,
+                                    minimumSize: Size.zero,
+                                    tapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap),
+                              ),
+                            ),
+                          ],
+
+                          // Rejection reason display
+                          if (o.status == OrderModel.statusRejected &&
+                              o.rejectionReason.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: cRedTint,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Row(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    const Icon(Icons.error_outline,
+                                        color: cRed, size: 15),
+                                    const SizedBox(width: 6),
+                                    Expanded(
+                                        child: Text(
+                                            'Отклонено: ${o.rejectionReason}',
+                                            style: manrope(
+                                                12, FontWeight.w500,
+                                                color: cRed))),
+                                  ]),
+                            ),
+                          ],
+
+                          // Action buttons
+                          if (isActive) ...[
+                            const SizedBox(height: 12),
+
+                            // Confirm payment (only for pending with receipt)
+                            if (o.isAwaitingReview)
+                              Row(children: [
+                                Expanded(
+                                  child: ElevatedButton(
+                                    onPressed: _confirmPayment,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: cGreen,
+                                      foregroundColor: Colors.white,
+                                      shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(10)),
+                                      elevation: 0,
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 10),
+                                    ),
+                                    child: Text(
+                                        o.isSmartReservation
+                                            ? 'Подтвердить задаток'
+                                            : 'Подтвердить оплату',
+                                        style: const TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w700)),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: OutlinedButton(
+                                    onPressed: _rejectReceipt,
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: cRed,
+                                      side: const BorderSide(color: cRed),
+                                      shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(10)),
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 10),
+                                    ),
+                                    child: const Text('Отклонить',
+                                        style: TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w700)),
+                                  ),
+                                ),
+                              ]),
+
+                            // Pending without receipt
+                            if (o.status == OrderModel.statusPending &&
+                                o.receiptUrl.isEmpty)
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(
+                                    vertical: 10, horizontal: 12),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFFFBEB),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                      color: cAmber.withValues(alpha: 0.3)),
+                                ),
+                                child: const Text(
+                                  '⏳ Ожидает чека от клиента',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF92400E)),
                                 ),
                               ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: OutlinedButton(
-                                  onPressed: _cancel,
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: cRed,
-                                    side: const BorderSide(
-                                        color: cRed),
-                                    shape: RoundedRectangleBorder(
-                                        borderRadius:
-                                            BorderRadius.circular(10)),
-                                    padding: const EdgeInsets.symmetric(
-                                        vertical: 10),
-                                  ),
-                                  child: const Text('Отменить',
-                                      style: TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w700)),
+
+                            // Reserved (deposit confirmed, waiting in-store)
+                            // Reserved → admin да доплата қабылдай алады
+                            if (o.status == OrderModel.statusReserved)
+                              ElevatedButton(
+                                onPressed: _acceptInStorePayment,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor:
+                                      const Color(0xFF3B82F6),
+                                  foregroundColor: Colors.white,
+                                  minimumSize:
+                                      const Size(double.infinity, 44),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius:
+                                          BorderRadius.circular(10)),
+                                  elevation: 0,
                                 ),
+                                child: Text(
+                                    'Принять доплату ${o.remainingAmount.toStringAsFixed(0)} ₸',
+                                    style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700)),
                               ),
-                            ]),
+
+                            // Confirmed → admin can hand over directly
+                            if (o.status == OrderModel.statusConfirmed)
+                              ElevatedButton(
+                                onPressed: _handOver,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: cGreen,
+                                  foregroundColor: Colors.white,
+                                  minimumSize:
+                                      const Size(double.infinity, 44),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius:
+                                          BorderRadius.circular(10)),
+                                  elevation: 0,
+                                ),
+                                child: const Text('Выдать товар',
+                                    style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700)),
+                              ),
+
+                            const SizedBox(height: 8),
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton(
+                                onPressed: _cancel,
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: cRed,
+                                  side: const BorderSide(color: cRed),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius:
+                                          BorderRadius.circular(10)),
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 8),
+                                ),
+                                child: const Text('Отменить заказ',
+                                    style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700)),
+                              ),
+                            ),
                           ],
                         ]),
                   ),
@@ -827,11 +1292,8 @@ class _OrderCardState extends State<_OrderCard> {
             numberOfParticles: 25,
             gravity: 0.2,
             colors: const [
-              cGreen,
-              cGreen,
-              cAmber,
-              Color(0xFF3B82F6),
-              Colors.purple,
+              cGreen, cGreen, cAmber,
+              Color(0xFF3B82F6), Colors.purple,
             ],
           ),
         ),
@@ -857,8 +1319,7 @@ class _PayRow extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(label,
-                style: const TextStyle(
-                    fontSize: 12, color: cInk2)),
+                style: const TextStyle(fontSize: 12, color: cInk2)),
             Text(value,
                 style: TextStyle(
                   fontSize: 13,
@@ -872,11 +1333,13 @@ class _PayRow extends StatelessWidget {
 
 class _FilterChip extends StatelessWidget {
   final String label, value, current;
+  final bool highlight;
   final void Function(String) onTap;
   const _FilterChip(
       {required this.label,
       required this.value,
       required this.current,
+      this.highlight = false,
       required this.onTap});
 
   @override
@@ -888,8 +1351,15 @@ class _FilterChip extends StatelessWidget {
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: active ? Colors.white : Colors.white.withValues(alpha: 0.15),
+          color: active
+              ? Colors.white
+              : highlight
+                  ? Colors.white.withValues(alpha: 0.25)
+                  : Colors.white.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(20),
+          border: highlight && !active
+              ? Border.all(color: cAmber, width: 1.5)
+              : null,
         ),
         child: Text(label,
             style: TextStyle(

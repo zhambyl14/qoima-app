@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/app_user.dart';
+import '../../core/kz_cities.dart';
 import '../../core/locale_context.dart';
 import '../../core/l10n_ext.dart';
 import '../../data/models/order_model.dart';
 import '../../data/services/auth_service.dart';
 import '../../data/services/client_service.dart';
 import '../../theme/qoima_design.dart';
+import 'favorites_screen.dart';
+import 'addresses_screen.dart';
 
 class ClientProfileScreen extends StatelessWidget {
   const ClientProfileScreen({super.key});
@@ -65,20 +68,26 @@ class ClientProfileScreen extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
             children: [
               // Stats row
-              StreamBuilder<List<OrderModel>>(
-                stream: phone.isNotEmpty
-                    ? ClientService().watchClientOrders(phone)
-                    : const Stream.empty(),
-                builder: (_, snap) {
-                  final count = snap.data?.length ?? 0;
-                  return Row(children: [
-                    _StatCard(
-                        value: '$count',
-                        label: 'Заказов'),
-                    const SizedBox(width: 12),
-                    const _StatCard(
-                        value: '—', label: 'В избранном', valueColor: cRed),
-                  ]);
+              StreamBuilder<List<String>>(
+                stream: ClientService().watchFavoriteIds(),
+                builder: (_, favSnap) {
+                  final favCount = favSnap.data?.length ?? 0;
+                  return StreamBuilder<List<OrderModel>>(
+                    stream: phone.isNotEmpty
+                        ? ClientService().watchClientOrders(phone)
+                        : const Stream.empty(),
+                    builder: (_, snap) {
+                      final count = snap.data?.length ?? 0;
+                      return Row(children: [
+                        _StatCard(value: '$count', label: 'Заказов'),
+                        const SizedBox(width: 12),
+                        _StatCard(
+                            value: '$favCount',
+                            label: 'В избранном',
+                            valueColor: cRed),
+                      ]);
+                    },
+                  );
                 },
               ),
 
@@ -91,11 +100,8 @@ class ClientProfileScreen extends StatelessWidget {
                 tone: 'red',
                 title: 'Избранное',
                 sub: 'Список желаний',
-                onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Избранное — скоро'),
-                      behavior: SnackBarBehavior.floating,
-                      duration: Duration(seconds: 2)),
-                ),
+                onTap: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const FavoritesScreen())),
               ),
               const SizedBox(height: 10),
               _MenuItem(
@@ -103,11 +109,8 @@ class ClientProfileScreen extends StatelessWidget {
                 tone: 'blue',
                 title: 'Адреса доставки',
                 sub: 'Сохранённые адреса',
-                onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Адреса — скоро'),
-                      behavior: SnackBarBehavior.floating,
-                      duration: Duration(seconds: 2)),
-                ),
+                onTap: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const AddressesScreen())),
               ),
               const SizedBox(height: 10),
               _MenuItem(
@@ -120,6 +123,14 @@ class ClientProfileScreen extends StatelessWidget {
                       behavior: SnackBarBehavior.floating,
                       duration: Duration(seconds: 2)),
                 ),
+              ),
+              const SizedBox(height: 10),
+              _MenuItem(
+                icon: Icons.location_city_outlined,
+                tone: 'blue',
+                title: 'Город',
+                value: appUser.city.isNotEmpty ? appUser.city : 'Не выбран',
+                onTap: () => _showCityDialog(context, appUser),
               ),
               const SizedBox(height: 10),
               _MenuItem(
@@ -177,6 +188,84 @@ class ClientProfileScreen extends StatelessWidget {
       return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
     }
     return name.isNotEmpty ? name[0].toUpperCase() : '?';
+  }
+
+  static void _showCityDialog(BuildContext context, AppUser appUser) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        maxChildSize: 0.85,
+        minChildSize: 0.4,
+        expand: false,
+        builder: (_, ctrl) => Column(children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+            child: Column(children: [
+              Container(
+                width: 36, height: 4,
+                decoration: BoxDecoration(
+                    color: cLine, borderRadius: BorderRadius.circular(2)),
+              ),
+              const SizedBox(height: 14),
+              Row(children: [
+                Text('Ваш город',
+                    style: manrope(17, FontWeight.w700, color: cInk)),
+              ]),
+              const SizedBox(height: 4),
+              Text('Вы будете видеть только магазины своего города',
+                  style: manrope(12.5, FontWeight.w500, color: cInk3)),
+              const SizedBox(height: 12),
+              const Divider(height: 1),
+            ]),
+          ),
+          Expanded(
+            child: ListView(
+              controller: ctrl,
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+              children: kzCities.map((city) {
+                final selected = city == appUser.city;
+                return GestureDetector(
+                  onTap: () async {
+                    Navigator.pop(ctx);
+                    appUser.updateCity(city);
+                    await AuthService().updateClientCity(appUser.uid, city);
+                  },
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 13),
+                    decoration: BoxDecoration(
+                      color: selected ? cGreenTint : cSurface,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                          color: selected ? cGreen : cLine,
+                          width: selected ? 1.5 : 1),
+                    ),
+                    child: Row(children: [
+                      Icon(Icons.location_city_outlined,
+                          color: selected ? cGreen : cInk3, size: 18),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(city,
+                            style: manrope(14.5, FontWeight.w600,
+                                color: selected ? cGreen : cInk)),
+                      ),
+                      if (selected)
+                        const Icon(Icons.check_circle_rounded,
+                            color: cGreen, size: 20),
+                    ]),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ]),
+      ),
+    );
   }
 
   static void _showLanguageDialog(BuildContext context) {

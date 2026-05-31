@@ -18,6 +18,7 @@ class AppUser extends ChangeNotifier {
   String _businessCode = '';
   String _assignedWarehouseId = '';
   String _joinStatus = 'none';
+  String _city = '';
 
   String get uid => _uid;
   String get ownerUid => _ownerUid;
@@ -29,6 +30,7 @@ class AppUser extends ChangeNotifier {
   String get businessCode => _businessCode;
   String get assignedWarehouseId => _assignedWarehouseId;
   String get joinStatus => _joinStatus;
+  String get city => _city;
 
   bool get isAdmin => _role == 'admin';
   bool get isSeller => _role == 'seller';
@@ -58,6 +60,7 @@ class AppUser extends ChangeNotifier {
     String businessCode = '',
     String assignedWarehouseId = '',
     String joinStatus = 'none',
+    String city = '',
   }) {
     _uid = uid;
     _ownerUid = ownerUid;
@@ -69,6 +72,13 @@ class AppUser extends ChangeNotifier {
     _businessCode = businessCode;
     _assignedWarehouseId = assignedWarehouseId;
     _joinStatus = joinStatus;
+    _city = city;
+    notifyListeners();
+  }
+
+  void updateCity(String city) {
+    if (_city == city) return;
+    _city = city;
     notifyListeners();
   }
 
@@ -83,6 +93,7 @@ class AppUser extends ChangeNotifier {
     _businessCode = '';
     _assignedWarehouseId = '';
     _joinStatus = 'none';
+    _city = '';
     notifyListeners();
   }
 }

@@ -102,6 +102,21 @@ class _SalesScreenState extends State<SalesScreen> {
       body: StreamBuilder<List<SaleModel>>(
         stream: _service.watchSalesHistory(),
         builder: (_, salesSnap) {
+          if (salesSnap.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(Icons.error_outline_rounded,
+                      color: cRed, size: 40),
+                  const SizedBox(height: 12),
+                  Text(salesSnap.error.toString(),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: cInk2, fontSize: 13)),
+                ]),
+              ),
+            );
+          }
           final allSales = salesSnap.data ?? [];
           return StreamBuilder<List<ProductModel>>(
             stream: _service.watchProducts(),
@@ -125,7 +140,15 @@ class _SalesScreenState extends State<SalesScreen> {
                   })
                   .fold<double>(0, (a, b) => a + b.totalPrice);
 
-              return CustomScrollView(slivers: [
+              return RefreshIndicator(
+                color: cGreen,
+                onRefresh: () async {
+                  await _service.refreshSalesHistory();
+                  await _service.refreshProducts();
+                },
+                child: CustomScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  slivers: [
                 // ── Header ─────────────────────────────────────────────
                 SliverToBoxAdapter(
                   child: Container(
@@ -265,7 +288,9 @@ class _SalesScreenState extends State<SalesScreen> {
                     onMonthTap: _pickMonth,
                   ),
                 ),
-              ]);
+                  ],
+                ),
+              );
             },
           );
         },

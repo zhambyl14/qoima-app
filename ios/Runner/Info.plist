@@ -67,6 +67,14 @@
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 
+	<!-- Фото галереясы мен файлдарға рұқсат (file_picker / image_picker) -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Чек суретін жүктеу үшін фото галереясына рұқсат қажет</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Чек суретін сақтау үшін фото галереясына рұқсат қажет</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Чекті фотоға түсіру үшін камераға рұқсат қажет</string>
+
 	<!-- url_launcher: разрешаем запросы к внешним схемам -->
 	<key>LSApplicationQueriesSchemes</key>
 	<array>

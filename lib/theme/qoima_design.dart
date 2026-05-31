@@ -246,6 +246,10 @@ class QShoeImage extends StatelessWidget {
           height: height,
           width: double.infinity,
           fit: BoxFit.cover,
+          // Show placeholder while the heavy file is decoding so the
+          // box is never blank — avoids the "empty square" symptom.
+          loadingBuilder: (_, child, progress) =>
+              progress == null ? child : _placeholder(),
           errorBuilder: (_, __, ___) => _placeholder(),
         ),
       );

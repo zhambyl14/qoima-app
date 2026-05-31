@@ -15,6 +15,9 @@ class StoreModel {
   final DateTime updatedAt;
   final double deliveryFeeCity;
   final double deliveryFreeThreshold;
+  final String paymentCardNumber;
+  final String paymentCardHolder;
+  final String paymentBank;
 
   const StoreModel({
     required this.adminUid,
@@ -31,6 +34,9 @@ class StoreModel {
     required this.updatedAt,
     this.deliveryFeeCity = 1500.0,
     this.deliveryFreeThreshold = 0.0,
+    this.paymentCardNumber = '',
+    this.paymentCardHolder = '',
+    this.paymentBank = '',
   });
 
   static String generateSlug(String name) => name
@@ -59,6 +65,9 @@ class StoreModel {
       deliveryFeeCity: (d['deliveryFeeCity'] as num?)?.toDouble() ?? 1500.0,
       deliveryFreeThreshold:
           (d['deliveryFreeThreshold'] as num?)?.toDouble() ?? 0.0,
+      paymentCardNumber: d['paymentCardNumber'] as String? ?? '',
+      paymentCardHolder: d['paymentCardHolder'] as String? ?? '',
+      paymentBank: d['paymentBank'] as String? ?? '',
     );
   }
 
@@ -77,6 +86,9 @@ class StoreModel {
         'updatedAt': Timestamp.fromDate(updatedAt),
         'deliveryFeeCity': deliveryFeeCity,
         'deliveryFreeThreshold': deliveryFreeThreshold,
+        'paymentCardNumber': paymentCardNumber,
+        'paymentCardHolder': paymentCardHolder,
+        'paymentBank': paymentBank,
       };
 
   StoreModel copyWith({
@@ -94,6 +106,9 @@ class StoreModel {
     DateTime? updatedAt,
     double? deliveryFeeCity,
     double? deliveryFreeThreshold,
+    String? paymentCardNumber,
+    String? paymentCardHolder,
+    String? paymentBank,
   }) =>
       StoreModel(
         adminUid: adminUid ?? this.adminUid,
@@ -111,5 +126,8 @@ class StoreModel {
         deliveryFeeCity: deliveryFeeCity ?? this.deliveryFeeCity,
         deliveryFreeThreshold:
             deliveryFreeThreshold ?? this.deliveryFreeThreshold,
+        paymentCardNumber: paymentCardNumber ?? this.paymentCardNumber,
+        paymentCardHolder: paymentCardHolder ?? this.paymentCardHolder,
+        paymentBank: paymentBank ?? this.paymentBank,
       );
 }

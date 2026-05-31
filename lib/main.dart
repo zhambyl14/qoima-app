@@ -13,12 +13,9 @@ import 'theme/app_theme.dart';
 import 'ui/auth/client_login_screen.dart';
 import 'ui/auth/seller_join_screen.dart';
 import 'ui/main_shell.dart';
-import 'ui/profile/store_onboarding_screen.dart';
 import 'ui/client/client_shell.dart';
 import 'ui/admin/admin_shell.dart';
 import 'data/services/auth_service.dart';
-import 'data/services/firestore_service.dart';
-import 'data/models/store_model.dart';
 import 'core/app_user.dart';
 import 'core/warehouse_context.dart';
 import 'core/locale_context.dart';
@@ -68,6 +65,53 @@ class QoimaApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF00A862),
           brightness: Brightness.light,
+        ),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFF00713F),
+          foregroundColor: Colors.white,
+          elevation: 0,
+          centerTitle: false,
+          titleTextStyle: TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.3,
+          ),
+          iconTheme: IconThemeData(color: Colors.white),
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: Colors.white,
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFE7ECEA))),
+          enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFE7ECEA))),
+          focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide:
+                  const BorderSide(color: Color(0xFF00A862), width: 1.5)),
+          errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFF0384B))),
+          labelStyle: const TextStyle(color: Color(0xFF566B61), fontSize: 14),
+          prefixIconColor: const Color(0xFF00A862),
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF00A862),
+            foregroundColor: Colors.white,
+            elevation: 0,
+            padding:
+                const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14)),
+            textStyle:
+                const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+          ),
         ),
       ),
       locale: locale,
@@ -143,6 +187,7 @@ Future<bool> _loadSession(String uid, BuildContext context) async {
         email: '',
         role: 'client',
         phone: clientDoc.phone,
+        city: clientDoc.city,
       );
       return true;
     }
@@ -160,24 +205,8 @@ class _AdminHomeRouter extends StatefulWidget {
 }
 
 class _AdminHomeRouterState extends State<_AdminHomeRouter> {
-  bool _forceMain = false;
-
   @override
-  Widget build(BuildContext context) {
-    if (_forceMain) return const AdminShell();
-    return StreamBuilder<StoreModel?>(
-      stream: FirestoreService().watchStore(),
-      builder: (_, snap) {
-        if (snap.connectionState == ConnectionState.waiting) {
-          return const _Splash();
-        }
-        if (snap.data != null) return const AdminShell();
-        return StoreOnboardingScreen(
-          onDone: () => setState(() => _forceMain = true),
-        );
-      },
-    );
-  }
+  Widget build(BuildContext context) => const AdminShell();
 }
 
 class _Splash extends StatelessWidget {

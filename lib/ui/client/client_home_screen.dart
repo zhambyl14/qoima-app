@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../core/app_user.dart';
 import '../../data/models/store_model.dart';
 import '../../data/models/product_model.dart';
 import '../../data/models/batch_model.dart';
 import '../../data/models/cart_item_model.dart';
 import '../../data/services/client_service.dart';
 import '../../theme/qoima_design.dart';
+import '../shared/skeletons.dart';
 import 'client_product_detail.dart';
 import 'client_filters_sheet.dart';
 import 'client_shell.dart';
@@ -110,6 +112,10 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
     final filtered = _pairs.where((pair) {
       final p = pair.product;
       final b = pair.batches;
+      if (f.storeId != null) {
+        final store = _productStoreMap[p.id];
+        if (store?.adminUid != f.storeId) return false;
+      }
       if (_selectedType.isNotEmpty && p.category != _selectedType) return false;
       if (f.types.isNotEmpty && !f.types.contains(p.type)) return false;
       if (f.brands.isNotEmpty && !f.brands.contains(p.brand)) return false;
@@ -170,32 +176,50 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
   }
 
   Future<void> _loadAllProducts() async {
+    // Keep existing products visible while refreshing (don't flash spinner)
+    final hasCache = _pairs.isNotEmpty;
     setState(() {
-      _loadingStores = true;
+      if (!hasCache) _loadingStores = true;
       _errorMessage = null;
     });
     try {
-      final stores = await _service.getPublishedStores();
+      final allStores = await _service.getPublishedStores();
       if (!mounted) return;
+
+      final clientCity = context.read<AppUser>().city;
+      final stores = clientCity.isEmpty
+          ? allStores
+          : allStores.where((s) => s.city.isEmpty || s.city == clientCity).toList();
+
       setState(() {
         _stores = stores;
         _loadingStores = false;
-        if (stores.isNotEmpty) _loadingProducts = true;
+        if (stores.isNotEmpty && !hasCache) _loadingProducts = true;
       });
-      if (stores.isEmpty) return;
+      if (stores.isEmpty) {
+        if (mounted) setState(() => _loadingProducts = false);
+        return;
+      }
 
+      // Fetch all stores in parallel
+      final storesWithProducts = stores
+          .where((s) => s.visibleWarehouseIds.isNotEmpty)
+          .toList();
+      final results = await Future.wait(
+        storesWithProducts.map((store) =>
+            _service.getStoreProductsWithBatches(
+                store.adminUid, store.visibleWarehouseIds)),
+      );
+
+      if (!mounted) return;
       final pairs = <({ProductModel product, List<BatchModel> batches})>[];
       final storeMap = <String, StoreModel>{};
-      for (final store in stores) {
-        if (store.visibleWarehouseIds.isEmpty) continue;
-        final sp = await _service.getStoreProductsWithBatches(
-            store.adminUid, store.visibleWarehouseIds);
-        for (final p in sp) {
-          storeMap[p.product.id] = store;
+      for (var i = 0; i < storesWithProducts.length; i++) {
+        for (final p in results[i]) {
+          storeMap[p.product.id] = storesWithProducts[i];
         }
-        pairs.addAll(sp);
+        pairs.addAll(results[i]);
       }
-      if (!mounted) return;
       setState(() {
         _pairs = pairs;
         _productStoreMap = storeMap;
@@ -222,6 +246,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
         pairs: _pairs,
         stores: _stores,
         current: _filters,
+        productStoreMap: _productStoreMap,
       ),
     );
     if (updated != null && mounted) {
@@ -441,19 +466,19 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
           // ── Body ────────────────────────────────────────────────────────
           Expanded(
             child: _loadingStores
-                ? const Center(
-                    child: CircularProgressIndicator(color: cGreen))
+                ? const CatalogGridSkeleton()
                 : _errorMessage != null
                     ? _EmptyState(
                         icon: Icons.error_outline_rounded,
                         message: _errorMessage!)
                     : _stores.isEmpty
-                        ? const _EmptyState(
+                        ? _EmptyState(
                             icon: Icons.storefront_outlined,
-                            message: 'Нет активных магазинов')
+                            message: context.read<AppUser>().city.isNotEmpty
+                                ? 'В вашем городе пока нет магазинов'
+                                : 'Нет активных магазинов')
                         : _loadingProducts
-                            ? const Center(
-                                child: CircularProgressIndicator(color: cGreen))
+                            ? const CatalogGridSkeleton()
                             : _shown.isEmpty
                                 ? _EmptyState(
                                     icon: Icons.search_off_rounded,

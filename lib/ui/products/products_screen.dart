@@ -42,12 +42,36 @@ class _ProductsScreenState extends State<ProductsScreen> {
     super.dispose();
   }
 
+  // Бронь/ClickCollect резервтерін алып тастаған нақты бос қалдық
+  int _totalQtyForProduct(String productId) =>
+      (_batchCache[productId] ?? []).fold(0, (a, b) => a + b.totalAvailable);
+
+  int get _cachedTotalPairs {
+    int total = 0;
+    for (final batches in _batchCache.values) {
+      for (final b in batches) { total += b.totalAvailable; }
+    }
+    return total;
+  }
+
   List<ProductModel> _filter(List<ProductModel> all) {
     var list = List<ProductModel>.from(all);
     if (_tab == 1) {
       list = list.where((p) => p.status == ProductModel.statusInStock).toList();
     } else if (_tab == 2) {
-      list = list.where((p) => p.status == ProductModel.statusSold).toList();
+      // Заканчиваются: в наличии, но меньше 10 пар
+      list = list
+          .where((p) =>
+              p.status == ProductModel.statusInStock &&
+              _totalQtyForProduct(p.id) < 10)
+          .toList();
+    } else if (_tab == 3) {
+      // Нет: продано или 0 остаток
+      list = list
+          .where((p) =>
+              p.status == ProductModel.statusSold ||
+              _totalQtyForProduct(p.id) == 0)
+          .toList();
     }
     if (_q.isNotEmpty) {
       list = list
@@ -193,7 +217,19 @@ class _ProductsScreenState extends State<ProductsScreen> {
               .length;
           final filtered = _filter(allProducts);
 
-          return CustomScrollView(slivers: [
+          return RefreshIndicator(
+            color: cGreen,
+            onRefresh: () async {
+              // Reset batch cache so the next build fetches fresh sizes_quantity.
+              setState(() {
+                _lastCacheKey = '';
+                _batchCache = {};
+              });
+              await _service.refreshProducts();
+            },
+            child: CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
             // ── Header ────────────────────────────────────────────────
             SliverToBoxAdapter(
               child: Container(
@@ -210,61 +246,48 @@ class _ProductsScreenState extends State<ProductsScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(children: [
-                            Column(
+                            Expanded(
+                              child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Text('Qoima',
-                                      style: TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 28,
-                                          fontWeight: FontWeight.w800,
-                                          letterSpacing: -0.5)),
                                   Text(
-                                      widget.readOnly
-                                          ? context.l10n.inStockSubtitle
-                                          : context
-                                              .l10n.manageWarehouseSubtitle,
-                                      style: const TextStyle(
-                                          color: Colors.white60, fontSize: 13)),
-                                ]),
-                            const Spacer(),
-                            FutureBuilder<int>(
-                              future: _calcTotalPairs(
-                                  allProducts
-                                      .where((p) =>
-                                          p.status ==
-                                          ProductModel.statusInStock)
-                                      .toList(),
-                                  warehouseId),
-                              builder: (_, pairSnap) {
-                                final pairs = pairSnap.data ?? 0;
-                                return Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 12, vertical: 8),
-                                  decoration: BoxDecoration(
-                                      color:
-                                          Colors.white.withValues(alpha: 0.15),
-                                      borderRadius: BorderRadius.circular(14),
-                                      border: Border.all(
-                                          color: Colors.white
-                                              .withValues(alpha: 0.2))),
-                                  child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.end,
-                                      children: [
-                                        Text('$inStockCount вид.',
-                                            style: const TextStyle(
-                                                color: Colors.white,
-                                                fontWeight: FontWeight.w700,
-                                                fontSize: 15)),
-                                        Text('$pairs пар',
-                                            style: const TextStyle(
-                                                color: Colors.white70,
-                                                fontSize: 12)),
-                                      ]),
-                                );
-                              },
+                                    widget.readOnly ? 'Qoima' : 'Товары',
+                                    style: manrope(
+                                      widget.readOnly ? 28 : 23,
+                                      FontWeight.w800,
+                                      color: Colors.white,
+                                      letterSpacing: -0.5,
+                                    ),
+                                  ),
+                                  Text(
+                                    widget.readOnly
+                                        ? context.l10n.inStockSubtitle
+                                        : '$inStockCount мод. · $_cachedTotalPairs пар',
+                                    style: manrope(13, FontWeight.w500,
+                                        color: Colors.white
+                                            .withValues(alpha: 0.78)),
+                                  ),
+                                ],
+                              ),
                             ),
+                            if (!widget.readOnly)
+                              GestureDetector(
+                                onTap: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                        builder: (_) =>
+                                            const AddProductScreen())),
+                                child: Container(
+                                  width: 38,
+                                  height: 38,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.16),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Icon(Icons.add_rounded,
+                                      color: Colors.white, size: 20),
+                                ),
+                              ),
                           ]),
 
                           // Current warehouse badge — visible for both admin and seller.
@@ -357,33 +380,43 @@ class _ProductsScreenState extends State<ProductsScreen> {
                           ]),
                           const SizedBox(height: 12),
                           // Tabs
-                          Row(children: [
-                            if (!widget.readOnly) ...[
-                              _TabChip(
-                                  label: context.l10n.allProductsLabel,
-                                  i: 0,
-                                  cur: _tab,
-                                  onTap: (i) => setState(() => _tab = i)),
-                              const SizedBox(width: 8),
-                            ],
+                          if (!widget.readOnly) ...[
+                            SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Row(children: [
+                                _StockChip(
+                                    label: 'Все',
+                                    i: 0,
+                                    cur: _tab,
+                                    onTap: (i) => setState(() => _tab = i)),
+                                const SizedBox(width: 8),
+                                _StockChip(
+                                    label: 'В наличии',
+                                    i: 1,
+                                    cur: _tab,
+                                    onTap: (i) => setState(() => _tab = i)),
+                                const SizedBox(width: 8),
+                                _StockChip(
+                                    label: 'Заканчиваются',
+                                    i: 2,
+                                    cur: _tab,
+                                    onTap: (i) => setState(() => _tab = i)),
+                                const SizedBox(width: 8),
+                                _StockChip(
+                                    label: 'Нет',
+                                    i: 3,
+                                    cur: _tab,
+                                    onTap: (i) => setState(() => _tab = i)),
+                              ]),
+                            ),
+                            const SizedBox(height: 10),
+                            _WarehouseChip(service: _service),
+                          ] else ...[
                             _TabChip(
                                 label: context.l10n.inStockLabel,
                                 i: 1,
                                 cur: _tab,
                                 onTap: (i) => setState(() => _tab = i)),
-                            if (!widget.readOnly) ...[
-                              const SizedBox(width: 8),
-                              _TabChip(
-                                  label: context.l10n.soldLabel,
-                                  i: 2,
-                                  cur: _tab,
-                                  onTap: (i) => setState(() => _tab = i)),
-                            ],
-                          ]),
-                          // Admin-only warehouse switcher chip.
-                          if (!widget.readOnly) ...[
-                            const SizedBox(height: 10),
-                            _WarehouseChip(service: _service),
                           ],
                         ]),
                   ),
@@ -449,11 +482,14 @@ class _ProductsScreenState extends State<ProductsScreen> {
                   ),
                 ),
               ),
-          ]);
+              ],
+            ),
+          );
         },
       ),
-      floatingActionButton: (!widget.readOnly && _tab != 2)
-          ? FloatingActionButton.extended(
+      floatingActionButton: widget.readOnly
+          ? null
+          : FloatingActionButton.extended(
               onPressed: () => Navigator.push(context,
                   MaterialPageRoute(builder: (_) => const AddProductScreen())),
               backgroundColor: cGreen,
@@ -461,26 +497,40 @@ class _ProductsScreenState extends State<ProductsScreen> {
               elevation: 6,
               icon: const Icon(Icons.add_rounded),
               label: const Text('Добавить',
-                  style: TextStyle(fontWeight: FontWeight.w700)))
-          : null,
+                  style: TextStyle(fontWeight: FontWeight.w700))),
     );
   }
+}
 
-  Future<int> _calcTotalPairs(
-      List<ProductModel> products, String warehouseId) async {
-    int total = 0;
-    for (final p in products) {
-      try {
-        final batches = _batchCache[p.id] ?? await _service.getBatches(p.id);
-        final relevant = warehouseId.isNotEmpty
-            ? batches.where((b) => b.warehouseId == warehouseId).toList()
-            : batches;
-        for (final b in relevant) {
-          total += b.totalQuantity;
-        }
-      } catch (_) {}
-    }
-    return total;
+// ── Stock filter chip (dark active style per spec) ────────────────────────────
+class _StockChip extends StatelessWidget {
+  final String label;
+  final int i, cur;
+  final void Function(int) onTap;
+  const _StockChip(
+      {required this.label,
+      required this.i,
+      required this.cur,
+      required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final active = i == cur;
+    return GestureDetector(
+      onTap: () => onTap(i),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
+        decoration: BoxDecoration(
+          color: active ? cInk : cSurface,
+          borderRadius: BorderRadius.circular(11),
+          border: active ? null : Border.all(color: cLine),
+        ),
+        child: Text(label,
+            style: manrope(12.5, FontWeight.w700,
+                color: active ? Colors.white : cInk2)),
+      ),
+    );
   }
 }
 
@@ -630,7 +680,7 @@ class _ProductCard extends StatelessWidget {
           (int.tryParse(a.key) ?? 0).compareTo(int.tryParse(b.key) ?? 0));
 
     if (readOnly) {
-      final activeBatch = batches.firstWhere((b) => b.totalQuantity > 0,
+      final activeBatch = batches.firstWhere((b) => b.totalAvailable > 0,
           orElse: () => batches.first);
       return Padding(
         padding: const EdgeInsets.only(top: 6),

@@ -268,6 +268,12 @@ class _AddProductScreenState extends State<AddProductScreen> {
         return false;
       }
     }
+    if (_step == 3) {
+      if (_images.isEmpty) {
+        _err('Добавьте хотя бы одно фото товара');
+        return false;
+      }
+    }
     return true;
   }
 
@@ -380,46 +386,57 @@ class _AddProductScreenState extends State<AddProductScreen> {
           child: Column(children: [
         // Header
         Container(
-          decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                  colors: [Color(0xFF00713F), Color(0xFF00A862)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight)),
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-          child: Column(children: [
-            Row(children: [
-              GestureDetector(
-                  onTap: () => Navigator.pop(context),
-                  child: Container(
-                      padding: const EdgeInsets.all(8),
+          decoration: const BoxDecoration(gradient: kGrad),
+          child: SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 6, 20, 16),
+              child: Column(children: [
+                Row(children: [
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Container(
+                      width: 38,
+                      height: 38,
                       decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(10)),
-                      child: const Icon(Icons.arrow_back_ios_new,
-                          color: Colors.white, size: 16))),
-              const SizedBox(width: 12),
-              const Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Новый товар',
-                        style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700)),
-                    Text('Заполните данные о товаре',
-                        style: TextStyle(color: Colors.white60, fontSize: 12)),
-                  ]),
-              const Spacer(),
-              if (_isLoading)
-                const SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(
-                        color: Colors.white, strokeWidth: 2)),
-            ]),
-            const SizedBox(height: 16),
-            Row(
-                children: List.generate(steps.length, (i) {
+                          color: Colors.white.withValues(alpha: 0.16),
+                          borderRadius: BorderRadius.circular(12)),
+                      child: const Icon(Icons.chevron_left_rounded,
+                          color: Colors.white, size: 22),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text('Новый товар',
+                        style: manrope(23, FontWeight.w800,
+                            color: Colors.white, letterSpacing: -0.5)),
+                  ),
+                  if (_isLoading)
+                    const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                            color: Colors.white, strokeWidth: 2))
+                  else
+                    GestureDetector(
+                      onTap: () {
+                        if (!_validateStep()) return;
+                        if (_step < 3) {
+                          setState(() => _step++);
+                        } else {
+                          _save();
+                        }
+                      },
+                      child: Text(
+                        _step < 3 ? 'Далее →' : 'Сохранить',
+                        style: manrope(14.5, FontWeight.w700,
+                            color: Colors.white),
+                      ),
+                    ),
+                ]),
+                const SizedBox(height: 14),
+                Row(
+                    children: List.generate(steps.length, (i) {
               final done = i < _step;
               final active = i == _step;
               return Expanded(
@@ -478,6 +495,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
               ]));
             })),
           ]),
+            ),
+          ),
         ),
 
         // Content
@@ -894,6 +913,68 @@ class _AddProductScreenState extends State<AddProductScreen> {
     ]);
   }
 
+  void _showSizeInputSheet(String size, int currentQty) {
+    int tempQty = currentQty;
+    showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setS) => Padding(
+          padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Container(
+                width: 36, height: 4,
+                margin: const EdgeInsets.only(bottom: 14),
+                decoration: BoxDecoration(
+                    color: cLine, borderRadius: BorderRadius.circular(2))),
+            Text('Размер $size',
+                style: manrope(17, FontWeight.w700, color: cInk)),
+            const SizedBox(height: 20),
+            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              GestureDetector(
+                onTap: () { if (tempQty > 0) setS(() => tempQty--); },
+                child: Container(
+                    width: 48, height: 48,
+                    decoration: BoxDecoration(
+                        color: tempQty > 0 ? cGreenTint : cLine2,
+                        borderRadius: BorderRadius.circular(14)),
+                    child: Icon(Icons.remove_rounded,
+                        color: tempQty > 0 ? cGreen : cInk3, size: 22)),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 28),
+                child: Text('$tempQty',
+                    style: manrope(34, FontWeight.w800, color: cInk,
+                        letterSpacing: -1)),
+              ),
+              GestureDetector(
+                onTap: () => setS(() => tempQty++),
+                child: Container(
+                    width: 48, height: 48,
+                    decoration: BoxDecoration(
+                        color: cGreen,
+                        borderRadius: BorderRadius.circular(14)),
+                    child: const Icon(Icons.add_rounded,
+                        color: Colors.white, size: 22)),
+              ),
+            ]),
+            const SizedBox(height: 8),
+            Text('пар', style: manrope(13, FontWeight.w500, color: cInk3)),
+            const SizedBox(height: 24),
+            QPrimaryButton(
+              label: 'Готово',
+              onPressed: () {
+                setState(() => _sizesQuantity[size] = tempQty);
+                Navigator.pop(ctx);
+              },
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+
   // ── Шаг 3: Размеры ────────────────────────────────────────────────────
   Widget _buildStepSizes() {
     if (_category == null) {
@@ -1021,70 +1102,35 @@ class _AddProductScreenState extends State<AddProductScreen> {
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            childAspectRatio: 2.8,
-            crossAxisSpacing: 10,
-            mainAxisSpacing: 10),
+            crossAxisCount: 3,
+            mainAxisExtent: 56,
+            crossAxisSpacing: 8,
+            mainAxisSpacing: 8),
         itemCount: keys.length,
         itemBuilder: (_, i) {
           final size = keys[i];
           final qty = _sizesQuantity[size] ?? 0;
-          return Container(
-            decoration: BoxDecoration(
-                color: qty > 0
-                    ? cGreen.withValues(alpha: 0.1)
-                    : Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                    color: qty > 0
-                        ? cGreen.withValues(alpha: 0.1)
-                        : cLine,
-                    width: qty > 0 ? 1.5 : 1)),
-            child: Row(children: [
-              const SizedBox(width: 10),
-              Text(size,
-                  style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                      color:
-                          qty > 0 ? cGreen : cInk2)),
-              const Spacer(),
-              GestureDetector(
-                  onTap: () {
-                    if (qty > 0) setState(() => _sizesQuantity[size] = qty - 1);
-                  },
-                  child: Container(
-                      width: 28,
-                      height: 28,
-                      decoration: BoxDecoration(
-                          color:
-                              qty > 0 ? cGreen : Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(7)),
-                      child: Icon(Icons.remove,
-                          size: 14,
-                          color:
-                              qty > 0 ? Colors.white : Colors.grey.shade400))),
-              SizedBox(
-                  width: 32,
-                  child: Text('$qty',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w800,
-                          color:
-                              qty > 0 ? cGreen : cInk3))),
-              GestureDetector(
-                  onTap: () => setState(() => _sizesQuantity[size] = qty + 1),
-                  child: Container(
-                      width: 28,
-                      height: 28,
-                      decoration: BoxDecoration(
-                          color: cGreen,
-                          borderRadius: BorderRadius.circular(7)),
-                      child: const Icon(Icons.add,
-                          size: 14, color: Colors.white))),
-              const SizedBox(width: 10),
-            ]),
+          return GestureDetector(
+            onTap: () => _showSizeInputSheet(size, qty),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              decoration: BoxDecoration(
+                  color: qty > 0 ? cGreenTint : cSurface,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                      color: qty > 0 ? cGreen : cLine,
+                      width: 1.5)),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(size,
+                      style: manrope(15, FontWeight.w800, color: cInk)),
+                  Text('$qty пар',
+                      style: manrope(11, FontWeight.w700,
+                          color: qty > 0 ? cGreen : cInk3)),
+                ],
+              ),
+            ),
           );
         },
       ),
@@ -1097,7 +1143,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
         _StepHeader(
             icon: Icons.photo_library_outlined,
             title: 'Фотографии товара',
-            subtitle: 'Можно пропустить и добавить позже'),
+            subtitle: 'Минимум 1 фото обязательно'),
         const SizedBox(height: 20),
         GestureDetector(
           onTap: _showImageOptions,

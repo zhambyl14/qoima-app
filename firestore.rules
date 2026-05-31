@@ -95,12 +95,25 @@ service cloud.firestore {
     }
 
     // Client тек completed ЕМЕС тапсырысты cancelled ете алады
+    // stockRestored рұқсат берілген — идемпотентті қайтару үшін (қос басудан қорғайды)
     function clientCanCancel() {
       return isOrderOwner() &&
         resource.data.get('status', '') != 'completed' &&
         request.resource.data.get('status', '') == 'cancelled' &&
         request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['status']);
+            .hasOnly(['status', 'stockRestored']);
+    }
+
+    // Client чек жүктейді немесе қайта жүктейді (pending/rejected → pending)
+    function clientCanSubmitReceipt() {
+      let allowed = ['receiptUrl', 'receiptSubmittedAt', 'status',
+                     'rejectionReason', 'rejectedAt', 'deadlineAt'];
+      let currentStatus = resource.data.get('status', '');
+      return isOrderOwner() &&
+        (currentStatus == 'pending' || currentStatus == 'rejected') &&
+        request.resource.data.get('status', '') == 'pending' &&
+        request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(allowed);
     }
 
     // Seller тапсырысты өзінің қоймасы бойынша оқи/жаза алады
@@ -145,6 +158,12 @@ service cloud.firestore {
       match /products/{productId} {
         allow read:  if signed();
         allow write: if canAccess(uid);
+
+        // FIX v6.2: онлайн-заказ кезінде остаток есептелгеннен кейін
+        // кез келген авторизацияланған пайдаланушы тек status-ты жаңарта алады.
+        allow update: if signed() &&
+          request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['status']);
 
         // ── Batches ──────────────────────────────────────────────────────────
         match /batches/{batchId} {
@@ -220,6 +239,19 @@ service cloud.firestore {
     // ── Clients (buyer profiles) ──────────────────────────────────────────────
     match /clients/{clientUid} {
       allow read, write: if isOwner(clientUid);
+
+      match /favorites/{productId} {
+        allow read, write: if isOwner(clientUid);
+      }
+
+      match /addresses/{addressId} {
+        allow read, write: if isOwner(clientUid);
+      }
+    }
+
+    // ── Counters (atomic sequential order numbers) ────────────────────────────
+    match /counters/{counterId} {
+      allow read, write: if signed();
     }
 
     // ── Orders ────────────────────────────────────────────────────────────────
@@ -251,7 +283,8 @@ service cloud.firestore {
           resource.data.get('adminUid', ''),
           resource.data.get('warehouseId', '')
         ) ||
-        clientCanCancel()
+        clientCanCancel() ||
+        clientCanSubmitReceipt()
       );
 
       allow delete: if false;

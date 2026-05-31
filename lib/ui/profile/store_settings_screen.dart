@@ -7,6 +7,46 @@ import '../../data/models/store_model.dart';
 import '../../data/services/firestore_service.dart';
 import '../../theme/qoima_design.dart';
 
+// ── Luhn algorithm ──────────────────────────────────────────────────────────────
+bool _luhnCheck(String digits) {
+  if (digits.isEmpty) return false;
+  int sum = 0;
+  bool alternate = false;
+  for (int i = digits.length - 1; i >= 0; i--) {
+    int n = int.parse(digits[i]);
+    if (alternate) {
+      n *= 2;
+      if (n > 9) n -= 9;
+    }
+    sum += n;
+    alternate = !alternate;
+  }
+  return sum % 10 == 0;
+}
+
+String _formatCardDisplay(String digits) {
+  final buf = StringBuffer();
+  for (int i = 0; i < digits.length; i++) {
+    if (i > 0 && i % 4 == 0) buf.write(' ');
+    buf.write(digits[i]);
+  }
+  return buf.toString();
+}
+
+class _CardNumberFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    final digits = newValue.text.replaceAll(RegExp(r'\D'), '');
+    final capped = digits.length > 19 ? digits.substring(0, 19) : digits;
+    final formatted = _formatCardDisplay(capped);
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
+}
+
 const List<String> _kzCities = [
   'Алматы',
   'Астана',
@@ -38,6 +78,9 @@ class _StoreSettingsScreenState extends State<StoreSettingsScreen> {
   final _nameCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
+  final _cardNumberCtrl = TextEditingController();
+  final _cardHolderCtrl = TextEditingController();
+  final _bankCtrl = TextEditingController();
 
   StoreModel? _store;
   String? _selectedCity;
@@ -45,6 +88,10 @@ class _StoreSettingsScreenState extends State<StoreSettingsScreen> {
   List<String> _visibleWarehouseIds = [];
   bool _isLoading = false;
   bool _isDirty = false;
+  // Card validation state
+  bool _cardLoadedFromDb = false; // true when card was loaded from Firestore
+  bool _cardIsValid = false;      // live Luhn result
+  String? _cardError;             // inline error message under the field
 
   @override
   void initState() {
@@ -57,6 +104,9 @@ class _StoreSettingsScreenState extends State<StoreSettingsScreen> {
     _nameCtrl.dispose();
     _phoneCtrl.dispose();
     _descCtrl.dispose();
+    _cardNumberCtrl.dispose();
+    _cardHolderCtrl.dispose();
+    _bankCtrl.dispose();
     super.dispose();
   }
 
@@ -67,24 +117,148 @@ class _StoreSettingsScreenState extends State<StoreSettingsScreen> {
       _nameCtrl.text = store.storeName;
       _phoneCtrl.text = store.phone;
       _descCtrl.text = store.description;
+      _cardNumberCtrl.text = _formatCardDisplay(store.paymentCardNumber);
+      _cardHolderCtrl.text = store.paymentCardHolder;
+      _bankCtrl.text = store.paymentBank;
+      final loadedRaw = store.paymentCardNumber;
       setState(() {
         _store = store;
         _selectedCity = store.city.isNotEmpty ? store.city : null;
         _isPublished = store.isPublished;
         _visibleWarehouseIds = List<String>.from(store.visibleWarehouseIds);
+        _cardLoadedFromDb = loadedRaw.isNotEmpty;
+        _cardIsValid = _isCardValid(loadedRaw);
+        if (loadedRaw.isNotEmpty && !_isCardValid(loadedRaw)) {
+          _cardError = 'Бұрын сақталған нөмір тексеруден өтпеді. Картаны қайта енгізіңіз';
+        }
       });
     }
+  }
+
+  bool _isCardValid(String digits) {
+    final raw = digits.replaceAll(RegExp(r'\s'), '');
+    if (raw.length < 13 || raw.length > 19) return false;
+    return _luhnCheck(raw);
+  }
+
+  void _onCardChanged(String text) {
+    final raw = text.replaceAll(RegExp(r'\s'), '');
+    _markDirty();
+    setState(() {
+      _cardLoadedFromDb = false;
+      _cardIsValid = raw.isNotEmpty && _isCardValid(raw);
+      if (raw.isEmpty) {
+        _cardError = null;
+      } else if (raw.length < 13) {
+        _cardError = null; // still typing
+      } else if (!_isCardValid(raw)) {
+        _cardError = 'Карта нөмірі дұрыс емес — цифрларды тексеріңіз';
+      } else {
+        _cardError = null;
+      }
+    });
   }
 
   Future<void> _save() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     if (_isLoading) return;
+
+    final adminUid = context.read<AppUser>().uid;
+    final rawCard = _cardNumberCtrl.text.replaceAll(RegExp(r'\s'), '');
+    if (rawCard.isNotEmpty) {
+      if (!_isCardValid(rawCard)) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(_cardLoadedFromDb
+              ? 'Бұрын сақталған нөмір тексеруден өтпеді. Картаны қайта енгізіңіз'
+              : 'Карта нөмірі дұрыс емес — цифрларды тексеріңіз'),
+          backgroundColor: cRed,
+          behavior: SnackBarBehavior.floating,
+        ));
+        setState(() => _cardError = _cardLoadedFromDb
+            ? 'Бұрын сақталған нөмір тексеруден өтпеді. Картаны қайта енгізіңіз'
+            : 'Карта нөмірі дұрыс емес — цифрларды тексеріңіз');
+        return;
+      }
+      if (_cardHolderCtrl.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Карта иесінің атын енгізіңіз'),
+          backgroundColor: cRed,
+          behavior: SnackBarBehavior.floating,
+        ));
+        return;
+      }
+      // Confirmation dialog before saving card
+      if (!mounted) return;
+      final maskedCard =
+          '•••• •••• •••• ${rawCard.substring(rawCard.length - 4)}';
+      final holder = _cardHolderCtrl.text.trim().toUpperCase();
+      // ignore: use_build_context_synchronously
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (_) => AlertDialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text('Реквизиттерді тексеріңіз',
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 17)),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            const Text('Клиенттер төлем жасайтын картаңыз:',
+                style: TextStyle(color: cInk2, fontSize: 13)),
+            const SizedBox(height: 14),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: cGreenTint,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: cGreen.withValues(alpha: 0.3)),
+              ),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(maskedCard,
+                    style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 2,
+                        color: cInk)),
+                const SizedBox(height: 6),
+                Text(holder,
+                    style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: cInk)),
+                if (_bankCtrl.text.trim().isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(_bankCtrl.text.trim(),
+                      style: const TextStyle(fontSize: 12, color: cInk2)),
+                ],
+              ]),
+            ),
+          ]),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Өзгерту',
+                    style: TextStyle(color: cInk2))),
+            ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: cGreen,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10))),
+                child: const Text('Растау')),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+    }
+
     setState(() => _isLoading = true);
     try {
       final now = DateTime.now();
       final name = _nameCtrl.text.trim();
+      final rawCardFinal = _cardNumberCtrl.text.replaceAll(RegExp(r'\s'), '');
       final updated = StoreModel(
-        adminUid: context.read<AppUser>().uid,
+        adminUid: adminUid,
         storeName: name,
         storeSlug: StoreModel.generateSlug(name),
         logoUrl: _store?.logoUrl ?? '',
@@ -95,6 +269,9 @@ class _StoreSettingsScreenState extends State<StoreSettingsScreen> {
         isPublished: _isPublished,
         createdAt: _store?.createdAt ?? now,
         updatedAt: now,
+        paymentCardNumber: rawCardFinal,
+        paymentCardHolder: _cardHolderCtrl.text.trim().toUpperCase(),
+        paymentBank: _bankCtrl.text.trim(),
       );
       await _service.saveStore(updated);
       if (mounted) {
@@ -305,6 +482,60 @@ class _StoreSettingsScreenState extends State<StoreSettingsScreen> {
                     );
                   }).toList(),
                 ),
+              const SizedBox(height: 20),
+
+              // ── Section: Card requisites ───────────────────────────────
+              _SectionHeader('Төлем реквизиттері'),
+              const SizedBox(height: 6),
+              const Text(
+                  'Клиент тапсырыс берген кезде осы картаға ақша аударады',
+                  style: TextStyle(fontSize: 12, color: cInk2)),
+              const SizedBox(height: 10),
+              _SettingsCard(children: [
+                _FieldLabel('Карта нөмірі'),
+                const SizedBox(height: 6),
+                TextFormField(
+                  controller: _cardNumberCtrl,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [_CardNumberFormatter()],
+                  decoration: InputDecoration(
+                    hintText: '#### #### #### ####',
+                    prefixIcon: const Icon(Icons.credit_card_outlined),
+                    errorText: _cardError,
+                    suffixIcon: _cardNumberCtrl.text.isEmpty
+                        ? null
+                        : _cardIsValid
+                            ? const Icon(Icons.check_circle_rounded,
+                                color: cGreen, size: 20)
+                            : null,
+                  ),
+                  onChanged: _onCardChanged,
+                ),
+                const SizedBox(height: 14),
+                _FieldLabel('Карта иесінің аты (картадағыдай)'),
+                const SizedBox(height: 6),
+                TextFormField(
+                  controller: _cardHolderCtrl,
+                  textCapitalization: TextCapitalization.characters,
+                  decoration: const InputDecoration(
+                    hintText: 'IVAN IVANOV',
+                    prefixIcon: Icon(Icons.person_outline_rounded),
+                  ),
+                  onChanged: (_) => _markDirty(),
+                ),
+                const SizedBox(height: 14),
+                _FieldLabel('Банк (міндетті емес)'),
+                const SizedBox(height: 6),
+                TextFormField(
+                  controller: _bankCtrl,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: const InputDecoration(
+                    hintText: 'Kaspi, Halyk...',
+                    prefixIcon: Icon(Icons.account_balance_outlined),
+                  ),
+                  onChanged: (_) => _markDirty(),
+                ),
+              ]),
               const SizedBox(height: 20),
 
               // ── Section: Preview ───────────────────────────────────────

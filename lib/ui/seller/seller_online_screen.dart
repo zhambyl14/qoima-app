@@ -72,8 +72,10 @@ class _SellerOnlineScreenState extends State<SellerOnlineScreen> {
       case 'active':
         return all
             .where((o) =>
+                o.status == OrderModel.statusPending ||
                 o.status == OrderModel.statusReserved ||
-                o.status == OrderModel.statusPending)
+                o.status == OrderModel.statusRejected ||
+                o.status == OrderModel.statusConfirmed)
             .toList();
       case 'done':
         return all
@@ -281,6 +283,17 @@ class _SellerOnlineScreenState extends State<SellerOnlineScreen> {
                   .where((o) => whId.isEmpty || o.warehouseId == whId)
                   .toList();
 
+              // Мерзімі өткен тапсырыстарды on-read авто-болдырмаймыз
+              for (final o in all) {
+                if (o.isExpired &&
+                    (o.status == OrderModel.statusRejected ||
+                        o.status == OrderModel.statusReserved ||
+                        (o.status == OrderModel.statusPending &&
+                            o.receiptUrl.isEmpty))) {
+                  _service.cancelOnlineOrder(o).ignore();
+                }
+              }
+
               final waiting = all
                   .where((o) =>
                       o.status == OrderModel.statusReserved ||
@@ -290,9 +303,13 @@ class _SellerOnlineScreenState extends State<SellerOnlineScreen> {
                   .where((o) => o.status == OrderModel.statusCompleted)
                   .length;
 
-              return ListView(
-                padding: const EdgeInsets.fromLTRB(14, 14, 14, 24),
-                children: [
+              return RefreshIndicator(
+                color: cGreen,
+                onRefresh: () => _service.refreshOnlineOrders(),
+                child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(14, 14, 14, 24),
+                  children: [
                   // Stats row
                   Row(children: [
                     Expanded(
@@ -446,7 +463,8 @@ class _SellerOnlineScreenState extends State<SellerOnlineScreen> {
                         ),
                       ]),
                     ),
-                ],
+                  ],
+                ),
               );
             },
           ),
@@ -501,10 +519,14 @@ class _OrderCardState extends State<_OrderCard> {
 
   String get _statusLabel {
     switch (o.status) {
-      case OrderModel.statusReserved:
-        return 'Зарезервирован';
       case OrderModel.statusPending:
-        return 'В ожидании';
+        return 'На проверке';
+      case OrderModel.statusRejected:
+        return 'Чек отклонён';
+      case OrderModel.statusReserved:
+        return 'Бронь · ждёт доплату';
+      case OrderModel.statusConfirmed:
+        return 'Оплачено · выдать';
       case OrderModel.statusCompleted:
         return 'Завершён';
       case OrderModel.statusCancelled:
@@ -516,10 +538,12 @@ class _OrderCardState extends State<_OrderCard> {
 
   String get _statusTone {
     switch (o.status) {
-      case OrderModel.statusReserved:
-        return 'amber';
       case OrderModel.statusPending:
-        return 'green';
+      case OrderModel.statusRejected:
+        return 'amber';
+      case OrderModel.statusReserved:
+        return 'blue';
+      case OrderModel.statusConfirmed:
       case OrderModel.statusCompleted:
         return 'green';
       case OrderModel.statusCancelled:
@@ -529,29 +553,20 @@ class _OrderCardState extends State<_OrderCard> {
     }
   }
 
-  String get _confirmLabel {
-    if (o.isSmartReservation) return 'Полная оплата';
-    if (o.isDelivery) return 'Доставлено';
-    return 'Сканировать и выдать';
-  }
-
   bool get _isActive =>
+      o.status == OrderModel.statusPending ||
       o.status == OrderModel.statusReserved ||
-      o.status == OrderModel.statusPending;
+      o.status == OrderModel.statusRejected ||
+      o.status == OrderModel.statusConfirmed;
 
-  Future<void> _confirm() async {
-    final action = o.isSmartReservation
-        ? 'Клиент оплатил полную сумму?'
-        : o.isDelivery
-            ? 'Отметить товар как доставленный?'
-            : 'Отметить товар как выданный?';
+  Future<void> _handOver() async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
         shape:
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Подтверждение'),
-        content: Text(action),
+        title: const Text('Выдача товара'),
+        content: const Text('Выдать товар клиенту? Оплата подтверждена.'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),
@@ -560,14 +575,54 @@ class _OrderCardState extends State<_OrderCard> {
               onPressed: () => Navigator.pop(context, true),
               style: ElevatedButton.styleFrom(
                   backgroundColor: cGreen, foregroundColor: Colors.white),
-              child: const Text('Да, подтвердить')),
+              child: const Text('Да, выдать')),
         ],
       ),
     );
     if (ok != true || !mounted) return;
     setState(() => _loading = true);
     try {
-      await widget.service.confirmOnlineOrder(o);
+      await widget.service.markHandedOver(o);
+      if (mounted) {
+        HapticFeedback.lightImpact();
+        widget.onChanged();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _loading = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(e.toString()),
+            backgroundColor: cRed,
+            behavior: SnackBarBehavior.floating));
+      }
+    }
+  }
+
+  Future<void> _acceptInStorePayment() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Принять доплату'),
+        content: Text(
+            'Клиент оплатил остаток ${o.remainingAmount.toStringAsFixed(0)} ₸ на складе?'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Нет')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: cGreen, foregroundColor: Colors.white),
+              child: const Text('Да, принять')),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _loading = true);
+    try {
+      await widget.service.confirmInStorePayment(o);
       if (mounted) {
         HapticFeedback.lightImpact();
         widget.onChanged();
@@ -700,7 +755,8 @@ class _OrderCardState extends State<_OrderCard> {
 
           // Reservation timer
           if (o.isSmartReservation &&
-              o.status == OrderModel.statusReserved) ...[
+              (o.status == OrderModel.statusPending ||
+                  o.status == OrderModel.statusReserved)) ...[
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
@@ -772,13 +828,45 @@ class _OrderCardState extends State<_OrderCard> {
           // Action buttons
           if (_isActive) ...[
             const SizedBox(height: 12),
-            QPrimaryButton(
-              label: _confirmLabel,
-              height: 46,
-              icon: const Icon(Icons.qr_code_scanner_rounded,
-                  color: Colors.white, size: 18),
-              onPressed: _confirm,
-            ),
+
+            // confirmed → hand over
+            if (o.status == OrderModel.statusConfirmed)
+              QPrimaryButton(
+                label: o.isDelivery ? 'Доставлено' : 'Выдать товар',
+                height: 46,
+                icon: const Icon(Icons.check_circle_outline_rounded,
+                    color: Colors.white, size: 18),
+                onPressed: _handOver,
+              ),
+
+            // reserved → accept in-store payment
+            if (o.status == OrderModel.statusReserved)
+              QPrimaryButton(
+                label: 'Принять доплату ${o.remainingAmount.toStringAsFixed(0)} ₸',
+                height: 46,
+                icon: const Icon(Icons.payments_outlined,
+                    color: Colors.white, size: 18),
+                onPressed: _acceptInStorePayment,
+              ),
+
+            // pending/rejected → locked, waiting for admin
+            if (o.status == OrderModel.statusPending ||
+                o.status == OrderModel.statusRejected)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  color: cBg,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: cLine),
+                ),
+                child: Text(
+                  'Ожидает подтверждения оплаты администратором',
+                  textAlign: TextAlign.center,
+                  style: manrope(12.5, FontWeight.w600, color: cInk3),
+                ),
+              ),
+
             const SizedBox(height: 8),
             SizedBox(
               width: double.infinity,
@@ -792,8 +880,8 @@ class _OrderCardState extends State<_OrderCard> {
                       borderRadius: BorderRadius.circular(12)),
                   padding: EdgeInsets.zero,
                 ),
-                child:
-                    Text('Отменить', style: manrope(13, FontWeight.w700, color: cRed)),
+                child: Text('Отменить',
+                    style: manrope(13, FontWeight.w700, color: cRed)),
               ),
             ),
           ],

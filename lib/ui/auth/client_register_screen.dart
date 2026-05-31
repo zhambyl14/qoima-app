@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/app_user.dart';
+import '../../core/kz_cities.dart';
 import '../../data/services/auth_service.dart';
 import '../../theme/qoima_design.dart';
 import '../client/client_shell.dart';
@@ -19,6 +20,7 @@ class _ClientRegisterScreenState extends State<ClientRegisterScreen> {
   final _authService = AuthService();
   final _nameCtrl = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+  String? _selectedCity;
   bool _isLoading = false;
 
   @override
@@ -32,10 +34,12 @@ class _ClientRegisterScreenState extends State<ClientRegisterScreen> {
     setState(() => _isLoading = true);
     try {
       final name = _nameCtrl.text.trim();
+      final city = _selectedCity ?? '';
       await _authService.createClientDoc(
         uid: widget.uid,
         phone: widget.phone,
         name: name,
+        city: city,
       );
       if (!mounted) return;
       context.read<AppUser>().set(
@@ -45,6 +49,7 @@ class _ClientRegisterScreenState extends State<ClientRegisterScreen> {
             email: '',
             role: 'client',
             phone: widget.phone,
+            city: city,
           );
       Navigator.pushAndRemoveUntil(
         context,
@@ -116,6 +121,54 @@ class _ClientRegisterScreenState extends State<ClientRegisterScreen> {
                     return null;
                   },
                 ),
+                const SizedBox(height: 16),
+
+                // City dropdown
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Ваш город *',
+                        style: manrope(12.5, FontWeight.w700, color: cInk2)),
+                    const SizedBox(height: 6),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: cSurface,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                            color: _selectedCity != null ? cGreen : cLine,
+                            width: 1.5),
+                      ),
+                      child: DropdownButtonFormField<String>(
+                        initialValue: _selectedCity,
+                        isExpanded: true,
+                        decoration: InputDecoration(
+                          prefixIcon: const Icon(Icons.location_city_outlined,
+                              color: cGreen, size: 19),
+                          hintText: 'Выберите город',
+                          hintStyle: manrope(15, FontWeight.w500, color: cInk3),
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          contentPadding:
+                              const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
+                          isDense: true,
+                        ),
+                        style: manrope(15, FontWeight.w600, color: cInk),
+                        dropdownColor: cSurface,
+                        items: kzCities
+                            .map((c) => DropdownMenuItem(
+                                value: c,
+                                child: Text(c,
+                                    style: manrope(14, FontWeight.w500, color: cInk))))
+                            .toList(),
+                        onChanged: (v) => setState(() => _selectedCity = v),
+                        validator: (v) =>
+                            v == null ? 'Выберите город' : null,
+                      ),
+                    ),
+                  ],
+                ),
+
                 const SizedBox(height: 40),
                 QPrimaryButton(
                   label: 'Начать покупки',

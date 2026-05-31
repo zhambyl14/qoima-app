@@ -7,6 +7,7 @@ import '../models/warehouse_model.dart';
 import '../models/store_model.dart';
 import '../models/reservation_model.dart';
 import '../models/order_model.dart';
+import '../models/courier_delivery_model.dart';
 import '../../core/app_user.dart';
 
 class FirestoreService {
@@ -906,13 +907,40 @@ class FirestoreService {
     await wb.commit();
   }
 
+  // ── Product status recomputation ─────────────────────────────────────────────
+
+  /// Тауардың БАРЛЫҚ партициясын қарап, нақты бос (sizes_quantity − reserved)
+  /// санды есептейді де, product.status-ті дұрыстайды. Транзакциядан КЕЙІН шақыр.
+  Future<void> recomputeProductStatus(String productId) async {
+    final snap = await _batches(productId).get();
+    int avail = 0;
+    for (final d in snap.docs) {
+      avail += BatchModel.fromFirestore(d).totalAvailable;
+    }
+    await _products.doc(productId).update({
+      'status': avail > 0
+          ? ProductModel.statusInStock
+          : ProductModel.statusSold,
+    });
+  }
+
+  /// Барлық тауарларды қайта есептейді (бір рет миграция үшін).
+  Future<void> recomputeAllProductStatuses() async {
+    final products = await _products.get();
+    for (final p in products.docs) {
+      await recomputeProductStatus(p.id);
+    }
+  }
+
   // ── Online orders (for admin / seller "Онлайн" tab) ──────────────────────────
 
   Stream<int> watchActiveOnlineCount() => watchOnlineOrders().map(
         (orders) => orders
             .where((o) =>
+                o.status == OrderModel.statusPending ||
                 o.status == OrderModel.statusReserved ||
-                o.status == OrderModel.statusPending)
+                o.status == OrderModel.statusRejected ||
+                o.status == OrderModel.statusConfirmed)
             .length,
       );
 
@@ -948,8 +976,7 @@ class FirestoreService {
     }
   }
 
-  /// Returns the active (reserved) order that holds a given size,
-  /// used to show which client has it reserved in make_sale_screen.
+  /// Returns the active (reserved/pending) order that holds a given size.
   Future<OrderModel?> findActiveReservationForSize({
     required String productId,
     required String batchId,
@@ -958,10 +985,15 @@ class FirestoreService {
     final snap = await _db
         .collection('orders')
         .where('adminUid', isEqualTo: _adminUid)
-        .where('status', isEqualTo: OrderModel.statusReserved)
+        .where('orderType', isEqualTo: OrderModel.typeSmartReservation)
         .get();
     for (final d in snap.docs) {
       final o = OrderModel.fromFirestore(d);
+      // Stock is locked when order is in active-but-not-completed state
+      if (o.status == OrderModel.statusCompleted ||
+          o.status == OrderModel.statusCancelled) {
+        continue;
+      }
       if (o.items.any((i) =>
           i.productId == productId && i.batchId == batchId && i.size == size)) {
         return o;
@@ -969,6 +1001,147 @@ class FirestoreService {
     }
     return null;
   }
+
+  // ── Payment receipt flow (v6) ─────────────────────────────────────────────
+
+  /// Клиент чек жіберді: pending (receiptUrl толтырылды), таймер тоқтайды
+  Future<void> submitReceipt(OrderModel o, String receiptUrl) =>
+      _db.collection('orders').doc(o.id).update({
+        'receiptUrl': receiptUrl,
+        'receiptSubmittedAt': FieldValue.serverTimestamp(),
+        'status': OrderModel.statusPending,
+        'rejectionReason': '',
+        'rejectedAt': null,
+        'deadlineAt': null, // тексерілуде — клиент күтпейді
+      });
+
+  /// Қабылданбаған тапсырысқа жаңа чек: rejected → pending
+  Future<void> resubmitReceipt(OrderModel o, String receiptUrl) =>
+      submitReceipt(o, receiptUrl);
+
+  /// ТІКЕЛЕЙ АДМИН: Бронь задатогын растау: pending → reserved + pickupWindow таймері
+  Future<void> confirmReservationDeposit(OrderModel o) =>
+      _db.collection('orders').doc(o.id).update({
+        'status': OrderModel.statusReserved,
+        'paymentConfirmedBy': AppUser.current.uid,
+        'paymentConfirmedAt': FieldValue.serverTimestamp(),
+        'deadlineAt': Timestamp.fromDate(
+            DateTime.now().add(OrderModel.pickupWindow)),
+      });
+
+  /// ТІКЕЛЕЙ АДМИН: Толық онлайн төлемді растау: pending → confirmed, таймер жоқ
+  Future<void> confirmOnlinePayment(OrderModel o) =>
+      _db.collection('orders').doc(o.id).update({
+        'status': OrderModel.statusConfirmed,
+        'paymentConfirmedBy': AppUser.current.uid,
+        'paymentConfirmedAt': FieldValue.serverTimestamp(),
+        'deadlineAt': null,
+      });
+
+  /// ТІКЕЛЕЙ АДМИН: Чекті қабылдамау: pending → rejected + receiptWindow таймері
+  Future<void> rejectReceipt(OrderModel o, String reason) =>
+      _db.collection('orders').doc(o.id).update({
+        'status': OrderModel.statusRejected,
+        'rejectionReason': reason,
+        'rejectedAt': FieldValue.serverTimestamp(),
+        'deadlineAt': Timestamp.fromDate(
+            DateTime.now().add(OrderModel.receiptWindow)),
+      });
+
+  /// АДМИН / СЕЛЛЕР: Қоймадағы қалған соманы қабылдау: reserved → confirmed, таймер жоқ
+  Future<void> confirmInStorePayment(OrderModel o) =>
+      _db.collection('orders').doc(o.id).update({
+        'status': OrderModel.statusConfirmed,
+        'paymentConfirmedBy': AppUser.current.uid,
+        'paymentConfirmedAt': FieldValue.serverTimestamp(),
+        'deadlineAt': null,
+      });
+
+  /// СЕЛЛЕР/АДМИН: Тауарды беру: confirmed → completed (inventory + sales_history).
+  Future<void> markHandedOver(OrderModel order) async {
+    if (order.status != OrderModel.statusConfirmed) {
+      throw Exception('Оплата ещё не подтверждена администратором');
+    }
+    final seller = AppUser.current;
+
+    final priceByBatch = <String, double>{};
+    for (final item in order.items) {
+      try {
+        final b = await _db
+            .collection('users')
+            .doc(item.adminUid)
+            .collection('products')
+            .doc(item.productId)
+            .collection('batches')
+            .doc(item.batchId)
+            .get();
+        priceByBatch['${item.productId}_${item.batchId}'] =
+            (b.data()?['purchase_price'] as num?)?.toDouble() ?? 0;
+      } catch (_) {}
+    }
+
+    await _db.runTransaction((tx) async {
+      final orderRef = _db.collection('orders').doc(order.id);
+      final orderDoc = await tx.get(orderRef);
+      if (!orderDoc.exists) throw Exception('Заказ не найден');
+
+      if (order.isSmartReservation) {
+        for (final item in order.items) {
+          final batchRef = _db
+              .collection('users')
+              .doc(item.adminUid)
+              .collection('products')
+              .doc(item.productId)
+              .collection('batches')
+              .doc(item.batchId);
+          final batchDoc = await tx.get(batchRef);
+          if (!batchDoc.exists) { continue; }
+          tx.update(batchRef, {
+            'sizes_quantity.${item.size}': FieldValue.increment(-item.qty),
+            'reserved_sizes.${item.size}': FieldValue.increment(-item.qty),
+          });
+        }
+      }
+
+      tx.update(orderRef, {
+        'status': OrderModel.statusCompleted,
+        'deliveredByUid': seller.uid,
+        'deliveredByName': seller.name,
+      });
+
+      for (final item in order.items) {
+        final saleRef = _salesHistory.doc();
+        tx.set(saleRef, {
+          'product_id': item.productId,
+          'batch_id': item.batchId,
+          'seller_id': 'онлайн',
+          'seller_name': 'Онлайн',
+          'is_online': true,
+          'order_id': order.id,
+          'delivered_by_uid': seller.uid,
+          'delivered_by_name': seller.name,
+          'total_price': item.subtotal,
+          'quantity': item.qty,
+          'selected_size': item.size,
+          'sizes_sold': {item.size: item.qty},
+          'sale_date': Timestamp.now(),
+          'warehouseId': order.warehouseId,
+          'product_name': item.productName,
+          'purchase_price':
+              priceByBatch['${item.productId}_${item.batchId}'] ?? 0,
+        });
+      }
+    });
+
+    // Транзакциядан кейін тауар статусын қайта есептейміз
+    final productIds =
+        order.items.map((i) => i.productId).toSet();
+    for (final pid in productIds) {
+      await recomputeProductStatus(pid);
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
 
   /// Admin confirms that the client paid in full (or picked up Click&Collect).
   /// - SmartReservation: decrements sizesQuantity AND reservedSizes in each batch.
@@ -1049,14 +1222,25 @@ class FirestoreService {
         });
       }
     });
+
+    final productIds = order.items.map((i) => i.productId).toSet();
+    for (final pid in productIds) {
+      await recomputeProductStatus(pid);
+    }
   }
 
-  /// Admin cancels an order and properly restores inventory:
+  /// Admin/seller cancels an order and properly restores inventory:
   /// - SmartReservation: releases reserved_sizes.
   /// - ClickCollect / Delivery: restores sizes_quantity.
+  /// Idempotent — stockRestored flag prevents double-restore.
   Future<void> cancelOnlineOrder(OrderModel order) async {
     await _db.runTransaction((tx) async {
       final orderRef = _db.collection('orders').doc(order.id);
+
+      // Idempotency: skip if stock was already restored
+      final oSnap = await tx.get(orderRef);
+      if (!oSnap.exists) return;
+      if (oSnap.data()!['stockRestored'] == true) return;
 
       for (final item in order.items) {
         final batchRef = _db
@@ -1080,8 +1264,16 @@ class FirestoreService {
         }
       }
 
-      tx.update(orderRef, {'status': OrderModel.statusCancelled});
+      tx.update(orderRef, {
+        'status': OrderModel.statusCancelled,
+        'stockRestored': true,
+      });
     });
+
+    final productIds = order.items.map((i) => i.productId).toSet();
+    for (final pid in productIds) {
+      await recomputeProductStatus(pid);
+    }
   }
 }
 
@@ -1096,6 +1288,47 @@ class ProductWithStock {
   final ProductModel product;
   final int pairs;
   const ProductWithStock({required this.product, required this.pairs});
+}
+
+// ── Pull-to-refresh helpers ───────────────────────────────────────────────────
+// A single server-side .get() is enough to flush Firestore's local cache so
+// the live snapshots() listeners re-emit fresh data immediately.
+
+extension RefreshX on FirestoreService {
+  Future<void> refreshProducts() =>
+      _products.orderBy('name').get(const GetOptions(source: Source.server));
+
+  Future<void> refreshSalesHistory() => _salesHistory
+      .orderBy('sale_date', descending: true)
+      .limit(200)
+      .get(const GetOptions(source: Source.server));
+
+  Future<void> refreshOnlineOrders() => FirebaseFirestore.instance
+      .collection('orders')
+      .where('adminUid', isEqualTo: _adminUid)
+      .get(const GetOptions(source: Source.server));
+}
+
+// ── Courier deliveries ────────────────────────────────────────────────────────
+// NOTE: These methods live on FirestoreService so the admin CourierDeliveriesScreen
+// can stream them without depending on ClientService.
+
+extension CourierDeliveriesX on FirestoreService {
+  static const _col = 'courier_deliveries';
+
+  Stream<List<CourierDeliveryModel>> watchCourierDeliveries() =>
+      FirebaseFirestore.instance
+          .collection(_col)
+          .orderBy('createdAt', descending: true)
+          .snapshots()
+          .map((s) =>
+              s.docs.map((d) => CourierDeliveryModel.fromFirestore(d)).toList());
+
+  Future<void> updateCourierDeliveryStatus(String id, String status) =>
+      FirebaseFirestore.instance
+          .collection(_col)
+          .doc(id)
+          .update({'status': status});
 }
 
 class _ProductsCache {

@@ -23,8 +23,12 @@ class BatchModel {
   int get totalQuantity =>
       sizesQuantity.values.fold(0, (acc, qty) => acc + qty);
 
-  // Physically sold out (no stock at all)
-  bool get isSoldOut => sizesQuantity.values.every((qty) => qty <= 0);
+  // Net available after subtracting all reservations
+  int get totalAvailable =>
+      sizesQuantity.keys.fold(0, (s, k) => s + availableForSize(k));
+
+  // Sold out when no unreserved stock remains
+  bool get isSoldOut => totalAvailable <= 0;
 
   // Available for a specific size after subtracting reservations
   int availableForSize(String size) {

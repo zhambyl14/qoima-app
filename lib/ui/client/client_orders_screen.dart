@@ -1,10 +1,17 @@
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'dart:html' as html;
 import '../../core/app_user.dart';
 import '../../data/models/order_model.dart';
 import '../../data/services/client_service.dart';
+import '../../data/services/cloudinary_service.dart';
+import '../../data/services/firestore_service.dart';
 import '../../theme/qoima_design.dart';
 import 'reservation_timer_widget.dart';
 
@@ -44,9 +51,17 @@ class _ClientOrdersScreenState extends State<ClientOrdersScreen> {
                     }
                     final all = snap.data ?? [];
 
+                    // Мерзімі өткен өз тапсырыстарын авто-болдырмаймыз
+                    for (final o in all) {
+                      if (o.isExpired) {
+                        ClientService().cancelOrder(o).ignore();
+                      }
+                    }
+
                     final active = all.where((o) =>
-                        o.status == OrderModel.statusReserved ||
                         o.status == OrderModel.statusPending ||
+                        o.status == OrderModel.statusReserved ||
+                        o.status == OrderModel.statusRejected ||
                         o.status == OrderModel.statusConfirmed ||
                         o.status == OrderModel.statusReady).toList();
 
@@ -57,7 +72,6 @@ class _ClientOrdersScreenState extends State<ClientOrdersScreen> {
                     final shown = _tabIndex == 0 ? active : completed;
 
                     return Column(children: [
-                      // Tabs
                       Padding(
                         padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
                         child: Row(children: [
@@ -167,15 +181,19 @@ class _OrderCard extends StatefulWidget {
 class _OrderCardState extends State<_OrderCard> {
   bool _showQr = false;
   bool _cancelling = false;
+  bool _uploading = false;
 
   OrderModel get o => widget.order;
 
   String get _statusTone {
     switch (o.status) {
-      case OrderModel.statusReserved:
+      case OrderModel.statusRejected:
+        return 'red';
       case OrderModel.statusPending:
-      case OrderModel.statusConfirmed:
+        return 'amber';
+      case OrderModel.statusReserved:
         return 'blue';
+      case OrderModel.statusConfirmed:
       case OrderModel.statusReady:
       case OrderModel.statusCompleted:
         return 'green';
@@ -188,12 +206,14 @@ class _OrderCardState extends State<_OrderCard> {
 
   String get _statusLabel {
     switch (o.status) {
-      case OrderModel.statusReserved:
-        return 'Активна';
       case OrderModel.statusPending:
-        return 'Ожидание';
+        return o.receiptUrl.isEmpty ? 'Ожидает чека' : 'На проверке';
+      case OrderModel.statusReserved:
+        return 'Бронь подтверждена';
+      case OrderModel.statusRejected:
+        return 'Чек отклонён';
       case OrderModel.statusConfirmed:
-        return 'Подтверждён';
+        return 'Оплачено · Готов';
       case OrderModel.statusReady:
         return 'Готов';
       case OrderModel.statusCompleted:
@@ -207,9 +227,14 @@ class _OrderCardState extends State<_OrderCard> {
 
   IconData get _statusIcon {
     switch (o.status) {
-      case OrderModel.statusReserved:
+      case OrderModel.statusRejected:
+        return Icons.cancel_outlined;
       case OrderModel.statusPending:
         return Icons.access_time_rounded;
+      case OrderModel.statusReserved:
+        return Icons.lock_clock_outlined;
+      case OrderModel.statusConfirmed:
+        return Icons.check_circle_outline_rounded;
       default:
         return Icons.check_circle_outline_rounded;
     }
@@ -240,14 +265,19 @@ class _OrderCardState extends State<_OrderCard> {
   }
 
   bool get _canCancel =>
+      o.status == OrderModel.statusPending ||
       o.status == OrderModel.statusReserved ||
-      o.status == OrderModel.statusPending;
+      o.status == OrderModel.statusRejected;
 
   bool get _showQrBtn =>
       (o.isSmartReservation && o.status == OrderModel.statusReserved) ||
       (o.isClickCollect &&
-          o.status != OrderModel.statusCancelled &&
-          o.status != OrderModel.statusCompleted);
+          o.status == OrderModel.statusConfirmed);
+
+  bool get _needsReceipt =>
+      o.status == OrderModel.statusPending && o.receiptUrl.isEmpty;
+
+  bool get _canResubmit => o.status == OrderModel.statusRejected;
 
   Future<void> _cancel() async {
     final ok = await showDialog<bool>(
@@ -285,6 +315,100 @@ class _OrderCardState extends State<_OrderCard> {
     }
   }
 
+  Future<void> _pickAndUploadReceipt() async {
+    // iOS Safari требует нативного HTML file input вместо file_picker
+    if (kIsWeb) {
+      _pickFileWeb();
+    } else {
+      _pickFileNative();
+    }
+  }
+
+  void _pickFileWeb() {
+    final html.InputElement input = html.document.createElement('input') as html.InputElement;
+    input.type = 'file';
+    input.accept = 'image/*,.pdf';
+    input.onChange.listen((event) async {
+      final files = input.files;
+      if (files == null || files.isEmpty) return;
+
+      final file = files[0];
+      final reader = html.FileReader();
+      reader.onLoadEnd.listen((_) async {
+        if (!mounted) return;
+        final bytes = reader.result as List<int>;
+        
+        setState(() => _uploading = true);
+        try {
+          final url = await CloudinaryService().uploadReceiptBytes(bytes, file.name);
+          if (!mounted) return;
+          final svc = FirestoreService();
+          if (o.status == OrderModel.statusRejected) {
+            await svc.resubmitReceipt(o, url);
+          } else {
+            await svc.submitReceipt(o, url);
+          }
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('Чек отправлен, ожидайте подтверждения'),
+              behavior: SnackBarBehavior.floating,
+            ));
+          }
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text('Ошибка: ${e.toString()}'),
+              behavior: SnackBarBehavior.floating,
+            ));
+          }
+        } finally {
+          if (mounted) setState(() => _uploading = false);
+        }
+      });
+      reader.readAsArrayBuffer(file);
+    });
+    input.click();
+  }
+
+  Future<void> _pickFileNative() async {
+    final res = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
+      withData: true,
+    );
+    if (res == null || res.files.isEmpty || !mounted) return;
+    final f = res.files.single;
+    if (f.bytes == null) return;
+
+    setState(() => _uploading = true);
+    try {
+      final url = await CloudinaryService().uploadReceiptBytes(f.bytes!, f.name);
+      if (!mounted) return;
+      final svc = FirestoreService();
+      if (o.status == OrderModel.statusRejected) {
+        await svc.resubmitReceipt(o, url);
+      } else {
+        await svc.submitReceipt(o, url);
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Чек отправлен, ожидайте подтверждения'),
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Ошибка загрузки: $e'),
+          backgroundColor: cRed,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _uploading = false);
+    }
+  }
+
   Future<void> _open2Gis(String address) async {
     final encoded = Uri.encodeComponent(address);
     final dgis = Uri.parse('dgis://2gis.ru/search/$encoded');
@@ -305,7 +429,12 @@ class _OrderCardState extends State<_OrderCard> {
       decoration: BoxDecoration(
         color: cSurface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: cLine),
+        border: Border.all(
+          color: o.status == OrderModel.statusRejected
+              ? cRed.withValues(alpha: 0.3)
+              : cLine,
+          width: o.status == OrderModel.statusRejected ? 1.5 : 1,
+        ),
         boxShadow: kShadowSm,
       ),
       child: Padding(
@@ -330,7 +459,9 @@ class _OrderCardState extends State<_OrderCard> {
                           ? const Color(0xFF1A5BD0)
                           : _statusTone == 'green'
                               ? cGreenDeep
-                              : const Color(0xFFB11A2B)),
+                              : _statusTone == 'amber'
+                                  ? const Color(0xFF92400E)
+                                  : const Color(0xFFB11A2B)),
                 ),
               ]),
 
@@ -378,6 +509,79 @@ class _OrderCardState extends State<_OrderCard> {
                 )),
           ],
 
+          // SmartRes deposit info
+          if (o.isSmartReservation && o.depositAmount > 0) ...[
+            const SizedBox(height: 6),
+            Container(height: 1, color: cLine2),
+            const SizedBox(height: 6),
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              Text('Депозит (10%)',
+                  style: manrope(12, FontWeight.w500, color: cInk2)),
+              Text('${o.depositAmount.toStringAsFixed(0)} ₸',
+                  style: manrope(12, FontWeight.w600, color: cGreen)),
+            ]),
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              Text('Доплата в магазине',
+                  style: manrope(12, FontWeight.w500, color: cInk2)),
+              Text('${o.remainingAmount.toStringAsFixed(0)} ₸',
+                  style: manrope(12, FontWeight.w700, color: cAmber)),
+            ]),
+          ],
+
+          // Rejection reason block
+          if (o.status == OrderModel.statusRejected &&
+              o.rejectionReason.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: cRedTint,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: cRed.withValues(alpha: 0.2)),
+              ),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Icon(Icons.error_outline, color: cRed, size: 16),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Причина отклонения: ${o.rejectionReason}',
+                    style: manrope(12, FontWeight.w500, color: cRed),
+                  ),
+                ),
+              ]),
+            ),
+          ],
+
+          // Payment card requisites (shown when payment is needed)
+          if (_needsReceipt || _canResubmit) ...[
+            const SizedBox(height: 8),
+            _PaymentCardBlock(order: o),
+          ],
+
+          // Pending without receipt — upload hint
+          if (_needsReceipt) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFFBEB),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: cAmber.withValues(alpha: 0.3)),
+              ),
+              child: Row(children: [
+                const Icon(Icons.upload_file_outlined, color: cAmber, size: 16),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Прикрепите чек об оплате, чтобы подтвердить заказ',
+                    style: manrope(12, FontWeight.w500,
+                        color: const Color(0xFF92400E)),
+                  ),
+                ),
+              ]),
+            ),
+          ],
+
           // Pickup address
           if (!o.isDelivery && o.warehouseAddress.isNotEmpty) ...[
             const SizedBox(height: 8),
@@ -397,12 +601,19 @@ class _OrderCardState extends State<_OrderCard> {
             ),
           ],
 
-          // Timer (active reservation)
-          if (o.isSmartReservation &&
-              o.status == OrderModel.statusReserved) ...[
+          // Countdown таймері (deadlineAt бар болса — чек жіберу / бронь)
+          if (o.deadlineAt != null &&
+              (o.status == OrderModel.statusPending ||
+                  o.status == OrderModel.statusRejected ||
+                  o.status == OrderModel.statusReserved)) ...[
             const SizedBox(height: 6),
             Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-              ReservationTimerWidget(expiresAt: o.expiresAt),
+              ReservationTimerWidget(
+                expiresAt: o.deadlineAt!,
+                onExpired: () {
+                  // auto-cancel орын-жерде жоқ, UI жайлап stream арқылы жаңарады
+                },
+              ),
             ]),
           ],
 
@@ -444,6 +655,8 @@ class _OrderCardState extends State<_OrderCard> {
 
           // Action buttons
           const SizedBox(height: 10),
+
+          // QR button for confirmed click&collect / reserved smart-res
           if (_showQrBtn)
             QSoftButton(
               label: _showQr ? 'Скрыть QR-код' : 'Показать QR-код',
@@ -455,6 +668,44 @@ class _OrderCardState extends State<_OrderCard> {
               ),
               onPressed: () => setState(() => _showQr = !_showQr),
             ),
+
+          // Upload receipt button
+          if (_needsReceipt || _canResubmit) ...[
+            if (_showQrBtn) const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              height: 44,
+              child: ElevatedButton.icon(
+                onPressed: _uploading ? null : _pickAndUploadReceipt,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _canResubmit ? cRed : cGreen,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(11)),
+                  elevation: 0,
+                ),
+                icon: _uploading
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                            color: Colors.white, strokeWidth: 2))
+                    : Icon(
+                        _canResubmit
+                            ? Icons.upload_file_outlined
+                            : Icons.attach_file_rounded,
+                        size: 18),
+                label: Text(
+                  _uploading
+                      ? 'Загрузка...'
+                      : _canResubmit
+                          ? 'Загрузить новый чек'
+                          : 'Прикрепить чек об оплате',
+                  style: manrope(13, FontWeight.w700),
+                ),
+              ),
+            ),
+          ],
 
           if (_canCancel) ...[
             const SizedBox(height: 8),
@@ -482,6 +733,112 @@ class _OrderCardState extends State<_OrderCard> {
           ],
         ]),
       ),
+    );
+  }
+}
+
+// ── Payment card block ─────────────────────────────────────────────────────────
+class _PaymentCardBlock extends StatelessWidget {
+  final OrderModel order;
+  const _PaymentCardBlock({required this.order});
+
+  String _masked(String digits) {
+    if (digits.length < 4) return digits;
+    final buf = StringBuffer();
+    for (int i = 0; i < digits.length; i++) {
+      if (i > 0 && i % 4 == 0) buf.write(' ');
+      buf.write(digits[i]);
+    }
+    return buf.toString();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cardNumber = order.paymentCardNumber;
+    final cardHolder = order.paymentCardHolder;
+    final bank = order.paymentBank;
+
+    if (cardNumber.isEmpty && cardHolder.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFFBEB),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: cAmber.withValues(alpha: 0.3)),
+        ),
+        child: Row(children: [
+          const Icon(Icons.credit_card_outlined, color: cAmber, size: 16),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Продавец ещё не указал реквизиты, свяжитесь с продавцом',
+              style: manrope(12, FontWeight.w500,
+                  color: const Color(0xFF92400E)),
+            ),
+          ),
+        ]),
+      );
+    }
+
+    final masked = _masked(cardNumber);
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: cGreenTint,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: cGreen.withValues(alpha: 0.25)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Icon(Icons.credit_card_outlined, color: cGreen, size: 16),
+          const SizedBox(width: 6),
+          Text('Карта для оплаты',
+              style: manrope(12, FontWeight.w600, color: cGreenDeep)),
+        ]),
+        const SizedBox(height: 8),
+        Row(children: [
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(masked,
+                  style: manrope(16, FontWeight.w800, color: cInk,
+                      letterSpacing: 1)),
+              if (cardHolder.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(cardHolder,
+                    style: manrope(12, FontWeight.w600, color: cInk2)),
+              ],
+              if (bank.isNotEmpty) ...[
+                const SizedBox(height: 1),
+                Text(bank,
+                    style: manrope(11, FontWeight.w500, color: cInk3)),
+              ],
+            ]),
+          ),
+          GestureDetector(
+            onTap: () {
+              Clipboard.setData(ClipboardData(text: cardNumber));
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                content: Text('Номер карты скопирован'),
+                behavior: SnackBarBehavior.floating,
+                duration: Duration(seconds: 2),
+              ));
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: cGreen,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.copy_rounded, color: Colors.white, size: 14),
+                const SizedBox(width: 4),
+                Text('Копировать',
+                    style: manrope(11, FontWeight.w700, color: Colors.white)),
+              ]),
+            ),
+          ),
+        ]),
+      ]),
     );
   }
 }

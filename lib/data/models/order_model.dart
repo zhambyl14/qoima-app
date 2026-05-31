@@ -25,16 +25,36 @@ class OrderModel {
   final String deliveredByUid;
   final String deliveredByName;
 
+  // ── Payment receipt flow ────────────────────────────────────────────────────
+  final String receiptUrl;
+  final DateTime? receiptSubmittedAt;
+  final String paymentConfirmedBy;
+  final DateTime? paymentConfirmedAt;
+  final String rejectionReason;
+  final DateTime? rejectedAt;
+  // Клиенттің күту мерзімі (null = таймер жоқ, яғни тексерілуде немесе аяқталды)
+  final DateTime? deadlineAt;
+  // Бас тарту кезінде қалдық қайтарылды ма (қайталаудан қорғайды)
+  final bool stockRestored;
+  // Тапсырыс кезіндегі продавецтің төлем реквизиттері (снапшот)
+  final String paymentCardNumber;
+  final String paymentCardHolder;
+  final String paymentBank;
+
+  static const Duration receiptWindow = Duration(minutes: 30);
+  static const Duration pickupWindow  = Duration(minutes: 60);
+
   static const String typeSmartReservation = 'smart_reservation';
   static const String typeClickCollect = 'click_collect';
   static const String typeDelivery = 'delivery';
 
-  static const String statusReserved = 'reserved';
-  static const String statusPending = 'pending';
-  static const String statusConfirmed = 'confirmed';
-  static const String statusReady = 'ready';
-  static const String statusCompleted = 'completed';
-  static const String statusCancelled = 'cancelled';
+  static const String statusReserved  = 'reserved';   // Бронь депозиті расталды
+  static const String statusPending   = 'pending';    // Оплата тексерілуде
+  static const String statusRejected  = 'rejected';   // Чек қабылданбады
+  static const String statusConfirmed = 'confirmed';  // Оплата расталды · беруге дайын
+  static const String statusReady     = 'ready';      // legacy — жаңа ағымда қолданылмайды
+  static const String statusCompleted = 'completed';  // Берілді
+  static const String statusCancelled = 'cancelled';  // Бас тартылды
 
   const OrderModel({
     required this.id,
@@ -59,6 +79,17 @@ class OrderModel {
     this.sellerName = 'Онлайн',
     this.deliveredByUid = '',
     this.deliveredByName = '',
+    this.receiptUrl = '',
+    this.receiptSubmittedAt,
+    this.paymentConfirmedBy = '',
+    this.paymentConfirmedAt,
+    this.rejectionReason = '',
+    this.rejectedAt,
+    this.deadlineAt,
+    this.stockRestored = false,
+    this.paymentCardNumber = '',
+    this.paymentCardHolder = '',
+    this.paymentBank = '',
   });
 
   double get total => items.fold(0.0, (s, i) => s + i.subtotal);
@@ -69,13 +100,24 @@ class OrderModel {
   bool get isClickCollect => orderType == typeClickCollect;
   bool get isDelivery => orderType == typeDelivery;
 
-  DateTime get expiresAt => createdAt.add(const Duration(hours: 1));
+  // Чек жіберілген, бірақ тексерілмеген
+  bool get isAwaitingReview => status == statusPending && receiptUrl.isNotEmpty;
+
+  // Тек confirmed кезінде ғана беруге болады
+  bool get canHandOver => status == statusConfirmed;
+
+  // Толық онлайн төлем жолы (бронь емес)
+  bool get isFullPrepay => orderType != typeSmartReservation;
+
+  // deadlineAt-қа негізделген таймер (клиент + admin/seller экрандарда)
+  bool get isExpired =>
+      deadlineAt != null && DateTime.now().isAfter(deadlineAt!);
+
+  // Артта қалған legacy геттерлер (ReservationTimerWidget үшін сақталады)
+  DateTime get expiresAt =>
+      deadlineAt ?? createdAt.add(const Duration(hours: 1));
   int get minutesLeft =>
       expiresAt.difference(DateTime.now()).inMinutes.clamp(0, 60);
-  bool get isExpired =>
-      isSmartReservation &&
-      DateTime.now().isAfter(expiresAt) &&
-      status == statusReserved;
 
   factory OrderModel.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
     final d = doc.data()!;
@@ -104,6 +146,19 @@ class OrderModel {
       sellerName: d['sellerName'] as String? ?? 'Онлайн',
       deliveredByUid: d['deliveredByUid'] as String? ?? '',
       deliveredByName: d['deliveredByName'] as String? ?? '',
+      receiptUrl: d['receiptUrl'] as String? ?? '',
+      receiptSubmittedAt:
+          (d['receiptSubmittedAt'] as Timestamp?)?.toDate(),
+      paymentConfirmedBy: d['paymentConfirmedBy'] as String? ?? '',
+      paymentConfirmedAt:
+          (d['paymentConfirmedAt'] as Timestamp?)?.toDate(),
+      rejectionReason: d['rejectionReason'] as String? ?? '',
+      rejectedAt: (d['rejectedAt'] as Timestamp?)?.toDate(),
+      deadlineAt: (d['deadlineAt'] as Timestamp?)?.toDate(),
+      stockRestored: d['stockRestored'] as bool? ?? false,
+      paymentCardNumber: d['paymentCardNumber'] as String? ?? '',
+      paymentCardHolder: d['paymentCardHolder'] as String? ?? '',
+      paymentBank: d['paymentBank'] as String? ?? '',
     );
   }
 
@@ -129,6 +184,22 @@ class OrderModel {
         'sellerName': sellerName,
         'deliveredByUid': deliveredByUid,
         'deliveredByName': deliveredByName,
+        'receiptUrl': receiptUrl,
+        'receiptSubmittedAt': receiptSubmittedAt != null
+            ? Timestamp.fromDate(receiptSubmittedAt!)
+            : null,
+        'paymentConfirmedBy': paymentConfirmedBy,
+        'paymentConfirmedAt': paymentConfirmedAt != null
+            ? Timestamp.fromDate(paymentConfirmedAt!)
+            : null,
+        'rejectionReason': rejectionReason,
+        'rejectedAt':
+            rejectedAt != null ? Timestamp.fromDate(rejectedAt!) : null,
+        'deadlineAt':
+            deadlineAt != null ? Timestamp.fromDate(deadlineAt!) : null,
+        'paymentCardNumber': paymentCardNumber,
+        'paymentCardHolder': paymentCardHolder,
+        'paymentBank': paymentBank,
       };
 
   OrderModel copyWith({
@@ -154,6 +225,17 @@ class OrderModel {
     String? sellerName,
     String? deliveredByUid,
     String? deliveredByName,
+    String? receiptUrl,
+    DateTime? receiptSubmittedAt,
+    String? paymentConfirmedBy,
+    DateTime? paymentConfirmedAt,
+    String? rejectionReason,
+    DateTime? rejectedAt,
+    DateTime? deadlineAt,
+    bool? stockRestored,
+    String? paymentCardNumber,
+    String? paymentCardHolder,
+    String? paymentBank,
   }) =>
       OrderModel(
         id: id ?? this.id,
@@ -178,5 +260,16 @@ class OrderModel {
         sellerName: sellerName ?? this.sellerName,
         deliveredByUid: deliveredByUid ?? this.deliveredByUid,
         deliveredByName: deliveredByName ?? this.deliveredByName,
+        receiptUrl: receiptUrl ?? this.receiptUrl,
+        receiptSubmittedAt: receiptSubmittedAt ?? this.receiptSubmittedAt,
+        paymentConfirmedBy: paymentConfirmedBy ?? this.paymentConfirmedBy,
+        paymentConfirmedAt: paymentConfirmedAt ?? this.paymentConfirmedAt,
+        rejectionReason: rejectionReason ?? this.rejectionReason,
+        rejectedAt: rejectedAt ?? this.rejectedAt,
+        deadlineAt: deadlineAt ?? this.deadlineAt,
+        stockRestored: stockRestored ?? this.stockRestored,
+        paymentCardNumber: paymentCardNumber ?? this.paymentCardNumber,
+        paymentCardHolder: paymentCardHolder ?? this.paymentCardHolder,
+        paymentBank: paymentBank ?? this.paymentBank,
       );
 }

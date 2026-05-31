@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../core/app_config.dart';
 import '../../core/app_user.dart';
 import '../../data/models/cart_item_model.dart';
+import '../../data/models/courier_delivery_model.dart';
 import '../../data/models/order_model.dart';
 import '../../data/services/client_service.dart';
 import '../../theme/qoima_design.dart';
@@ -78,8 +80,9 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
     return total;
   }
 
+  /// Delivery fee from central config — change AppConfig.deliveryFee to enable.
   double _deliveryFeeFor() =>
-      _orderType == OrderModel.typeDelivery ? 1500.0 : 0.0;
+      _orderType == OrderModel.typeDelivery ? AppConfig.deliveryFee : 0.0;
 
   String _warehouseAddress(List<CartItemModel> items) =>
       items.isNotEmpty ? items.first.warehouseAddress : '';
@@ -141,21 +144,18 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
       for (final item in cart.items) {
         byWarehouse.putIfAbsent(item.warehouseId, () => []).add(item);
       }
-      // Delivery fee is charged once (first order only) regardless of how many
-      // warehouses are involved, so the client always pays a single 1500 ₸ fee.
+
+      // deliveryFee lives on the courier_deliveries record (one per checkout),
+      // NOT on individual sub-orders. Sub-orders always have deliveryFee: 0.
       int orderCount = 0;
-      bool deliveryCharged = false;
+      OrderModel? firstPlacedOrder;
       for (final entry in byWarehouse.entries) {
         final whItems = entry.value;
         final first = whItems.first;
         final whTotal = whItems.fold<double>(0, (s, i) => s + i.subtotal);
-        final appliedFee = (!deliveryCharged) ? _deliveryFeeFor() : 0.0;
-        if (appliedFee > 0) deliveryCharged = true;
         final depositAmt = _orderType == OrderModel.typeSmartReservation
             ? (whTotal * 0.1).ceilToDouble()
-            : _orderType == OrderModel.typeDelivery
-                ? whTotal + appliedFee
-                : whTotal;
+            : whTotal; // delivery fee excluded from sub-order deposit
         final order = OrderModel(
           id: '',
           clientPhone: appUser.phone,
@@ -166,19 +166,45 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
           warehouseId: entry.key,
           warehouseAddress: first.warehouseAddress,
           items: List.from(whItems),
-          status: _orderType == OrderModel.typeSmartReservation
-              ? OrderModel.statusReserved
-              : OrderModel.statusPending,
+          status: OrderModel.statusPending,
           orderType: _orderType,
           createdAt: DateTime.now(),
           address: _addressCtrl.text.trim(),
           note: _noteCtrl.text.trim(),
           depositAmount: depositAmt,
-          deliveryFee: appliedFee,
+          deliveryFee: 0.0, // fee tracked separately in courier_deliveries
         );
-        await _service.placeOrder(order);
+        final placed = await _service.placeOrder(order);
+        firstPlacedOrder ??= placed;
         orderCount++;
       }
+
+      // For delivery orders: create ONE courier_deliveries record.
+      // This is supplementary — if it fails, the order is still valid.
+      if (_orderType == OrderModel.typeDelivery && firstPlacedOrder != null) {
+        try {
+          final whAddresses = byWarehouse.values
+              .map((items) => items.first.warehouseAddress)
+              .where((a) => a.isNotEmpty)
+              .toSet()
+              .toList();
+          await _service.createCourierDelivery(CourierDeliveryModel(
+            id: '',
+            orderId: firstPlacedOrder.id,
+            orderNumber: firstPlacedOrder.orderNumber,
+            amount: AppConfig.deliveryFee,
+            address: _addressCtrl.text.trim(),
+            clientName: appUser.name,
+            clientPhone: appUser.phone,
+            warehouseAddresses: whAddresses,
+            createdAt: DateTime.now(),
+            status: CourierDeliveryModel.statusNew,
+          ));
+        } catch (_) {
+          // Non-fatal: orders are placed. Courier record will sync later.
+        }
+      }
+
       if (!mounted) return;
       cart.clear();
       context.findAncestorStateOfType<ClientShellState>()?.setIndex(2);
@@ -267,6 +293,14 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                         item: item,
                         isUnavailable:
                             _unavailableKeys.contains(_itemKey(item)),
+                        onDecrement: () {
+                          cart.decrementAt(i);
+                          _checkAvailability();
+                        },
+                        onIncrement: () {
+                          cart.incrementAt(i);
+                          _checkAvailability();
+                        },
                         onRemove: () {
                           cart.removeAt(i);
                           _checkAvailability();
@@ -297,7 +331,9 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                         OrderModel.typeDelivery,
                         Icons.local_shipping_outlined,
                         'Доставка',
-                        'Курьером по адресу +1 500 ₸',
+                        AppConfig.deliveryFee > 0
+                            ? 'Курьером по адресу +${AppConfig.deliveryFee.toStringAsFixed(0)} ₸'
+                            : 'Курьером по адресу · Бесплатно',
                         'amber',
                       ),
                     ].map((t) {
@@ -518,11 +554,16 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
 class _CartItemCard extends StatelessWidget {
   final CartItemModel item;
   final bool isUnavailable;
+  final VoidCallback onDecrement;
+  final VoidCallback onIncrement;
   final VoidCallback onRemove;
-  const _CartItemCard(
-      {required this.item,
-      required this.isUnavailable,
-      required this.onRemove});
+  const _CartItemCard({
+    required this.item,
+    required this.isUnavailable,
+    required this.onDecrement,
+    required this.onIncrement,
+    required this.onRemove,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -538,12 +579,16 @@ class _CartItemCard extends StatelessWidget {
         boxShadow: kShadowSm,
       ),
       child: Row(children: [
-        Opacity(
-          opacity: isUnavailable ? 0.55 : 1.0,
-          child: QShoeImage(
-            imageUrl: item.imageUrl.isNotEmpty ? item.imageUrl : null,
-            height: 72,
-            tone: item.productId.hashCode % 5,
+        SizedBox(
+          width: 72,
+          height: 72,
+          child: Opacity(
+            opacity: isUnavailable ? 0.55 : 1.0,
+            child: QShoeImage(
+              imageUrl: item.imageUrl.isNotEmpty ? item.imageUrl : null,
+              height: 72,
+              tone: item.productId.hashCode % 5,
+            ),
           ),
         ),
         const SizedBox(width: 12),
@@ -559,37 +604,65 @@ class _CartItemCard extends StatelessWidget {
               Text('Размер ${item.size}',
                   style: manrope(12, FontWeight.w500, color: cInk3)),
               const SizedBox(height: 6),
-              isUnavailable
-                  ? QPill('Товар закончился', tone: 'red',
-                      icon: const Icon(Icons.info_outline,
-                          size: 12, color: Color(0xFFB11A2B)))
-                  : item.qty > 1
-                      ? RichText(
-                          text: TextSpan(children: [
-                            TextSpan(
-                                text: '${item.qty} × ',
-                                style: manrope(13, FontWeight.w500, color: cInk3)),
-                            TextSpan(
-                                text: money(item.price),
-                                style: manrope(15.5, FontWeight.w800, color: cInk)),
-                          ]),
-                        )
-                      : Text(money(item.price),
-                          style: manrope(15.5, FontWeight.w800, color: cInk)),
+              if (isUnavailable)
+                QPill('Товар закончился', tone: 'red',
+                    icon: const Icon(Icons.info_outline,
+                        size: 12, color: Color(0xFFB11A2B)))
+              else
+                Text(money(item.price * item.qty),
+                    style: manrope(15.5, FontWeight.w800, color: cInk)),
             ],
           ),
         ),
-        GestureDetector(
-          onTap: onRemove,
-          child: Padding(
-            padding: const EdgeInsets.all(4),
-            child: Icon(Icons.delete_outline_rounded,
-                color: isUnavailable ? cRed : cInk3, size: 19),
-          ),
-        ),
+        // Quantity stepper
+        if (isUnavailable)
+          GestureDetector(
+            onTap: onRemove,
+            child: Padding(
+              padding: const EdgeInsets.all(4),
+              child: const Icon(Icons.delete_outline_rounded, color: cRed, size: 20),
+            ),
+          )
+        else
+          Row(mainAxisSize: MainAxisSize.min, children: [
+            _QtyBtn(
+              icon: item.qty <= 1 ? Icons.delete_outline_rounded : Icons.remove_rounded,
+              color: item.qty <= 1 ? cRed : cInk2,
+              onTap: onDecrement,
+            ),
+            SizedBox(
+              width: 28,
+              child: Text('${item.qty}',
+                  textAlign: TextAlign.center,
+                  style: manrope(15, FontWeight.w800, color: cInk)),
+            ),
+            _QtyBtn(icon: Icons.add_rounded, color: cGreen, onTap: onIncrement),
+          ]),
       ]),
     );
   }
+}
+
+// ── Quantity button ────────────────────────────────────────────────────────────
+class _QtyBtn extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+  const _QtyBtn({required this.icon, required this.color, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 30,
+          height: 30,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, size: 16, color: color),
+        ),
+      );
 }
 
 // ── Payment sheet ──────────────────────────────────────────────────────────────
@@ -650,7 +723,9 @@ class _PaymentSheet extends StatelessWidget {
         if (isDelivery) ...[
           const SizedBox(height: 6),
           Text(
-            'Товары: ${money(total)}  +  Доставка: ${money(deliveryFee)}',
+            deliveryFee > 0
+                ? 'Товары: ${money(total)}  +  Доставка: ${money(deliveryFee)}'
+                : 'Товары: ${money(total)}  +  Доставка: Бесплатно',
             style: manrope(13, FontWeight.w500, color: cInk3),
           ),
         ],

@@ -121,14 +121,20 @@ class AuthService {
     required String uid,
     required String phone,
     required String name,
+    String city = '',
   }) async {
     await _db.collection('clients').doc(uid).set({
       'uid': uid,
       'phone': phone,
       'name': name,
+      'city': city,
       'role': 'client',
       'createdAt': FieldValue.serverTimestamp(),
     });
+  }
+
+  Future<void> updateClientCity(String uid, String city) async {
+    await _db.collection('clients').doc(uid).update({'city': city});
   }
 
   Future<ClientModel?> getClientDoc(String uid) async {

@@ -129,8 +129,15 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: cBg,
-      body: CustomScrollView(
-        slivers: [
+      body: RefreshIndicator(
+        color: cGreen,
+        onRefresh: () async {
+          await _service.refreshProducts();
+          await _service.refreshSalesHistory();
+        },
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
           SliverToBoxAdapter(
             child: Container(
               decoration: const BoxDecoration(gradient: kGrad),
@@ -233,6 +240,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
           ),
         ],
       ),
+      ),
     );
   }
 }
@@ -256,9 +264,28 @@ class _OverviewTabState extends State<_OverviewTab> {
           // Сервер айды сүзеді — клиент жағында фильтр жоқ
           stream: widget.service.watchSalesForMonth(widget.month),
           builder: (_, sSnap) {
-            if (sSnap.connectionState == ConnectionState.waiting) {
+            if (sSnap.connectionState == ConnectionState.waiting &&
+                sSnap.data == null) {
               return const Center(
                   child: CircularProgressIndicator(color: cGreen));
+            }
+            if (sSnap.hasError) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    const Icon(Icons.error_outline_rounded,
+                        color: cRed, size: 40),
+                    const SizedBox(height: 12),
+                    Text('Деректерді жүктеу қатесі',
+                        style: manrope(15, FontWeight.w700, color: cInk)),
+                    const SizedBox(height: 6),
+                    Text(sSnap.error.toString(),
+                        textAlign: TextAlign.center,
+                        style: manrope(12, FontWeight.w500, color: cInk2)),
+                  ]),
+                ),
+              );
             }
 
             final mSales = sSnap.data ?? [];
@@ -288,57 +315,148 @@ class _OverviewTabState extends State<_OverviewTab> {
                 0, (s, e) => s + e.purchasePrice * e.quantity);
             final margin = totalRevenue - totalCost;
 
+            if (mSales.isEmpty && onlineOrders.isEmpty) {
+              return Center(
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.bar_chart_rounded,
+                      size: 56, color: cInk3.withValues(alpha: 0.4)),
+                  const SizedBox(height: 12),
+                  Text('Бұл айда сатылым жоқ',
+                      style: manrope(16, FontWeight.w700, color: cInk2)),
+                ]),
+              );
+            }
+
             return SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _StatCard(
-                    label: 'Жалпы Түсірілке',
-                    value: '${_fmt(totalRevenue)} ₸',
-                    sub:
-                        'Офлайн: ${_fmt(offlineRevenue)} ₸  ·  Онлайн: ${_fmt(onlineRevenue)} ₸',
-                    icon: Icons.trending_up_rounded,
-                    color: cGreen,
+                  // ── Карточка общей выручки (34px) ─────────────────────
+                  QCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Общая выручка',
+                            style: manrope(13, FontWeight.w600, color: cInk3)),
+                        const SizedBox(height: 2),
+                        Text('${_fmt(totalRevenue)} ₸',
+                            style: manrope(34, FontWeight.w800, color: cInk,
+                                letterSpacing: -1)),
+                        const SizedBox(height: 6),
+                        Row(children: [
+                          RichText(
+                              text: TextSpan(children: [
+                            TextSpan(
+                                text: 'Офлайн: ',
+                                style: manrope(12.5, FontWeight.w600,
+                                    color: cInk2)),
+                            TextSpan(
+                                text: '${_fmt(offlineRevenue)} ₸',
+                                style: manrope(12.5, FontWeight.w700,
+                                    color: cInk)),
+                          ])),
+                          const SizedBox(width: 14),
+                          RichText(
+                              text: TextSpan(children: [
+                            TextSpan(
+                                text: 'Онлайн: ',
+                                style: manrope(12.5, FontWeight.w600,
+                                    color: cInk2)),
+                            TextSpan(
+                                text: '${_fmt(onlineRevenue)} ₸',
+                                style: manrope(12.5, FontWeight.w700,
+                                    color: cInk)),
+                          ])),
+                        ]),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 12),
+                  // ── Себестоимость / Маржа ─────────────────────────────
                   Row(children: [
                     Expanded(
-                        child: _StatCard(
-                      label: 'Өзіндік құн',
-                      value: '${_fmt(totalCost)} ₸',
-                      icon: Icons.arrow_downward_rounded,
-                      color: cRed,
-                    )),
-                    const SizedBox(width: 10),
+                      child: QCard(
+                        padding: const EdgeInsets.all(15),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(children: [
+                              const Icon(Icons.arrow_downward_rounded,
+                                  size: 16, color: cRed),
+                              const SizedBox(width: 6),
+                              Text('Себестоимость',
+                                  style: manrope(12, FontWeight.w600,
+                                      color: cInk3)),
+                            ]),
+                            const SizedBox(height: 6),
+                            Text('${_fmt(totalCost)} ₸',
+                                style: manrope(20, FontWeight.w800,
+                                    color: cInk)),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
                     Expanded(
-                        child: _StatCard(
-                      label: 'Маржа',
-                      value: '${_fmt(margin)} ₸',
-                      icon: Icons.account_balance_wallet_outlined,
-                      color: margin >= 0 ? cGreen : cRed,
-                    )),
+                      child: QCard(
+                        padding: const EdgeInsets.all(15),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(children: [
+                              Icon(Icons.trending_up_rounded,
+                                  size: 16,
+                                  color: margin >= 0 ? cGreen : cRed),
+                              const SizedBox(width: 6),
+                              Text('Маржа',
+                                  style: manrope(12, FontWeight.w600,
+                                      color: cInk3)),
+                            ]),
+                            const SizedBox(height: 6),
+                            Text('${_fmt(margin)} ₸',
+                                style: manrope(20, FontWeight.w800,
+                                    color: margin >= 0 ? cGreen : cRed)),
+                          ],
+                        ),
+                      ),
+                    ),
                   ]),
-                  const SizedBox(height: 10),
-                  _StatCard(
-                    label: 'Сатылған жұп',
-                    value: '$totalPairs жұп',
-                    sub: 'Офлайн: $offlinePairs  ·  Онлайн: $onlinePairs',
-                    icon: Icons.shopping_bag_outlined,
-                    color: cGreen,
+                  const SizedBox(height: 12),
+                  // ── Продажи по дням ───────────────────────────────────
+                  QCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text('Продажи по дням',
+                                style: manrope(14, FontWeight.w700,
+                                    color: cInk)),
+                            QPill('$totalPairs жұп',
+                                tone: 'green',
+                                icon: const Icon(Icons.trending_up_rounded,
+                                    size: 11,
+                                    color: Color(0xFF00713F))),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        _MobileDailyChart(
+                          offlineSales: pureSales,
+                          onlineOrders: onlineOrders,
+                          month: widget.month,
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 20),
-                  const Text('Күндік белсенділік',
-                      style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: cInk)),
-                  const SizedBox(height: 10),
-                  _MobileDailyChart(
-                    offlineSales: pureSales,
-                    onlineOrders: onlineOrders,
-                    month: widget.month,
-                  ),
+                  const SizedBox(height: 12),
+                  // ── Топ продаж ────────────────────────────────────────
+                  ...() {
+                    final top = _buildTopSalesWidgets(pureSales, onlineOrders);
+                    if (top.isEmpty) return <Widget>[];
+                    return [const QSecLabel('Топ продаж'), ...top];
+                  }(),
                 ],
               ),
             );
@@ -348,6 +466,70 @@ class _OverviewTabState extends State<_OverviewTab> {
     );
   }
 
+  static List<Widget> _buildTopSalesWidgets(
+      List<SaleModel> offlineSales, List<OrderModel> completedOrders) {
+    final Map<String, ({double revenue, int qty})> by = {};
+
+    for (final s in offlineSales) {
+      final n = s.productName.isNotEmpty ? s.productName : s.productId;
+      final e = by[n];
+      by[n] = (revenue: (e?.revenue ?? 0) + s.totalPrice,
+               qty: (e?.qty ?? 0) + s.quantity);
+    }
+    for (final o in completedOrders) {
+      for (final it in o.items) {
+        final n = it.productName.isNotEmpty ? it.productName : '—';
+        final e = by[n];
+        by[n] = (revenue: (e?.revenue ?? 0) + it.subtotal,
+                 qty: (e?.qty ?? 0) + it.qty);
+      }
+    }
+
+    final top3 = (by.entries.toList()
+          ..sort((a, b) => b.value.revenue.compareTo(a.value.revenue)))
+        .take(3)
+        .toList();
+
+    return top3.asMap().entries.map((e) {
+      final rank = e.key;
+      final entry = e.value;
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: QCard(
+          padding: const EdgeInsets.all(13),
+          child: Row(children: [
+            Container(
+              width: 28, height: 28,
+              decoration: BoxDecoration(
+                color: rank == 0 ? cGreen : cLine2,
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: Center(
+                child: Text('${rank + 1}',
+                    style: manrope(14, FontWeight.w800,
+                        color: rank == 0 ? Colors.white : cInk2)),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(entry.key,
+                      style: manrope(13.5, FontWeight.w700, color: cInk),
+                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                  Text('${entry.value.qty} пар продано',
+                      style: manrope(11.5, FontWeight.w500, color: cInk3)),
+                ],
+              ),
+            ),
+            Text('${_fmt(entry.value.revenue)} ₸',
+                style: manrope(14, FontWeight.w800, color: cInk)),
+          ]),
+        ),
+      );
+    }).toList();
+  }
 }
 
 // ── Tab 2: Сатушылар ──────────────────────────────────────────────────────────
@@ -932,6 +1114,11 @@ class _MobileDailyChartState extends State<_MobileDailyChart> {
     final maxVal = byDay.reduce((a, b) => a > b ? a : b);
     final effectiveMax = maxVal < 1 ? 1.0 : maxVal;
 
+    const double barW = 18;
+    const double barGap = 4;
+    const double cellW = barW + barGap;
+    const double chartH = 90;
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -943,97 +1130,128 @@ class _MobileDailyChartState extends State<_MobileDailyChart> {
               offset: const Offset(0, 2))
         ],
       ),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            height: 24,
+          // Tooltip / total row
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 160),
             child: _tapped != null
-                ? Row(children: [
-                    Text(
-                      '${_tapped! + 1} ${_monthShort(widget.month.month)}: ',
-                      style: const TextStyle(
-                          fontSize: 12, color: cInk2),
-                    ),
-                    Text(
-                      '${_fmtRev(byDay[_tapped!])} ₸',
-                      style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                          color: cGreen),
-                    ),
-                  ])
-                : Text(
-                    'Жалпы: ${_fmtRev(byDay.fold(0.0, (s, v) => s + v))} ₸',
-                    style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: cGreen),
+                ? Row(
+                    key: ValueKey(_tapped),
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 9, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: cGreenTint,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          Text(
+                            '${_tapped! + 1} ${_monthShort(widget.month.month)} · ',
+                            style: manrope(12, FontWeight.w500, color: cGreenDeep),
+                          ),
+                          Text(
+                            '${_fmtRev(byDay[_tapped!])} ₸',
+                            style: manrope(13, FontWeight.w800, color: cGreenDeep),
+                          ),
+                        ]),
+                      ),
+                    ],
+                  )
+                : Row(
+                    key: const ValueKey('total'),
+                    children: [
+                      Text(
+                        'Жалпы: ',
+                        style: manrope(12.5, FontWeight.w500, color: cInk3),
+                      ),
+                      Text(
+                        '${_fmtRev(byDay.fold(0.0, (s, v) => s + v))} ₸',
+                        style: manrope(13, FontWeight.w700, color: cGreen),
+                      ),
+                    ],
                   ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: SizedBox(
-              width: daysInMonth * 16.0,
+              width: daysInMonth * cellW,
               child: Column(children: [
+                // Bar chart
                 SizedBox(
-                  height: 80,
+                  height: chartH,
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: List.generate(daysInMonth, (i) {
                       final v = byDay[i];
                       final isSel = _tapped == i;
+                      final barH = v > 0
+                          ? (v / effectiveMax) * (chartH - 6) + 6
+                          : 3.0;
                       return GestureDetector(
-                        onTap: () =>
-                            setState(() => _tapped = _tapped == i ? null : i),
-                        child: Container(
-                          width: 14,
-                          margin: const EdgeInsets.symmetric(horizontal: 1),
-                          height: v > 0 ? (v / effectiveMax) * 76 + 4 : 3,
-                          decoration: BoxDecoration(
-                            gradient: isSel
-                                ? null
-                                : const LinearGradient(
-                                    colors: [
-                                      cGreenBright,
-                                      cGreen
-                                    ],
-                                    begin: Alignment.topCenter,
-                                    end: Alignment.bottomCenter,
-                                  ),
-                            color: isSel ? cGreen : null,
-                            borderRadius: const BorderRadius.vertical(
-                                top: Radius.circular(3)),
+                        onTap: () => setState(
+                            () => _tapped = _tapped == i ? null : i),
+                        child: SizedBox(
+                          width: cellW,
+                          height: chartH,
+                          child: Align(
+                            alignment: Alignment.bottomCenter,
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 180),
+                              width: barW,
+                              height: isSel ? barH + 4 : barH,
+                              decoration: BoxDecoration(
+                                gradient: isSel
+                                    ? null
+                                    : LinearGradient(
+                                        colors: [
+                                          cGreenBright.withValues(alpha: 0.7),
+                                          cGreen.withValues(alpha: 0.55),
+                                        ],
+                                        begin: Alignment.topCenter,
+                                        end: Alignment.bottomCenter,
+                                      ),
+                                color: isSel ? cGreenDeep : null,
+                                borderRadius: const BorderRadius.vertical(
+                                    top: Radius.circular(5)),
+                              ),
+                            ),
                           ),
                         ),
                       );
                     }),
                   ),
                 ),
+                // Day labels
                 const SizedBox(height: 4),
                 SizedBox(
-                  height: 16,
+                  height: 14,
                   child: Row(
                     children: List.generate(daysInMonth, (i) {
                       final day = i + 1;
                       final isSel = _tapped == i;
                       final show = isSel ||
                           day == 1 ||
+                          day == 5 ||
                           day == 10 ||
+                          day == 15 ||
                           day == 20 ||
+                          day == 25 ||
                           day == daysInMonth;
                       return SizedBox(
-                        width: 16,
+                        width: cellW,
                         child: Text(
                           show ? '$day' : '',
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            fontSize: 8,
-                            color: isSel ? cGreen : cInk3,
+                            fontSize: 8.5,
+                            color: isSel ? cGreenDeep : cInk3,
                             fontWeight:
-                                isSel ? FontWeight.w700 : FontWeight.w400,
+                                isSel ? FontWeight.w800 : FontWeight.w400,
                           ),
                         ),
                       );
@@ -1081,7 +1299,6 @@ class _MobileDailyChartState extends State<_MobileDailyChart> {
 // ── Shared: StatCard ──────────────────────────────────────────────────────────
 class _StatCard extends StatelessWidget {
   final String label, value;
-  final String? sub;
   final IconData icon;
   final Color color;
   const _StatCard({
@@ -1089,7 +1306,6 @@ class _StatCard extends StatelessWidget {
     required this.value,
     required this.icon,
     required this.color,
-    this.sub,
   });
 
   @override
@@ -1119,8 +1335,6 @@ class _StatCard extends StatelessWidget {
               Text(label, style: manrope(12, FontWeight.w600, color: cInk3)),
               Text(value,
                   style: manrope(20, FontWeight.w800, color: color)),
-              if (sub != null)
-                Text(sub!, style: manrope(11, FontWeight.w500, color: cInk3)),
             ],
           )),
         ]),
