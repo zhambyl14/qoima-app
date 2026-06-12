@@ -1,0 +1,472 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Базалық функциялар ────────────────────────────────────────────────────
+
+    function signed() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return signed() && request.auth.uid == uid;
+    }
+
+    function isAdminOfSeller(uid) {
+      return signed() &&
+        resource.data.get('role', '') == 'seller' &&
+        resource.data.get('ownerId', '') == request.auth.uid;
+    }
+
+    function isPendingSellerForAdmin(uid) {
+      return signed() &&
+        resource.data.get('role', '') == 'seller' &&
+        resource.data.get('pendingOwnerId', '') == request.auth.uid &&
+        resource.data.get('joinStatus', '') == 'pending';
+    }
+
+    function canAccess(adminUid) {
+      return signed() && (
+        request.auth.uid == adminUid ||
+        (
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data
+              .get('ownerId', '') == adminUid &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data
+              .get('joinStatus', '') == 'active'
+        )
+      );
+    }
+
+    function onlyStockFields() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['reserved_sizes', 'sizes_quantity']);
+    }
+
+    function isOrderOwner() {
+      return request.auth.uid == resource.data.get('clientUid', '') ||
+             request.auth.token.get('phone_number', '') == resource.data.get('clientPhone', '');
+    }
+
+    function validSellerAdminUpdate() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly([
+          'assignedWarehouseId',  // қойма бекіту
+          'ownerId',              // admin uid жазу
+          'joinStatus',           // active / rejected
+          'pendingOwnerId',       // тазалау үшін (қабылдаған соң null)
+        ]);
+    }
+
+    // ── Caller helper functions (Firestore get() — минимум рет шақырылады) ───
+
+    function callerData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function callerRole() {
+      return callerData().get('role', '');
+    }
+
+    function callerOwnerId() {
+      return callerData().get('ownerId', '');
+    }
+
+    function callerJoinStatus() {
+      return callerData().get('joinStatus', '');
+    }
+
+    function callerAssignedWarehouseId() {
+      return callerData().get('assignedWarehouseId', '');
+    }
+
+    // Seller белгілі бір admin-ның белгілі бір қоймасына қол жеткізе ала ма?
+    function sellerHasWarehouseAccess(adminUid, warehouseId) {
+      return signed() &&
+        callerRole() == 'seller' &&
+        callerOwnerId() == adminUid &&
+        callerJoinStatus() == 'active' &&
+        callerAssignedWarehouseId() == warehouseId;
+    }
+
+    function isCallerSeller() {
+      return signed() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        callerRole() == 'seller';
+    }
+
+    // Client тек completed ЕМЕС тапсырысты cancelled ете алады
+    // stockRestored рұқсат берілген — идемпотентті қайтару үшін (қос басудан қорғайды)
+    function clientCanCancel() {
+      return isOrderOwner() &&
+        resource.data.get('status', '') != 'completed' &&
+        request.resource.data.get('status', '') == 'cancelled' &&
+        request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['status', 'stockRestored']);
+    }
+
+    // Client чек жүктейді немесе қайта жүктейді (pending/rejected → pending)
+    function clientCanSubmitReceipt() {
+      let allowed = ['receiptUrl', 'receiptSubmittedAt', 'status',
+                     'rejectionReason', 'rejectedAt', 'deadlineAt'];
+      let currentStatus = resource.data.get('status', '');
+      return isOrderOwner() &&
+        (currentStatus == 'pending' || currentStatus == 'rejected') &&
+        request.resource.data.get('status', '') == 'pending' &&
+        request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(allowed);
+    }
+
+    // Client Kaspi/Halyk арқылы тікелей төлейді:
+    // Click&Collect/Delivery: pending → confirmed (толық төлем)
+    // SmartReservation: pending → reserved (10% депозит)
+    function clientCanPayOnline() {
+      let allowed = ['status', 'paymentBank', 'paymentConfirmedBy',
+                     'paymentConfirmedAt', 'deadlineAt'];
+      let newStatus = request.resource.data.get('status', '');
+      return isOrderOwner() &&
+        resource.data.get('status', '') == 'pending' &&
+        (newStatus == 'confirmed' || newStatus == 'reserved') &&
+        request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(allowed);
+    }
+
+    // Seller тапсырысты өзінің қоймасы бойынша оқи/жаза алады
+    function sellerCanAccessOrder(adminUid, warehouseId) {
+      return signed() &&
+        callerRole() == 'seller' &&
+        callerOwnerId() == adminUid &&
+        callerJoinStatus() == 'active' &&
+        callerAssignedWarehouseId() == warehouseId;
+    }
+
+    // ── business_codes (adminUid → code lookup) ───────────────────────────────
+    // Seller join кезінде admin-ды табу үшін
+    match /business_codes/{code} {
+      // Кез келген авторизацияланған пайдаланушы оқи алады (join flow)
+      allow read: if signed();
+      // Тек admin өзінің кодын жасай/өзгерте/жоя алады
+      allow create: if signed() &&
+        request.resource.data.adminUid == request.auth.uid;
+      allow update, delete: if signed() &&
+        resource.data.adminUid == request.auth.uid;
+    }
+
+    // ── Users (Admins & Sellers) ──────────────────────────────────────────────
+    match /users/{uid} {
+      allow read: if signed() && (
+        request.auth.uid == uid ||
+        resource.data.get('ownerId', '') == request.auth.uid ||
+        canAccess(uid)
+      );
+      allow write: if isOwner(uid) ||
+        ((isAdminOfSeller(uid) || isPendingSellerForAdmin(uid)) &&
+          validSellerAdminUpdate());
+
+      // ── Store settings ─────────────────────────────────────────────────────
+      // Owner өз дүкенін жазады; superadmin өзгерту запросын approve еткенде
+      // немесе дүкенді блоктағанда жаза алады (v10 — модерация).
+      match /store/{storeId} {
+        allow read:  if signed();
+        allow write: if isOwner(uid) || callerRole() == 'superadmin';
+      }
+
+      // ── Products ───────────────────────────────────────────────────────────
+      match /products/{productId} {
+        allow read:  if true;
+        allow write: if canAccess(uid);
+
+        // FIX v6.2: онлайн-заказ кезінде остаток есептелгеннен кейін
+        // кез келген авторизацияланған пайдаланушы тек status-ты жаңарта алады.
+        allow update: if signed() &&
+          request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['status']);
+
+        // ── Batches ──────────────────────────────────────────────────────────
+        match /batches/{batchId} {
+          // Admin барлығын оқиды
+          // Seller тек өз қоймасының batch-тарын оқиды
+          allow read: if true;
+
+          // Admin барлығын жаза алады
+          // Seller тек өз қоймасына жаза алады
+          allow write: if canAccess(uid) && (
+            request.auth.uid == uid ||
+            !isCallerSeller() ||
+            sellerHasWarehouseAccess(uid, request.resource.data.get('warehouseId', ''))
+          );
+
+          // Client transaction (бронь жасау/болдырмау)
+          // Seller тек өз қоймасының batch-тарын update ете алады
+          allow update: if signed() && onlyStockFields() && (
+            !isCallerSeller() ||
+            sellerHasWarehouseAccess(uid, resource.data.get('warehouseId', ''))
+          );
+        }
+      }
+
+      // ── Warehouses ─────────────────────────────────────────────────────────
+      match /warehouses/{warehouseId} {
+        allow read:           if signed();
+        allow create, delete: if isOwner(uid);
+        allow update:         if canAccess(uid);
+      }
+
+      // ── Sales history ──────────────────────────────────────────────────────
+      match /sales_history/{saleId} {
+        allow read, write: if canAccess(uid);
+      }
+
+      // ── Counters (реттік чек нөмірі: receipts) ──────────────────────────────
+      // Тек admin/seller оқиды/жазады (атомарлы increment транзакцияда).
+      match /counters/{counterId} {
+        allow read, write: if canAccess(uid);
+      }
+
+      // ── Batch costs (жасырын себестоимость) ─────────────────────────────────
+      // Тек admin/seller оқиды/жазады. Публичті batch құжаты қонаққа ашық
+      // болғандықтан, purchase_price осында бөлек сақталады. collectionGroup
+      // wildcard ӘДЕЙІ ЖОҚ — сыртқа ашылмауы үшін.
+      match /batch_costs/{batchId} {
+        allow read, write: if canAccess(uid);
+      }
+
+      // ── Join requests ──────────────────────────────────────────────────────
+      // Seller кез келген admin-ның join_requests-ін жасай алады.
+      // requestId = sellerUid, сондықтан seller өзінің сұрауын оқи/өшіре алады
+      // (барды-жоғын тексеру + болдырмау), ал admin барлығын басқарады.
+      match /join_requests/{requestId} {
+        // Seller тек ӨЗ атынан сұрау жасай алады (requestId = sellerUid = auth.uid)
+        // әрі тек 'pending' күйінде. Бұл басқаның атынан спам/импер­сонацияны жабады.
+        allow create:               if signed() &&
+          requestId == request.auth.uid &&
+          request.resource.data.get('status', '') == 'pending';
+        allow read, update, delete: if isOwner(uid) || isOwner(requestId);
+      }
+
+      // ── Stock transfers ────────────────────────────────────────────────────
+      match /transfers/{transferId} {
+        allow read, write: if canAccess(uid);
+      }
+
+      // ── Reservations ──────────────────────────────────────────────────────
+      match /reservations/{reservationId} {
+        allow read, write: if canAccess(uid);
+      }
+
+      
+
+      // ── Returns (возвраты) ────────────────────────────────────────────────────
+      // Path: users/{adminUid}/returns/{returnId}
+      // Creates: admin/seller (offline) OR client (online, clientUid==auth.uid)
+      // Updates: admin/seller only (status transitions)
+      // Deletes: admin/seller OR client cancelling their own requested return
+      // ЕСКЕРТУ: құжат өрісі snake_case → `client_uid` (ReturnModel.toMap).
+      // Бұрын ереже camelCase `clientUid` тексеретін → әрқашан бос → клиенттің
+      // онлайн возвраты permission-denied болатын. Дұрыс өріс атымен түзетілді.
+      match /returns/{returnId} {
+        allow read: if canAccess(uid) ||
+          (signed() && resource.data.get('client_uid', '') == request.auth.uid);
+
+        allow create: if canAccess(uid) ||
+          (signed() && request.resource.data.get('client_uid', '') == request.auth.uid);
+
+        allow update: if canAccess(uid);
+
+        allow delete: if canAccess(uid) || (
+          signed() &&
+          resource.data.get('client_uid', '') == request.auth.uid &&
+          resource.data.get('status', '') == 'requested'
+        );
+      }
+
+      // ── Returns index (client-side cross-store lookup) ─────────────────────
+      // Path: users/{clientUid}/returns_index/{returnId}
+      // Read: client only. Write: client (online return) or admin/seller (offline).
+      match /returns_index/{returnId} {
+        allow read: if isOwner(uid);
+        allow create: if isOwner(uid) ||
+          (signed() && (callerRole() == 'admin' || callerRole() == 'seller'));
+        allow delete: if isOwner(uid) ||
+          (signed() && (callerRole() == 'admin' || callerRole() == 'seller'));
+      }
+
+      // ── Store discount campaigns (My Store hub) ───────────────────────────────
+      match /discounts/{discountId} {
+        allow read, write: if signed() && request.auth.uid == uid;
+      }
+
+      // ── Promo codes ─────────────────────────────────────────────────────────
+      // Клиент должен читать промокоды магазина, чтобы валидировать код.
+      // Создание/удаление/полное редактирование — только владелец магазина.
+      // Клиент при оформлении/отмене заказа меняет ТОЛЬКО used_count (в транзакции).
+      match /promos/{promoId} {
+        allow read:          if true;
+        allow create, delete: if isOwner(uid);
+        allow update: if isOwner(uid) ||
+          (signed() &&
+            request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['used_count']));
+
+        // Учёт «кто применял» (per_user_limit). Клиент читает/пишет только свой
+        // документ; владелец магазина (uid) — все. Раньше read был `if signed()`
+        // (любой мог прочитать чужую историю промокодов) — закрыто.
+        match /redemptions/{clientUid} {
+          allow read:  if isOwner(uid) || isOwner(clientUid);
+          allow write: if isOwner(uid) || isOwner(clientUid);
+        }
+      }
+    }
+
+    // ── Collection Group wildcards ────────────────────────────────────────────
+    match /{path=**}/store/{storeDoc} {
+      allow read: if true;
+    }
+    match /{path=**}/products/{productDoc} {
+      allow read: if true;
+    }
+    match /{path=**}/batches/{batchDoc} {
+      allow read: if true;
+    }
+    match /{path=**}/warehouses/{warehouseDoc} {
+      allow read: if signed();
+    }
+
+    // ── Clients (buyer profiles) ──────────────────────────────────────────────
+    match /clients/{clientUid} {
+      allow read, write: if isOwner(clientUid);
+
+      match /favorites/{productId} {
+        allow read, write: if isOwner(clientUid);
+      }
+
+      match /addresses/{addressId} {
+        allow read, write: if isOwner(clientUid);
+      }
+    }
+
+    // ── phoneIndex (телефон → {uid, email}) ───────────────────────────────────
+    // Кіру кезінде телефон бойынша email-ді табу үшін АШЫҚ оқылады (пайдаланушы
+    // әлі кірмеген кезде). Бұл нөмір арқылы email-ді білуге мүмкіндік береді —
+    // телефон+email аутентификациясын клиент жағында жасаудың бағасы.
+    // Жазуды тек өз жазбасының иесі ғана жасайды/өзгертеді (uid сәйкестігі).
+    match /phoneIndex/{phone} {
+      allow read: if true;
+      allow create: if signed() &&
+        request.auth.uid == request.resource.data.uid;
+      allow update, delete: if signed() &&
+        request.auth.uid == resource.data.uid;
+    }
+
+    // ── emailIndex (encodedEmail → {uid, phoneNumber}) ────────────────────────
+    // Тек кірген пайдаланушы оқиды (email өзгерту / синхрондау ағындары).
+    match /emailIndex/{encodedEmail} {
+      allow read: if signed();
+      allow create: if signed() &&
+        request.auth.uid == request.resource.data.uid;
+      allow update, delete: if signed() &&
+        request.auth.uid == resource.data.uid;
+    }
+
+    // ── Counters (DEPRECATED) ─────────────────────────────────────────────────
+    // Бұрын реттік тапсырыс нөмірлеріне арналған. Енді нөмір клиент жағында
+    // doc id-ден шығарылады (_orderNumFromId), бұл коллекция қолданылмайды.
+    // Артық рұқсат бермеу үшін жабылды; қажет болса бір жолмен қайтаруға болады.
+    match /counters/{counterId} {
+      allow read, write: if false;
+    }
+
+    // ── Orders ────────────────────────────────────────────────────────────────
+    match /orders/{orderId} {
+      // Клиент тек өзінің uid-мен тапсырыс жасай алады
+      allow create: if signed() &&
+        request.resource.data.clientUid == request.auth.uid;
+
+      // Кім оқи алады:
+      // 1. Тапсырыс иесі (клиент)
+      // 2. Admin (canAccess)
+      // 3. Seller — тек өз қоймасының тапсырысы
+      allow read: if signed() && (
+        isOrderOwner() ||
+        canAccess(resource.data.get('adminUid', '')) ||
+        sellerCanAccessOrder(
+          resource.data.get('adminUid', ''),
+          resource.data.get('warehouseId', '')
+        )
+      );
+
+      // Кім өзгерте алады:
+      // 1. Admin (canAccess) — кез келген өзгеріс
+      // 2. Seller — тек өз қоймасының тапсырысы
+      // 3. Client — тек completed ЕМЕС тапсырысты cancelled ете алады
+      allow update: if signed() && (
+        canAccess(resource.data.get('adminUid', '')) ||
+        sellerCanAccessOrder(
+          resource.data.get('adminUid', ''),
+          resource.data.get('warehouseId', '')
+        ) ||
+        clientCanCancel() ||
+        clientCanSubmitReceipt() ||
+        clientCanPayOnline()
+      );
+
+      allow delete: if false;
+    }
+
+    // ── Shop requests (дүкен ашу заявкалары — маркетплейс модерациясы) ─────────
+    match /shopRequests/{requestId} {
+      // Owner өз заявкасын жасайды
+      allow create: if signed() &&
+        request.resource.data.ownerUid == request.auth.uid;
+
+      // Owner өз заявкасын оқиды; superadmin барлығын оқиды
+      allow read: if signed() && (
+        resource.data.ownerUid == request.auth.uid ||
+        callerRole() == 'superadmin'
+      );
+
+      // Тек superadmin статусты жаңарта алады (бекіту / бас тарту)
+      allow update: if signed() &&
+        callerRole() == 'superadmin' &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['status', 'reviewedAt', 'reviewedBy', 'reviewNote']);
+
+      allow delete: if false;
+    }
+
+    // ── Store edit requests (дүкен мәліметтерін өзгерту — модерация, v10) ──────
+    match /storeEditRequests/{editId} {
+      // Owner өз запросын жасай алады (pending күйінде)
+      allow create: if signed() &&
+        request.resource.data.ownerUid == request.auth.uid &&
+        request.resource.data.status == 'pending';
+
+      // Owner өзінікін оқиды; superadmin барлығын
+      allow read: if signed() && (
+        resource.data.ownerUid == request.auth.uid ||
+        callerRole() == 'superadmin'
+      );
+
+      // Owner шешімге дейін өз pending запросын ҚАЙТАРЫП АЛА алады (cancel)
+      allow update: if signed() &&
+        resource.data.ownerUid == request.auth.uid &&
+        resource.data.status == 'pending' &&
+        request.resource.data.status == 'cancelled' &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']);
+
+      // Superadmin шешім қабылдайды (approve / reject)
+      allow update: if signed() &&
+        callerRole() == 'superadmin' &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['status', 'reviewedAt', 'reviewedBy', 'reviewNote']);
+
+      allow delete: if false;
+    }
+
+    // ── Banners (басты беттегі промо-баннерлер — superadmin қосады) ───────────
+    // Барлығына оқуға ашық (қонақтар да көреді); жазу — тек superadmin.
+    match /banners/{bannerId} {
+      allow read:  if true;
+      allow write: if signed() && callerRole() == 'superadmin';
+    }
+  }
+}
