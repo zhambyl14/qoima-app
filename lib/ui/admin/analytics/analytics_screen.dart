@@ -313,9 +313,11 @@ class _OverviewTabState extends State<_OverviewTab> {
                 0, (s, o) => s + o.items.fold(0, (a, i) => a + i.qty));
             final totalPairs = offlinePairs + onlinePairs;
 
-            // Өзіндік құн — денормализацияланған purchase_price-тан (Firestore оқусыз)
+            // Өзіндік құн — қайтарылған тауардың шығыны шегеріледі.
             final totalCost = mSales.fold<double>(
-                0, (s, e) => s + e.purchasePrice * e.quantity);
+                0, (acc, e) => acc + (e.isReturn
+                    ? -(e.purchasePrice * e.quantity)
+                    :   e.purchasePrice * e.quantity));
             final margin = totalRevenue - totalCost;
 
             if (mSales.isEmpty && onlineOrders.isEmpty) {

@@ -4,10 +4,7 @@ import '../../core/kz_cities.dart';
 import '../../core/phone_input.dart';
 import '../../data/services/auth_service.dart';
 import '../../theme/qoima_design.dart';
-import 'verify_email_screen.dart';
-
 /// Клиентті тіркеу: телефон + email + құпиясөз + аты + қаласы.
-/// Сәтті болса — поштаны растау экранына өтеміз (аккаунт расталғанша кіру жабық).
 class ClientRegisterScreen extends StatefulWidget {
   const ClientRegisterScreen({super.key});
 
@@ -82,11 +79,7 @@ class _ClientRegisterScreenState extends State<ClientRegisterScreen> {
         name: _nameCtrl.text.trim(),
         city: _selectedCity!,
       );
-      if (!mounted) return;
-      // Аккаунт жасалды әрі шығып қойдық — поштаны растау экранына ауысамыз.
-      Navigator.of(context).pushReplacement(MaterialPageRoute(
-        builder: (_) => VerifyEmailScreen(email: email, password: password),
-      ));
+      // Auth gate (main.dart) автоматты ClientShell-ге ауысады.
     } on AuthFailure catch (e) {
       _setErr(e.message);
     } catch (e) {

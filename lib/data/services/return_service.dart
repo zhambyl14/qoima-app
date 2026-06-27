@@ -397,6 +397,17 @@ class ReturnService {
     required String sellerId,
   }) async {
     try {
+      // Бір сатылым — бір рет қайтару. Екі рет кнопка басуды сервер деңгейінде де блоктаймыз.
+      final existingSnap = await _returnsCol(adminUid).get();
+      final alreadyReturned = existingSnap.docs.any((d) {
+        final data = d.data();
+        return data['sale_id'] == sourceSale.id &&
+            data['status'] != ReturnStatus.rejected.name;
+      });
+      if (alreadyReturned) {
+        throw ReturnException('Бұл сатылым бойынша қайтару бұрын жасалған.');
+      }
+
       final returnId = await _nextReturnId(adminUid);
       final now = DateTime.now();
       final sellerName = AppUser.current.name;
@@ -481,6 +492,8 @@ class ReturnService {
         'warehouseId': sourceSale.warehouseId,
         'is_online': false,
         'payment_method': method.name,
+        // Себестоимость аналитикасы дұрыс балансталу үшін сақтаймыз.
+        'purchase_price': sourceSale.purchasePrice,
       });
 
       await wb.commit();

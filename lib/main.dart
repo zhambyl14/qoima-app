@@ -153,8 +153,11 @@ class QoimaApp extends StatelessWidget {
               },
             );
           }
-          context.read<AppUser>().clear();
-          context.read<WarehouseContext>().clear();
+          // clear() — notifyListeners шақырады, сондықтан build фазасынан тыс орындаймыз.
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            context.read<AppUser>().clear();
+            context.read<WarehouseContext>().clear();
+          });
           // Кірмеген пайдаланушы — каталогты шолып, корзинаға тауар сала алады.
           // Тапсырыс берер кезде GuestLoginSheet арқылы тіркеледі.
           return const GuestShell();

@@ -103,6 +103,7 @@ class _SellerMakeOfflineReturnScreenState
   }
 
   Future<void> _submit() async {
+    if (_submitting) return;
     final items = _itemMap.values
         .where((e) => e.selected)
         .map((e) => e.item)

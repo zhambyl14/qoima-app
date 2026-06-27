@@ -64,9 +64,6 @@ class AuthService {
     final uid = cred.user!.uid;
 
     try {
-      // d) Растау сілтемесін жіберу
-      await cred.user!.sendEmailVerification();
-
       // e) Batch: клиент профилі + индекстер
       final batch = _db.batch();
       batch.set(_db.collection('clients').doc(uid), {
@@ -76,7 +73,7 @@ class AuthService {
         'name': name.trim(),
         'city': city,
         'role': 'client',
-        'emailVerified': false,
+        'emailVerified': true,
         'createdAt': FieldValue.serverTimestamp(),
       });
       batch.set(_db.collection('phoneIndex').doc(phoneNumber), {
@@ -100,9 +97,7 @@ class AuthService {
       }
       rethrow;
     }
-
-    // f) Бірден шығу — пайдаланушы поштаны растағаннан кейін ғана кіреді
-    await _auth.signOut();
+    // Тіркелген соң auth gate автоматты ClientShell-ге ауысады.
   }
 
   /// Телефон + құпиясөзбен кіру: phoneIndex → email → Auth → emailVerified гейті.
@@ -124,24 +119,7 @@ class AuthService {
       throw AuthFailure(_msg(e), code: e.code);
     }
 
-    // c) Пошта расталған ба
-    await _auth.currentUser?.reload();
-    final user = _auth.currentUser;
-    if (user != null && !user.emailVerified) {
-      await _auth.signOut();
-      throw AuthFailure('Поштаңызды растаңыз', code: 'email-not-verified');
-    }
-
-    // Сақталған emailVerified жалаушасын шындыққа сәйкестендіреміз (best-effort).
-    if (user != null) {
-      try {
-        await _db
-            .collection('clients')
-            .doc(user.uid)
-            .update({'emailVerified': true});
-      } catch (_) {}
-    }
-    // d) Сәтті — маршрутты реактивті gate (main.dart) шешеді
+    // c) Сәтті — маршрутты реактивті gate (main.dart) шешеді
   }
 
   /// Телефон бойынша тіркелген email-ді қайтарады (phoneIndex ашық оқылады).
