@@ -72,9 +72,9 @@ class SellerDrilldownScreen extends StatelessWidget {
                               color: cGreen),
                           const SizedBox(width: 8),
                           _KpiCard(
-                              label: 'Жұптар',
+                              label: 'Дана',
                               value: '$totalPairs',
-                              sub: 'дана',
+                              sub: 'шт',
                               color: cGreenBright),
                           const SizedBox(width: 8),
                           _KpiCard(

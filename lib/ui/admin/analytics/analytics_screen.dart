@@ -289,12 +289,9 @@ class _OverviewTabState extends State<_OverviewTab> {
             }
 
             final mSales = sSnap.data ?? [];
-            // pureSales — түсімді (revenue) есептеу үшін: қайтарулар да кіреді
-            // (теріс сома → таза түсім). pureSalesNoReturn — дана/сан санау үшін:
-            // қайтару САТЫЛЫМ ЕМЕС, сондықтан жұп/сатылым санына қосылмайды.
+            // pureSales — барлық офлайн жазбалар (қайтарулар да кіреді,
+            // теріс total_price → таза түсім автоматты балансталады).
             final pureSales = mSales.where((s) => !s.isOnline).toList();
-            final pureSalesNoReturn =
-                pureSales.where((s) => !s.isReturn).toList();
 
             final onlineOrders = (oSnap.data ?? [])
                 .where((o) =>
@@ -309,8 +306,9 @@ class _OverviewTabState extends State<_OverviewTab> {
                 onlineOrders.fold<double>(0, (s, o) => s + o.totalWithDelivery);
             final totalRevenue = offlineRevenue + onlineRevenue;
 
-            final offlinePairs =
-                pureSalesNoReturn.fold<int>(0, (s, e) => s + e.quantity);
+            // Таза сан: қайтарылған дана шегеріледі (isReturn → -quantity).
+            final offlinePairs = pureSales.fold<int>(
+                0, (acc, e) => acc + (e.isReturn ? -e.quantity : e.quantity));
             final onlinePairs = onlineOrders.fold<int>(
                 0, (s, o) => s + o.items.fold(0, (a, i) => a + i.qty));
             final totalPairs = offlinePairs + onlinePairs;
@@ -439,7 +437,7 @@ class _OverviewTabState extends State<_OverviewTab> {
                             Text('Продажи по дням',
                                 style: manrope(14, FontWeight.w700,
                                     color: cInk)),
-                            QPill('$totalPairs жұп',
+                            QPill('$totalPairs шт',
                                 tone: 'green',
                                 icon: const Icon(Icons.trending_up_rounded,
                                     size: 11,
@@ -459,7 +457,7 @@ class _OverviewTabState extends State<_OverviewTab> {
                   // ── Топ продаж ────────────────────────────────────────
                   ...() {
                     final top =
-                        _buildTopSalesWidgets(pureSalesNoReturn, onlineOrders);
+                        _buildTopSalesWidgets(pureSales, onlineOrders);
                     if (top.isEmpty) return <Widget>[];
                     return [const QSecLabel('Топ продаж'), ...top];
                   }(),
@@ -479,8 +477,11 @@ class _OverviewTabState extends State<_OverviewTab> {
     for (final s in offlineSales) {
       final n = s.productName.isNotEmpty ? s.productName : s.productId;
       final e = by[n];
-      by[n] = (revenue: (e?.revenue ?? 0) + s.totalPrice,
-               qty: (e?.qty ?? 0) + s.quantity);
+      // Қайтару: revenue теріс (total_price < 0), qty шегеріледі.
+      by[n] = (
+        revenue: (e?.revenue ?? 0) + s.totalPrice,
+        qty: (e?.qty ?? 0) + (s.isReturn ? -s.quantity : s.quantity),
+      );
     }
     for (final o in completedOrders) {
       for (final it in o.items) {
@@ -491,7 +492,9 @@ class _OverviewTabState extends State<_OverviewTab> {
       }
     }
 
-    final top3 = (by.entries.toList()
+    final top3 = (by.entries
+          .where((e) => e.value.revenue > 0 && e.value.qty > 0)
+          .toList()
           ..sort((a, b) => b.value.revenue.compareTo(a.value.revenue)))
         .take(3)
         .toList();
@@ -557,8 +560,17 @@ class _SellersTab extends StatelessWidget {
 
         final Map<String, _SellerStat> bySeller = {};
         for (final s in sales) {
-          // Қайтару сатылым емес — сатушы статистикасына қоспаймыз.
-          if (s.sellerId.isEmpty || s.isOnline || s.isReturn) continue;
+          if (s.sellerId.isEmpty || s.isOnline) continue;
+          if (s.isReturn) {
+            // Қайтару: сатушы есебінен revenue мен дана санын шегереміз.
+            // total_price теріс, quantity оң — екеуі де дұрыс балансталады.
+            final stat = bySeller[s.sellerId];
+            if (stat != null) {
+              stat.revenue += s.totalPrice; // теріс → шегереді
+              stat.pairs -= s.quantity;
+            }
+            continue;
+          }
           final stat = bySeller.putIfAbsent(s.sellerId,
               () => _SellerStat(id: s.sellerId, name: s.sellerName));
           stat.revenue += s.totalPrice;
@@ -655,7 +667,7 @@ class _SellersTab extends StatelessWidget {
                         Text(stat.name,
                             style: const TextStyle(
                                 fontSize: 14, fontWeight: FontWeight.w700)),
-                        Text('${stat.count} сат · ${stat.pairs} жұп',
+                        Text('${stat.count} сат · ${stat.pairs} шт',
                             style: const TextStyle(
                                 fontSize: 11, color: cInk2)),
                       ],
@@ -766,12 +778,15 @@ class _WarehouseAnalyticsCard extends StatelessWidget {
     final Map<String, double> revByName = {};
     final Map<String, int> qtyByName = {};
     for (final s in sales) {
-      if (s.isReturn) continue; // қайтару топ-сатылымға кірмейді
       final name = s.productName.isNotEmpty ? s.productName : s.productId;
+      // Қайтару: total_price теріс, qty шегеріледі — таза сан балансталады.
       revByName[name] = (revByName[name] ?? 0) + s.totalPrice;
-      qtyByName[name] = (qtyByName[name] ?? 0) + s.quantity;
+      qtyByName[name] =
+          (qtyByName[name] ?? 0) + (s.isReturn ? -s.quantity : s.quantity);
     }
-    final top3 = (revByName.entries.toList()
+    final top3 = (revByName.entries
+          .where((e) => e.value > 0 && (qtyByName[e.key] ?? 0) > 0)
+          .toList()
           ..sort((a, b) => b.value.compareTo(a.value)))
         .take(3)
         .toList();
@@ -865,7 +880,7 @@ class _WarehouseAnalyticsCard extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           )),
-                          Text('${qtyByName[e.value.key] ?? 0} жұп',
+                          Text('${qtyByName[e.value.key] ?? 0} шт',
                               style: const TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w700,
@@ -1059,8 +1074,8 @@ class _OnlineTab extends StatelessWidget {
                 ]),
                 const SizedBox(height: 10),
                 _StatCard(
-                  label: 'Сатылған жұп (онлайн)',
-                  value: '$pairsSold жұп',
+                  label: 'Сатылған (онлайн)',
+                  value: '$pairsSold шт',
                   icon: Icons.shopping_bag_outlined,
                   color: cGreen,
                 ),
