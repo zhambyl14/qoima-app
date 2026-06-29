@@ -365,8 +365,12 @@ class ReturnService {
           'base_price': -item.subtotal,
           'discount_percent': 0.0,
           'discount_amount': 0.0,
-          'seller_id': model.sellerId ?? '',
-          'seller_name': '',
+          // Онлайн сатылым 'онлайн' сатушыға жазылады (markHandedOver/
+          // confirmOnlineOrder). Возврат та СОЛ бакетке жазылуы керек — әйтпесе
+          // возвратты ҚАБЫЛДАҒАН тірі сатушының жеке аналитикасы негізсіз
+          // минусқа кетеді (онлайн сатылым оған ешқашан жазылмаған).
+          'seller_id': 'онлайн',
+          'seller_name': 'Онлайн',
           'warehouseId': model.warehouseId ?? '',
           'is_online': model.type == ReturnType.online,
           'order_id': orderId,

@@ -33,11 +33,14 @@ class SellerDrilldownScreen extends StatelessWidget {
                     child: CircularProgressIndicator(color: cGreen));
               }
               final all = snap.data ?? [];
-              // Айдағы осы сатушының БАРЛЫҚ жазбасы (возврат та кіреді) — таза
-              // есеп үшін. Возврат жазбасы теріс total_price + оң quantity.
+              // Айдағы осы сатушының ОФЛАЙН жазбалары (возврат та кіреді) — таза
+              // есеп үшін. Онлайн сатылым/возврат 'онлайн' бакетіне жазылады әрі
+              // тірі сатушыға тиесілі емес, сондықтан мұнда КІРМЕЙДІ (басты
+              // «Продавцы» қойындысы да онлайнды елемейді).
               final entries = all
                   .where((s) =>
                       s.sellerId == sellerId &&
+                      !s.isOnline &&
                       s.saleDate.month == month.month &&
                       s.saleDate.year == month.year)
                   .toList()
