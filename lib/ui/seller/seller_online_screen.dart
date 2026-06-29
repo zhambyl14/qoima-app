@@ -89,7 +89,9 @@ class _SellerOnlineScreenState extends State<SellerOnlineScreen> {
             .toList();
       case 'done':
         return all
-            .where((o) => o.status == OrderModel.statusCompleted)
+            .where((o) =>
+                o.status == OrderModel.statusCompleted ||
+                o.status == OrderModel.statusReturned)
             .toList();
       case 'cancelled':
         return all
@@ -579,6 +581,8 @@ class _OrderCardState extends State<_OrderCard> {
         return 'Завершён';
       case OrderModel.statusCancelled:
         return 'Отменён';
+      case OrderModel.statusReturned:
+        return 'Возврат';
       default:
         return o.status;
     }
@@ -595,6 +599,7 @@ class _OrderCardState extends State<_OrderCard> {
       case OrderModel.statusCompleted:
         return 'green';
       case OrderModel.statusCancelled:
+      case OrderModel.statusReturned:
         return 'red';
       default:
         return 'gray';

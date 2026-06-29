@@ -22,6 +22,8 @@ String orderStatusLabel(String status) {
       return 'Алынды';
     case OrderModel.statusCancelled:
       return 'Бас тартылды';
+    case OrderModel.statusReturned:
+      return 'Қайтарылды';
     default:
       return status;
   }
@@ -39,6 +41,7 @@ Color orderStatusColor(String status) {
       return cGreen;
     case OrderModel.statusRejected:
     case OrderModel.statusCancelled:
+    case OrderModel.statusReturned:
       return cRed;
     default:
       return cInk3;
@@ -58,6 +61,7 @@ String orderStatusTone(String status) {
       return 'green';
     case OrderModel.statusRejected:
     case OrderModel.statusCancelled:
+    case OrderModel.statusReturned:
       return 'red';
     default:
       return 'gray';
@@ -67,4 +71,5 @@ String orderStatusTone(String status) {
 /// Тапсырыс «белсенді» ме (аяқталмаған/бас тартылмаған).
 bool orderIsActive(String status) =>
     status != OrderModel.statusCompleted &&
-    status != OrderModel.statusCancelled;
+    status != OrderModel.statusCancelled &&
+    status != OrderModel.statusReturned;

@@ -33,24 +33,31 @@ class SellerDrilldownScreen extends StatelessWidget {
                     child: CircularProgressIndicator(color: cGreen));
               }
               final all = snap.data ?? [];
-              final sales = all
+              // Айдағы осы сатушының БАРЛЫҚ жазбасы (возврат та кіреді) — таза
+              // есеп үшін. Возврат жазбасы теріс total_price + оң quantity.
+              final entries = all
                   .where((s) =>
                       s.sellerId == sellerId &&
-                      !s.isReturn && // қайтару сатушы статистикасына кірмейді
                       s.saleDate.month == month.month &&
                       s.saleDate.year == month.year)
                   .toList()
                 ..sort((a, b) => b.saleDate.compareTo(a.saleDate));
 
+              final returns = entries.where((s) => s.isReturn).toList();
+              final pureSales = entries.where((s) => !s.isReturn).toList();
+
+              // Таза көрсеткіштер: возврат шегеріледі.
               final totalRevenue =
-                  sales.fold<double>(0, (s, e) => s + e.totalPrice);
-              final totalPairs = sales.fold<int>(0, (s, e) => s + e.quantity);
+                  entries.fold<double>(0, (s, e) => s + e.totalPrice);
+              final totalPairs = entries.fold<int>(
+                  0, (s, e) => s + (e.isReturn ? -e.quantity : e.quantity));
+              final netCount = pureSales.length - returns.length;
               final avgCheck =
-                  sales.isEmpty ? 0.0 : totalRevenue / sales.length;
+                  netCount <= 0 ? 0.0 : totalRevenue / netCount;
               final totalDiscount =
-                  sales.fold<double>(0, (s, e) => s + e.discountAmount);
+                  pureSales.fold<double>(0, (s, e) => s + e.discountAmount);
               final salesWithDiscount =
-                  sales.where((s) => s.discountAmount > 0).length;
+                  pureSales.where((s) => s.discountAmount > 0).length;
 
               return CustomScrollView(
                 slivers: [
@@ -67,7 +74,7 @@ class SellerDrilldownScreen extends StatelessWidget {
                         children: [
                           _KpiCard(
                               label: 'Сатулар',
-                              value: '${sales.length}',
+                              value: '$netCount',
                               sub: 'транзакция',
                               color: cGreen),
                           const SizedBox(width: 8),
@@ -98,8 +105,8 @@ class SellerDrilldownScreen extends StatelessWidget {
                     ),
                   ),
 
-                  // Daily chart
-                  if (sales.isNotEmpty) ...[
+                  // Daily chart (возврат теріс сома → күндік белсенділік нетпен)
+                  if (entries.isNotEmpty) ...[
                     const SliverToBoxAdapter(
                       child: Padding(
                         padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
@@ -113,7 +120,7 @@ class SellerDrilldownScreen extends StatelessWidget {
                     SliverToBoxAdapter(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: _DailyChart(sales: sales, month: month),
+                        child: _DailyChart(sales: entries, month: month),
                       ),
                     ),
                   ],
@@ -125,7 +132,7 @@ class SellerDrilldownScreen extends StatelessWidget {
                         padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                         child: _DiscountCard(
                           salesWithDiscount: salesWithDiscount,
-                          totalSales: sales.length,
+                          totalSales: pureSales.length,
                           totalDiscount: totalDiscount,
                         ),
                       ),
@@ -143,8 +150,8 @@ class SellerDrilldownScreen extends StatelessWidget {
                     ),
                   ),
 
-                  // Sales list
-                  if (sales.isEmpty)
+                  // Sales list (возврат жолы да көрсетіледі — қызыл, теріс сома)
+                  if (entries.isEmpty)
                     const SliverToBoxAdapter(
                       child: Center(
                         child: Padding(
@@ -161,10 +168,10 @@ class SellerDrilldownScreen extends StatelessWidget {
                       sliver: SliverList(
                         delegate: SliverChildBuilderDelegate(
                           (_, i) => _SaleRow(
-                            sale: sales[i],
-                            productName: nameById[sales[i].productId] ?? '',
+                            sale: entries[i],
+                            productName: nameById[entries[i].productId] ?? '',
                           ),
-                          childCount: sales.length,
+                          childCount: entries.length,
                         ),
                       ),
                     ),
@@ -548,7 +555,9 @@ class _SaleRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isReturn = sale.isReturn;
     final hasDiscount = sale.discountAmount > 0;
+    final accent = isReturn ? cRed : cGreen;
     final dateStr = '${sale.saleDate.day.toString().padLeft(2, '0')}.'
         '${sale.saleDate.month.toString().padLeft(2, '0')}.'
         '${sale.saleDate.year}';
@@ -570,15 +579,15 @@ class _SaleRow extends StatelessWidget {
           width: 36,
           height: 36,
           decoration: BoxDecoration(
-            color: cGreen.withValues(alpha: 0.1),
+            color: accent.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(10),
           ),
           child: Center(
-            child: Text('${sale.quantity}',
-                style: const TextStyle(
+            child: Text('${isReturn ? '−' : ''}${sale.quantity}',
+                style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
-                    color: cGreen)),
+                    color: accent)),
           ),
         ),
         const SizedBox(width: 12),
@@ -593,23 +602,24 @@ class _SaleRow extends StatelessWidget {
                       color: cInk),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis),
-            Text('Өл. ${sale.selectedSize} · $dateStr',
+            Text(
+                '${isReturn ? 'Возврат · ' : ''}Өл. ${sale.selectedSize} · $dateStr',
                 style: TextStyle(
                     fontSize: productName.isNotEmpty ? 11 : 13,
                     fontWeight: productName.isNotEmpty
                         ? FontWeight.w400
                         : FontWeight.w600,
-                    color: productName.isNotEmpty
-                        ? cInk3
-                        : cInk)),
+                    color: isReturn
+                        ? cRed
+                        : (productName.isNotEmpty ? cInk3 : cInk))),
           ]),
         ),
         Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
           Text('${sale.totalPrice.toStringAsFixed(0)} ₸',
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
-                  color: cInk)),
+                  color: isReturn ? cRed : cInk)),
           if (hasDiscount)
             Text('−${sale.discountAmount.toStringAsFixed(0)} ₸',
                 style: const TextStyle(

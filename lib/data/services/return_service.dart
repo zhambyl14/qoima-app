@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../models/return_model.dart';
 import '../models/sale_model.dart';
+import '../models/order_model.dart';
 import '../../core/app_user.dart';
 
 class ReturnService {
@@ -28,6 +29,50 @@ class ReturnService {
   // Cross-store index so the client can find their returns without knowing adminUid.
   CollectionReference<Map<String, dynamic>> _returnsIndexCol(String clientUid) =>
       _db.collection('users').doc(clientUid).collection('returns_index');
+
+  // Жасырын өзіндік құн (себестоимость) — doc id = batchId.
+  DocumentReference<Map<String, dynamic>> _batchCostRef(
+          String adminUid, String batchId) =>
+      _db.collection('users').doc(adminUid).collection('batch_costs').doc(batchId);
+
+  // Онлайн тапсырыстар топ-деңгейлі `orders` коллекциясында сақталады.
+  DocumentReference<Map<String, dynamic>> _orderRef(String orderId) =>
+      _db.collection('orders').doc(orderId);
+
+  // ── Online cost resolution ─────────────────────────────────────────────────────
+
+  // Онлайн сатылым жасалғанда sales_history-ге жазылған бірлік өзіндік құнды
+  // (purchase_price) тапсырыс бойынша оқып, әр элементке (product|batch|size)
+  // сәйкестендіреді. Возврат осы дәл құнды кері жазады → себестоимость балансталады.
+  Future<Map<String, double>> _onlineCostByItem(
+      String adminUid, String orderId) async {
+    final map = <String, double>{};
+    if (orderId.isEmpty) return map;
+    try {
+      final snap = await _salesHistoryCol(adminUid)
+          .where('order_id', isEqualTo: orderId)
+          .get();
+      for (final d in snap.docs) {
+        final data = d.data();
+        if (data['type'] == 'return') continue; // тек нақты сатылым жазбалары
+        final key =
+            '${data['product_id']}|${data['batch_id']}|${data['selected_size']}';
+        map[key] = (data['purchase_price'] as num?)?.toDouble() ?? 0;
+      }
+    } catch (_) {}
+    return map;
+  }
+
+  // batch_costs-тан бірлік өзіндік құн (sales_history жазбасы табылмаған жағдайда).
+  Future<double> _resolveBatchCost(String adminUid, String batchId) async {
+    try {
+      final doc = await _batchCostRef(adminUid, batchId).get();
+      if (doc.exists) {
+        return (doc.data()?['purchase_price'] as num?)?.toDouble() ?? 0;
+      }
+    } catch (_) {}
+    return 0;
+  }
 
   // ── ID generation ─────────────────────────────────────────────────────────────
 
@@ -224,7 +269,17 @@ class ReturnService {
       if (!returnDoc.exists) throw ReturnException('Возврат не найден.');
       final model = ReturnModel.fromMap(returnDoc.data()!, returnDoc.id);
 
-      await _refundWithStockRestore(adminUid, returnId, method, model);
+      // Себестоимость аналитикасы балансталу үшін әр элементтің бірлік өзіндік
+      // құнын транзакцияға дейін оқимыз (транзакция ішінде query істеуге болмайды).
+      final costByItem = await _onlineCostByItem(adminUid, model.orderId ?? '');
+      for (final item in model.items) {
+        final key = '${item.productId}|${item.batchId}|${item.size}';
+        if (!costByItem.containsKey(key)) {
+          costByItem[key] = await _resolveBatchCost(adminUid, item.batchId);
+        }
+      }
+
+      await _refundWithStockRestore(adminUid, returnId, method, model, costByItem);
     } catch (e) {
       debugPrint('[ReturnService.completeRefund] $e');
       rethrow;
@@ -238,16 +293,22 @@ class ReturnService {
     String returnId,
     RefundMethod method,
     ReturnModel model,
+    Map<String, double> costByItem,
   ) async {
     final batchRefs = model.items
         .map((item) => _batchesCol(adminUid, item.productId).doc(item.batchId))
         .toList();
+    final orderId = model.orderId ?? '';
+    final orderRef = orderId.isNotEmpty ? _orderRef(orderId) : null;
 
     await _db.runTransaction((tx) async {
       // ── READ phase ──────────────────────────────────────────────────────────
       final returnRef = _returnsCol(adminUid).doc(returnId);
       final returnSnap = await tx.get(returnRef);
       final batchTxDocs = await Future.wait(batchRefs.map((r) => tx.get(r)));
+      // Тапсырыс статусын идемпотентті жаңарту үшін оны да оқимыз (барлық оқу
+      // жазудан бұрын болуы керек — Firestore транзакция ережесі).
+      if (orderRef != null) await tx.get(orderRef);
 
       // ИДЕМПОТЕНТТІЛІК: егер возврат әлдеқашан қайтарылған болса — ештеңе істемейміз.
       // Бұл қос басу кезінде бір тауардың екі рет складқа түсуін болдырмайды.
@@ -282,13 +343,45 @@ class ReturnService {
         });
       }
 
-      // Negative sales_history entry so analytics still balance.
-      final saleRef = _salesHistoryCol(adminUid).doc();
-      tx.set(saleRef, _buildReturnSaleEntry(
-        saleId: saleRef.id,
-        model: model,
-        method: method,
-      ));
+      // Әр элемент үшін бөлек теріс sales_history жазбасы (бірлік өзіндік құнымен).
+      // Тапсырыста бірнеше тауар әртүрлі өзіндік құнмен болуы мүмкін, сондықтан
+      // әрқайсысын жеке жазамыз → түсім де, себестоимость да, маржа да дәл балансталады.
+      for (final item in model.items) {
+        final key = '${item.productId}|${item.batchId}|${item.size}';
+        final unitCost = costByItem[key] ?? 0;
+        final saleRef = _salesHistoryCol(adminUid).doc();
+        tx.set(saleRef, {
+          'id': saleRef.id,
+          'type': 'return',
+          'return_id': model.id,
+          'product_id': item.productId,
+          'product_name': item.productTitle,
+          'batch_id': item.batchId,
+          'selected_size': item.size,
+          'sale_date': FieldValue.serverTimestamp(),
+          'quantity': item.quantity,
+          // Теріс мәндер — қосынды түсім дұрыс қалады.
+          'total_price': -item.subtotal,
+          'base_price': -item.subtotal,
+          'discount_percent': 0.0,
+          'discount_amount': 0.0,
+          'seller_id': model.sellerId ?? '',
+          'seller_name': '',
+          'warehouseId': model.warehouseId ?? '',
+          'is_online': model.type == ReturnType.online,
+          'order_id': orderId,
+          'payment_method': method.name,
+          // Себестоимостьты кері жазу үшін бірлік өзіндік құн.
+          'purchase_price': unitCost,
+        });
+      }
+
+      // Тапсырысты «Қайтарылды» күйіне ауыстырамыз — ол «completed» тізімінен
+      // шығып, онлайн түсім автоматты түрде азаяды (әрі «бас тарту» есебіне
+      // қосылмайды, өйткені ол бөлек статус).
+      if (orderRef != null) {
+        tx.update(orderRef, {'status': OrderModel.statusReturned});
+      }
 
       tx.update(returnRef, {
         'status': ReturnStatus.refunded.name,
@@ -296,37 +389,6 @@ class ReturnService {
         'refunded_at': FieldValue.serverTimestamp(),
       });
     });
-  }
-
-  // Builds a negative sales_history document (type: 'return') that keeps
-  // revenue analytics balanced after a refund.
-  Map<String, dynamic> _buildReturnSaleEntry({
-    required String saleId,
-    required ReturnModel model,
-    required RefundMethod method,
-  }) {
-    final firstItem = model.items.isNotEmpty ? model.items.first : null;
-    return {
-      'id': saleId,
-      'type': 'return',
-      'return_id': model.id,
-      'product_id': firstItem?.productId ?? '',
-      'product_name': firstItem?.productTitle ?? '',
-      'batch_id': firstItem?.batchId ?? '',
-      'sale_date': FieldValue.serverTimestamp(),
-      'quantity': model.items.fold(0, (s, i) => s + i.quantity),
-      // Negative values so summed revenue stays correct.
-      'total_price': -model.totalAmount,
-      'base_price': -model.totalAmount,
-      'discount_percent': 0.0,
-      'discount_amount': 0.0,
-      'seller_id': model.sellerId ?? '',
-      'seller_name': '',
-      'warehouseId': model.warehouseId ?? '',
-      'is_online': model.type == ReturnType.online,
-      'order_id': model.orderId ?? '',
-      'payment_method': method.name,
-    };
   }
 
   // ── OFFLINE returns (seller in-store) ─────────────────────────────────────────
@@ -487,8 +549,12 @@ class ReturnService {
         'base_price': -model.totalAmount,
         'discount_percent': 0.0,
         'discount_amount': 0.0,
-        'seller_id': sellerId,
-        'seller_name': sellerName,
+        // Теріс жазба ТҮПНҰСҚА сатылымның сатушысына қарсы жазылады — возвратты
+        // ким басса да (админ/басқа сатушы), аналитика дұрыс сатушыдан шегереді.
+        'seller_id':
+            sourceSale.sellerId.isNotEmpty ? sourceSale.sellerId : sellerId,
+        'seller_name':
+            sourceSale.sellerName.isNotEmpty ? sourceSale.sellerName : sellerName,
         'warehouseId': sourceSale.warehouseId,
         'is_online': false,
         'payment_method': method.name,

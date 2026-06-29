@@ -563,24 +563,32 @@ class _SellersTab extends StatelessWidget {
         final Map<String, _SellerStat> bySeller = {};
         for (final s in sales) {
           if (s.sellerId.isEmpty || s.isOnline) continue;
-          if (s.isReturn) {
-            // Қайтару: сатушы есебінен revenue мен дана санын шегереміз.
-            // total_price теріс, quantity оң — екеуі де дұрыс балансталады.
-            final stat = bySeller[s.sellerId];
-            if (stat != null) {
-              stat.revenue += s.totalPrice; // теріс → шегереді
-              stat.pairs -= s.quantity;
-            }
-            continue;
-          }
+          // ТӘРТІПТЕН ТӘУЕЛСІЗ: сатушы есебі әрқашан алдымен жасалады, сосын
+          // дельта қосылады. Бұрын возврат жазбасы (жаңарақ → тізімде бұрын
+          // тұрады) сатылымнан бұрын өңделсе stat==null болып, шегерілмей
+          // қалатын → возврат жасалса да «1 сат · 1 шт» болып көрінетін.
           final stat = bySeller.putIfAbsent(s.sellerId,
               () => _SellerStat(id: s.sellerId, name: s.sellerName));
-          stat.revenue += s.totalPrice;
-          stat.pairs += s.quantity;
-          stat.count++;
+          if (stat.name.isEmpty && s.sellerName.isNotEmpty) {
+            stat.name = s.sellerName;
+          }
+          if (s.isReturn) {
+            // Қайтару: revenue теріс (total_price < 0) → шегереді; дана мен
+            // сатылым саны да кері есептеледі.
+            stat.revenue += s.totalPrice;
+            stat.pairs -= s.quantity;
+            if (stat.count > 0) stat.count--;
+          } else {
+            stat.revenue += s.totalPrice;
+            stat.pairs += s.quantity;
+            stat.count++;
+          }
         }
 
-        final ranked = bySeller.values.toList()
+        // Толық қайтарылған (нөлге түскен) сатушы тізімнен алынады.
+        final ranked = bySeller.values
+            .where((s) => s.count > 0 || s.revenue > 0.01)
+            .toList()
           ..sort((a, b) => b.revenue.compareTo(a.revenue));
         final grandTotal = ranked.fold<double>(0, (a, s) => a + s.revenue);
 
@@ -694,7 +702,8 @@ class _SellersTab extends StatelessWidget {
 }
 
 class _SellerStat {
-  final String id, name;
+  final String id;
+  String name;
   int count = 0, pairs = 0;
   double revenue = 0;
   _SellerStat({required this.id, required this.name});
@@ -997,9 +1006,15 @@ class _OnlineTab extends StatelessWidget {
     return StreamBuilder<List<SaleModel>>(
       stream: FirestoreService().watchSalesForMonth(month),
       builder: (_, sSnap) {
+        // Возврат жазбасы (isReturn) себестоимостьты кері шегереді → балансталады.
         final onlineCost = (sSnap.data ?? [])
             .where((s) => s.isOnline)
-            .fold<double>(0, (a, s) => a + s.purchasePrice * s.quantity);
+            .fold<double>(
+                0,
+                (a, s) => a +
+                    (s.isReturn
+                        ? -(s.purchasePrice * s.quantity)
+                        : s.purchasePrice * s.quantity));
 
         return StreamBuilder<List<OrderModel>>(
           stream: FirestoreService().watchOnlineOrders(),
@@ -1020,6 +1035,9 @@ class _OnlineTab extends StatelessWidget {
                 .toList();
             final cancelled = allOrders
                 .where((o) => o.status == OrderModel.statusCancelled)
+                .length;
+            final returned = allOrders
+                .where((o) => o.status == OrderModel.statusReturned)
                 .length;
             final totalCount = allOrders.length;
 
@@ -1075,12 +1093,23 @@ class _OnlineTab extends StatelessWidget {
                   )),
                 ]),
                 const SizedBox(height: 10),
-                _StatCard(
-                  label: 'Сатылған (онлайн)',
-                  value: '$pairsSold шт',
-                  icon: Icons.shopping_bag_outlined,
-                  color: cGreen,
-                ),
+                Row(children: [
+                  Expanded(
+                      child: _StatCard(
+                    label: 'Сатылған (онлайн)',
+                    value: '$pairsSold шт',
+                    icon: Icons.shopping_bag_outlined,
+                    color: cGreen,
+                  )),
+                  const SizedBox(width: 10),
+                  Expanded(
+                      child: _StatCard(
+                    label: 'Қайтару',
+                    value: '$returned',
+                    icon: Icons.assignment_return_outlined,
+                    color: cRed,
+                  )),
+                ]),
                 const SizedBox(height: 20),
                 const Text('Күндік белсенділік (онлайн)',
                     style: TextStyle(

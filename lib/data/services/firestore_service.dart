@@ -1294,9 +1294,11 @@ class FirestoreService {
         .get();
     for (final d in snap.docs) {
       final o = OrderModel.fromFirestore(d);
-      // Stock is locked when order is in active-but-not-completed state
+      // Stock is locked when order is in active-but-not-completed state.
+      // Returned orders already restored their stock → not a lock holder.
       if (o.status == OrderModel.statusCompleted ||
-          o.status == OrderModel.statusCancelled) {
+          o.status == OrderModel.statusCancelled ||
+          o.status == OrderModel.statusReturned) {
         continue;
       }
       if (o.items.any((i) =>

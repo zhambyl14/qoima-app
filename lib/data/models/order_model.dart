@@ -68,6 +68,7 @@ class OrderModel {
   static const String statusReady     = 'ready';      // legacy — жаңа ағымда қолданылмайды
   static const String statusCompleted = 'completed';  // Берілді
   static const String statusCancelled = 'cancelled';  // Бас тартылды
+  static const String statusReturned  = 'returned';   // Қайтарылды (возврат жасалды)
 
   const OrderModel({
     required this.id,

@@ -97,7 +97,9 @@ class _ClientOrdersScreenState extends State<ClientOrdersScreen> {
                                 o.status ==
                                     OrderModel.statusCompleted ||
                                 o.status ==
-                                    OrderModel.statusCancelled)
+                                    OrderModel.statusCancelled ||
+                                o.status ==
+                                    OrderModel.statusReturned)
                             .toList();
 
                         return Column(children: [
