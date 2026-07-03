@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 class WarehouseModel {
   final String id;
   final String name;
@@ -21,36 +19,30 @@ class WarehouseModel {
     this.totalProducts = 0,
   });
 
-  factory WarehouseModel.fromJson(Map<String, dynamic> json, {String? docId}) {
-    DateTime parseDate(dynamic raw) {
-      if (raw is Timestamp) return raw.toDate();
-      if (raw is DateTime) return raw;
-      return DateTime.now();
-    }
-
+  /// Supabase `warehouses` жолынан (snake_case бағандар).
+  factory WarehouseModel.fromMap(Map<String, dynamic> m) {
+    DateTime parse(dynamic raw) =>
+        raw is String ? (DateTime.tryParse(raw) ?? DateTime.now()) : DateTime.now();
     return WarehouseModel(
-      id: docId ?? json['id'] as String? ?? '',
-      name: json['name'] as String? ?? '',
-      address: json['address'] as String?,
-      note: json['note'] as String?,
-      isMain: json['isMain'] as bool? ?? false,
-      createdAt: parseDate(json['createdAt']),
-      totalPairs: (json['totalPairs'] as num?)?.toInt() ?? 0,
-      totalProducts: (json['totalProducts'] as num?)?.toInt() ?? 0,
+      id: m['id'] as String? ?? '',
+      name: m['name'] as String? ?? '',
+      address: m['address'] as String?,
+      note: m['note'] as String?,
+      isMain: m['is_main'] as bool? ?? false,
+      createdAt: parse(m['created_at']),
+      totalPairs: (m['total_pairs'] as num?)?.toInt() ?? 0,
+      totalProducts: (m['total_products'] as num?)?.toInt() ?? 0,
     );
   }
 
-  factory WarehouseModel.fromFirestore(DocumentSnapshot doc) =>
-      WarehouseModel.fromJson(doc.data() as Map<String, dynamic>,
-          docId: doc.id);
-
-  Map<String, dynamic> toJson() => {
-        'id': id,
+  /// Supabase жазу үшін (snake_case; owner_uid сервисте қосылады).
+  Map<String, dynamic> toMap() => {
         'name': name,
-        if (address != null) 'address': address,
-        if (note != null) 'note': note,
-        'isMain': isMain,
-        'createdAt': Timestamp.fromDate(createdAt),
+        'address': address,
+        'note': note,
+        'is_main': isMain,
+        'total_pairs': totalPairs,
+        'total_products': totalProducts,
       };
 
   WarehouseModel copyWith({

@@ -148,7 +148,7 @@ class AddressesScreen extends StatelessWidget {
       backgroundColor: Colors.transparent,
       builder: (_) => Padding(
         padding: EdgeInsets.fromLTRB(
-            16, 16, 16, MediaQuery.of(context).viewInsets.bottom + 16),
+            16, 16, 16, MediaQuery.of(context).viewInsets.bottom + MediaQuery.of(context).padding.bottom + 16),
         child: Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
@@ -182,11 +182,21 @@ class AddressesScreen extends StatelessWidget {
               child: ElevatedButton(
                 onPressed: () async {
                   if (addrCtrl.text.trim().isEmpty) return;
-                  await service.addAddress(
-                    label: labelCtrl.text,
-                    address: addrCtrl.text,
-                  );
-                  if (context.mounted) Navigator.pop(context);
+                  try {
+                    await service.addAddress(
+                      label: labelCtrl.text,
+                      address: addrCtrl.text,
+                    );
+                    if (context.mounted) Navigator.pop(context);
+                  } catch (_) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                        content: const Text('Не удалось сохранить адрес'),
+                        backgroundColor: cRed,
+                        behavior: SnackBarBehavior.floating,
+                      ));
+                    }
+                  }
                 },
                 style: ElevatedButton.styleFrom(
                     backgroundColor: cGreen,

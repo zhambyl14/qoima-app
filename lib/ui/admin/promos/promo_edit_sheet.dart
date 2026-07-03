@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../data/models/promo_model.dart';
 import '../../../data/models/product_model.dart';
@@ -166,7 +166,7 @@ class _PromoEditSheetState extends State<_PromoEditSheet> {
   Widget build(BuildContext context) {
     return Padding(
       padding:
-          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom + MediaQuery.of(context).padding.bottom),
       child: Container(
         decoration: const BoxDecoration(
           color: Colors.white,

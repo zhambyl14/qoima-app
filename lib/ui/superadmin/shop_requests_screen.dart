@@ -1,4 +1,4 @@
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 import '../../data/models/shop_request_model.dart';
 import '../../data/models/store_edit_request_model.dart';
@@ -9,6 +9,7 @@ import '../../theme/qoima_design.dart';
 import 'banners_screen.dart';
 import 'marketplace_shops_screen.dart';
 import 'reject_reason_sheet.dart';
+import 'shop_owners_screen.dart';
 import 'shop_request_detail_screen.dart';
 import 'store_edit_requests_screen.dart';
 
@@ -29,7 +30,7 @@ class _ShopRequestsScreenState extends State<ShopRequestsScreen> {
       StoreEditRepository().watchPending();
   int _tab = 0; // 0 Все · 1 Новые · 2 Одобренные · 3 Отклонённые
 
-  String get _uid => FirebaseAuth.instance.currentUser!.uid;
+  String get _uid => Supabase.instance.client.auth.currentUser!.id;
 
   List<ShopRequestModel> _filter(List<ShopRequestModel> all) {
     switch (_tab) {
@@ -212,6 +213,12 @@ class _HeaderActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(mainAxisSize: MainAxisSize.min, children: [
+      QHeaderBtn(Icons.manage_accounts_outlined,
+          onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ShopOwnersScreen()),
+              )),
+      const SizedBox(width: 8),
       QHeaderBtn(Icons.storefront_outlined,
           onTap: () => Navigator.push(
                 context,

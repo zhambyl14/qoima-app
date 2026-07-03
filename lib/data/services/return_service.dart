@@ -1,60 +1,29 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/return_model.dart';
 import '../models/sale_model.dart';
 import '../models/order_model.dart';
 import '../../core/app_user.dart';
 
+/// Қайтару (возврат) сервисі (Supabase).
 class ReturnService {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
-
-  // ── Collection refs ──────────────────────────────────────────────────────────
-
-  CollectionReference<Map<String, dynamic>> _returnsCol(String adminUid) =>
-      _db.collection('users').doc(adminUid).collection('returns');
-
-  CollectionReference<Map<String, dynamic>> _productsCol(String adminUid) =>
-      _db.collection('users').doc(adminUid).collection('products');
-
-  CollectionReference<Map<String, dynamic>> _batchesCol(
-          String adminUid, String productId) =>
-      _productsCol(adminUid).doc(productId).collection('batches');
-
-  CollectionReference<Map<String, dynamic>> _salesHistoryCol(String adminUid) =>
-      _db.collection('users').doc(adminUid).collection('sales_history');
-
-  CollectionReference<Map<String, dynamic>> _warehousesCol(String adminUid) =>
-      _db.collection('users').doc(adminUid).collection('warehouses');
-
-  // Cross-store index so the client can find their returns without knowing adminUid.
-  CollectionReference<Map<String, dynamic>> _returnsIndexCol(String clientUid) =>
-      _db.collection('users').doc(clientUid).collection('returns_index');
-
-  // Жасырын өзіндік құн (себестоимость) — doc id = batchId.
-  DocumentReference<Map<String, dynamic>> _batchCostRef(
-          String adminUid, String batchId) =>
-      _db.collection('users').doc(adminUid).collection('batch_costs').doc(batchId);
-
-  // Онлайн тапсырыстар топ-деңгейлі `orders` коллекциясында сақталады.
-  DocumentReference<Map<String, dynamic>> _orderRef(String orderId) =>
-      _db.collection('orders').doc(orderId);
+  final SupabaseClient _sb = Supabase.instance.client;
 
   // ── Online cost resolution ─────────────────────────────────────────────────────
 
-  // Онлайн сатылым жасалғанда sales_history-ге жазылған бірлік өзіндік құнды
-  // (purchase_price) тапсырыс бойынша оқып, әр элементке (product|batch|size)
-  // сәйкестендіреді. Возврат осы дәл құнды кері жазады → себестоимость балансталады.
+  /// Онлайн сатылымның бірлік өзіндік құнын (product|batch|size бойынша) оқиды.
   Future<Map<String, double>> _onlineCostByItem(
       String adminUid, String orderId) async {
     final map = <String, double>{};
     if (orderId.isEmpty) return map;
     try {
-      final snap = await _salesHistoryCol(adminUid)
-          .where('order_id', isEqualTo: orderId)
-          .get();
-      for (final d in snap.docs) {
-        final data = d.data();
-        if (data['type'] == 'return') continue; // тек нақты сатылым жазбалары
+      final rows = await _sb
+          .from('sales_history')
+          .select('product_id,batch_id,selected_size,purchase_price,type')
+          .eq('owner_uid', adminUid)
+          .eq('order_id', orderId);
+      for (final data in rows) {
+        if (data['type'] == 'return') continue;
         final key =
             '${data['product_id']}|${data['batch_id']}|${data['selected_size']}';
         map[key] = (data['purchase_price'] as num?)?.toDouble() ?? 0;
@@ -63,27 +32,27 @@ class ReturnService {
     return map;
   }
 
-  // batch_costs-тан бірлік өзіндік құн (sales_history жазбасы табылмаған жағдайда).
   Future<double> _resolveBatchCost(String adminUid, String batchId) async {
     try {
-      final doc = await _batchCostRef(adminUid, batchId).get();
-      if (doc.exists) {
-        return (doc.data()?['purchase_price'] as num?)?.toDouble() ?? 0;
-      }
+      final row = await _sb
+          .from('batch_costs')
+          .select('purchase_price')
+          .eq('batch_id', batchId)
+          .maybeSingle();
+      return (row?['purchase_price'] as num?)?.toDouble() ?? 0;
     } catch (_) {}
     return 0;
   }
 
   // ── ID generation ─────────────────────────────────────────────────────────────
 
-  // Scans returns for the current year, finds the highest NNNN, increments by 1.
-  // Uses the doc ID itself (RET-YYYY-NNNN) — no extra index or query field needed.
   Future<String> _nextReturnId(String adminUid) async {
     final year = DateTime.now().year;
-    final snap = await _returnsCol(adminUid).get();
+    final rows =
+        await _sb.from('returns').select('id').eq('admin_uid', adminUid);
     int maxN = 0;
-    for (final doc in snap.docs) {
-      final parts = doc.id.split('-');
+    for (final r in rows) {
+      final parts = (r['id'] as String).split('-');
       if (parts.length == 3 && parts[0] == 'RET' && parts[1] == '$year') {
         final n = int.tryParse(parts[2]) ?? 0;
         if (n > maxN) maxN = n;
@@ -92,10 +61,6 @@ class ReturnService {
     return 'RET-$year-${(maxN + 1).toString().padLeft(4, '0')}';
   }
 
-  // Клиент жаңа возврат нөмірін СКАНСЫЗ жасайды: ол дүкеннің бүкіл returns
-  // коллекциясын оқи алмайды (ереже тек өз құжатына рұқсат береді), сондықтан
-  // _nextReturnId (барлығын get) клиентте permission-denied берер еді.
-  // Уақыт негізді бірегей нөмір — дүкен ішінде қақтығыс ықтималдығы жоқ деуге болады.
   String _clientReturnId() {
     final now = DateTime.now();
     final suffix =
@@ -129,19 +94,7 @@ class ReturnService {
         status: ReturnStatus.requested,
         createdAt: now,
       );
-
-      final wb = _db.batch();
-      wb.set(_returnsCol(input.adminUid).doc(returnId), model.toMap());
-      // Client-side index for cross-store lookup.
-      wb.set(
-        _returnsIndexCol(input.clientUid).doc(returnId),
-        {
-          'adminUid': input.adminUid,
-          'returnId': returnId,
-          'created_at': Timestamp.fromDate(now),
-        },
-      );
-      await wb.commit();
+      await _sb.from('returns').insert(model.toRow());
       return model;
     } catch (e) {
       debugPrint('[ReturnService.createReturnRequest] $e');
@@ -149,48 +102,33 @@ class ReturnService {
     }
   }
 
-  // Streams returns from the client-side index, then fetches each return doc.
-  // N+1 reads are acceptable here — clients typically have few returns.
-  Stream<List<ReturnModel>> watchClientReturns(String clientUid) {
-    return _returnsIndexCol(clientUid).snapshots().asyncMap((indexSnap) async {
-      if (indexSnap.docs.isEmpty) return <ReturnModel>[];
-      final futures = indexSnap.docs.map((doc) {
-        final adminUid = doc.data()['adminUid'] as String? ?? '';
-        final returnId = doc.data()['returnId'] as String? ?? '';
-        if (adminUid.isEmpty || returnId.isEmpty) return Future.value(null);
-        return _returnsCol(adminUid).doc(returnId).get();
-      });
-      final docs = await Future.wait(futures);
-      final result = <ReturnModel>[];
-      for (final d in docs) {
-        if (d != null && d.exists) {
-          result.add(ReturnModel.fromMap(d.data()!, d.id));
-        }
-      }
-      result.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      return result;
-    });
-  }
+  /// Клиенттің барлық дүкендердегі қайтарулары (returns.client_uid тікелей).
+  Stream<List<ReturnModel>> watchClientReturns(String clientUid) => _sb
+      .from('returns')
+      .stream(primaryKey: ['id'])
+      .eq('client_uid', clientUid)
+      .order('created_at', ascending: false)
+      .map((rows) => rows.map(ReturnModel.fromRow).toList());
 
-  Stream<ReturnModel?> watchReturn(String adminUid, String returnId) =>
-      _returnsCol(adminUid).doc(returnId).snapshots().map((doc) =>
-          doc.exists ? ReturnModel.fromMap(doc.data()!, doc.id) : null);
+  Stream<ReturnModel?> watchReturn(String adminUid, String returnId) => _sb
+      .from('returns')
+      .stream(primaryKey: ['id'])
+      .eq('id', returnId)
+      .map((rows) => rows.isEmpty ? null : ReturnModel.fromRow(rows.first));
 
-  // Only works when status == requested. Deletes from both collections.
   Future<void> cancelReturnRequest(String adminUid, String returnId) async {
     try {
-      final returnDoc = await _returnsCol(adminUid).doc(returnId).get();
-      if (!returnDoc.exists) return;
-      final model = ReturnModel.fromMap(returnDoc.data()!, returnDoc.id);
-      if (model.status != ReturnStatus.requested) {
-        throw ReturnException('Тек "Сұраныс жіберілді" күйінде болдырмауға болады.');
+      final row = await _sb
+          .from('returns')
+          .select('status')
+          .eq('id', returnId)
+          .maybeSingle();
+      if (row == null) return;
+      if (row['status'] != ReturnStatus.requested.name) {
+        throw const ReturnException(
+            'Тек "Сұраныс жіберілді" күйінде болдырмауға болады.');
       }
-      final wb = _db.batch();
-      wb.delete(_returnsCol(adminUid).doc(returnId));
-      if (model.clientUid.isNotEmpty) {
-        wb.delete(_returnsIndexCol(model.clientUid).doc(returnId));
-      }
-      await wb.commit();
+      await _sb.from('returns').delete().eq('id', returnId);
     } catch (e) {
       debugPrint('[ReturnService.cancelReturnRequest] $e');
       rethrow;
@@ -199,41 +137,29 @@ class ReturnService {
 
   // ── SELLER side ───────────────────────────────────────────────────────────────
 
-  Stream<List<ReturnModel>> watchSellerReturns(String adminUid) =>
-      _returnsCol(adminUid).snapshots().map((s) {
-        final list = s.docs
-            .map((d) => ReturnModel.fromMap(d.data(), d.id))
-            .toList();
-        list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-        return list;
-      });
+  Stream<List<ReturnModel>> watchSellerReturns(String adminUid) => _sb
+      .from('returns')
+      .stream(primaryKey: ['id'])
+      .eq('admin_uid', adminUid)
+      .order('created_at', ascending: false)
+      .map((rows) => rows.map(ReturnModel.fromRow).toList());
 
   Future<void> approveReturn(
       String adminUid, String returnId, String sellerId) async {
-    try {
-      await _returnsCol(adminUid).doc(returnId).update({
-        'status': ReturnStatus.approved.name,
-        'seller_id': sellerId,
-        'approved_at': FieldValue.serverTimestamp(),
-      });
-    } catch (e) {
-      debugPrint('[ReturnService.approveReturn] $e');
-      rethrow;
-    }
+    await _sb.from('returns').update({
+      'status': ReturnStatus.approved.name,
+      'seller_id': sellerId,
+      'approved_at': DateTime.now().toIso8601String(),
+    }).eq('id', returnId);
   }
 
   Future<void> rejectReturn(
       String adminUid, String returnId, String reason) async {
-    try {
-      await _returnsCol(adminUid).doc(returnId).update({
-        'status': ReturnStatus.rejected.name,
-        'rejection_reason': reason,
-        'rejected_at': FieldValue.serverTimestamp(),
-      });
-    } catch (e) {
-      debugPrint('[ReturnService.rejectReturn] $e');
-      rethrow;
-    }
+    await _sb.from('returns').update({
+      'status': ReturnStatus.rejected.name,
+      'rejection_reason': reason,
+      'rejected_at': DateTime.now().toIso8601String(),
+    }).eq('id', returnId);
   }
 
   Future<void> markReceived({
@@ -242,35 +168,31 @@ class ReturnService {
     required bool itemConditionOk,
     required List<String> conditionPhotos,
   }) async {
-    try {
-      await _returnsCol(adminUid).doc(returnId).update({
-        'status': ReturnStatus.received.name,
-        'item_condition_ok': itemConditionOk,
-        'condition_photos': conditionPhotos,
-        'received_at': FieldValue.serverTimestamp(),
-      });
-    } catch (e) {
-      debugPrint('[ReturnService.markReceived] $e');
-      rethrow;
-    }
+    await _sb.from('returns').update({
+      'status': ReturnStatus.received.name,
+      'item_condition_ok': itemConditionOk,
+      'condition_photos': conditionPhotos,
+      'received_at': DateTime.now().toIso8601String(),
+    }).eq('id', returnId);
   }
 
-  // Transitions received → refunded.
-  // Тауар ӘРҚАШАН қоймаға қайтарылады (поступление) — «жарамсыз» нұсқасы жоқ.
-  // Транзакция ішінде возврат статусы тексеріледі → қос басу екі рет
-  // поступление жасамайды (идемпотентті).
+  /// received → refunded: қойманы қалпына келтіреді + теріс sales_history жазады.
   Future<void> completeRefund({
     required String adminUid,
     required String returnId,
     required RefundMethod method,
   }) async {
     try {
-      final returnDoc = await _returnsCol(adminUid).doc(returnId).get();
-      if (!returnDoc.exists) throw ReturnException('Возврат не найден.');
-      final model = ReturnModel.fromMap(returnDoc.data()!, returnDoc.id);
+      final rRow = await _sb
+          .from('returns')
+          .select()
+          .eq('id', returnId)
+          .maybeSingle();
+      if (rRow == null) throw const ReturnException('Возврат не найден.');
+      if (rRow['status'] == ReturnStatus.refunded.name) return; // идемпотентті
+      final model = ReturnModel.fromRow(rRow);
 
-      // Себестоимость аналитикасы балансталу үшін әр элементтің бірлік өзіндік
-      // құнын транзакцияға дейін оқимыз (транзакция ішінде query істеуге болмайды).
+      // Бірлік өзіндік құн (онлайн сатылымнан → batch_costs fallback).
       final costByItem = await _onlineCostByItem(adminUid, model.orderId ?? '');
       for (final item in model.items) {
         final key = '${item.productId}|${item.batchId}|${item.size}';
@@ -279,127 +201,99 @@ class ReturnService {
         }
       }
 
-      await _refundWithStockRestore(adminUid, returnId, method, model, costByItem);
-    } catch (e) {
-      debugPrint('[ReturnService.completeRefund] $e');
-      rethrow;
-    }
-  }
-
-  // Stock restore + refund in a single Firestore transaction.
-  // All reads must precede all writes per Firestore rules.
-  Future<void> _refundWithStockRestore(
-    String adminUid,
-    String returnId,
-    RefundMethod method,
-    ReturnModel model,
-    Map<String, double> costByItem,
-  ) async {
-    final batchRefs = model.items
-        .map((item) => _batchesCol(adminUid, item.productId).doc(item.batchId))
-        .toList();
-    final orderId = model.orderId ?? '';
-    final orderRef = orderId.isNotEmpty ? _orderRef(orderId) : null;
-
-    await _db.runTransaction((tx) async {
-      // ── READ phase ──────────────────────────────────────────────────────────
-      final returnRef = _returnsCol(adminUid).doc(returnId);
-      final returnSnap = await tx.get(returnRef);
-      final batchTxDocs = await Future.wait(batchRefs.map((r) => tx.get(r)));
-      // Тапсырыс статусын идемпотентті жаңарту үшін оны да оқимыз (барлық оқу
-      // жазудан бұрын болуы керек — Firestore транзакция ережесі).
-      if (orderRef != null) await tx.get(orderRef);
-
-      // ИДЕМПОТЕНТТІЛІК: егер возврат әлдеқашан қайтарылған болса — ештеңе істемейміз.
-      // Бұл қос басу кезінде бір тауардың екі рет складқа түсуін болдырмайды.
-      if (!returnSnap.exists) return;
-      if (returnSnap.data()?['status'] == ReturnStatus.refunded.name) return;
-
-      // ── WRITE phase ─────────────────────────────────────────────────────────
-      final warehouseQtyDelta = <String, int>{};
-
-      for (var i = 0; i < model.items.length; i++) {
-        final item = model.items[i];
-        final batchDoc = batchTxDocs[i];
-        if (!batchDoc.exists) continue;
-
-        final rawSizes =
-            batchDoc.data()!['sizes_quantity'] as Map<dynamic, dynamic>? ?? {};
-        final sizes = rawSizes
-            .map((k, v) => MapEntry(k.toString(), (v as num).toInt()));
-        sizes[item.size] = (sizes[item.size] ?? 0) + item.quantity;
-        tx.update(batchRefs[i], {'sizes_quantity': sizes});
-
-        // Collect warehouse increments (batch may not have warehouseId if very old)
-        final wId = batchDoc.data()!['warehouseId'] as String? ?? '';
-        if (wId.isNotEmpty) {
-          warehouseQtyDelta[wId] = (warehouseQtyDelta[wId] ?? 0) + item.quantity;
+      // Партиялардың қоймасын алдын ала оқимыз (warehouse delta үшін).
+      final batchIds = model.items.map((i) => i.batchId).toSet().toList();
+      final whByBatch = <String, String?>{};
+      if (batchIds.isNotEmpty) {
+        final brows = await _sb
+            .from('batches')
+            .select('id,warehouse_id')
+            .inFilter('id', batchIds);
+        for (final b in brows) {
+          whByBatch[b['id'] as String] = b['warehouse_id'] as String?;
         }
       }
 
-      for (final entry in warehouseQtyDelta.entries) {
-        tx.update(_warehousesCol(adminUid).doc(entry.key), {
-          'totalPairs': FieldValue.increment(entry.value),
+      // Қойманы қалпына келтіреміз.
+      final warehouseQtyDelta = <String, int>{};
+      for (final item in model.items) {
+        await _sb.rpc('adjust_batch_sizes', params: {
+          'p_batch': item.batchId,
+          'p_deltas': {item.size: item.quantity},
+          'p_field': 'sizes_quantity',
+          'p_guard': false,
         });
+        final wId = whByBatch[item.batchId];
+        if (wId != null && wId.isNotEmpty) {
+          warehouseQtyDelta[wId] = (warehouseQtyDelta[wId] ?? 0) + item.quantity;
+        }
+      }
+      for (final entry in warehouseQtyDelta.entries) {
+        await _sb.rpc('increment_warehouse_totals',
+            params: {'p_wh': entry.key, 'p_pairs': entry.value, 'p_products': 0});
       }
 
-      // Әр элемент үшін бөлек теріс sales_history жазбасы (бірлік өзіндік құнымен).
-      // Тапсырыста бірнеше тауар әртүрлі өзіндік құнмен болуы мүмкін, сондықтан
-      // әрқайсысын жеке жазамыз → түсім де, себестоимость да, маржа да дәл балансталады.
+      // Әр элемент үшін теріс sales_history жазбасы (себестоимостьты балансылау).
+      final negSales = <Map<String, dynamic>>[];
       for (final item in model.items) {
         final key = '${item.productId}|${item.batchId}|${item.size}';
-        final unitCost = costByItem[key] ?? 0;
-        final saleRef = _salesHistoryCol(adminUid).doc();
-        tx.set(saleRef, {
-          'id': saleRef.id,
+        negSales.add({
+          'owner_uid': adminUid,
           'type': 'return',
           'return_id': model.id,
           'product_id': item.productId,
           'product_name': item.productTitle,
           'batch_id': item.batchId,
           'selected_size': item.size,
-          'sale_date': FieldValue.serverTimestamp(),
+          'sale_date': DateTime.now().toIso8601String(),
           'quantity': item.quantity,
-          // Теріс мәндер — қосынды түсім дұрыс қалады.
           'total_price': -item.subtotal,
           'base_price': -item.subtotal,
           'discount_percent': 0.0,
           'discount_amount': 0.0,
-          // Онлайн сатылым 'онлайн' сатушыға жазылады (markHandedOver/
-          // confirmOnlineOrder). Возврат та СОЛ бакетке жазылуы керек — әйтпесе
-          // возвратты ҚАБЫЛДАҒАН тірі сатушының жеке аналитикасы негізсіз
-          // минусқа кетеді (онлайн сатылым оған ешқашан жазылмаған).
           'seller_id': 'онлайн',
           'seller_name': 'Онлайн',
-          'warehouseId': model.warehouseId ?? '',
+          'warehouse_id': (model.warehouseId != null &&
+                  model.warehouseId!.isNotEmpty)
+              ? model.warehouseId
+              : null,
           'is_online': model.type == ReturnType.online,
-          'order_id': orderId,
+          'order_id': model.orderId ?? '',
           'payment_method': method.name,
-          // Себестоимостьты кері жазу үшін бірлік өзіндік құн.
-          'purchase_price': unitCost,
+          'purchase_price': costByItem[key] ?? 0,
         });
       }
-
-      // Тапсырысты «Қайтарылды» күйіне ауыстырамыз — ол «completed» тізімінен
-      // шығып, онлайн түсім автоматты түрде азаяды (әрі «бас тарту» есебіне
-      // қосылмайды, өйткені ол бөлек статус).
-      if (orderRef != null) {
-        tx.update(orderRef, {'status': OrderModel.statusReturned});
+      if (negSales.isNotEmpty) {
+        await _sb.from('sales_history').insert(negSales);
       }
 
-      tx.update(returnRef, {
+      // Тапсырысты «Қайтарылды» күйіне ауыстырамыз.
+      if ((model.orderId ?? '').isNotEmpty) {
+        await _sb
+            .from('orders')
+            .update({'status': OrderModel.statusReturned}).eq(
+                'id', model.orderId as String);
+      }
+
+      await _sb.from('returns').update({
         'status': ReturnStatus.refunded.name,
         'refund_method': method.name,
-        'refunded_at': FieldValue.serverTimestamp(),
-      });
-    });
+        'refunded_at': DateTime.now().toIso8601String(),
+      }).eq('id', returnId);
+
+      // Қор қайтарылды — тауар статусын жаңартамыз.
+      for (final pid in model.items.map((i) => i.productId).toSet()) {
+        await _sb
+            .rpc('recompute_product_status', params: {'p_product': pid});
+      }
+    } catch (e) {
+      debugPrint('[ReturnService.completeRefund] $e');
+      rethrow;
+    }
   }
 
   // ── OFFLINE returns (seller in-store) ─────────────────────────────────────────
 
-  // Returns recent offline sales (last [days] days) for the given admin store.
-  // No composite index needed — all filtering is client-side.
-  // If [query] is provided, filters by receiptNumber, sale id, or product name.
   Future<List<SaleModel>> findRecentSales({
     required String adminUid,
     String? receiptNumber,
@@ -408,42 +302,42 @@ class ReturnService {
   }) async {
     try {
       final cutoff = DateTime.now().subtract(Duration(days: days));
-      final snap = await _salesHistoryCol(adminUid)
-          .orderBy('sale_date', descending: true)
-          .limit(500)
-          .get();
+      final saleRows = await _sb
+          .from('sales_history')
+          .select()
+          .eq('owner_uid', adminUid)
+          .order('sale_date', ascending: false)
+          .limit(500);
 
-      // Sales that already have a return (any non-rejected) — exclude them so a
-      // sale can't be returned twice (over-refund) and so the negative return
-      // entry itself never shows up as a returnable "sale".
-      final returnsSnap = await _returnsCol(adminUid).get();
+      final returnRows =
+          await _sb.from('returns').select('sale_id,status').eq('admin_uid', adminUid);
       final returnedSaleIds = <String>{};
-      for (final d in returnsSnap.docs) {
-        final data = d.data();
+      for (final data in returnRows) {
         if (data['status'] == ReturnStatus.rejected.name) continue;
         final sid = data['sale_id'] as String?;
         if (sid != null && sid.isNotEmpty) returnedSaleIds.add(sid);
       }
 
-      var sales = snap.docs
-          .map(SaleModel.fromFirestore)
+      var sales = saleRows
+          .map(SaleModel.fromMap)
           .where((s) =>
-              !s.isReturn && // теріс қайтару жазбасын қайтаруға болмайды
+              !s.isReturn &&
               !s.isOnline &&
               s.saleDate.isAfter(cutoff) &&
-              !returnedSaleIds.contains(s.id)) // бір сатылым — бір рет қайтару
+              !returnedSaleIds.contains(s.id))
           .toList();
 
-      final effectiveQuery =
-          query?.trim().isNotEmpty == true ? query!.trim() : receiptNumber?.trim();
-
+      final effectiveQuery = query?.trim().isNotEmpty == true
+          ? query!.trim()
+          : receiptNumber?.trim();
       if (effectiveQuery != null && effectiveQuery.isNotEmpty) {
         final q = effectiveQuery.toUpperCase();
-        sales = sales.where((s) {
-          return s.id.toUpperCase().contains(q) ||
-              s.receiptNumber.toUpperCase().contains(q) ||
-              s.productName.toUpperCase().contains(q);
-        }).toList();
+        sales = sales
+            .where((s) =>
+                s.id.toUpperCase().contains(q) ||
+                s.receiptNumber.toUpperCase().contains(q) ||
+                s.productName.toUpperCase().contains(q))
+            .toList();
       }
       return sales;
     } catch (e) {
@@ -452,8 +346,6 @@ class ReturnService {
     }
   }
 
-  // Creates an offline return and immediately completes the stock restore
-  // (seller has the item in hand). No multi-step approval flow.
   Future<ReturnModel> createOfflineReturn({
     required String adminUid,
     required SaleModel sourceSale,
@@ -463,15 +355,17 @@ class ReturnService {
     required String sellerId,
   }) async {
     try {
-      // Бір сатылым — бір рет қайтару. Екі рет кнопка басуды сервер деңгейінде де блоктаймыз.
-      final existingSnap = await _returnsCol(adminUid).get();
-      final alreadyReturned = existingSnap.docs.any((d) {
-        final data = d.data();
-        return data['sale_id'] == sourceSale.id &&
-            data['status'] != ReturnStatus.rejected.name;
-      });
+      // Бір сатылым — бір рет қайтару.
+      final existing = await _sb
+          .from('returns')
+          .select('sale_id,status')
+          .eq('admin_uid', adminUid)
+          .eq('sale_id', sourceSale.id);
+      final alreadyReturned = existing
+          .any((d) => d['status'] != ReturnStatus.rejected.name);
       if (alreadyReturned) {
-        throw ReturnException('Бұл сатылым бойынша қайтару бұрын жасалған.');
+        throw const ReturnException(
+            'Бұл сатылым бойынша қайтару бұрын жасалған.');
       }
 
       final returnId = await _nextReturnId(adminUid);
@@ -482,9 +376,8 @@ class ReturnService {
         id: returnId,
         adminUid: adminUid,
         sellerId: sellerId,
-        warehouseId: sourceSale.warehouseId.isNotEmpty
-            ? sourceSale.warehouseId
-            : null,
+        warehouseId:
+            sourceSale.warehouseId.isNotEmpty ? sourceSale.warehouseId : null,
         clientUid: '',
         clientName: '',
         clientPhone: '',
@@ -502,71 +395,68 @@ class ReturnService {
         itemConditionOk: true,
         conditionPhotos: const [],
       );
+      await _sb.from('returns').insert(model.toRow());
 
-      // Pre-read all batch docs to get current sizes and warehouseId.
-      final batchRefs = items
-          .map((i) => _batchesCol(adminUid, i.productId).doc(i.batchId))
-          .toList();
-      final batchDocs = await Future.wait(batchRefs.map((r) => r.get()));
-
-      final wb = _db.batch();
-      wb.set(_returnsCol(adminUid).doc(returnId), model.toMap());
-
-      // Restore stock and update warehouse counters.
+      // Қойманы қалпына келтіру + warehouse есептегіш.
+      final batchIds = items.map((i) => i.batchId).toSet().toList();
+      final whByBatch = <String, String?>{};
+      if (batchIds.isNotEmpty) {
+        final brows = await _sb
+            .from('batches')
+            .select('id,warehouse_id')
+            .inFilter('id', batchIds);
+        for (final b in brows) {
+          whByBatch[b['id'] as String] = b['warehouse_id'] as String?;
+        }
+      }
       final warehouseQtyDelta = <String, int>{};
-      for (var i = 0; i < items.length; i++) {
-        final item = items[i];
-        final batchDoc = batchDocs[i];
-        if (!batchDoc.exists) continue;
-
-        final rawSizes = batchDoc.data()!['sizes_quantity']
-            as Map<dynamic, dynamic>? ?? {};
-        final sizes =
-            rawSizes.map((k, v) => MapEntry(k.toString(), (v as num).toInt()));
-        sizes[item.size] = (sizes[item.size] ?? 0) + item.quantity;
-        wb.update(batchRefs[i], {'sizes_quantity': sizes});
-
-        final wId = batchDoc.data()!['warehouseId'] as String? ?? '';
-        if (wId.isNotEmpty) {
-          warehouseQtyDelta[wId] =
-              (warehouseQtyDelta[wId] ?? 0) + item.quantity;
+      for (final item in items) {
+        await _sb.rpc('adjust_batch_sizes', params: {
+          'p_batch': item.batchId,
+          'p_deltas': {item.size: item.quantity},
+          'p_field': 'sizes_quantity',
+          'p_guard': false,
+        });
+        final wId = whByBatch[item.batchId];
+        if (wId != null && wId.isNotEmpty) {
+          warehouseQtyDelta[wId] = (warehouseQtyDelta[wId] ?? 0) + item.quantity;
         }
       }
       for (final entry in warehouseQtyDelta.entries) {
-        wb.update(_warehousesCol(adminUid).doc(entry.key), {
-          'totalPairs': FieldValue.increment(entry.value),
-        });
+        await _sb.rpc('increment_warehouse_totals',
+            params: {'p_wh': entry.key, 'p_pairs': entry.value, 'p_products': 0});
       }
 
-      // Negative sales_history entry.
-      final saleRef = _salesHistoryCol(adminUid).doc();
-      wb.set(saleRef, {
-        'id': saleRef.id,
+      // Теріс sales_history жазбасы (түпнұсқа сатушыға қарсы).
+      await _sb.from('sales_history').insert({
+        'owner_uid': adminUid,
         'type': 'return',
         'return_id': returnId,
-        'product_id': items.isNotEmpty ? items.first.productId : '',
+        'product_id': items.isNotEmpty ? items.first.productId : null,
         'product_name': items.isNotEmpty ? items.first.productTitle : '',
-        'batch_id': items.isNotEmpty ? items.first.batchId : '',
-        'sale_date': Timestamp.fromDate(now),
+        'batch_id': items.isNotEmpty ? items.first.batchId : null,
+        'sale_date': now.toIso8601String(),
         'quantity': items.fold(0, (s, i) => s + i.quantity),
         'total_price': -model.totalAmount,
         'base_price': -model.totalAmount,
         'discount_percent': 0.0,
         'discount_amount': 0.0,
-        // Теріс жазба ТҮПНҰСҚА сатылымның сатушысына қарсы жазылады — возвратты
-        // ким басса да (админ/басқа сатушы), аналитика дұрыс сатушыдан шегереді.
         'seller_id':
             sourceSale.sellerId.isNotEmpty ? sourceSale.sellerId : sellerId,
-        'seller_name':
-            sourceSale.sellerName.isNotEmpty ? sourceSale.sellerName : sellerName,
-        'warehouseId': sourceSale.warehouseId,
+        'seller_name': sourceSale.sellerName.isNotEmpty
+            ? sourceSale.sellerName
+            : sellerName,
+        'warehouse_id':
+            sourceSale.warehouseId.isEmpty ? null : sourceSale.warehouseId,
         'is_online': false,
         'payment_method': method.name,
-        // Себестоимость аналитикасы дұрыс балансталу үшін сақтаймыз.
         'purchase_price': sourceSale.purchasePrice,
       });
 
-      await wb.commit();
+      for (final pid in items.map((i) => i.productId).toSet()) {
+        await _sb
+            .rpc('recompute_product_status', params: {'p_product': pid});
+      }
       return model;
     } catch (e) {
       debugPrint('[ReturnService.createOfflineReturn] $e');
@@ -576,43 +466,38 @@ class ReturnService {
 
   // ── ADMIN side ────────────────────────────────────────────────────────────────
 
-  Stream<List<ReturnModel>> watchAllReturns(String adminUid) =>
-      _returnsCol(adminUid).snapshots().map((s) {
-        final list = s.docs
-            .map((d) => ReturnModel.fromMap(d.data(), d.id))
-            .toList();
-        list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-        return list;
-      });
+  Stream<List<ReturnModel>> watchAllReturns(String adminUid) => _sb
+      .from('returns')
+      .stream(primaryKey: ['id'])
+      .eq('admin_uid', adminUid)
+      .order('created_at', ascending: false)
+      .map((rows) => rows.map(ReturnModel.fromRow).toList());
 
-  // Computes analytics for a date range.
-  // Avoids composite indexes: loads all documents client-side and filters.
   Future<ReturnAnalytics> computeAnalytics({
     required String adminUid,
     required DateRange range,
   }) async {
     try {
-      final returnsSnap = await _returnsCol(adminUid).get();
-      final allReturns = returnsSnap.docs
-          .map((d) => ReturnModel.fromMap(d.data(), d.id))
+      final returnRows =
+          await _sb.from('returns').select().eq('admin_uid', adminUid);
+      final allReturns = returnRows
+          .map(ReturnModel.fromRow)
           .where((r) =>
-              r.createdAt.isAfter(range.from) &&
-              r.createdAt.isBefore(range.to))
+              r.createdAt.isAfter(range.from) && r.createdAt.isBefore(range.to))
           .toList();
 
-      final salesSnap = await _salesHistoryCol(adminUid)
-          .orderBy('sale_date', descending: true)
-          .get();
-      final totalSales = salesSnap.docs
-          .where((d) {
-            final date = (d.data()['sale_date'] as Timestamp?)?.toDate();
-            final isReturn = d.data()['type'] == 'return';
-            return !isReturn &&
-                date != null &&
-                date.isAfter(range.from) &&
-                date.isBefore(range.to);
-          })
-          .length;
+      final saleRows = await _sb
+          .from('sales_history')
+          .select('sale_date,type')
+          .eq('owner_uid', adminUid);
+      final totalSales = saleRows.where((d) {
+        final raw = d['sale_date'];
+        final date = raw is String ? DateTime.tryParse(raw) : null;
+        return d['type'] != 'return' &&
+            date != null &&
+            date.isAfter(range.from) &&
+            date.isBefore(range.to);
+      }).length;
 
       final reasonBreakdown = <ReturnReason, int>{};
       final productCounts = <String, ({String title, int count})>{};
@@ -620,7 +505,6 @@ class ReturnService {
 
       for (final r in allReturns) {
         reasonBreakdown[r.reason] = (reasonBreakdown[r.reason] ?? 0) + 1;
-
         for (final item in r.items) {
           final prev = productCounts[item.productId];
           productCounts[item.productId] = (
@@ -628,7 +512,6 @@ class ReturnService {
             count: (prev?.count ?? 0) + item.quantity,
           );
         }
-
         if (r.sellerId != null && r.status == ReturnStatus.refunded) {
           perSellerClosed[r.sellerId!] =
               (perSellerClosed[r.sellerId!] ?? 0) + 1;
@@ -637,7 +520,6 @@ class ReturnService {
 
       final topProducts = productCounts.values.toList()
         ..sort((a, b) => b.count.compareTo(a.count));
-
       final returnRate =
           totalSales > 0 ? allReturns.length / totalSales * 100 : 0.0;
 

@@ -69,7 +69,7 @@ class _RejectReasonSheetState extends State<_RejectReasonSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final bottom = MediaQuery.of(context).viewInsets.bottom;
+    final bottom = MediaQuery.of(context).viewInsets.bottom + MediaQuery.of(context).padding.bottom;
     final canConfirm = _noteCtrl.text.trim().isNotEmpty;
 
     return Container(

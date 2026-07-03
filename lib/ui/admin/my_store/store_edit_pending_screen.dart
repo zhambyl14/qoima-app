@@ -1,4 +1,4 @@
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 import '../../../data/models/store_edit_request_model.dart';
 import '../../../data/repositories/store_edit_repository.dart';
@@ -12,7 +12,7 @@ import 'store_edit_screen.dart';
 class StoreEditPendingScreen extends StatelessWidget {
   const StoreEditPendingScreen({super.key});
 
-  String get _uid => FirebaseAuth.instance.currentUser!.uid;
+  String get _uid => Supabase.instance.client.auth.currentUser!.id;
 
   Future<void> _cancel(BuildContext context, String editId) async {
     final ok = await showDialog<bool>(

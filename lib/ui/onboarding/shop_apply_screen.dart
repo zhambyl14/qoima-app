@@ -1,5 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -56,8 +55,7 @@ class _ShopApplyScreenState extends State<ShopApplyScreen> {
     // Тіркеуде енгізілген атпен/телефонмен алдын ала толтыру.
     final user = context.read<AppUser>();
     _ownerNameCtrl.text = user.name;
-    final phone = FirebaseAuth.instance.currentUser?.phoneNumber ?? '';
-    if (phone.isNotEmpty) _phoneCtrl.text = phone;
+    if (user.phone.isNotEmpty) _phoneCtrl.text = user.phone;
   }
 
   @override
@@ -86,7 +84,7 @@ class _ShopApplyScreenState extends State<ShopApplyScreen> {
     if (!_canSubmit) return;
     setState(() => _loading = true);
     try {
-      final uid = FirebaseAuth.instance.currentUser!.uid;
+      final uid = Supabase.instance.client.auth.currentUser!.id;
       final req = ShopRequestModel(
         id: '',
         ownerUid: uid,
@@ -106,11 +104,11 @@ class _ShopApplyScreenState extends State<ShopApplyScreen> {
       );
       final reqId = await _repo.submitRequest(req);
 
-      // users/{uid}-ге заявка ID-сін жазамыз (owner өз құжаты — рұқсат бар).
-      await FirebaseFirestore.instance.collection('users').doc(uid).set({
-        'shopRequestId': reqId,
-        'shopStatus': 'pending',
-      }, SetOptions(merge: true));
+      // users-ке заявка ID-сін жазамыз (owner өз жолы — RLS рұқсат береді).
+      await Supabase.instance.client.from('users').update({
+        'shop_request_id': reqId,
+        'shop_status': 'pending',
+      }).eq('id', uid);
 
       // Навигация жоқ — корневой gate watchMyRequest арқылы күту экранын көрсетеді.
     } catch (e) {
@@ -139,7 +137,7 @@ class _ShopApplyScreenState extends State<ShopApplyScreen> {
         Expanded(
           child: SingleChildScrollView(
             padding: EdgeInsets.fromLTRB(
-                20, 16, 20, MediaQuery.of(context).viewInsets.bottom + 28),
+                20, 16, 20, MediaQuery.of(context).viewInsets.bottom + MediaQuery.of(context).padding.bottom + 28),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [

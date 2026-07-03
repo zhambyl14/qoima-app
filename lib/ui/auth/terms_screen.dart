@@ -1,5 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/app_user.dart';
@@ -29,11 +28,11 @@ class _TermsScreenState extends State<TermsScreen> {
     if (!_bothChecked || _loading) return;
     setState(() => _loading = true);
     try {
-      final uid = FirebaseAuth.instance.currentUser!.uid;
-      await FirebaseFirestore.instance.collection('users').doc(uid).set({
-        'termsAccepted': true,
-        'termsAcceptedAt': Timestamp.now(),
-      }, SetOptions(merge: true));
+      final sb = Supabase.instance.client;
+      await sb.from('users').update({
+        'terms_accepted': true,
+        'terms_accepted_at': DateTime.now().toIso8601String(),
+      }).eq('id', sb.auth.currentUser!.id);
       if (!mounted) return;
       // Gate осыны көріп, дүкен заявкасы экранына ауысады.
       context.read<AppUser>().termsAccepted = true;

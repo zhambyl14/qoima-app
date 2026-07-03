@@ -1,4 +1,4 @@
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 import '../../core/card_utils.dart';
 import '../../data/models/shop_request_model.dart';
@@ -27,7 +27,7 @@ class _ShopRequestDetailScreenState extends State<ShopRequestDetailScreen> {
     try {
       await _repo.approveRequest(
         requestId: req.id,
-        reviewedBy: FirebaseAuth.instance.currentUser!.uid,
+        reviewedBy: Supabase.instance.client.auth.currentUser!.id,
       );
       if (mounted) {
         Navigator.pop(context);
@@ -60,7 +60,7 @@ class _ShopRequestDetailScreenState extends State<ShopRequestDetailScreen> {
     try {
       await _repo.rejectRequest(
         requestId: req.id,
-        reviewedBy: FirebaseAuth.instance.currentUser!.uid,
+        reviewedBy: Supabase.instance.client.auth.currentUser!.id,
         reviewNote: note,
       );
       if (mounted) {

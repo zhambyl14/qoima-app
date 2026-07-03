@@ -88,7 +88,7 @@ class _SheetShell extends StatelessWidget {
         borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
       ),
       padding: EdgeInsets.fromLTRB(
-          22, 10, 22, MediaQuery.of(context).viewInsets.bottom + 26),
+          22, 10, 22, MediaQuery.of(context).viewInsets.bottom + MediaQuery.of(context).padding.bottom + 26),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,

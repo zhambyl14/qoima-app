@@ -1,115 +1,107 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/store_edit_request_model.dart';
 import '../models/store_model.dart';
 
-/// `storeEditRequests` collection-імен жұмыс істейтін қабат (v10).
-/// Owner дүкен мәліметтерін өзгерту запросын жібереді/бақылайды;
-/// superadmin қабылдайды/қайтарады. Approve кезінде өзгерістер
-/// `users/{ownerUid}/store/{ownerUid}` құжатына batch-пен қолданылады.
+/// `store_edit_requests` кестесімен жұмыс істейтін қабат (Supabase, v10).
+/// Approve кезінде өзгерістер `stores` кестесіне қолданылады.
 class StoreEditRepository {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final SupabaseClient _sb = Supabase.instance.client;
 
-  CollectionReference<Map<String, dynamic>> get _col =>
-      _db.collection('storeEditRequests');
-
-  DocumentReference<Map<String, dynamic>> _storeRef(String ownerUid) =>
-      _db.collection('users').doc(ownerUid).collection('store').doc(ownerUid);
+  /// EditField.field (ескі store құжатының camelCase кілттері) → stores бағаны.
+  static const _fieldToColumn = {
+    'storeName': 'store_name',
+    'city': 'city',
+    'description': 'description',
+    'ownerName': 'owner_name',
+    'ownerIin': 'owner_iin',
+    'phone': 'phone',
+    'paymentCardNumber': 'payment_card_number',
+  };
 
   // ── Owner ──────────────────────────────────────────────────────────────────
 
-  /// Owner — өзгерту запросын жіберу. Жасалған құжаттың ID-сін қайтарады.
   Future<String> submitEdit(StoreEditRequestModel req) async {
-    final doc = await _col.add(req.toJson());
-    return doc.id;
+    final row = await _sb
+        .from('store_edit_requests')
+        .insert(req.toMap())
+        .select('id')
+        .single();
+    return row['id'] as String;
   }
 
-  /// Owner — өзінің ағымдағы pending запросын бақылау (болса).
-  /// Композиттік индекс талап етпеу үшін status сүзу/сұрыптау клиент жағында.
-  Stream<StoreEditRequestModel?> watchMyPending(String ownerUid) {
-    return _col.where('ownerUid', isEqualTo: ownerUid).snapshots().map((s) {
-      final pending = s.docs
-          .map(StoreEditRequestModel.fromFirestore)
-          .where((r) => r.isPending)
-          .toList()
-        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      return pending.isEmpty ? null : pending.first;
-    });
-  }
+  Stream<StoreEditRequestModel?> watchMyPending(String ownerUid) => _sb
+      .from('store_edit_requests')
+      .stream(primaryKey: ['id'])
+      .eq('owner_uid', ownerUid)
+      .order('created_at', ascending: false)
+      .map((rows) {
+        final pending = rows
+            .map(StoreEditRequestModel.fromMap)
+            .where((r) => r.isPending)
+            .toList();
+        return pending.isEmpty ? null : pending.first;
+      });
 
-  /// Owner — өзінің ЕҢ СОҢҒЫ запросын (кез келген статус) бақылау. Pending күту
-  /// экраны статус өзгерісіне (approved/rejected) реакция жасау үшін қолданады.
-  Stream<StoreEditRequestModel?> watchMyLatest(String ownerUid) {
-    return _col.where('ownerUid', isEqualTo: ownerUid).snapshots().map((s) {
-      if (s.docs.isEmpty) return null;
-      final list = s.docs.map(StoreEditRequestModel.fromFirestore).toList()
-        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      return list.first;
-    });
-  }
+  Stream<StoreEditRequestModel?> watchMyLatest(String ownerUid) => _sb
+      .from('store_edit_requests')
+      .stream(primaryKey: ['id'])
+      .eq('owner_uid', ownerUid)
+      .order('created_at', ascending: false)
+      .map((rows) =>
+          rows.isEmpty ? null : StoreEditRequestModel.fromMap(rows.first));
 
-  /// Owner — запросты қайтарып алу (cancel).
-  Future<void> cancelEdit(String editId) =>
-      _col.doc(editId).update({'status': 'cancelled'});
+  Future<void> cancelEdit(String editId) => _sb
+      .from('store_edit_requests')
+      .update({'status': 'cancelled'}).eq('id', editId);
 
   // ── Superadmin ───────────────────────────────────────────────────────────────
 
-  /// Superadmin — барлық pending өзгерту запростары (жаңасы жоғарыда).
-  Stream<List<StoreEditRequestModel>> watchPending() {
-    return _col.where('status', isEqualTo: 'pending').snapshots().map((s) {
-      final list = s.docs.map(StoreEditRequestModel.fromFirestore).toList()
-        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      return list;
-    });
-  }
+  Stream<List<StoreEditRequestModel>> watchPending() => _sb
+      .from('store_edit_requests')
+      .stream(primaryKey: ['id'])
+      .eq('status', 'pending')
+      .order('created_at', ascending: false)
+      .map((rows) => rows.map(StoreEditRequestModel.fromMap).toList());
 
-  /// Superadmin — барлық запростар (фильтр үшін, жаңасы жоғарыда).
-  Stream<List<StoreEditRequestModel>> watchAll() {
-    return _col
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .map((s) => s.docs.map(StoreEditRequestModel.fromFirestore).toList());
-  }
+  Stream<List<StoreEditRequestModel>> watchAll() => _sb
+      .from('store_edit_requests')
+      .stream(primaryKey: ['id'])
+      .order('created_at', ascending: false)
+      .map((rows) => rows.map(StoreEditRequestModel.fromMap).toList());
 
-  /// Superadmin — ҚАБЫЛДАУ: store құжатына өзгерістерді қолданып, статусты жаңарт.
+  /// Superadmin — ҚАБЫЛДАУ: store кестесіне өзгерістерді қолданып, статусты жаңарт.
   Future<void> approveEdit({
     required StoreEditRequestModel req,
     required String reviewedBy,
   }) async {
-    final batch = _db.batch();
-
-    // 1) store құжатына барлық өзгертілген өрістерді қолдану (field = store кілті).
-    final Map<String, dynamic> patch = {'updatedAt': Timestamp.now()};
+    final patch = <String, dynamic>{
+      'updated_at': DateTime.now().toIso8601String()
+    };
     for (final c in req.changes) {
-      patch[c.field] = c.newValue;
-      // Дүкен аты өзгерсе — slug-ты да жаңартамыз (каталог сілтемесі үшін).
+      final col = _fieldToColumn[c.field] ?? c.field;
+      patch[col] = c.newValue;
       if (c.field == 'storeName') {
-        patch['storeSlug'] = StoreModel.generateSlug(c.newValue);
+        patch['store_slug'] = StoreModel.generateSlug(c.newValue);
       }
     }
-    batch.set(_storeRef(req.ownerUid), patch, SetOptions(merge: true));
-
-    // 2) запрос статусын жаңарту.
-    batch.update(_col.doc(req.id), {
+    await _sb.from('stores').update(patch).eq('admin_uid', req.ownerUid);
+    await _sb.from('store_edit_requests').update({
       'status': 'approved',
-      'reviewedAt': Timestamp.now(),
-      'reviewedBy': reviewedBy,
-      'reviewNote': '',
-    });
-
-    await batch.commit();
+      'reviewed_at': DateTime.now().toIso8601String(),
+      'reviewed_by': reviewedBy,
+      'review_note': '',
+    }).eq('id', req.id);
   }
 
-  /// Superadmin — ҚАЙТАРУ (себеппен).
   Future<void> rejectEdit({
     required String editId,
     required String reviewedBy,
     required String reviewNote,
-  }) async {
-    await _col.doc(editId).update({
-      'status': 'rejected',
-      'reviewedAt': Timestamp.now(),
-      'reviewedBy': reviewedBy,
-      'reviewNote': reviewNote,
-    });
-  }
+  }) =>
+      _sb.from('store_edit_requests').update({
+        'status': 'rejected',
+        'reviewed_at': DateTime.now().toIso8601String(),
+        'reviewed_by': reviewedBy,
+        'review_note': reviewNote,
+      }).eq('id', editId);
 }

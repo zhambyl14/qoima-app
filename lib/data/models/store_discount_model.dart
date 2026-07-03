@@ -1,6 +1,5 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 enum DiscountType { percent, fixed }
+
 enum DiscountScope { product, category, store }
 
 class StoreDiscountModel {
@@ -11,7 +10,7 @@ class StoreDiscountModel {
   final DiscountScope scope;
   final String scopeId;
   final String scopeLabel;
-  final List<String> targetProductIds; // batch-скидка нақты осы тауарларға жазылды
+  final List<String> targetProductIds;
   final bool hasDateLimit;
   final DateTime? startsAt;
   final DateTime? endsAt;
@@ -34,47 +33,52 @@ class StoreDiscountModel {
     required this.createdAt,
   });
 
-  factory StoreDiscountModel.fromFirestore(DocumentSnapshot doc) {
-    final d = doc.data() as Map<String, dynamic>;
-    return StoreDiscountModel(
-      id: doc.id,
-      storeId: d['storeId'] as String? ?? '',
-      type: d['type'] == 'fixed' ? DiscountType.fixed : DiscountType.percent,
-      value: (d['value'] as num?)?.toDouble() ?? 0,
-      scope: _scope(d['scope'] as String?),
-      scopeId: d['scopeId'] as String? ?? '',
-      scopeLabel: d['scopeLabel'] as String? ?? '',
-      targetProductIds:
-          (d['targetProductIds'] as List?)?.map((e) => e.toString()).toList() ?? [],
-      hasDateLimit: d['hasDateLimit'] as bool? ?? false,
-      startsAt: (d['startsAt'] as Timestamp?)?.toDate(),
-      endsAt: (d['endsAt'] as Timestamp?)?.toDate(),
-      isActive: d['isActive'] as bool? ?? true,
-      createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-    );
-  }
-
   static DiscountScope _scope(String? s) {
     switch (s) {
-      case 'category': return DiscountScope.category;
-      case 'store':    return DiscountScope.store;
-      default:         return DiscountScope.product;
+      case 'category':
+        return DiscountScope.category;
+      case 'store':
+        return DiscountScope.store;
+      default:
+        return DiscountScope.product;
     }
   }
 
-  Map<String, dynamic> toJson() => {
-        'storeId': storeId,
+  /// Supabase `store_discounts` жолынан (snake_case бағандар).
+  factory StoreDiscountModel.fromMap(Map<String, dynamic> m) {
+    DateTime? dtn(dynamic v) =>
+        v is String && v.isNotEmpty ? DateTime.tryParse(v) : null;
+    return StoreDiscountModel(
+      id: m['id'] as String? ?? '',
+      storeId: m['store_id'] as String? ?? '',
+      type: m['type'] == 'fixed' ? DiscountType.fixed : DiscountType.percent,
+      value: (m['value'] as num?)?.toDouble() ?? 0,
+      scope: _scope(m['scope'] as String?),
+      scopeId: m['scope_id'] as String? ?? '',
+      scopeLabel: m['scope_label'] as String? ?? '',
+      targetProductIds:
+          (m['target_product_ids'] as List?)?.map((e) => e.toString()).toList() ??
+              [],
+      hasDateLimit: m['has_date_limit'] as bool? ?? false,
+      startsAt: dtn(m['starts_at']),
+      endsAt: dtn(m['ends_at']),
+      isActive: m['is_active'] as bool? ?? true,
+      createdAt: dtn(m['created_at']) ?? DateTime.now(),
+    );
+  }
+
+  /// Supabase жазу үшін (snake_case; store_id сервисте қосылады).
+  Map<String, dynamic> toMap() => {
         'type': type == DiscountType.fixed ? 'fixed' : 'percent',
         'value': value,
         'scope': scope.name,
-        'scopeId': scopeId,
-        'scopeLabel': scopeLabel,
-        'targetProductIds': targetProductIds,
-        'hasDateLimit': hasDateLimit,
-        'startsAt': startsAt != null ? Timestamp.fromDate(startsAt!) : null,
-        'endsAt': endsAt != null ? Timestamp.fromDate(endsAt!) : null,
-        'isActive': isActive,
-        'createdAt': Timestamp.fromDate(createdAt),
+        'scope_id': scopeId,
+        'scope_label': scopeLabel,
+        'target_product_ids': targetProductIds,
+        'has_date_limit': hasDateLimit,
+        'starts_at': startsAt?.toIso8601String(),
+        'ends_at': endsAt?.toIso8601String(),
+        'is_active': isActive,
       };
 
   String get displayValue => type == DiscountType.percent

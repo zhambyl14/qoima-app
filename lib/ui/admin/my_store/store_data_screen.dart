@@ -1,4 +1,4 @@
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 import '../../../core/card_utils.dart';
 import '../../../data/models/store_edit_request_model.dart';
@@ -14,7 +14,7 @@ import 'store_edit_screen.dart';
 class StoreDataScreen extends StatelessWidget {
   const StoreDataScreen({super.key});
 
-  String get _uid => FirebaseAuth.instance.currentUser!.uid;
+  String get _uid => Supabase.instance.client.auth.currentUser!.id;
 
   @override
   Widget build(BuildContext context) {

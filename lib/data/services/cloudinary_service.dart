@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'dart:typed_data';
-import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class CloudinaryService {
   static const String _cloudName = 'divynstru';
@@ -10,20 +10,12 @@ class CloudinaryService {
   static const String _folder = 'qoima_products';
   static const String _receiptsFolder = 'qoima_receipts';
 
-  // ── Суретті ЖОЮ үшін қол қою (signed destroy) ────────────────────────────
-  // Cloudinary Dashboard → Settings → API Keys ішінен алыңыз.
-  // НАЗАР: api_secret клиент аппқа ендіріледі — декомпиляцияланса, біреу
-  // Cloudinary активтерін басқара алады. Ішкі админ-құрал үшін қолайлы;
-  // кең тарату үшін backend/Cloud Function арқылы жою керек.
-  // Бос болса — жою үнсіз өткізіледі (сурет тек Firestore-дан алынады).
-  static const String _apiKey = '';
-  static const String _apiSecret = '';
+  // Суретті ЖОЮ Supabase Edge Function `cloudinary-cleanup` арқылы жасалады —
+  // api_secret серверде (Edge Function → Secrets), клиент аппта ЕШҚАШАН болмайды.
+  static const String _cleanupFunction = 'cloudinary-cleanup';
 
   static final String _uploadUrl =
       'https://api.cloudinary.com/v1_1/$_cloudName/image/upload';
-
-  static final String _destroyUrl =
-      'https://api.cloudinary.com/v1_1/$_cloudName/image/destroy';
 
   /// XFile (image_picker) арқылы жүктеу — iOS/Android екеуінде де жұмыс жасайды
   Future<String> uploadXFile(XFile xFile) async {
@@ -150,33 +142,48 @@ class CloudinaryService {
     return path.isEmpty ? null : path;
   }
 
-  /// Суретті Cloudinary-ден жояды (signed destroy). Best-effort: credentials бос
-  /// болса немесе қате болса — үнсіз өтеді (UX-ты бұзбайды). Сурет негізгі
-  /// дереккөзден (Firestore) онсыз да алынып тасталады.
-  Future<void> deleteByUrl(String url) async {
-    if (_apiKey.isEmpty || _apiSecret.isEmpty) return;
-    final publicId = publicIdFromUrl(url);
-    if (publicId == null) return;
+  /// Суретті Cloudinary-ден жояды — Edge Function арқылы (секрет серверде).
+  /// Best-effort: қате болса үнсіз өтеді (сурет негізгі дереккөзден онсыз да
+  /// алынып тасталады, тек Cloudinary-де жетім қалуы мүмкін).
+  Future<void> deleteByUrl(String url) => deleteMany([url]);
+
+  /// Бірнеше суретті бір шақыруда жояды (Edge Function `cloudinary-cleanup`).
+  /// Сәтсіз болса (секрет қойылмаған/желі) — URL-дер `cloudinary_delete_queue`
+  /// кезегіне түседі: келесі drain (админ қосымша ашқанда) оларды өшіреді.
+  Future<void> deleteMany(Iterable<String> urls) async {
+    final list = urls.where((u) => u.isNotEmpty).toList();
+    if (list.isEmpty) return;
+    var ok = false;
     try {
-      final ts = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-      // Қол: алфавит реттелген параметрлер + api_secret, сосын SHA-1.
-      final toSign = 'public_id=$publicId&timestamp=$ts$_apiSecret';
-      final signature = sha1.convert(utf8.encode(toSign)).toString();
-      await http.post(Uri.parse(_destroyUrl), body: {
-        'public_id': publicId,
-        'timestamp': '$ts',
-        'api_key': _apiKey,
-        'signature': signature,
-      }).timeout(const Duration(seconds: 30));
+      final res = await Supabase.instance.client.functions.invoke(
+        _cleanupFunction,
+        body: {'urls': list},
+      );
+      ok = res.status >= 200 && res.status < 300;
     } catch (_) {
-      // best-effort — жетім сурет қалуы мүмкін, бірақ ауыстыру сәтсіз болмайды
+      ok = false;
+    }
+    if (!ok) {
+      try {
+        await Supabase.instance.client
+            .from('cloudinary_delete_queue')
+            .insert([for (final u in list) {'url': u}]);
+      } catch (_) {
+        // best-effort — жетім сурет қалуы мүмкін, бірақ UX бұзылмайды
+      }
     }
   }
 
-  /// Бірнеше суретті жою (тізбектей, best-effort).
-  Future<void> deleteMany(Iterable<String> urls) async {
-    for (final u in urls) {
-      await deleteByUrl(u);
+  /// Сатылып біткен (14+ күн) тауарлардың жетім фотоларын тазалауды іске қосады.
+  /// Админ қосымшаны ашқанда fire-and-forget шақырылады (cron керек емес).
+  Future<void> drainOrphans() async {
+    try {
+      await Supabase.instance.client.functions.invoke(
+        _cleanupFunction,
+        body: {'mode': 'drain'},
+      );
+    } catch (_) {
+      // best-effort фондық тазалау — қосымша жұмысына әсер етпейді
     }
   }
 }

@@ -1,6 +1,5 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../../core/warehouse_context.dart';
@@ -9,6 +8,7 @@ import '../../../data/services/firestore_service.dart';
 import '../../../data/services/cloudinary_service.dart';
 import '../../../theme/qoima_design.dart';
 import '../../shared/mandatory_warehouse_picker.dart';
+import '../../widgets/image_crop_screen.dart';
 
 class AddProductScreen extends StatefulWidget {
   const AddProductScreen({super.key});
@@ -206,20 +206,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
   }
 
   // ── Фото ──────────────────────────────────────────────────────────────
-  // Суретті центрден квадратқа (1:1, _cropSize) қиямын. Каталог біркелкі
-  // көріну үшін размер тіркелген — админ өзгерте алмайды.
-  Uint8List _cropToSquare(Uint8List raw) {
-    final decoded = img.decodeImage(raw);
-    if (decoded == null) return raw;
-    final side = decoded.width < decoded.height ? decoded.width : decoded.height;
-    final offX = (decoded.width - side) ~/ 2;
-    final offY = (decoded.height - side) ~/ 2;
-    final cropped = img.copyCrop(decoded,
-        x: offX, y: offY, width: side, height: side);
-    final resized = img.copyResize(cropped,
-        width: _cropSize, height: _cropSize, interpolation: img.Interpolation.average);
-    return Uint8List.fromList(img.encodeJpg(resized, quality: 85));
-  }
+  // Кадрды (1:1, _cropSize) қолданушы ImageCropScreen-де өзі таңдайды:
+  // жылжытып/масштабтап шеттерін не төбесін кесе алады.
 
   int get _remainingSlots => _maxImages - _imageBytes.length;
 
@@ -250,10 +238,24 @@ class _AddProductScreenState extends State<AddProductScreen> {
     // Тек бос орын санынша аламыз
     final toAdd = picked.take(_remainingSlots).toList();
     final overflow = picked.length > _remainingSlots;
-    for (final x in toAdd) {
-      final raw = await x.readAsBytes();
-      final square = _cropToSquare(raw);
-      if (mounted) setState(() => _imageBytes.add(square));
+    for (var i = 0; i < toAdd.length; i++) {
+      final raw = await toAdd[i].readAsBytes();
+      if (!mounted) return;
+      // Қолмен кадрлау (1:1): бас тартылса — сол сурет өткізіледі.
+      final cropped = await Navigator.push<Uint8List>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ImageCropScreen(
+            raw: raw,
+            outputSize: _cropSize,
+            title:
+                toAdd.length > 1 ? 'Фото ${i + 1} из ${toAdd.length}' : null,
+          ),
+        ),
+      );
+      if (cropped != null && mounted) {
+        setState(() => _imageBytes.add(cropped));
+      }
     }
     if (overflow && mounted) _err('Добавлено только $_remainingSlots — лимит $_maxImages фото');
   }

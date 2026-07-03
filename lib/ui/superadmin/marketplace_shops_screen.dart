@@ -1,4 +1,4 @@
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 import '../../data/models/store_model.dart';
 import '../../data/repositories/store_moderation_repository.dart';
@@ -110,7 +110,7 @@ class _MarketplaceShopsScreenState extends State<MarketplaceShopsScreen> {
       await _repo.blockStore(
         ownerUid: shop.adminUid,
         reason: reason,
-        blockedBy: FirebaseAuth.instance.currentUser!.uid,
+        blockedBy: Supabase.instance.client.auth.currentUser!.id,
       );
       _snack('Магазин «${shop.storeName}» заблокирован', cInk);
     } catch (e) {
@@ -329,7 +329,7 @@ class _BlockSheetState extends State<_BlockSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final bottom = MediaQuery.of(context).viewInsets.bottom;
+    final bottom = MediaQuery.of(context).viewInsets.bottom + MediaQuery.of(context).padding.bottom;
     return Container(
       padding: EdgeInsets.fromLTRB(18, 10, 18, 18 + bottom),
       decoration: const BoxDecoration(

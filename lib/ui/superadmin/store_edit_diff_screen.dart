@@ -1,4 +1,4 @@
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 import '../../data/models/store_edit_request_model.dart';
 import '../../data/repositories/store_edit_repository.dart';
@@ -34,7 +34,7 @@ class _StoreEditDiffScreenState extends State<StoreEditDiffScreen> {
     try {
       await _repo.approveEdit(
         req: req,
-        reviewedBy: FirebaseAuth.instance.currentUser!.uid,
+        reviewedBy: Supabase.instance.client.auth.currentUser!.id,
       );
       if (mounted) {
         Navigator.pop(context);
@@ -60,7 +60,7 @@ class _StoreEditDiffScreenState extends State<StoreEditDiffScreen> {
     try {
       await _repo.rejectEdit(
         editId: req.id,
-        reviewedBy: FirebaseAuth.instance.currentUser!.uid,
+        reviewedBy: Supabase.instance.client.auth.currentUser!.id,
         reviewNote: note,
       );
       if (mounted) {

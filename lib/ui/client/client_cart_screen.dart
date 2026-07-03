@@ -1,4 +1,4 @@
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/app_config.dart';
@@ -189,6 +189,18 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
 
   String _warehouseAddress(List<CartItemModel> items) =>
       items.isNotEmpty ? items.first.warehouseAddress : '';
+
+  /// Төлем батырмасы: кірмеген → логин; кірген → бірден төлем (верификация жоқ).
+  Future<void> _onCheckoutPressed() async {
+    if (Supabase.instance.client.auth.currentUser == null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const ClientLoginScreen()),
+      );
+      return;
+    }
+    await _showPaymentConfirmation();
+  }
 
   Future<void> _showPaymentConfirmation() async {
     final cart = context.read<CartProvider>();
@@ -792,18 +804,7 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                     isLoading: _isLoading,
                     onPressed: (_isLoading || _unavailableKeys.isNotEmpty)
                         ? null
-                        : () {
-                            if (FirebaseAuth.instance.currentUser == null) {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const ClientLoginScreen(),
-                                ),
-                              );
-                              return;
-                            }
-                            _showPaymentConfirmation();
-                          },
+                        : _onCheckoutPressed,
                     height: 54,
                   ),
                 ]),
@@ -998,7 +999,7 @@ class _PaymentSheet extends StatelessWidget {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       padding: EdgeInsets.fromLTRB(
-          20, 16, 20, MediaQuery.of(context).viewInsets.bottom + 24),
+          20, 16, 20, MediaQuery.of(context).viewInsets.bottom + MediaQuery.of(context).padding.bottom + 24),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         Container(
           width: 40, height: 4,

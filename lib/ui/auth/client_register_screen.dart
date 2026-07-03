@@ -4,6 +4,8 @@ import '../../core/kz_cities.dart';
 import '../../core/phone_input.dart';
 import '../../data/services/auth_service.dart';
 import '../../theme/qoima_design.dart';
+import 'google_sign_in_button.dart';
+
 /// Клиентті тіркеу: телефон + email + құпиясөз + аты + қаласы.
 class ClientRegisterScreen extends StatefulWidget {
   const ClientRegisterScreen({super.key});
@@ -79,7 +81,11 @@ class _ClientRegisterScreenState extends State<ClientRegisterScreen> {
         name: _nameCtrl.text.trim(),
         city: _selectedCity!,
       );
-      // Auth gate (main.dart) автоматты ClientShell-ге ауысады.
+      // Сессия бірден басталды — түбір экранға ораламыз, реактивті gate
+      // ClientShell-ге ауыстырады.
+      if (mounted) {
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
     } on AuthFailure catch (e) {
       _setErr(e.message);
     } catch (e) {
@@ -103,7 +109,7 @@ class _ClientRegisterScreenState extends State<ClientRegisterScreen> {
         Expanded(
           child: SingleChildScrollView(
             padding: EdgeInsets.fromLTRB(
-                22, 20, 22, MediaQuery.of(context).viewInsets.bottom + 30),
+                22, 20, 22, MediaQuery.of(context).viewInsets.bottom + MediaQuery.of(context).padding.bottom + 30),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -217,6 +223,8 @@ class _ClientRegisterScreenState extends State<ClientRegisterScreen> {
                   isLoading: _isLoading,
                   onPressed: _register,
                 ),
+                const SizedBox(height: 14),
+                const GoogleSignInButton(),
                 const SizedBox(height: 14),
                 Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                   Text('Аккаунтыңыз бар ма?',

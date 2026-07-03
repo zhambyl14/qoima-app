@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../../core/app_user.dart';
@@ -491,7 +491,7 @@ class _MakeSaleScreenState extends State<MakeSaleScreen> {
                 left: 20,
                 right: 20,
                 top: 16,
-                bottom: MediaQuery.of(ctx).viewInsets.bottom + 24),
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + MediaQuery.of(ctx).padding.bottom + 24),
             child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,

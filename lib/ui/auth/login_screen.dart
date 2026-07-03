@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../../core/l10n_ext.dart';
 import '../../data/services/auth_service.dart';
 import '../../theme/qoima_design.dart';
+import 'google_sign_in_button.dart';
 import 'register_screen.dart';
 import 'client_login_screen.dart';
 import 'forgot_password_screen.dart';
@@ -47,8 +47,8 @@ class _LoginScreenState extends State<LoginScreen> {
       );
       widget.afterLogin?.call();
       if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
-    } on FirebaseAuthException catch (e) {
-      setState(() => _errorMessage = AuthService.parseError(e));
+    } on AuthFailure catch (e) {
+      setState(() => _errorMessage = e.message);
     } catch (_) {
       if (mounted) setState(() => _errorMessage = context.l10n.unknownError);
     } finally {
@@ -106,7 +106,7 @@ class _LoginScreenState extends State<LoginScreen> {
             borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
           ),
           padding: EdgeInsets.fromLTRB(
-              22, 26, 22, MediaQuery.of(context).viewInsets.bottom + 30),
+              22, 26, 22, MediaQuery.of(context).viewInsets.bottom + MediaQuery.of(context).padding.bottom + 30),
           child: Form(
             key: _formKey,
             child: Column(
@@ -198,6 +198,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   isLoading: _isLoading,
                   onPressed: _signIn,
                 ),
+
+                const SizedBox(height: 14),
+                GoogleSignInButton(afterLogin: widget.afterLogin),
 
                 const SizedBox(height: 16),
                 Container(height: 1, color: cLine),

@@ -1,5 +1,4 @@
 import 'dart:ui' show Color;
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// Модель товара (документ в коллекции "products")
 class ProductModel {
@@ -96,10 +95,34 @@ class ProductModel {
     );
   }
 
-  factory ProductModel.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    return ProductModel.fromJson(data, docId: doc.id);
-  }
+  /// Supabase `products` жолынан (snake_case бағандар).
+  factory ProductModel.fromMap(Map<String, dynamic> m) => ProductModel(
+        id: m['id'] as String? ?? '',
+        name: m['name'] as String? ?? '',
+        brand: m['brand'] as String? ?? '',
+        type: m['type'] as String? ?? '',
+        material: m['material'] as String? ?? '',
+        category: m['category'] as String? ?? '',
+        categoryKey: m['category_key'] as String? ?? '',
+        color: m['color'] as String? ?? '',
+        articul: m['articul'] as String? ?? '',
+        status: m['status'] as String? ?? statusInStock,
+        images: (m['images'] as List?)?.map((e) => e.toString()).toList() ?? [],
+      );
+
+  /// Supabase жазу үшін (snake_case; id/owner_uid сервисте қосылады).
+  Map<String, dynamic> toMap() => {
+        'name': name,
+        'brand': brand,
+        'type': type,
+        'material': material,
+        'category': category,
+        'category_key': categoryKey,
+        'color': color,
+        'articul': articul,
+        'status': status,
+        'images': images,
+      };
 
   Map<String, dynamic> toJson() => {
         'id': id,

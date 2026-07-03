@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 class SaleModel {
   final String id;
   final String productId;
@@ -20,14 +18,10 @@ class SaleModel {
   final String deliveredByName;
   final String productName;
   final double purchasePrice;
-  // 'cash' = Наличный, 'kaspi' = Kaspi, 'halyk' = Halyk Bank, '' = unknown
   final String paymentMethod;
-  // Бронь: онлайн депозиттің банкі ('kaspi'/'halyk'), басқа жағдайда бос
   final String depositPaymentMethod;
-  // Чек нөмірі (ЧЕК-NNNNN офлайн, #NNNNN онлайн), сатылым кезінде жазылады
   final String receiptNumber;
-  // 'sale' = қалыпты сатылым, 'return' = қайтару (теріс жазба, аналитиканы балансылайды)
-  final String saleType;
+  final String saleType; // 'sale' | 'return'
 
   const SaleModel({
     required this.id,
@@ -55,68 +49,57 @@ class SaleModel {
     this.saleType = 'sale',
   });
 
-  // Қайтару жазбасы ма (теріс сома, аналитиканы балансылайды)
   bool get isReturn => saleType == 'return';
-
-  // Скидка применена (товарная и/или промокод), если итог ниже базовой цены
   bool get hasDiscount => basePrice > totalPrice + 0.5;
 
-  // Итоговый процент скидки (если discount_percent не записан — считаем сами)
   double get effectiveDiscountPercent {
     if (discountPercent > 0) return discountPercent;
     if (basePrice <= 0 || !hasDiscount) return 0;
     return ((1 - totalPrice / basePrice) * 100);
   }
 
-  factory SaleModel.fromJson(Map<String, dynamic> json, {String? docId}) {
-    DateTime parseDate(dynamic raw) {
-      if (raw is Timestamp) return raw.toDate();
-      if (raw is DateTime) return raw;
-      return DateTime.now();
+  /// Supabase `sales_history` жолынан (snake_case + JSONB).
+  factory SaleModel.fromMap(Map<String, dynamic> m) {
+    DateTime dt(dynamic v) =>
+        v is String ? (DateTime.tryParse(v) ?? DateTime.now()) : DateTime.now();
+    Map<String, int> im(dynamic v) {
+      final raw = (v as Map?) ?? {};
+      return raw.map((k, val) => MapEntry(k.toString(), (val as num).toInt()));
     }
 
-    final rawSizes = json['sizes_sold'] as Map<dynamic, dynamic>? ?? {};
-    final sizesSold =
-        rawSizes.map((k, v) => MapEntry(k.toString(), (v as num).toInt()));
-    final totalPrice = (json['total_price'] as num?)?.toDouble() ?? 0.0;
-    final basePrice = (json['base_price'] as num?)?.toDouble() ?? totalPrice;
+    final total = (m['total_price'] as num?)?.toDouble() ?? 0;
     return SaleModel(
-      id: docId ?? json['id'] as String? ?? '',
-      productId: json['product_id'] as String? ?? '',
-      batchId: json['batch_id'] as String? ?? '',
-      saleDate: parseDate(json['sale_date']),
-      sizesSold: sizesSold,
-      selectedSize: json['selected_size'] as String? ?? '',
-      quantity: (json['quantity'] as num?)?.toInt() ?? 0,
-      basePrice: basePrice,
-      totalPrice: totalPrice,
-      discountPercent: (json['discount_percent'] as num?)?.toDouble() ?? 0.0,
-      discountAmount: (json['discount_amount'] as num?)?.toDouble() ?? 0.0,
-      sellerId: json['seller_id'] as String? ?? '',
-      sellerName: json['seller_name'] as String? ?? '',
-      warehouseId: json['warehouseId'] as String? ?? '',
-      isOnline: json['is_online'] as bool? ?? false,
-      orderId: json['order_id'] as String? ?? '',
-      deliveredByName: json['delivered_by_name'] as String? ?? '',
-      productName: json['product_name'] as String? ?? '',
-      purchasePrice: (json['purchase_price'] as num?)?.toDouble() ?? 0.0,
-      paymentMethod: json['payment_method'] as String? ?? '',
-      depositPaymentMethod: json['deposit_payment_method'] as String? ?? '',
-      receiptNumber: json['receipt_number'] as String? ?? '',
-      saleType: json['type'] as String? ?? 'sale',
+      id: m['id'] as String? ?? '',
+      productId: m['product_id'] as String? ?? '',
+      batchId: m['batch_id'] as String? ?? '',
+      saleDate: dt(m['sale_date']),
+      sizesSold: im(m['sizes_sold']),
+      selectedSize: m['selected_size'] as String? ?? '',
+      quantity: (m['quantity'] as num?)?.toInt() ?? 0,
+      basePrice: (m['base_price'] as num?)?.toDouble() ?? total,
+      totalPrice: total,
+      discountPercent: (m['discount_percent'] as num?)?.toDouble() ?? 0,
+      discountAmount: (m['discount_amount'] as num?)?.toDouble() ?? 0,
+      sellerId: m['seller_id'] as String? ?? '',
+      sellerName: m['seller_name'] as String? ?? '',
+      warehouseId: m['warehouse_id'] as String? ?? '',
+      isOnline: m['is_online'] as bool? ?? false,
+      orderId: m['order_id'] as String? ?? '',
+      deliveredByName: m['delivered_by_name'] as String? ?? '',
+      productName: m['product_name'] as String? ?? '',
+      purchasePrice: (m['purchase_price'] as num?)?.toDouble() ?? 0,
+      paymentMethod: m['payment_method'] as String? ?? '',
+      depositPaymentMethod: m['deposit_payment_method'] as String? ?? '',
+      receiptNumber: m['receipt_number'] as String? ?? '',
+      saleType: m['type'] as String? ?? 'sale',
     );
   }
 
-  factory SaleModel.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    return SaleModel.fromJson(data, docId: doc.id);
-  }
-
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'product_id': productId,
-        'batch_id': batchId,
-        'sale_date': Timestamp.fromDate(saleDate),
+  /// Supabase жазу үшін (snake_case; owner_uid сервисте қосылады).
+  Map<String, dynamic> toMap() => {
+        'product_id': productId.isEmpty ? null : productId,
+        'batch_id': batchId.isEmpty ? null : batchId,
+        'sale_date': saleDate.toIso8601String(),
         'sizes_sold': sizesSold,
         'selected_size': selectedSize,
         'quantity': quantity,
@@ -126,7 +109,7 @@ class SaleModel {
         'discount_amount': discountAmount,
         'seller_id': sellerId,
         'seller_name': sellerName,
-        'warehouseId': warehouseId,
+        'warehouse_id': warehouseId.isEmpty ? null : warehouseId,
         'is_online': isOnline,
         'order_id': orderId,
         'delivered_by_name': deliveredByName,

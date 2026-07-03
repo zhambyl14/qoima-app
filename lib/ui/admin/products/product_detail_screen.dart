@@ -1,12 +1,12 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/app_user.dart';
 import '../../../data/models/models.dart';
 import '../../../data/services/firestore_service.dart';
 import '../../../data/services/cloudinary_service.dart';
 import '../../../theme/qoima_design.dart';
+import '../../widgets/image_crop_screen.dart';
 import 'dart:typed_data';
-import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 
 class ProductDetailScreen extends StatefulWidget {
@@ -903,6 +903,12 @@ class _PhotoManagerSheetState extends State<_PhotoManagerSheet> {
 
   Future<void> _remove(int i) async {
     if (_busy) return;
+    // Тауарда әрқашан кемінде 1 сурет болу керек — соңғысын өшіртпейміз.
+    if (_imgs.length <= 1) {
+      _snack('Кемінде 1 сурет болуы керек — алдымен жаңа сурет қосыңыз',
+          error: true);
+      return;
+    }
     final url = _imgs[i];
     setState(() {
       _imgs = List.of(_imgs)..removeAt(i);
@@ -936,13 +942,28 @@ class _PhotoManagerSheetState extends State<_PhotoManagerSheet> {
     }
     if (picked.isEmpty) return;
     final toAdd = picked.take(remaining).toList();
+
+    // Әр суретке қолмен кадрлау экраны (жылжыту/масштабтау, 1:1).
+    final bytesList = <Uint8List>[];
+    for (var i = 0; i < toAdd.length; i++) {
+      final raw = await toAdd[i].readAsBytes();
+      if (!mounted) return;
+      final cropped = await Navigator.push<Uint8List>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ImageCropScreen(
+            raw: raw,
+            outputSize: _cropSize,
+            title: toAdd.length > 1 ? 'Фото ${i + 1} из ${toAdd.length}' : null,
+          ),
+        ),
+      );
+      if (cropped != null) bytesList.add(cropped);
+    }
+    if (bytesList.isEmpty || !mounted) return;
+
     setState(() => _busy = true);
     try {
-      final bytesList = <Uint8List>[];
-      for (final x in toAdd) {
-        final raw = await x.readAsBytes();
-        bytesList.add(_cropToSquare(raw, _cropSize));
-      }
       final urls = await _cloud.uploadBytesList(bytesList);
       setState(() => _imgs = [..._imgs, ...urls]);
       await _persist();
@@ -989,7 +1010,7 @@ class _PhotoManagerSheetState extends State<_PhotoManagerSheet> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
       ),
       padding: EdgeInsets.fromLTRB(
-          20, 14, 20, MediaQuery.of(context).viewInsets.bottom + 28),
+          20, 14, 20, MediaQuery.of(context).viewInsets.bottom + MediaQuery.of(context).padding.bottom + 28),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         Container(
             width: 36,
@@ -1068,15 +1089,4 @@ class _PhotoManagerSheetState extends State<_PhotoManagerSheet> {
   }
 }
 
-Uint8List _cropToSquare(Uint8List raw, int size) {
-  final decoded = img.decodeImage(raw);
-  if (decoded == null) return raw;
-  final side = decoded.width < decoded.height ? decoded.width : decoded.height;
-  final offX = (decoded.width - side) ~/ 2;
-  final offY = (decoded.height - side) ~/ 2;
-  final cropped =
-      img.copyCrop(decoded, x: offX, y: offY, width: side, height: side);
-  final resized = img.copyResize(cropped,
-      width: size, height: size, interpolation: img.Interpolation.average);
-  return Uint8List.fromList(img.encodeJpg(resized, quality: 85));
-}
+// (Ескі авто-центр кесу ImageCropScreen-ге көшті — қолданушы кадрды өзі таңдайды.)

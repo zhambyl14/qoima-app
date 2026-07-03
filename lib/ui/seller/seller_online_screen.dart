@@ -148,7 +148,7 @@ class _SellerOnlineScreenState extends State<SellerOnlineScreen> {
                             right: 20,
                             top: 16,
                             bottom:
-                                MediaQuery.of(ctx).viewInsets.bottom + 28,
+                                MediaQuery.of(ctx).viewInsets.bottom + MediaQuery.of(ctx).padding.bottom + 28,
                           ),
                           child: Column(mainAxisSize: MainAxisSize.min, children: [
                             Center(

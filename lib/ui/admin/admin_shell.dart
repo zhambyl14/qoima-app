@@ -6,6 +6,7 @@ import 'products/products_screen.dart';
 import '../profile/profile_screen.dart';
 import '../seller/sales/sales_screen.dart';
 import 'admin_home_screen.dart';
+import '../../data/services/cloudinary_service.dart';
 import '../../data/services/firestore_service.dart';
 import '../../theme/qoima_design.dart';
 
@@ -17,6 +18,16 @@ class AdminShell extends StatefulWidget {
 
 class _AdminShellState extends State<AdminShell> {
   int _index = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // Фондық тазалау: сатылып біткен (14+ күн) тауарлардың жетім Cloudinary
+    // фотоларын өшіреді (cron орнына — админ қосымша ашқанда, best-effort).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      CloudinaryService().drainOrphans();
+    });
+  }
 
   static const List<_TabDef> _tabs = [
     _TabDef(Icons.home_outlined, Icons.home_rounded, 'Главная'),

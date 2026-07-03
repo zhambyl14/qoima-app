@@ -1,12 +1,15 @@
 import 'dart:math';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/user_model.dart';
 import '../models/client_model.dart';
 import '../../core/app_user.dart';
+import '../../core/supabase_config.dart';
 
 /// Аутентификация қателерін UI-ге жеткізетін типтелген қате.
-/// [code] — UI тармақтауы үшін ('email-not-verified' → «Қайта жіберу» батырмасы).
+/// [code] — UI тармақтауы үшін.
 class AuthFailure implements Exception {
   final String message;
   final String code;
@@ -15,28 +18,31 @@ class AuthFailure implements Exception {
   String toString() => message;
 }
 
+/// Supabase Auth + Postgres профильдер (Firebase орнына).
+///
+/// Клиент: телефон + email + құпиясөз. Кіру — телефон→email RPC арқылы.
+/// Верификация ЖОҚ: signUp бірден сессия ашады (Dashboard-та «Confirm email»
+/// өшірулі + auto_confirm_email триггері). Профиль жолдарын `handle_new_user`
+/// триггері signUp метадеректерінен жасайды.
 class AuthService {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final SupabaseClient _sb = Supabase.instance.client;
 
-  User? get currentUser => _auth.currentUser;
-  String? get currentUid => _auth.currentUser?.uid;
-  Stream<User?> get authStateChanges => _auth.authStateChanges();
+  // Google native кіру клиенті. serverClientId — WEB OAuth client ID
+  // (idToken-ның audience-і Supabase-тегі тізіммен сәйкес болу үшін).
+  static final GoogleSignIn _google = GoogleSignIn(
+    serverClientId: SupabaseConfig.googleWebClientId,
+  );
 
-  // ── Firestore doc ID қауіпсіздігі үшін email кодтау ('.' → ',') ──────────────
-  static String encodeEmail(String email) =>
-      email.trim().toLowerCase().replaceAll('.', ',');
+  User? get currentUser => _sb.auth.currentUser;
+  String? get currentUid => _sb.auth.currentUser?.id;
+  Stream<AuthState> get authStateChanges => _sb.auth.onAuthStateChange;
 
   // ═══════════════════════════════════════════════════════════════════════════
   //  CLIENT — телефон + email + құпиясөз (өзін-өзі тіркеу)
   // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Жаңа клиентті тіркейді.
-  ///
-  /// Ескерту (спецификациядан ауытқу): телефон бірегейлігі `phoneIndex`-тен
-  /// тексеріледі (ол кіру іздеуі үшін ашық оқылады), ал email бірегейлігін
-  /// Firebase Auth-тың өзі қамтамасыз етеді (`email-already-in-use`). Сондықтан
-  /// emailIndex-ке алдын ала оқу жасалмайды — оны оқу үшін кіру қажет болар еді.
+  /// Жаңа клиентті тіркейді. Профильді триггер метадеректерден жасайды.
+  /// Верификация жоқ — signUp соң сессия БІРДЕН басталады, gate ClientShell-ге өтеді.
   Future<void> registerClient({
     required String email,
     required String phoneNumber, // E.164: +7XXXXXXXXXX
@@ -45,120 +51,65 @@ class AuthService {
     required String city,
   }) async {
     final cleanEmail = email.trim().toLowerCase();
-    final enc = encodeEmail(cleanEmail);
 
-    // a) Телефон бос па
-    final phoneIdx = await _db.collection('phoneIndex').doc(phoneNumber).get();
-    if (phoneIdx.exists) {
+    // a) Телефон бос па (anon RPC: телефон→email)
+    final existing = await emailForPhone(phoneNumber);
+    if (existing != null && existing.isNotEmpty) {
       throw AuthFailure('Бұл телефон нөмір тіркелген', code: 'phone-in-use');
     }
 
-    // c) Auth аккаунтын жасау (email бірегейлігін Auth қамтамасыз етеді)
-    UserCredential cred;
+    // b) Auth аккаунты + профиль метадеректері (триггер clients жолын жасайды)
     try {
-      cred = await _auth.createUserWithEmailAndPassword(
-          email: cleanEmail, password: password);
-    } on FirebaseAuthException catch (e) {
-      throw AuthFailure(_msg(e), code: e.code);
-    }
-    final uid = cred.user!.uid;
-
-    try {
-      // e) Batch: клиент профилі + индекстер
-      final batch = _db.batch();
-      batch.set(_db.collection('clients').doc(uid), {
-        'uid': uid,
-        'email': cleanEmail,
-        'phone': phoneNumber,
-        'name': name.trim(),
-        'city': city,
-        'role': 'client',
-        'emailVerified': true,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-      batch.set(_db.collection('phoneIndex').doc(phoneNumber), {
-        'uid': uid,
-        'email': cleanEmail,
-      });
-      batch.set(_db.collection('emailIndex').doc(enc), {
-        'uid': uid,
-        'phoneNumber': phoneNumber,
-      });
-      await batch.commit();
-    } catch (e) {
-      // Жартылай жасалған аккаунтты қайтарып аламыз — email қайта босайды.
-      try {
-        await cred.user?.delete();
-      } catch (_) {}
-      // phoneIndex жазуы rules деңгейінде бұғатталса (нөмірді басқа біреу
-      // дәл сол сәтте иемденіп үлгерсе) — түсінікті хабар.
-      if (e is FirebaseException && e.code == 'permission-denied') {
-        throw AuthFailure('Бұл телефон нөмір тіркелген', code: 'phone-in-use');
+      final res = await _sb.auth.signUp(
+        email: cleanEmail,
+        password: password,
+        data: {
+          'role': 'client',
+          'name': name.trim(),
+          'phone': phoneNumber,
+          'city': city,
+        },
+      );
+      // «Confirm email» өшірулі болса сессия осында келеді. Қосулы қалып
+      // қойса да auto_confirm_email триггері растап қояды — кіріп көреміз.
+      if (res.session == null) {
+        await _sb.auth
+            .signInWithPassword(email: cleanEmail, password: password);
       }
-      rethrow;
+    } on AuthException catch (e) {
+      throw _mapAuthError(e);
     }
-    // Тіркелген соң auth gate автоматты ClientShell-ге ауысады.
   }
 
-  /// Телефон + құпиясөзбен кіру: phoneIndex → email → Auth → emailVerified гейті.
+  /// Телефон → email RPC (кіруден бұрын anon шақырады). phoneIndex орнына.
+  Future<String?> emailForPhone(String phoneNumber) async {
+    final res = await _sb.rpc('client_email_for_phone',
+        params: {'p_phone': phoneNumber});
+    return res as String?;
+  }
+
+  /// Телефон + құпиясөзбен кіру: RPC телефон→email → signInWithPassword.
   Future<void> loginWithPhonePassword({
     required String phoneNumber,
     required String password,
   }) async {
-    // a) Телефон → email
-    final idx = await _db.collection('phoneIndex').doc(phoneNumber).get();
-    final email = idx.data()?['email'] as String? ?? '';
-    if (!idx.exists || email.isEmpty) {
+    final email = await emailForPhone(phoneNumber);
+    if (email == null || email.isEmpty) {
       throw AuthFailure('Аккаунт табылмады', code: 'user-not-found');
     }
-
-    // b) Кіру
     try {
-      await _auth.signInWithEmailAndPassword(email: email, password: password);
-    } on FirebaseAuthException catch (e) {
-      throw AuthFailure(_msg(e), code: e.code);
+      await _sb.auth.signInWithPassword(email: email, password: password);
+    } on AuthException catch (e) {
+      throw _mapAuthError(e);
     }
-
-    // c) Сәтті — маршрутты реактивті gate (main.dart) шешеді
   }
 
-  /// Телефон бойынша тіркелген email-ді қайтарады (phoneIndex ашық оқылады).
-  /// «Поштаны растаңыз» жағдайында сілтемені қайта жіберу үшін қажет.
-  Future<String?> emailForPhone(String phoneNumber) async {
-    final idx = await _db.collection('phoneIndex').doc(phoneNumber).get();
-    return idx.data()?['email'] as String?;
-  }
-
-  /// Құпиясөзді қалпына келтіру сілтемесін жібереді. Аккаунттың бар-жоғын
-  /// ашпаймыз — UI әрқашан бейтарап хабар көрсетеді.
+  /// Құпиясөзді қалпына келтіру сілтемесін жібереді (бейтарап хабар).
   Future<void> sendPasswordReset(String email) async {
     try {
-      await _auth.sendPasswordResetEmail(email: email.trim());
-    } on FirebaseAuthException catch (e) {
-      // Тек форматты/желілік қатені көрсетеміз; user-not-found — жұтылады.
-      if (e.code == 'invalid-email') {
-        throw AuthFailure('Email форматы қате', code: e.code);
-      }
-      if (e.code == 'network-request-failed') {
-        throw AuthFailure('Интернет байланысын тексеріңіз', code: e.code);
-      }
-    }
-  }
-
-  /// Растау сілтемесін қайта жібереді. Тіркелуден/кіруден кейін пайдаланушы
-  /// шығарылып қойғандықтан, сілтемені жіберу үшін қайта кіреміз де, шығамыз.
-  Future<void> resendVerification({
-    required String email,
-    required String password,
-  }) async {
-    try {
-      final cred = await _auth.signInWithEmailAndPassword(
-          email: email.trim().toLowerCase(), password: password);
-      await cred.user?.sendEmailVerification();
-    } on FirebaseAuthException catch (e) {
-      throw AuthFailure(_msg(e), code: e.code);
-    } finally {
-      await _auth.signOut();
+      await _sb.auth.resetPasswordForEmail(email.trim());
+    } on AuthException catch (_) {
+      // Аккаунттың бар-жоғын ашпаймыз — UI бейтарап хабар көрсетеді.
     }
   }
 
@@ -166,7 +117,8 @@ class AuthService {
   //  АККАУНТ ПАРАМЕТРЛЕРІ — жеке деректерді өзгерту (барлық рөлдер)
   // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Телефон нөмірін өзгерту: reauth → бостығын тексеру → транзакция.
+  /// Телефон нөмірін өзгерту: reauth → бостығын тексеру → профильді жаңарту.
+  /// (Телефон Auth идентификаторы емес — тек clients жолында сақталады.)
   Future<void> changePhoneNumber({
     required String currentPassword,
     required String newPhone, // E.164
@@ -174,54 +126,33 @@ class AuthService {
     final user = _requireUser();
     await _reauth(user, currentPassword);
 
-    // Жаңа нөмір басқа аккаунтта тіркелмегенін тексереміз
-    final idx = await _db.collection('phoneIndex').doc(newPhone).get();
-    if (idx.exists && idx.data()?['uid'] != user.uid) {
+    final existing = await emailForPhone(newPhone);
+    if (existing != null && existing.isNotEmpty && existing != user.email) {
       throw AuthFailure('Бұл нөмір басқа аккаунтта тіркелген',
           code: 'phone-in-use');
     }
-
-    final profile = await _profileRef(user.uid);
-    final oldPhone = profile.phone;
-    if (oldPhone == newPhone) return;
-
-    await _db.runTransaction((tx) async {
-      if (oldPhone.isNotEmpty) {
-        tx.delete(_db.collection('phoneIndex').doc(oldPhone));
-      }
-      tx.set(_db.collection('phoneIndex').doc(newPhone), {
-        'uid': user.uid,
-        'email': user.email,
-      });
-      tx.update(profile.ref, {profile.phoneField: newPhone});
-    });
+    await _sb.from('clients').update({'phone': newPhone}).eq('id', user.id);
   }
 
-  /// Email өзгерту: reauth → бостығын тексеру → verifyBeforeUpdateEmail.
-  /// Auth email тек пайдаланушы ЖАҢА поштадағы сілтемені басқан соң жаңарады,
-  /// сосын [syncEmailIfChanged] индекстер мен профильді сәйкестендіреді.
+  /// Email өзгерту: reauth → updateUser(email). Supabase жаңа поштаға растау
+  /// жібереді; расталған соң Auth email жаңарады, [syncEmailIfChanged] профильді
+  /// сәйкестендіреді.
   Future<void> changeEmail({
     required String currentPassword,
     required String newEmail,
   }) async {
     final user = _requireUser();
     await _reauth(user, currentPassword);
-
-    final clean = newEmail.trim().toLowerCase();
-    final enc = encodeEmail(clean);
-    final idx = await _db.collection('emailIndex').doc(enc).get();
-    if (idx.exists && idx.data()?['uid'] != user.uid) {
-      throw AuthFailure('Бұл email тіркелген', code: 'email-already-in-use');
-    }
-
     try {
-      await user.verifyBeforeUpdateEmail(clean);
-    } on FirebaseAuthException catch (e) {
-      throw AuthFailure(_msg(e), code: e.code);
+      await _sb.auth.updateUser(
+        UserAttributes(email: newEmail.trim().toLowerCase()),
+      );
+    } on AuthException catch (e) {
+      throw _mapAuthError(e);
     }
   }
 
-  /// Құпиясөзді өзгерту: ағымдағымен reauth → updatePassword.
+  /// Құпиясөзді өзгерту: ағымдағымен reauth → updateUser(password).
   Future<void> changePassword({
     required String currentPassword,
     required String newPassword,
@@ -229,119 +160,192 @@ class AuthService {
     final user = _requireUser();
     await _reauth(user, currentPassword);
     try {
-      await user.updatePassword(newPassword);
-    } on FirebaseAuthException catch (e) {
-      throw AuthFailure(_msg(e), code: e.code);
+      await _sb.auth.updateUser(UserAttributes(password: newPassword));
+    } on AuthException catch (e) {
+      throw _mapAuthError(e);
     }
   }
 
-  /// Әр қосылғанда (auth күйі шешілген соң) шақырылады: Auth email профильдегі
-  /// email-ден өзгеше болса (verifyBeforeUpdateEmail сілтемесі басылған),
-  /// emailIndex + phoneIndex + профиль құжатын сәйкестендіреді.
+  /// Auth email профильдегіден өзгеше болса (өзгерту расталған) — профиль
+  /// (users/clients) email-ін сәйкестендіреді.
   Future<void> syncEmailIfChanged() async {
-    final user = _auth.currentUser;
-    if (user == null) return;
-    await user.reload();
-    final fresh = _auth.currentUser;
-    final authEmail = fresh?.email?.toLowerCase();
-    if (fresh == null || authEmail == null || authEmail.isEmpty) return;
-
-    final profile = await _profileRef(user.uid);
-    if (!profile.exists) return;
-    final storedEmail = profile.email.toLowerCase();
-    if (storedEmail == authEmail) return; // өзгермеген
-
-    final phone = profile.phone;
-    final oldEnc = encodeEmail(storedEmail);
-    final newEnc = encodeEmail(authEmail);
-
-    await _db.runTransaction((tx) async {
-      if (storedEmail.isNotEmpty) {
-        tx.delete(_db.collection('emailIndex').doc(oldEnc));
+    final user = _sb.auth.currentUser;
+    final authEmail = user?.email?.toLowerCase();
+    if (user == null || authEmail == null || authEmail.isEmpty) return;
+    // users → clients ретімен тексеріп, сәйкессіздікті түзейміз.
+    final u = await _sb.from('users').select('email').eq('id', user.id).maybeSingle();
+    if (u != null) {
+      if ((u['email'] as String?)?.toLowerCase() != authEmail) {
+        await _sb.from('users').update({'email': authEmail}).eq('id', user.id);
       }
-      tx.set(_db.collection('emailIndex').doc(newEnc), {
-        'uid': user.uid,
-        'phoneNumber': phone,
-      });
-      tx.update(profile.ref, {'email': authEmail});
-      // phoneIndex кіру кезінде email-ді осы жерден алады — оны да жаңартамыз.
-      if (phone.isNotEmpty) {
-        tx.set(_db.collection('phoneIndex').doc(phone), {
-          'uid': user.uid,
-          'email': authEmail,
-        });
-      }
-    });
+      return;
+    }
+    final c = await _sb.from('clients').select('email').eq('id', user.id).maybeSingle();
+    if (c != null && (c['email'] as String?)?.toLowerCase() != authEmail) {
+      await _sb.from('clients').update({'email': authEmail}).eq('id', user.id);
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  //  SELLER / ADMIN — email + құпиясөз (Q2: бұл өткелде өзгеріссіз)
+  //  SELLER / ADMIN — email + құпиясөз
   // ═══════════════════════════════════════════════════════════════════════════
 
-  Future<UserCredential> register({
+  /// seller/admin тіркеу. Профильді (+admin бизнес коды) триггер жасайды.
+  /// Верификация жоқ — signUp соң сессия бірден басталады, gate рөлге қарай өтеді.
+  Future<void> register({
     required String name,
     required String email,
     required String password,
-    required String role,
+    required String role, // 'admin' | 'seller'
   }) async {
-    final credential = await _auth.createUserWithEmailAndPassword(
-      email: email.trim(),
-      password: password,
-    );
-    await credential.user?.updateDisplayName(name.trim());
-    final uid = credential.user!.uid;
-
+    final cleanEmail = email.trim().toLowerCase();
     try {
-      if (role == 'admin') {
-        final code = _generateBusinessCode();
-        final batch = _db.batch();
-
-        batch.set(_db.collection('users').doc(uid), {
-          'uid': uid,
-          'name': name.trim(),
-          'email': email.trim(),
-          'role': 'admin',
-          'ownerId': uid,
-          'active': true,
-          'created_at': FieldValue.serverTimestamp(),
-          'businessCode': code,
-          'assignedWarehouseId': '',
-          'joinStatus': 'active',
-        });
-
-        batch.set(_db.collection('business_codes').doc(code), {
-          'adminUid': uid,
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-
-        await batch.commit();
-      } else {
-        await _db.collection('users').doc(uid).set({
-          'uid': uid,
-          'name': name.trim(),
-          'email': email.trim(),
-          'role': 'seller',
-          'ownerId': '',
-          'active': true,
-          'created_at': FieldValue.serverTimestamp(),
-          'businessCode': '',
-          'assignedWarehouseId': '',
-          'joinStatus': 'none',
-        });
+      final res = await _sb.auth.signUp(
+        email: cleanEmail,
+        password: password,
+        data: {'role': role, 'name': name.trim()},
+      );
+      if (res.session == null) {
+        await _sb.auth
+            .signInWithPassword(email: cleanEmail, password: password);
       }
-    } catch (_) {
-      await credential.user?.delete();
-      rethrow;
+    } on AuthException catch (e) {
+      throw _mapAuthError(e);
     }
-
-    return credential;
   }
 
-  Future<UserCredential> signIn({
+  Future<void> signIn({
     required String email,
     required String password,
-  }) async =>
-      _auth.signInWithEmailAndPassword(email: email.trim(), password: password);
+  }) async {
+    try {
+      await _sb.auth.signInWithPassword(
+          email: email.trim().toLowerCase(), password: password);
+    } on AuthException catch (e) {
+      throw _mapAuthError(e);
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  GOOGLE-МЕН КІРУ (барлық рөлдер — қосымша кіру/тіркелу жолы)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Google аккаунтымен кіреді. Телефонда — native SDK (idToken →
+  /// signInWithIdToken); вебте native SDK жоқ, сондықтан Supabase-тің OAuth
+  /// redirect ағыны қолданылады (бет Google-ға өтіп, сессиямен қайта оралады).
+  /// Алғаш кірген қолданушыда профиль болмайды — gate CompleteProfileScreen
+  /// көрсетіп, рөл мен жетіспейтін деректерді (телефон/қала) сұрайды.
+  Future<void> signInWithGoogle() async {
+    if (kIsWeb) {
+      try {
+        await _sb.auth.signInWithOAuth(
+          OAuthProvider.google,
+          redirectTo: Uri.base.origin, // осы бетке қайта ораламыз
+        );
+      } on AuthException catch (e) {
+        throw _mapAuthError(e);
+      }
+      return; // redirect кетеді — сессия бет қайта жүктелгенде келеді
+    }
+
+    GoogleSignInAccount? account;
+    try {
+      // Аккаунт таңдау диалогы әр жолы шығуы үшін алдымен тазалаймыз.
+      try {
+        await _google.signOut();
+      } catch (_) {}
+      account = await _google.signIn();
+    } catch (e) {
+      throw AuthFailure('Google қолжетімсіз: $e', code: 'google-unavailable');
+    }
+    if (account == null) {
+      throw AuthFailure('Кіру тоқтатылды', code: 'cancelled');
+    }
+    final auth = await account.authentication;
+    final idToken = auth.idToken;
+    if (idToken == null || idToken.isEmpty) {
+      throw AuthFailure(
+          'Google токені алынбады — Web Client ID баптауын тексеріңіз',
+          code: 'no-id-token');
+    }
+    try {
+      await _sb.auth.signInWithIdToken(
+        provider: OAuthProvider.google,
+        idToken: idToken,
+        accessToken: auth.accessToken,
+      );
+    } on AuthException catch (e) {
+      throw _mapAuthError(e);
+    }
+  }
+
+  /// Ағымдағы қолданушының Google-ден келген аты (профиль prefill үшін).
+  String get oauthDisplayName {
+    final m = _sb.auth.currentUser?.userMetadata ?? {};
+    return (m['full_name'] as String?) ?? (m['name'] as String?) ?? '';
+  }
+
+  /// Google-мен алғаш кірген қолданушы КЛИЕНТ профилін жасайды
+  /// (тіркеу формасындағы міндетті деректер: телефон + аты + қала).
+  Future<void> completeClientProfile({
+    required String phoneNumber, // E.164
+    required String name,
+    required String city,
+  }) async {
+    final user = _requireUser();
+    final existing = await emailForPhone(phoneNumber);
+    if (existing != null && existing.isNotEmpty) {
+      throw AuthFailure('Бұл телефон нөмір тіркелген', code: 'phone-in-use');
+    }
+    await _sb.from('clients').upsert({
+      'id': user.id,
+      'phone': phoneNumber,
+      'email': (user.email ?? '').toLowerCase(),
+      'name': name.trim(),
+      'city': city,
+      'email_verified': true,
+    }, onConflict: 'id');
+  }
+
+  /// Google-мен алғаш кірген қолданушы БИЗНЕС профилін жасайды
+  /// (role: 'admin' — дүкен иесі, бизнес-кодымен; 'seller' — сатушы).
+  Future<void> completeBusinessProfile({
+    required String name,
+    required String role, // 'admin' | 'seller'
+  }) async {
+    final user = _requireUser();
+    final email = (user.email ?? '').toLowerCase();
+    if (role == 'admin') {
+      final code = _generateBusinessCode();
+      await _sb.from('users').upsert({
+        'id': user.id,
+        'name': name.trim(),
+        'email': email,
+        'role': 'admin',
+        'owner_id': user.id,
+        'business_code': code,
+        'join_status': 'active',
+      }, onConflict: 'id');
+      await _sb
+          .from('business_codes')
+          .upsert({'code': code, 'admin_uid': user.id}, onConflict: 'code');
+    } else {
+      await _sb.from('users').upsert({
+        'id': user.id,
+        'name': name.trim(),
+        'email': email,
+        'role': 'seller',
+        'owner_id': null,
+        'join_status': 'none',
+      }, onConflict: 'id');
+    }
+  }
+
+  /// 6-цифрлы бизнес коды (handle_new_user триггеріндегі логикамен бірдей).
+  static String _generateBusinessCode() {
+    final r = Random();
+    return List.generate(6, (_) => r.nextInt(10)).join();
+  }
 
   // ═══════════════════════════════════════════════════════════════════════════
   //  Профиль оқу
@@ -349,9 +353,10 @@ class AuthService {
 
   Future<UserModel?> getUserDoc(String uid) async {
     try {
-      final doc = await _db.collection('users').doc(uid).get();
-      if (!doc.exists) return null;
-      return UserModel.fromFirestore(doc);
+      final row =
+          await _sb.from('users').select().eq('id', uid).maybeSingle();
+      if (row == null) return null;
+      return UserModel.fromMap(row);
     } catch (_) {
       return null;
     }
@@ -359,24 +364,65 @@ class AuthService {
 
   Future<ClientModel?> getClientDoc(String uid) async {
     try {
-      final ref = _db.collection('clients').doc(uid);
-      final doc = await ref.get();
-      if (!doc.exists) return null;
-      return ClientModel.fromFirestore(doc);
+      final row =
+          await _sb.from('clients').select().eq('id', uid).maybeSingle();
+      if (row == null) return null;
+      return ClientModel.fromMap(row);
     } catch (_) {
       return null;
     }
   }
 
   Future<void> updateClientCity(String uid, String city) async {
-    await _db.collection('clients').doc(uid).update({'city': city});
+    await _sb.from('clients').update({'city': city}).eq('id', uid);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  ЖАЛПЫ БЛОК (superadmin қояды)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Ағымдағы қолданушының блок күйі (RPC, RLS айналып өтеді):
+  /// source: 'self' — өзі блокталған; 'owner' — дүкен иесі блокталған (каскад).
+  /// Қате болса блокталмаған деп есептейміз (кіруді бұғаттамау үшін).
+  Future<({bool blocked, String reason, String source})>
+      fetchBlockStatus() async {
+    try {
+      final res = await _sb.rpc('my_block_status');
+      final m = (res is Map) ? res.cast<String, dynamic>() : <String, dynamic>{};
+      return (
+        blocked: m['blocked'] == true,
+        reason: (m['reason'] as String?) ?? '',
+        source: (m['source'] as String?) ?? '',
+      );
+    } catch (_) {
+      return (blocked: false, reason: '', source: '');
+    }
+  }
+
+  /// Seller дүкен иесінен босап шығады (иесі блокталғанда басқа дүкенге ауысу
+  /// үшін): owner_id тазарады, join_status='none' → SellerJoinScreen.
+  Future<void> detachFromOwner() async {
+    final uid = currentUid;
+    if (uid == null) throw AuthFailure('Қайта кіріңіз', code: 'no-user');
+    await _sb.from('users').update({
+      'owner_id': null,
+      'join_status': 'none',
+      'assigned_warehouse_id': null,
+    }).eq('id', uid);
   }
 
   // ── Sign out ───────────────────────────────────────────────────────────────
 
   Future<void> signOut() async {
     AppUser.current.clear();
-    await _auth.signOut();
+    // Google сессиясын да тазалаймыз (келесіде аккаунт таңдау шығуы үшін).
+    // Вебте native плагин жоқ — тек Supabase signOut жеткілікті.
+    if (!kIsWeb) {
+      try {
+        await _google.signOut();
+      } catch (_) {}
+    }
+    await _sb.auth.signOut();
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -384,7 +430,7 @@ class AuthService {
   // ═══════════════════════════════════════════════════════════════════════════
 
   User _requireUser() {
-    final user = _auth.currentUser;
+    final user = _sb.auth.currentUser;
     if (user == null || (user.email ?? '').isEmpty) {
       throw AuthFailure('Қауіпсіздік үшін қайта кіріңіз',
           code: 'requires-recent-login');
@@ -392,92 +438,55 @@ class AuthService {
     return user;
   }
 
+  /// Ағымдағы құпиясөзді растау: қайта кіріп көреміз (Supabase-те reauth жоқ).
   Future<void> _reauth(User user, String currentPassword) async {
     try {
-      final cred = EmailAuthProvider.credential(
+      await _sb.auth.signInWithPassword(
           email: user.email!, password: currentPassword);
-      await user.reauthenticateWithCredential(cred);
-    } on FirebaseAuthException catch (e) {
-      if (e.code == 'wrong-password' || e.code == 'invalid-credential') {
-        throw AuthFailure('Құпиясөз қате', code: 'wrong-password');
-      }
-      throw AuthFailure(_msg(e), code: e.code);
+    } on AuthException catch (_) {
+      throw AuthFailure('Құпиясөз қате', code: 'wrong-password');
     }
   }
 
-  /// Пайдаланушының профиль құжатын табады: алдымен `users/{uid}` (seller/admin,
-  /// телефон өрісі `phoneNumber`), болмаса `clients/{uid}` (клиент, өрісі `phone`).
-  Future<_ProfileRef> _profileRef(String uid) async {
-    final usersRef = _db.collection('users').doc(uid);
-    final usersDoc = await usersRef.get();
-    if (usersDoc.exists) {
-      final d = usersDoc.data()!;
-      return _ProfileRef(
-        ref: usersRef,
-        exists: true,
-        phoneField: 'phoneNumber',
-        phone: d['phoneNumber'] as String? ?? '',
-        email: d['email'] as String? ?? '',
-      );
+  /// Supabase Auth қателерін қазақша хабарларға түрлендіру.
+  static AuthFailure _mapAuthError(AuthException e) {
+    final msg = e.message.toLowerCase();
+    if (msg.contains('already registered') ||
+        msg.contains('already been registered') ||
+        msg.contains('user already')) {
+      return AuthFailure('Бұл email тіркелген', code: 'email-already-in-use');
     }
-    final clientsRef = _db.collection('clients').doc(uid);
-    final clientsDoc = await clientsRef.get();
-    final d = clientsDoc.data();
-    return _ProfileRef(
-      ref: clientsRef,
-      exists: clientsDoc.exists,
-      phoneField: 'phone',
-      phone: d?['phone'] as String? ?? '',
-      email: d?['email'] as String? ?? '',
-    );
-  }
-
-  static String _generateBusinessCode() {
-    final r = Random();
-    return List.generate(6, (_) => r.nextInt(10)).join();
-  }
-
-  /// Firebase Auth қателерін қазақша хабарларға түрлендіру (толық карта).
-  static String _msg(FirebaseAuthException e) {
-    switch (e.code) {
-      case 'email-already-in-use':
-        return 'Бұл email тіркелген';
-      case 'wrong-password':
-      case 'invalid-credential':
-        return 'Құпиясөз қате';
-      case 'user-not-found':
-        return 'Аккаунт табылмады';
-      case 'weak-password':
-        return 'Құпиясөз кем дегенде 6 таңба болуы керек';
-      case 'invalid-email':
-        return 'Email форматы қате';
-      case 'requires-recent-login':
-        return 'Қауіпсіздік үшін қайта кіріңіз';
-      case 'too-many-requests':
-        return 'Тым көп сұраныс. Кейінірек қайталаңыз';
-      case 'network-request-failed':
-        return 'Интернет байланысын тексеріңіз';
-      default:
-        return 'Қате: ${e.message ?? e.code}';
+    if (msg.contains('invalid login') ||
+        msg.contains('invalid credentials') ||
+        msg.contains('invalid email or password')) {
+      return AuthFailure('Email немесе құпиясөз қате', code: 'wrong-password');
     }
+    if (msg.contains('email not confirmed')) {
+      return AuthFailure('Поштаңызды растаңыз', code: 'email-not-confirmed');
+    }
+    if (msg.contains('token has expired') || msg.contains('invalid token') ||
+        msg.contains('otp')) {
+      return AuthFailure('Код қате немесе мерзімі өтті', code: 'invalid-otp');
+    }
+    if (msg.contains('password should be') || msg.contains('weak')) {
+      return AuthFailure('Құпиясөз кем дегенде 6 таңба болуы керек',
+          code: 'weak-password');
+    }
+    if (msg.contains('invalid email')) {
+      return AuthFailure('Email форматы қате', code: 'invalid-email');
+    }
+    if (msg.contains('rate') || msg.contains('too many')) {
+      return AuthFailure('Тым көп сұраныс. Кейінірек қайталаңыз',
+          code: 'too-many-requests');
+    }
+    if (msg.contains('network')) {
+      return AuthFailure('Интернет байланысын тексеріңіз',
+          code: 'network-request-failed');
+    }
+    return AuthFailure('Қате: ${e.message}', code: 'unknown');
   }
 
-  /// Seller/admin экрандары (login_screen, register_screen) қолданатын
-  /// қатені қазақшаға аударатын ашық көмекші.
-  static String parseError(FirebaseAuthException e) => _msg(e);
-}
-
-class _ProfileRef {
-  final DocumentReference<Map<String, dynamic>> ref;
-  final bool exists;
-  final String phoneField;
-  final String phone;
-  final String email;
-  const _ProfileRef({
-    required this.ref,
-    required this.exists,
-    required this.phoneField,
-    required this.phone,
-    required this.email,
-  });
+  /// Ескі экрандар үшін үйлесімділік: қатені қазақша хабарға аударады.
+  static String parseError(Object e) =>
+      e is AuthFailure ? e.message : 'Белгісіз қате';
 }

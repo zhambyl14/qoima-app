@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../../core/phone_input.dart';
 import '../../data/services/auth_service.dart';
 import '../../theme/qoima_design.dart';
+import 'google_sign_in_button.dart';
 import 'login_screen.dart';
 import 'client_register_screen.dart';
 import 'forgot_password_screen.dart';
@@ -26,7 +27,6 @@ class _ClientLoginScreenState extends State<ClientLoginScreen> {
 
   bool _isLoading = false;
   bool _obscurePassword = true;
-  bool _needsVerification = false; // email-not-verified → «Қайта жіберу»
   String? _errorMessage;
 
   @override
@@ -48,7 +48,6 @@ class _ClientLoginScreenState extends State<ClientLoginScreen> {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
-      _needsVerification = false;
     });
     try {
       await _authService.loginWithPhonePassword(
@@ -59,38 +58,9 @@ class _ClientLoginScreenState extends State<ClientLoginScreen> {
       // Сәтті — реактивті gate (main.dart) дұрыс экранға ауыстырады.
       if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
     } on AuthFailure catch (e) {
-      setState(() {
-        _errorMessage = e.message;
-        _needsVerification = e.code == 'email-not-verified';
-      });
+      setState(() => _errorMessage = e.message);
     } catch (_) {
       if (mounted) setState(() => _errorMessage = 'Белгісіз қате');
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  Future<void> _resendVerification() async {
-    setState(() => _isLoading = true);
-    final messenger = ScaffoldMessenger.of(context);
-    try {
-      final email = await _authService.emailForPhone(kzPhoneToE164(_phoneCtrl.text));
-      if (email == null || email.isEmpty) {
-        throw AuthFailure('Аккаунт табылмады');
-      }
-      await _authService.resendVerification(
-          email: email, password: _passwordCtrl.text);
-      messenger.showSnackBar(const SnackBar(
-        content: Text('Растау сілтемесі қайта жіберілді'),
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: cGreen,
-      ));
-    } on AuthFailure catch (e) {
-      messenger.showSnackBar(SnackBar(
-        content: Text(e.message),
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: cRed,
-      ));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -146,7 +116,7 @@ class _ClientLoginScreenState extends State<ClientLoginScreen> {
             borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
           ),
           padding: EdgeInsets.fromLTRB(
-              22, 26, 22, MediaQuery.of(context).viewInsets.bottom + 30),
+              22, 26, 22, MediaQuery.of(context).viewInsets.bottom + MediaQuery.of(context).padding.bottom + 30),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
@@ -202,14 +172,6 @@ class _ClientLoginScreenState extends State<ClientLoginScreen> {
               if (_errorMessage != null) ...[
                 const SizedBox(height: 10),
                 _ErrorBox(_errorMessage!),
-                if (_needsVerification) ...[
-                  const SizedBox(height: 8),
-                  GestureDetector(
-                    onTap: _isLoading ? null : _resendVerification,
-                    child: Text('Растау сілтемесін қайта жіберу',
-                        style: manrope(13.5, FontWeight.w700, color: cGreen)),
-                  ),
-                ],
               ],
 
               const SizedBox(height: 14),
@@ -218,6 +180,9 @@ class _ClientLoginScreenState extends State<ClientLoginScreen> {
                 isLoading: _isLoading,
                 onPressed: _signIn,
               ),
+
+              const SizedBox(height: 14),
+              GoogleSignInButton(afterLogin: widget.afterLogin),
 
               const SizedBox(height: 14),
               Row(mainAxisAlignment: MainAxisAlignment.center, children: [

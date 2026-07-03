@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 class CourierDeliveryModel {
   final String id;
 
@@ -40,36 +38,35 @@ class CourierDeliveryModel {
     this.status = statusNew,
   });
 
-  factory CourierDeliveryModel.fromFirestore(
-      DocumentSnapshot<Map<String, dynamic>> doc) {
-    final d = doc.data()!;
+  /// Supabase `courier_deliveries` жолынан (snake_case бағандар).
+  factory CourierDeliveryModel.fromMap(Map<String, dynamic> m) {
+    DateTime dt(dynamic v) =>
+        v is String ? (DateTime.tryParse(v) ?? DateTime.now()) : DateTime.now();
     return CourierDeliveryModel(
-      id: doc.id,
-      orderId: d['orderId'] as String? ?? '',
-      orderNumber: (d['orderNumber'] as num?)?.toInt() ?? 0,
-      amount: (d['amount'] as num?)?.toDouble() ?? 0.0,
-      address: d['address'] as String? ?? '',
-      clientName: d['clientName'] as String? ?? '',
-      clientPhone: d['clientPhone'] as String? ?? '',
+      id: m['id'] as String? ?? '',
+      orderId: m['order_id'] as String? ?? '',
+      orderNumber: (m['order_number'] as num?)?.toInt() ?? 0,
+      amount: (m['amount'] as num?)?.toDouble() ?? 0,
+      address: m['address'] as String? ?? '',
+      clientName: m['client_name'] as String? ?? '',
+      clientPhone: m['client_phone'] as String? ?? '',
       warehouseAddresses:
-          (d['warehouseAddresses'] as List<dynamic>? ?? [])
-              .map((e) => e as String)
-              .toList(),
-      createdAt:
-          (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      status: d['status'] as String? ?? statusNew,
+          (m['warehouse_addresses'] as List?)?.map((e) => e.toString()).toList() ??
+              [],
+      createdAt: dt(m['created_at']),
+      status: m['status'] as String? ?? statusNew,
     );
   }
 
-  Map<String, dynamic> toJson() => {
-        'orderId': orderId,
-        'orderNumber': orderNumber,
+  /// Supabase жазу үшін (snake_case).
+  Map<String, dynamic> toMap() => {
+        'order_id': orderId,
+        'order_number': orderNumber,
         'amount': amount,
         'address': address,
-        'clientName': clientName,
-        'clientPhone': clientPhone,
-        'warehouseAddresses': warehouseAddresses,
-        'createdAt': Timestamp.fromDate(createdAt),
+        'client_name': clientName,
+        'client_phone': clientPhone,
+        'warehouse_addresses': warehouseAddresses,
         'status': status,
       };
 }

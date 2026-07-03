@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 class ReservationModel {
   final String id;
   final String productId;
@@ -38,37 +36,40 @@ class ReservationModel {
   int get minutesLeft =>
       expiresAt.difference(DateTime.now()).inMinutes.clamp(0, 60);
 
-  factory ReservationModel.fromFirestore(
-      DocumentSnapshot<Map<String, dynamic>> doc) {
-    final d = doc.data()!;
+  /// Supabase `reservations` жолынан (snake_case бағандар).
+  factory ReservationModel.fromMap(Map<String, dynamic> m) {
+    DateTime dt(dynamic v) =>
+        v is String ? (DateTime.tryParse(v) ?? DateTime.now()) : DateTime.now();
     return ReservationModel(
-      id: doc.id,
-      productId: d['productId'] as String? ?? '',
-      batchId: d['batchId'] as String? ?? '',
-      size: d['size'] as String? ?? '',
-      quantity: (d['quantity'] as num?)?.toInt() ?? 0,
-      reservedBy: d['reservedBy'] as String? ?? '',
-      expiresAt: (d['expiresAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      status: d['status'] as String? ?? statusExpired,
-      clientPhone: d['clientPhone'] as String? ?? '',
-      warehouseId: d['warehouseId'] as String? ?? '',
-      adminUid: d['adminUid'] as String? ?? '',
-      orderType: d['orderType'] as String? ?? '',
+      id: m['id'] as String? ?? '',
+      productId: m['product_id'] as String? ?? '',
+      batchId: m['batch_id'] as String? ?? '',
+      size: m['size'] as String? ?? '',
+      quantity: (m['quantity'] as num?)?.toInt() ?? 0,
+      reservedBy: m['reserved_by'] as String? ?? '',
+      expiresAt: dt(m['expires_at']),
+      status: m['status'] as String? ?? statusExpired,
+      clientPhone: m['client_phone'] as String? ?? '',
+      warehouseId: m['warehouse_id'] as String? ?? '',
+      adminUid: m['admin_uid'] as String? ?? '',
+      orderType: m['order_type'] as String? ?? '',
     );
   }
 
-  Map<String, dynamic> toJson() => {
-        'productId': productId,
-        'batchId': batchId,
+  /// Supabase жазу үшін (snake_case; бос uuid → null).
+  Map<String, dynamic> toMap() => {
+        if (id.isNotEmpty) 'id': id,
+        'admin_uid': adminUid.isEmpty ? null : adminUid,
+        'product_id': productId.isEmpty ? null : productId,
+        'batch_id': batchId.isEmpty ? null : batchId,
         'size': size,
         'quantity': quantity,
-        'reservedBy': reservedBy,
-        'expiresAt': Timestamp.fromDate(expiresAt),
+        'reserved_by': reservedBy.isEmpty ? null : reservedBy,
+        'expires_at': expiresAt.toIso8601String(),
         'status': status,
-        'clientPhone': clientPhone,
-        'warehouseId': warehouseId,
-        'adminUid': adminUid,
-        'orderType': orderType,
+        'client_phone': clientPhone,
+        'warehouse_id': warehouseId.isEmpty ? null : warehouseId,
+        'order_type': orderType,
       };
 
   ReservationModel copyWith({

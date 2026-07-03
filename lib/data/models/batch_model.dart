@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 // ── Discount attached to a batch ──────────────────────────────────────────────
 class DiscountModel {
   final bool active;
@@ -16,20 +14,27 @@ class DiscountModel {
     this.endsAt,
   });
 
+  static DateTime? _d(dynamic v) {
+    if (v is DateTime) return v;
+    if (v is String && v.isNotEmpty) return DateTime.tryParse(v);
+    return null;
+  }
+
   factory DiscountModel.fromMap(Map<String, dynamic> m) => DiscountModel(
         active: m['active'] as bool? ?? false,
         type: m['type'] as String? ?? 'percent',
         value: (m['value'] as num?)?.toDouble() ?? 0,
-        startsAt: (m['starts_at'] as Timestamp?)?.toDate(),
-        endsAt: (m['ends_at'] as Timestamp?)?.toDate(),
+        startsAt: _d(m['starts_at']),
+        endsAt: _d(m['ends_at']),
       );
 
-  Map<String, dynamic> toMap() => {
+  /// Supabase JSONB үшін (ISO жолдар).
+  Map<String, dynamic> toMapJson() => {
         'active': active,
         'type': type,
         'value': value,
-        'starts_at': startsAt != null ? Timestamp.fromDate(startsAt!) : null,
-        'ends_at': endsAt != null ? Timestamp.fromDate(endsAt!) : null,
+        'starts_at': startsAt?.toIso8601String(),
+        'ends_at': endsAt?.toIso8601String(),
       };
 }
 
@@ -75,25 +80,20 @@ class BatchModel {
     this.discount,
   }) : reservedSizes = reservedSizes ?? const {};
 
-  // Physical total (ignores reservations)
   int get totalQuantity =>
       sizesQuantity.values.fold(0, (acc, qty) => acc + qty);
 
-  // Net available after subtracting all reservations
   int get totalAvailable =>
       sizesQuantity.keys.fold(0, (s, k) => s + availableForSize(k));
 
-  // Sold out when no unreserved stock remains
   bool get isSoldOut => totalAvailable <= 0;
 
-  // Available for a specific size after subtracting reservations
   int availableForSize(String size) {
     final qty = sizesQuantity[size] ?? 0;
     final reserved = reservedSizes[size] ?? 0;
     return (qty - reserved).clamp(0, qty);
   }
 
-  // All sizes with available (unreserved) stock
   Map<String, int> get availableSizes {
     final result = <String, int>{};
     for (final size in sizesQuantity.keys) {
@@ -107,50 +107,41 @@ class BatchModel {
 
   double get margin => sellingPrice - purchasePrice;
 
-  factory BatchModel.fromJson(Map<String, dynamic> json, {String? docId}) {
-    DateTime parseDate(dynamic raw) {
-      if (raw is Timestamp) return raw.toDate();
-      if (raw is DateTime) return raw;
-      return DateTime.now();
+  /// Supabase `batches` жолынан (snake_case + JSONB). purchase_price бөлек
+  /// `batch_costs`-тан келеді — сервис оны copyWith арқылы сіңіреді.
+  factory BatchModel.fromMap(Map<String, dynamic> m) {
+    DateTime dt(dynamic v) => v is String
+        ? (DateTime.tryParse(v) ?? DateTime.now())
+        : (v is DateTime ? v : DateTime.now());
+    Map<String, int> im(dynamic v) {
+      final raw = (v as Map?) ?? {};
+      return raw.map((k, val) => MapEntry(k.toString(), (val as num).toInt()));
     }
 
-    final rawSizes = json['sizes_quantity'] as Map<dynamic, dynamic>? ?? {};
-    final sizesQuantity = rawSizes.map(
-      (k, v) => MapEntry(k.toString(), (v as num).toInt()),
-    );
-
-    final rawReserved = json['reserved_sizes'] as Map<dynamic, dynamic>? ?? {};
-    final reservedSizes = rawReserved.map(
-      (k, v) => MapEntry(k.toString(), (v as num).toInt()),
-    );
-
-    final rawDiscount = json['discount'] as Map<String, dynamic>?;
+    final disc = m['discount'];
     return BatchModel(
-      id: docId ?? json['id'] as String? ?? '',
-      dateArrived: parseDate(json['date_arrived']),
-      purchasePrice: (json['purchase_price'] as num?)?.toDouble() ?? 0.0,
-      sellingPrice: (json['selling_price'] as num?)?.toDouble() ?? 0.0,
-      sizesQuantity: sizesQuantity,
-      reservedSizes: reservedSizes,
-      warehouseId: json['warehouseId'] as String? ?? '',
-      discount: rawDiscount != null
-          ? DiscountModel.fromMap(rawDiscount)
+      id: m['id'] as String? ?? '',
+      dateArrived: dt(m['date_arrived']),
+      purchasePrice: (m['purchase_price'] as num?)?.toDouble() ?? 0,
+      sellingPrice: (m['selling_price'] as num?)?.toDouble() ?? 0,
+      sizesQuantity: im(m['sizes_quantity']),
+      reservedSizes: im(m['reserved_sizes']),
+      warehouseId: m['warehouse_id'] as String? ?? '',
+      discount: disc != null
+          ? DiscountModel.fromMap(Map<String, dynamic>.from(disc as Map))
           : null,
     );
   }
 
-  factory BatchModel.fromFirestore(DocumentSnapshot doc) =>
-      BatchModel.fromJson(doc.data() as Map<String, dynamic>, docId: doc.id);
-
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'date_arrived': Timestamp.fromDate(dateArrived),
-        'purchase_price': purchasePrice,
+  /// Supabase жазу үшін (snake_case; id/product_id/owner_uid сервисте; өзіндік
+  /// құн БӨЛЕК batch_costs кестесіне жазылады, мұнда жоқ).
+  Map<String, dynamic> toMap() => {
+        'warehouse_id': warehouseId.isEmpty ? null : warehouseId,
+        'date_arrived': dateArrived.toIso8601String(),
         'selling_price': sellingPrice,
         'sizes_quantity': sizesQuantity,
         'reserved_sizes': reservedSizes,
-        'warehouseId': warehouseId,
-        if (discount != null) 'discount': discount!.toMap(),
+        if (discount != null) 'discount': discount!.toMapJson(),
       };
 
   BatchModel copyWith({
@@ -178,7 +169,7 @@ class BatchModel {
             : discount as DiscountModel?,
       );
 
-static const _kSentinel = Object();
+  static const _kSentinel = Object();
 
   BatchModel updateSize(String size, int delta) {
     final updated = Map<String, int>.from(sizesQuantity);

@@ -1,5 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
+/// Клиент профилі (Supabase `public.clients` жолы).
 class ClientModel {
   final String uid;
   final String phone;
@@ -19,39 +18,43 @@ class ClientModel {
     required this.createdAt,
   });
 
-  factory ClientModel.fromFirestore(
-      DocumentSnapshot<Map<String, dynamic>> doc) {
-    final d = doc.data()!;
-    return ClientModel(
-      uid: doc.id,
-      phone: d['phone'] as String? ?? '',
-      email: d['email'] as String? ?? '',
-      name: d['name'] as String? ?? '',
-      city: d['city'] as String? ?? '',
-      emailVerified: d['emailVerified'] as bool? ?? false,
-      createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-    );
+  static DateTime _date(dynamic raw) {
+    if (raw is DateTime) return raw;
+    if (raw is String && raw.isNotEmpty) {
+      return DateTime.tryParse(raw) ?? DateTime.now();
+    }
+    return DateTime.now();
   }
 
-  Map<String, dynamic> toJson() => {
-        'uid': uid,
+  /// Supabase жолынан (snake_case бағандар).
+  factory ClientModel.fromMap(Map<String, dynamic> m) => ClientModel(
+        uid: m['id'] as String? ?? '',
+        phone: m['phone'] as String? ?? '',
+        email: m['email'] as String? ?? '',
+        name: m['name'] as String? ?? '',
+        city: m['city'] as String? ?? '',
+        emailVerified: m['email_verified'] as bool? ?? false,
+        createdAt: _date(m['created_at']),
+      );
+
+  Map<String, dynamic> toMap() => {
+        'id': uid,
         'phone': phone,
         'email': email,
         'name': name,
         'city': city,
-        'role': 'client',
-        'emailVerified': emailVerified,
-        'createdAt': Timestamp.fromDate(createdAt),
+        'email_verified': emailVerified,
       };
 
-  ClientModel copyWith(
-          {String? uid,
-          String? phone,
-          String? email,
-          String? name,
-          String? city,
-          bool? emailVerified,
-          DateTime? createdAt}) =>
+  ClientModel copyWith({
+    String? uid,
+    String? phone,
+    String? email,
+    String? name,
+    String? city,
+    bool? emailVerified,
+    DateTime? createdAt,
+  }) =>
       ClientModel(
         uid: uid ?? this.uid,
         phone: phone ?? this.phone,

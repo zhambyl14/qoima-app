@@ -1,27 +1,15 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
-/// Owner дүкен мәліметтерін өзгерткісі келгенде жасалатын запрос (v10).
-/// Әр [EditField]: { field, label, oldValue, newValue }. `field` — нақты
-/// store құжатының кілті (storeName, city, description, ownerName, ownerIin,
-/// phone, paymentCardNumber) — approve кезінде сол кілтпен store/main-ге қолданылады.
-/// Top-level collection: `storeEditRequests/{editId}`.
+/// Owner дүкен мәліметтерін өзгерту запросы (Supabase `store_edit_requests`, v10).
 class StoreEditRequestModel {
   final String id;
   final String ownerUid;
-  final String shopName; // ағымдағы дүкен аты (тізімде көрсету үшін)
-
-  /// Өзгертілген өрістер тізімі (тек өзгергендері)
+  final String shopName;
   final List<EditField> changes;
-
-  final String ownerComment; // иесінің түсініктемесі (опционалды)
-
-  // 'pending' | 'approved' | 'rejected' | 'cancelled'
-  final String status;
-
+  final String ownerComment;
+  final String status; // 'pending' | 'approved' | 'rejected' | 'cancelled'
   final DateTime createdAt;
   final DateTime? reviewedAt;
   final String reviewedBy;
-  final String reviewNote; // қайтару себебі (болса)
+  final String reviewNote;
 
   const StoreEditRequestModel({
     required this.id,
@@ -41,34 +29,33 @@ class StoreEditRequestModel {
   bool get isRejected => status == 'rejected';
   bool get isCancelled => status == 'cancelled';
 
-  factory StoreEditRequestModel.fromFirestore(DocumentSnapshot doc) {
-    final d = doc.data() as Map<String, dynamic>;
+  /// Supabase `store_edit_requests` жолынан (snake_case + changes JSONB).
+  factory StoreEditRequestModel.fromMap(Map<String, dynamic> m) {
+    DateTime? dtn(dynamic v) =>
+        v is String && v.isNotEmpty ? DateTime.tryParse(v) : null;
     return StoreEditRequestModel(
-      id: doc.id,
-      ownerUid: d['ownerUid'] as String? ?? '',
-      shopName: d['shopName'] as String? ?? '',
-      changes: (d['changes'] as List<dynamic>? ?? [])
-          .map((e) => EditField.fromMap(e as Map<String, dynamic>))
+      id: m['id'] as String? ?? '',
+      ownerUid: m['owner_uid'] as String? ?? '',
+      shopName: m['shop_name'] as String? ?? '',
+      changes: (m['changes'] as List? ?? [])
+          .map((e) => EditField.fromMap(Map<String, dynamic>.from(e as Map)))
           .toList(),
-      ownerComment: d['ownerComment'] as String? ?? '',
-      status: d['status'] as String? ?? 'pending',
-      createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      reviewedAt: (d['reviewedAt'] as Timestamp?)?.toDate(),
-      reviewedBy: d['reviewedBy'] as String? ?? '',
-      reviewNote: d['reviewNote'] as String? ?? '',
+      ownerComment: m['owner_comment'] as String? ?? '',
+      status: m['status'] as String? ?? 'pending',
+      createdAt: dtn(m['created_at']) ?? DateTime.now(),
+      reviewedAt: dtn(m['reviewed_at']),
+      reviewedBy: m['reviewed_by'] as String? ?? '',
+      reviewNote: m['review_note'] as String? ?? '',
     );
   }
 
-  Map<String, dynamic> toJson() => {
-        'ownerUid': ownerUid,
-        'shopName': shopName,
+  /// Supabase жазу үшін (insert).
+  Map<String, dynamic> toMap() => {
+        'owner_uid': ownerUid,
+        'shop_name': shopName,
         'changes': changes.map((c) => c.toMap()).toList(),
-        'ownerComment': ownerComment,
+        'owner_comment': ownerComment,
         'status': status,
-        'createdAt': Timestamp.fromDate(createdAt),
-        'reviewedAt': reviewedAt != null ? Timestamp.fromDate(reviewedAt!) : null,
-        'reviewedBy': reviewedBy,
-        'reviewNote': reviewNote,
       };
 
   StoreEditRequestModel copyWith({
@@ -93,7 +80,7 @@ class StoreEditRequestModel {
 
 class EditField {
   final String field; // 'phone' | 'paymentCardNumber' | 'description' | ...
-  final String label; // 'Телефон', 'Номер карты' (UI-да көрсету үшін)
+  final String label;
   final String oldValue;
   final String newValue;
 

@@ -2,19 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
-import 'firebase_options.dart';
+import 'core/supabase_config.dart';
 import 'theme/app_theme.dart';
+import 'ui/auth/blocked_screen.dart';
+import 'ui/auth/complete_profile_screen.dart';
 import 'ui/auth/seller_join_screen.dart';
 import 'ui/superadmin/shop_requests_screen.dart';
 import 'ui/guest/guest_shell.dart';
 import 'ui/main_shell.dart';
 import 'ui/client/client_shell.dart';
 import 'ui/admin/admin_shell.dart';
+import 'data/models/client_model.dart';
+import 'data/models/user_model.dart';
 import 'data/services/auth_service.dart';
 import 'core/app_user.dart';
 import 'core/warehouse_context.dart';
@@ -28,10 +30,14 @@ void main() async {
     statusBarColor: Colors.transparent,
     statusBarIconBrightness: Brightness.light,
   ));
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  FirebaseFirestore.instance.settings = const Settings(
-    persistenceEnabled: true,
-    cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+  // Supabase инициализациясы. Кілт түрін автоматты анықтаймыз: ескі JWT
+  // (eyJ...) → anonKey; жаңа кілт (sb_publishable_...) → publishableKey.
+  final supaKey = SupabaseConfig.anonKey;
+  final isLegacyJwt = supaKey.startsWith('eyJ');
+  await Supabase.initialize(
+    url: SupabaseConfig.url,
+    anonKey: isLegacyJwt ? supaKey : null,
+    publishableKey: isLegacyJwt ? null : supaKey,
   );
   runApp(
     MultiProvider(
@@ -118,60 +124,66 @@ class QoimaApp extends StatelessWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      home: StreamBuilder<User?>(
-        stream: FirebaseAuth.instance.authStateChanges(),
+      home: StreamBuilder<AuthState>(
+        stream: Supabase.instance.client.auth.onAuthStateChange,
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const _Splash();
+          // currentSession инициализация кезінде қалпына келтіріледі, сондықтан
+          // оны тікелей оқимыз; ағын тек өзгерістерде қайта құрады.
+          final session = Supabase.instance.client.auth.currentSession;
+          if (session == null) {
+            // clear() — notifyListeners шақырады, build фазасынан тыс орындаймыз.
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              context.read<AppUser>().clear();
+              context.read<WarehouseContext>().clear();
+            });
+            // Кірмеген пайдаланушы — каталогты шолып, корзинаға тауар сала алады.
+            return const GuestShell();
           }
-          if (snapshot.hasData) {
-            return FutureBuilder<bool>(
-              future: _loadSession(snapshot.data!.uid, context),
-              builder: (innerCtx, futureSnap) {
-                // AppUser-ді бірінші тексереміз (реактивті — watch). Осының
-                // арқасында тіркелу экрандары AppUser.set() шақырғанда gate
-                // өзі дұрыс экранға ауысады; pushAndRemoveUntil қажет емес,
-                // сондықтан gate ағаштан алынбайды да, «Шығу» дұрыс жұмыс істейді.
-                final user = innerCtx.watch<AppUser>();
-                if (user.isLoaded) {
-                  if (user.isSuperadmin) return const ShopRequestsScreen();
-                  if (user.isClient) return const ClientShell();
-                  // Admin тіркелген соң бірден офлайн жұмысқа кіреді (қойма,
-                  // товар, сату, аналитика). Интернет-дүкен ашу — міндетті емес,
-                  // ол Профиль → «Менің дүкенім» арқылы заявкамен жасалады.
-                  if (user.isAdmin) return const _AdminHomeRouter();
-                  if (user.joinStatus == 'active') return const MainShell();
-                  return const SellerJoinScreen();
-                }
-                if (futureSnap.connectionState == ConnectionState.waiting) {
-                  return const _Splash();
-                }
-                // Кірген, бірақ профилі жоқ — сирек кездесетін орфан күй (мыс.
-                // тіркеу batch-і сәтсіз болып, Auth аккаунты қалып қойған).
-                // Қауіпсіз шығарамыз — gate қонақ/кіру экранына қайтады.
-                return const _AuthFallback();
-              },
-            );
-          }
-          // clear() — notifyListeners шақырады, сондықтан build фазасынан тыс орындаймыз.
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            context.read<AppUser>().clear();
-            context.read<WarehouseContext>().clear();
-          });
-          // Кірмеген пайдаланушы — каталогты шолып, корзинаға тауар сала алады.
-          // Тапсырыс берер кезде GuestLoginSheet арқылы тіркеледі.
-          return const GuestShell();
+          return FutureBuilder<_SessState>(
+            future: _loadSession(session.user.id, context),
+            builder: (innerCtx, futureSnap) {
+              // AppUser-ді бірінші тексереміз (реактивті — watch): тіркелу
+              // экрандары AppUser.set() шақырғанда gate өзі дұрыс экранға ауысады.
+              final user = innerCtx.watch<AppUser>();
+              if (user.isLoaded) {
+                // Жалпы блок — ешқандай әрекетке жол жоқ (seller босап шыға алады).
+                if (user.blocked) return const BlockedScreen();
+                if (user.isSuperadmin) return const ShopRequestsScreen();
+                if (user.isClient) return const ClientShell();
+                // Admin тіркелген соң бірден офлайн жұмысқа кіреді.
+                if (user.isAdmin) return const _AdminHomeRouter();
+                if (user.joinStatus == 'active') return const MainShell();
+                return const SellerJoinScreen();
+              }
+              if (futureSnap.connectionState == ConnectionState.waiting) {
+                return const _Splash();
+              }
+              // Сессия бар, профиль жоқ — Google-мен алғаш кірген: тіркелуді
+              // аяқтау экраны (рөл + телефон/қала).
+              if (futureSnap.data == _SessState.noProfile) {
+                return const CompleteProfileScreen();
+              }
+              // Желі/басқа қате — қауіпсіз шығарамыз.
+              return const _AuthFallback();
+            },
+          );
         },
       ),
     );
   }
 }
 
-Future<bool> _loadSession(String uid, BuildContext context) async {
+/// Сессия жүктеу нәтижесі: loaded — профиль табылды (AppUser орнады);
+/// noProfile — Auth сессиясы бар, бірақ users/clients жолы жоқ (Google-мен
+/// алғаш кірген — профильді аяқтау керек); error — желі/басқа қате.
+enum _SessState { loaded, noProfile, error }
+
+Future<_SessState> _loadSession(String uid, BuildContext context) async {
   final wCtx = context.read<WarehouseContext>();
   final appUser = context.read<AppUser>();
   try {
     final authService = AuthService();
+    final sb = Supabase.instance.client;
 
     // Auth email өзгерген болса (verifyBeforeUpdateEmail сілтемесі басылған),
     // индекстер мен профильді сәйкестендіреміз (best-effort).
@@ -179,9 +191,21 @@ Future<bool> _loadSession(String uid, BuildContext context) async {
       await authService.syncEmailIfChanged();
     } catch (_) {}
 
-    // Try admin/seller doc first
-    final userDoc = await authService.getUserDoc(uid);
+    // Try admin/seller doc first. МАҢЫЗДЫ: қатені жұтпайтын тікелей сұрау —
+    // желі қатесі «профиль жоқ» (noProfile) болып қате танылмауы үшін.
+    final uRow = await sb.from('users').select().eq('id', uid).maybeSingle();
+    final userDoc = uRow == null ? null : UserModel.fromMap(uRow);
     if (userDoc != null) {
+      // Жалпы блок: өзі немесе дүкен иесі блокталған ба (superadmin-ға қатысты емес).
+      var blocked = false;
+      var blockReason = '';
+      var blockSource = '';
+      if (!userDoc.isSuperadmin) {
+        final bs = await authService.fetchBlockStatus();
+        blocked = bs.blocked;
+        blockReason = bs.reason;
+        blockSource = bs.source;
+      }
       appUser.set(
         uid: userDoc.uid,
         ownerUid: userDoc.ownerId.isNotEmpty ? userDoc.ownerId : userDoc.uid,
@@ -194,13 +218,17 @@ Future<bool> _loadSession(String uid, BuildContext context) async {
         joinStatus: userDoc.joinStatus,
         shopStatus: userDoc.shopStatus,
         termsAccepted: userDoc.termsAccepted,
+        blocked: blocked,
+        blockReason: blockReason,
+        blockSource: blockSource,
       );
-      await wCtx.load();
-      return true;
+      if (!blocked) await wCtx.load();
+      return _SessState.loaded;
     }
 
-    // Try client doc
-    final clientDoc = await authService.getClientDoc(uid);
+    // Try client doc (тікелей сұрау — қате жұтылмайды)
+    final cRow = await sb.from('clients').select().eq('id', uid).maybeSingle();
+    final clientDoc = cRow == null ? null : ClientModel.fromMap(cRow);
     if (clientDoc != null) {
       appUser.set(
         uid: clientDoc.uid,
@@ -210,13 +238,16 @@ Future<bool> _loadSession(String uid, BuildContext context) async {
         role: 'client',
         phone: clientDoc.phone,
         city: clientDoc.city,
+        // Верификация жоқ — барлық клиент расталған деп есептеледі.
+        emailVerified: true,
       );
-      return true;
+      return _SessState.loaded;
     }
 
-    return false;
+    // Екі сұрау да сәтті өтіп, екеуі де бос — Google-мен алғаш кірген.
+    return _SessState.noProfile;
   } catch (_) {
-    return false;
+    return _SessState.error;
   }
 }
 

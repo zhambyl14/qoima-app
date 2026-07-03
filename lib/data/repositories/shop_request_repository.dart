@@ -1,48 +1,32 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/shop_request_model.dart';
 import '../models/store_model.dart';
 
-/// `shopRequests` collection-імен жұмыс істейтін қабат.
+/// `shop_requests` кестесімен жұмыс істейтін қабат (Supabase).
 /// Owner заявка жібереді/бақылайды; superadmin бекітеді/бас тартады.
 class ShopRequestRepository {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
-
-  CollectionReference<Map<String, dynamic>> get _col =>
-      _db.collection('shopRequests');
+  final SupabaseClient _sb = Supabase.instance.client;
 
   // ── Owner ──────────────────────────────────────────────────────────────────
 
-  /// Owner заявка жібереді. Жасалған құжаттың ID-сін қайтарады.
   Future<String> submitRequest(ShopRequestModel req) async {
-    final doc = await _col.add(req.toJson());
-    return doc.id;
+    final row =
+        await _sb.from('shop_requests').insert(req.toMap()).select('id').single();
+    return row['id'] as String;
   }
 
-  /// Owner өз заявкасының ең соңғысын бақылайды.
-  /// (where + orderBy композиттік индексін талап етпеу үшін сұрыптау клиент жағында.)
-  Stream<ShopRequestModel?> watchMyRequest(String ownerUid) {
-    return _col.where('ownerUid', isEqualTo: ownerUid).snapshots().map((s) {
-      if (s.docs.isEmpty) return null;
-      final list = s.docs.map(ShopRequestModel.fromFirestore).toList()
-        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      return list.first;
-    });
-  }
+  Stream<ShopRequestModel?> watchMyRequest(String ownerUid) => _sb
+      .from('shop_requests')
+      .stream(primaryKey: ['id'])
+      .eq('owner_uid', ownerUid)
+      .order('created_at', ascending: false)
+      .map((rows) =>
+          rows.isEmpty ? null : ShopRequestModel.fromMap(rows.first));
 
   /// Бекітілген заявка бойынша дүкенді owner ӨЗІ provision етеді
-  /// (users/{uid}/store/{uid} + users/{uid}.shopStatus='approved').
-  /// Құжат ID = ownerUid — FirestoreService (_storeDoc, watchStore/getStore/
-  /// saveStore) дәл осы құжатпен жұмыс істейді.
-  /// Бұл owner-дің өз құжаттарына жазу болғандықтан, қосымша ережелер қажет емес.
+  /// (stores upsert + users.shop_status='approved').
   Future<void> provisionApprovedShop(ShopRequestModel req) async {
     final now = DateTime.now();
-    final batch = _db.batch();
-
-    final storeRef = _db
-        .collection('users')
-        .doc(req.ownerUid)
-        .collection('store')
-        .doc(req.ownerUid);
     final store = StoreModel(
       adminUid: req.ownerUid,
       storeName: req.shopName,
@@ -55,7 +39,6 @@ class ShopRequestRepository {
       isPublished: true,
       createdAt: now,
       updatedAt: now,
-      // v10 — заявкадан иесі мен қаржы деректерін көшіреміз.
       paymentCardNumber: req.cardNumber,
       paymentCardHolder: req.cardHolder,
       paymentBank: req.cardBank,
@@ -64,61 +47,48 @@ class ShopRequestRepository {
       category: req.category,
       status: 'active',
     );
-    batch.set(storeRef, store.toJson(), SetOptions(merge: true));
-
-    final userRef = _db.collection('users').doc(req.ownerUid);
-    batch.set(userRef, {
-      'shopStatus': 'approved',
-      'shopRequestId': req.id,
-      'shopName': req.shopName,
-    }, SetOptions(merge: true));
-
-    await batch.commit();
+    await _sb.from('stores').upsert({...store.toMap(), 'admin_uid': req.ownerUid});
+    await _sb.from('users').update({
+      'shop_status': 'approved',
+      'shop_request_id': req.id,
+    }).eq('id', req.ownerUid);
   }
 
   // ── Superadmin ───────────────────────────────────────────────────────────────
 
-  /// Барлық pending заявкалар (badge/тізім үшін).
-  Stream<List<ShopRequestModel>> watchPendingRequests() {
-    return _col.where('status', isEqualTo: 'pending').snapshots().map((s) {
-      final list = s.docs.map(ShopRequestModel.fromFirestore).toList()
-        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      return list;
-    });
-  }
+  Stream<List<ShopRequestModel>> watchPendingRequests() => _sb
+      .from('shop_requests')
+      .stream(primaryKey: ['id'])
+      .eq('status', 'pending')
+      .order('created_at', ascending: false)
+      .map((rows) => rows.map(ShopRequestModel.fromMap).toList());
 
-  /// Барлық заявкалар (фильтр үшін, жаңасы жоғарыда).
-  Stream<List<ShopRequestModel>> watchAllRequests() {
-    return _col
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .map((s) => s.docs.map(ShopRequestModel.fromFirestore).toList());
-  }
+  Stream<List<ShopRequestModel>> watchAllRequests() => _sb
+      .from('shop_requests')
+      .stream(primaryKey: ['id'])
+      .order('created_at', ascending: false)
+      .map((rows) => rows.map(ShopRequestModel.fromMap).toList());
 
-  /// Superadmin — бекіту.
   Future<void> approveRequest({
     required String requestId,
     required String reviewedBy,
-  }) async {
-    await _col.doc(requestId).update({
-      'status': 'approved',
-      'reviewedAt': Timestamp.now(),
-      'reviewedBy': reviewedBy,
-      'reviewNote': '',
-    });
-  }
+  }) =>
+      _sb.from('shop_requests').update({
+        'status': 'approved',
+        'reviewed_at': DateTime.now().toIso8601String(),
+        'reviewed_by': reviewedBy,
+        'review_note': '',
+      }).eq('id', requestId);
 
-  /// Superadmin — бас тарту (себебімен).
   Future<void> rejectRequest({
     required String requestId,
     required String reviewedBy,
     required String reviewNote,
-  }) async {
-    await _col.doc(requestId).update({
-      'status': 'rejected',
-      'reviewedAt': Timestamp.now(),
-      'reviewedBy': reviewedBy,
-      'reviewNote': reviewNote,
-    });
-  }
+  }) =>
+      _sb.from('shop_requests').update({
+        'status': 'rejected',
+        'reviewed_at': DateTime.now().toIso8601String(),
+        'reviewed_by': reviewedBy,
+        'review_note': reviewNote,
+      }).eq('id', requestId);
 }

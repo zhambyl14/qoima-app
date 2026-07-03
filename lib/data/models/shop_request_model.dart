@@ -1,39 +1,23 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
-/// Дүкен ашу заявкасы. Жаңа admin (owner) тіркелген соң толтырып жібереді,
-/// superadmin (маркетплейс модераторы) бекітеді немесе бас тартады.
-/// Top-level collection: `shopRequests/{requestId}`.
+/// Дүкен ашу заявкасы (Supabase `shop_requests`).
 class ShopRequestModel {
   final String id;
-
-  // Иесі туралы
   final String ownerUid;
   final String ownerName;
   final String ownerPhone;
   final String ownerIin; // ЖСН / БСН
-
-  // Дүкен туралы
   final String shopName;
   final String city;
   final String category;
   final String description;
-
-  // Қаржы — төлемдер келетін карта (v10). Карта номері бос орынсыз (16 сан) сақталады.
   final String cardNumber;
-  final String cardHolder; // картадағы аты-жөні (лат.) — опционалды
-  final String cardBank;   // 'Kaspi Gold' т.б. — опционалды
-
-  // Партнёр шартымен (оферта) танысып, келісті ме (v10).
+  final String cardHolder;
+  final String cardBank;
   final bool contractAccepted;
-
-  // Статус: 'pending' | 'approved' | 'rejected'
-  final String status;
-
-  // Мета
+  final String status; // 'pending' | 'approved' | 'rejected'
   final DateTime createdAt;
   final DateTime? reviewedAt;
-  final String reviewedBy; // superadmin uid (болса)
-  final String reviewNote; // бас тарту себебі (болса)
+  final String reviewedBy;
+  final String reviewNote;
 
   const ShopRequestModel({
     required this.id,
@@ -60,48 +44,47 @@ class ShopRequestModel {
   bool get isApproved => status == 'approved';
   bool get isRejected => status == 'rejected';
 
-  factory ShopRequestModel.fromFirestore(DocumentSnapshot doc) {
-    final d = doc.data() as Map<String, dynamic>;
+  /// Supabase `shop_requests` жолынан (snake_case бағандар).
+  factory ShopRequestModel.fromMap(Map<String, dynamic> m) {
+    DateTime? dtn(dynamic v) =>
+        v is String && v.isNotEmpty ? DateTime.tryParse(v) : null;
     return ShopRequestModel(
-      id: doc.id,
-      ownerUid: d['ownerUid'] as String? ?? '',
-      ownerName: d['ownerName'] as String? ?? '',
-      ownerPhone: d['ownerPhone'] as String? ?? '',
-      ownerIin: d['ownerIin'] as String? ?? '',
-      shopName: d['shopName'] as String? ?? '',
-      city: d['city'] as String? ?? '',
-      category: d['category'] as String? ?? '',
-      description: d['description'] as String? ?? '',
-      cardNumber: d['cardNumber'] as String? ?? '',
-      cardHolder: d['cardHolder'] as String? ?? '',
-      cardBank: d['cardBank'] as String? ?? '',
-      contractAccepted: d['contractAccepted'] as bool? ?? false,
-      status: d['status'] as String? ?? 'pending',
-      createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      reviewedAt: (d['reviewedAt'] as Timestamp?)?.toDate(),
-      reviewedBy: d['reviewedBy'] as String? ?? '',
-      reviewNote: d['reviewNote'] as String? ?? '',
+      id: m['id'] as String? ?? '',
+      ownerUid: m['owner_uid'] as String? ?? '',
+      ownerName: m['owner_name'] as String? ?? '',
+      ownerPhone: m['owner_phone'] as String? ?? '',
+      ownerIin: m['owner_iin'] as String? ?? '',
+      shopName: m['shop_name'] as String? ?? '',
+      city: m['city'] as String? ?? '',
+      category: m['category'] as String? ?? '',
+      description: m['description'] as String? ?? '',
+      cardNumber: m['card_number'] as String? ?? '',
+      cardHolder: m['card_holder'] as String? ?? '',
+      cardBank: m['card_bank'] as String? ?? '',
+      contractAccepted: m['contract_accepted'] as bool? ?? false,
+      status: m['status'] as String? ?? 'pending',
+      createdAt: dtn(m['created_at']) ?? DateTime.now(),
+      reviewedAt: dtn(m['reviewed_at']),
+      reviewedBy: m['reviewed_by'] as String? ?? '',
+      reviewNote: m['review_note'] as String? ?? '',
     );
   }
 
-  Map<String, dynamic> toJson() => {
-        'ownerUid': ownerUid,
-        'ownerName': ownerName,
-        'ownerPhone': ownerPhone,
-        'ownerIin': ownerIin,
-        'shopName': shopName,
+  /// Supabase жазу үшін (insert; id/даталарды DB басқарады).
+  Map<String, dynamic> toMap() => {
+        'owner_uid': ownerUid,
+        'owner_name': ownerName,
+        'owner_phone': ownerPhone,
+        'owner_iin': ownerIin,
+        'shop_name': shopName,
         'city': city,
         'category': category,
         'description': description,
-        'cardNumber': cardNumber,
-        'cardHolder': cardHolder,
-        'cardBank': cardBank,
-        'contractAccepted': contractAccepted,
+        'card_number': cardNumber,
+        'card_holder': cardHolder,
+        'card_bank': cardBank,
+        'contract_accepted': contractAccepted,
         'status': status,
-        'createdAt': Timestamp.fromDate(createdAt),
-        'reviewedAt': reviewedAt != null ? Timestamp.fromDate(reviewedAt!) : null,
-        'reviewedBy': reviewedBy,
-        'reviewNote': reviewNote,
       };
 
   ShopRequestModel copyWith({

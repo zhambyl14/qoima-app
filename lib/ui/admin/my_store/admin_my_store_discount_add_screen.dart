@@ -1,4 +1,4 @@
-﻿import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/warehouse_context.dart';
@@ -179,7 +179,7 @@ class _AdminMyStoreDiscountAddScreenState
       // 3. record campaign for the My Store list
       final campaign = StoreDiscountModel(
         id: '',
-        storeId: FirebaseAuth.instance.currentUser!.uid,
+        storeId: Supabase.instance.client.auth.currentUser!.id,
         type: _typeIdx == 0 ? DiscountType.percent : DiscountType.fixed,
         value: _value,
         scope: scope,

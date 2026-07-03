@@ -1,50 +1,38 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/banner_model.dart';
 
-/// `banners` root-коллекциясымен жұмыс істейтін қабат.
-/// Клиент белсенді баршаны оқиды; superadmin қосады/өзгертеді/жояды.
-///
-/// Сұрыптау/фильтрация КЛИЕНТ жағында жасалады — бұл (where active + orderBy
-/// order) композиттік индексін болдырмайды (жоба конвенциясы).
+/// `banners` кестесімен жұмыс істейтін қабат (Supabase).
+/// Клиент белсенділерін оқиды; superadmin қосады/өзгертеді/жояды.
 class BannerRepository {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final SupabaseClient _sb = Supabase.instance.client;
 
-  CollectionReference<Map<String, dynamic>> get _col =>
-      _db.collection('banners');
+  Stream<List<BannerModel>> watchActiveBanners() =>
+      _sb.from('banners').stream(primaryKey: ['id']).map((rows) {
+        final now = DateTime.now();
+        final list = rows
+            .map(BannerModel.fromMap)
+            .where((b) => b.isVisibleAt(now))
+            .toList()
+          ..sort((a, b) => a.order.compareTo(b.order));
+        return list;
+      });
 
-  /// Клиент: белсенді әрі уақыт терезесіндегі баннерлер, order бойынша.
-  Stream<List<BannerModel>> watchActiveBanners() {
-    return _col.snapshots().map((s) {
-      final now = DateTime.now();
-      final list = s.docs
-          .map(BannerModel.fromFirestore)
-          .where((b) => b.isVisibleAt(now))
-          .toList()
-        ..sort((a, b) => a.order.compareTo(b.order));
-      return list;
-    });
-  }
+  Stream<List<BannerModel>> watchAllBanners() =>
+      _sb.from('banners').stream(primaryKey: ['id']).map((rows) =>
+          rows.map(BannerModel.fromMap).toList()
+            ..sort((a, b) => a.order.compareTo(b.order)));
 
-  /// Superadmin: барлық баннерлер, order бойынша.
-  Stream<List<BannerModel>> watchAllBanners() {
-    return _col.snapshots().map((s) => s.docs
-        .map(BannerModel.fromFirestore)
-        .toList()
-      ..sort((a, b) => a.order.compareTo(b.order)));
-  }
-
-  /// Жаңа баннер жасайды (id бос) немесе барын жаңартады.
   Future<void> saveBanner(BannerModel banner) async {
     if (banner.id.isEmpty) {
-      await _col.add(banner.toMap());
+      await _sb.from('banners').insert(banner.toRow());
     } else {
-      await _col.doc(banner.id).set(banner.toMap(), SetOptions(merge: true));
+      await _sb.from('banners').update(banner.toRow()).eq('id', banner.id);
     }
   }
 
-  /// Тек active жалаушасын ауыстыру (тізімдегі Switch үшін).
   Future<void> setActive(String id, bool active) =>
-      _col.doc(id).update({'active': active});
+      _sb.from('banners').update({'active': active}).eq('id', id);
 
-  Future<void> deleteBanner(String id) => _col.doc(id).delete();
+  Future<void> deleteBanner(String id) =>
+      _sb.from('banners').delete().eq('id', id);
 }

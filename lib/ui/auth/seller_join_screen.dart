@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:provider/provider.dart';
 import '../../core/app_user.dart';
 import '../../core/l10n_ext.dart';
@@ -80,14 +79,16 @@ class _SellerJoinScreenState extends State<SellerJoinScreen> {
       return const SizedBox.shrink();
     }
 
-    return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('users')
-          .doc(FirebaseAuth.instance.currentUser?.uid ?? '')
-          .snapshots(),
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: Supabase.instance.client
+          .from('users')
+          .stream(primaryKey: ['id'])
+          .eq('id', Supabase.instance.client.auth.currentUser?.id ?? ''),
       builder: (_, snap) {
-        final status = (snap.data?.data()
-                as Map<String, dynamic>?)?['joinStatus'] as String? ??
+        final rows = snap.data;
+        final status = (rows != null && rows.isNotEmpty
+                ? rows.first['join_status'] as String?
+                : null) ??
             context.read<AppUser>().joinStatus;
 
         if (status == 'active') {
@@ -119,7 +120,7 @@ class _SellerJoinScreenState extends State<SellerJoinScreen> {
       Expanded(
         child: SingleChildScrollView(
           padding: EdgeInsets.fromLTRB(
-              22, 24, 22, MediaQuery.of(context).viewInsets.bottom + 30),
+              22, 24, 22, MediaQuery.of(context).viewInsets.bottom + MediaQuery.of(context).padding.bottom + 30),
           child: Column(children: [
             // Icon box
             Container(

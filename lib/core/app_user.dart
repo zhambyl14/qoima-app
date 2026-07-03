@@ -19,9 +19,15 @@ class AppUser extends ChangeNotifier {
   String _assignedWarehouseId = '';
   String _joinStatus = 'none';
   String _city = '';
+  // Клиент поштасын растады ма (false болса — қарай алады, бірақ сатып ала алмайды)
+  bool _emailVerified = false;
   // v7 — admin (owner) онбординг күйі
   String _shopStatus = 'approved'; // approved|none|pending|rejected
   bool _termsAccepted = false;
+  // Жалпы блок: superadmin блоктаған иесі/сатушысы ешқандай әрекет жасай алмайды.
+  bool _blocked = false;
+  String _blockReason = '';
+  String _blockSource = ''; // 'self' | 'owner' (иесі блокталған — каскад)
 
   String get uid => _uid;
   String get ownerUid => _ownerUid;
@@ -34,8 +40,12 @@ class AppUser extends ChangeNotifier {
   String get assignedWarehouseId => _assignedWarehouseId;
   String get joinStatus => _joinStatus;
   String get city => _city;
+  bool get emailVerified => _emailVerified;
   String get shopStatus => _shopStatus;
   bool get termsAccepted => _termsAccepted;
+  bool get blocked => _blocked;
+  String get blockReason => _blockReason;
+  String get blockSource => _blockSource;
 
   bool get isAdmin => _role == 'admin';
   bool get isSeller => _role == 'seller';
@@ -68,6 +78,12 @@ class AppUser extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setEmailVerified(bool v) {
+    if (_emailVerified == v) return;
+    _emailVerified = v;
+    notifyListeners();
+  }
+
   void set({
     required String uid,
     required String ownerUid,
@@ -80,8 +96,12 @@ class AppUser extends ChangeNotifier {
     String assignedWarehouseId = '',
     String joinStatus = 'none',
     String city = '',
+    bool emailVerified = false,
     String shopStatus = 'approved',
     bool termsAccepted = false,
+    bool blocked = false,
+    String blockReason = '',
+    String blockSource = '',
   }) {
     _uid = uid;
     _ownerUid = ownerUid;
@@ -94,8 +114,24 @@ class AppUser extends ChangeNotifier {
     _assignedWarehouseId = assignedWarehouseId;
     _joinStatus = joinStatus;
     _city = city;
+    _emailVerified = emailVerified;
     _shopStatus = shopStatus;
     _termsAccepted = termsAccepted;
+    _blocked = blocked;
+    _blockReason = blockReason;
+    _blockSource = blockSource;
+    notifyListeners();
+  }
+
+  /// Seller блокталған иесінен босап шықты: блок алынып, join күйі тазарады —
+  /// реактивті gate SellerJoinScreen-ге ауыстырады.
+  void detachedFromOwner() {
+    _blocked = false;
+    _blockReason = '';
+    _blockSource = '';
+    _ownerUid = '';
+    _joinStatus = 'none';
+    _assignedWarehouseId = '';
     notifyListeners();
   }
 
@@ -123,8 +159,12 @@ class AppUser extends ChangeNotifier {
     _assignedWarehouseId = '';
     _joinStatus = 'none';
     _city = '';
+    _emailVerified = false;
     _shopStatus = 'approved';
     _termsAccepted = false;
+    _blocked = false;
+    _blockReason = '';
+    _blockSource = '';
     notifyListeners();
   }
 }

@@ -21,7 +21,7 @@ class GuestLoginSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bottom = MediaQuery.of(context).viewInsets.bottom;
+    final bottom = MediaQuery.of(context).viewInsets.bottom + MediaQuery.of(context).padding.bottom;
     return Container(
       decoration: const BoxDecoration(
         color: cSurface,

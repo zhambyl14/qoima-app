@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../../core/l10n_ext.dart';
 import '../../data/services/auth_service.dart';
-import 'package:provider/provider.dart';
-import '../../core/app_user.dart';
 import '../../theme/qoima_design.dart';
+import 'google_sign_in_button.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -68,31 +66,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
         password: _passwordCtrl.text,
         role: _role,
       );
-      final uid = _authService.currentUid!;
-      final userDoc = await _authService.getUserDoc(uid);
-      if (userDoc != null && mounted) {
-        context.read<AppUser>().set(
-              uid: userDoc.uid,
-              ownerUid: userDoc.ownerId,
-              name: userDoc.name,
-              email: userDoc.email,
-              role: userDoc.role,
-              active: userDoc.active,
-              businessCode: userDoc.businessCode,
-              assignedWarehouseId: userDoc.assignedWarehouseId,
-              joinStatus: userDoc.joinStatus,
-              shopStatus: userDoc.shopStatus,
-              termsAccepted: userDoc.termsAccepted,
-            );
-      }
+      // Сессия бірден басталды — түбір экранға ораламыз, реактивті gate
+      // рөл бойынша дұрыс экранға ауыстырады.
       if (mounted) {
-        // Корневой реактивті gate-ке оралып, дұрыс экранды соған таңдатамыз:
-        // жаңа admin → AdminApprovalGate (Terms→заявка), seller → SellerJoinScreen.
-        // pushAndRemoveUntil қолданбаймыз — ол gate-ті ағаштан алып тастайтын еді.
         Navigator.of(context).popUntil((route) => route.isFirst);
       }
-    } on FirebaseAuthException catch (e) {
-      _setErr(AuthService.parseError(e));
+    } on AuthFailure catch (e) {
+      _setErr(e.message);
     } catch (e) {
       _setErr(e.toString().replaceFirst('Exception: ', ''));
     } finally {
@@ -284,6 +264,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           : Text(context.l10n.register,
                               style: const TextStyle(
                                   fontSize: 16, fontWeight: FontWeight.w700)))),
+              const SizedBox(height: 16),
+              const GoogleSignInButton(),
               const SizedBox(height: 16),
 
               Row(mainAxisAlignment: MainAxisAlignment.center, children: [

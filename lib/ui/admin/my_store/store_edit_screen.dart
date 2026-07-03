@@ -1,4 +1,4 @@
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../core/card_utils.dart';
@@ -121,7 +121,7 @@ class _StoreEditScreenState extends State<StoreEditScreen> {
     try {
       final req = StoreEditRequestModel(
         id: '',
-        ownerUid: FirebaseAuth.instance.currentUser!.uid,
+        ownerUid: Supabase.instance.client.auth.currentUser!.id,
         shopName: store.storeName,
         changes: changes,
         ownerComment: _commentCtrl.text.trim(),
@@ -175,7 +175,7 @@ class _StoreEditScreenState extends State<StoreEditScreen> {
         Expanded(
           child: SingleChildScrollView(
             padding: EdgeInsets.fromLTRB(
-                20, 16, 20, MediaQuery.of(context).viewInsets.bottom + 28),
+                20, 16, 20, MediaQuery.of(context).viewInsets.bottom + MediaQuery.of(context).padding.bottom + 28),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [

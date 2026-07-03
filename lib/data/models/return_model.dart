@@ -1,4 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+
 import 'package:flutter/material.dart';
 import '../../l10n/app_localizations.dart';
 
@@ -211,7 +211,11 @@ class ReturnModel {
 
   // ── Firestore ────────────────────────────────────────────────────────────────
 
-  static DateTime? _ts(dynamic v) => v is Timestamp ? v.toDate() : null;
+  static DateTime? _ts(dynamic v) {
+    if (v is DateTime) return v;
+    if (v is String && v.isNotEmpty) return DateTime.tryParse(v);
+    return null;
+  }
 
   static ReturnType _parseType(String s) =>
       ReturnType.values.firstWhere((e) => e.name == s, orElse: () => ReturnType.online);
@@ -256,11 +260,18 @@ class ReturnModel {
         conditionPhotos: (d['condition_photos'] as List<dynamic>? ?? []).cast<String>(),
       );
 
-  Map<String, dynamic> toMap() => {
+  /// Supabase `returns` жолынан (snake_case + JSONB items).
+  factory ReturnModel.fromRow(Map<String, dynamic> m) =>
+      ReturnModel.fromMap(m, m['id'] as String? ?? '');
+
+  /// Supabase жазу үшін (snake_case, ISO даталар, id қамтылады).
+  Map<String, dynamic> toRow() => {
+        'id': id,
         'admin_uid': adminUid,
         if (sellerId != null) 'seller_id': sellerId,
-        if (warehouseId != null) 'warehouse_id': warehouseId,
-        'client_uid': clientUid,
+        'warehouse_id':
+            (warehouseId != null && warehouseId!.isNotEmpty) ? warehouseId : null,
+        'client_uid': clientUid.isEmpty ? null : clientUid,
         'client_name': clientName,
         'client_phone': clientPhone,
         if (orderId != null) 'order_id': orderId,
@@ -269,19 +280,18 @@ class ReturnModel {
         'items': items.map((i) => i.toMap()).toList(),
         'total_amount': totalAmount,
         'reason': reason.name,
-        if (reasonNote != null && reasonNote!.isNotEmpty) 'reason_note': reasonNote,
+        if (reasonNote != null) 'reason_note': reasonNote,
         'photo_urls': photoUrls,
         'pickup': pickup.name,
         'refund_method': refundMethod.name,
         'status': status.name,
-        'created_at': Timestamp.fromDate(createdAt),
-        if (approvedAt != null) 'approved_at': Timestamp.fromDate(approvedAt!),
-        if (receivedAt != null) 'received_at': Timestamp.fromDate(receivedAt!),
-        if (refundedAt != null) 'refunded_at': Timestamp.fromDate(refundedAt!),
-        if (rejectedAt != null) 'rejected_at': Timestamp.fromDate(rejectedAt!),
-        if (rejectionReason != null && rejectionReason!.isNotEmpty)
-          'rejection_reason': rejectionReason,
-        if (sellerNote != null && sellerNote!.isNotEmpty) 'seller_note': sellerNote,
+        'created_at': createdAt.toIso8601String(),
+        if (approvedAt != null) 'approved_at': approvedAt!.toIso8601String(),
+        if (receivedAt != null) 'received_at': receivedAt!.toIso8601String(),
+        if (refundedAt != null) 'refunded_at': refundedAt!.toIso8601String(),
+        if (rejectedAt != null) 'rejected_at': rejectedAt!.toIso8601String(),
+        if (rejectionReason != null) 'rejection_reason': rejectionReason,
+        if (sellerNote != null) 'seller_note': sellerNote,
         if (itemConditionOk != null) 'item_condition_ok': itemConditionOk,
         'condition_photos': conditionPhotos,
       };

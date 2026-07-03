@@ -1,21 +1,18 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
-/// Промокод магазина: `users/{adminUid}/promos/{promoId}`.
-/// Учёт «кто уже применял» — подколлекция `redemptions/{clientUid}`.
+/// Промокод магазина (Supabase `promos`).
 class PromoModel {
   final String id;
   final String code; // UPPERCASE, уникален в пределах магазина
   final String type; // 'percent' | 'amount'
-  final double value; // 20 (%) или 5000 (₸)
+  final double value;
   final String scope; // 'all' | 'products'
-  final List<String> productIds; // если scope == 'products'
-  final int? maxUses; // всего использований (null = ∞)
-  final int usedCount; // счётчик
-  final int? perUserLimit; // на 1 клиента (null = ∞)
-  final double minOrder; // мин. сумма заказа (0 = нет)
+  final List<String> productIds;
+  final int? maxUses;
+  final int usedCount;
+  final int? perUserLimit;
+  final double minOrder;
   final DateTime? startsAt;
   final DateTime? endsAt;
-  final bool active; // ручной вкл/выкл
+  final bool active;
   final DateTime? createdAt;
 
   const PromoModel({
@@ -36,18 +33,11 @@ class PromoModel {
   });
 
   bool get isPercent => type == 'percent';
-
-  // Достигнут общий лимит использований
   bool get isExhausted => maxUses != null && usedCount >= maxUses!;
-
-  bool get isStarted =>
-      startsAt == null || !DateTime.now().isBefore(startsAt!);
+  bool get isStarted => startsAt == null || !DateTime.now().isBefore(startsAt!);
   bool get isExpired => endsAt != null && DateTime.now().isAfter(endsAt!);
-
-  // Активен «прямо сейчас» (для UI/применения)
   bool get isLive => active && isStarted && !isExpired && !isExhausted;
 
-  // Сколько дней осталось до конца действия (null = бессрочно)
   int? get daysLeft {
     if (endsAt == null) return null;
     final diff = endsAt!.difference(DateTime.now()).inDays;
@@ -62,43 +52,42 @@ class PromoModel {
     return d < 0 ? 0 : d.roundToDouble();
   }
 
-  factory PromoModel.fromMap(Map<String, dynamic> m, String id) => PromoModel(
-        id: id,
-        code: (m['code'] as String? ?? '').toUpperCase(),
-        type: m['type'] as String? ?? 'percent',
-        value: (m['value'] as num?)?.toDouble() ?? 0,
-        scope: m['scope'] as String? ?? 'all',
-        productIds: (m['product_ids'] as List<dynamic>? ?? [])
-            .map((e) => e.toString())
-            .toList(),
-        maxUses: (m['max_uses'] as num?)?.toInt(),
-        usedCount: (m['used_count'] as num?)?.toInt() ?? 0,
-        perUserLimit: (m['per_user_limit'] as num?)?.toInt(),
-        minOrder: (m['min_order'] as num?)?.toDouble() ?? 0,
-        startsAt: (m['starts_at'] as Timestamp?)?.toDate(),
-        endsAt: (m['ends_at'] as Timestamp?)?.toDate(),
-        active: m['active'] as bool? ?? true,
-        createdAt: (m['created_at'] as Timestamp?)?.toDate(),
-      );
+  /// Supabase `promos` жолынан (snake_case бағандар).
+  factory PromoModel.fromRow(Map<String, dynamic> m) {
+    DateTime? dtn(dynamic v) =>
+        v is String && v.isNotEmpty ? DateTime.tryParse(v) : null;
+    return PromoModel(
+      id: m['id'] as String? ?? '',
+      code: (m['code'] as String? ?? '').toUpperCase(),
+      type: m['type'] as String? ?? 'percent',
+      value: (m['value'] as num?)?.toDouble() ?? 0,
+      scope: m['scope'] as String? ?? 'all',
+      productIds:
+          (m['product_ids'] as List?)?.map((e) => e.toString()).toList() ?? [],
+      maxUses: (m['max_uses'] as num?)?.toInt(),
+      usedCount: (m['used_count'] as num?)?.toInt() ?? 0,
+      perUserLimit: (m['per_user_limit'] as num?)?.toInt(),
+      minOrder: (m['min_order'] as num?)?.toDouble() ?? 0,
+      startsAt: dtn(m['starts_at']),
+      endsAt: dtn(m['ends_at']),
+      active: m['active'] as bool? ?? true,
+      createdAt: dtn(m['created_at']),
+    );
+  }
 
-  factory PromoModel.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) =>
-      PromoModel.fromMap(doc.data() ?? {}, doc.id);
-
-  Map<String, dynamic> toMap() => {
+  /// Supabase жазу үшін (snake_case; admin_uid/used_count сервисте басқарылады).
+  Map<String, dynamic> toRow() => {
         'code': code.toUpperCase(),
         'type': type,
         'value': value,
         'scope': scope,
         'product_ids': productIds,
         'max_uses': maxUses,
-        'used_count': usedCount,
         'per_user_limit': perUserLimit,
         'min_order': minOrder,
-        'starts_at': startsAt != null ? Timestamp.fromDate(startsAt!) : null,
-        'ends_at': endsAt != null ? Timestamp.fromDate(endsAt!) : null,
+        'starts_at': startsAt?.toIso8601String(),
+        'ends_at': endsAt?.toIso8601String(),
         'active': active,
-        'created_at':
-            createdAt != null ? Timestamp.fromDate(createdAt!) : FieldValue.serverTimestamp(),
       };
 
   PromoModel copyWith({
@@ -143,8 +132,8 @@ class PromoModel {
 /// Результат валидации промокода для корзины конкретного магазина.
 class PromoResult {
   final PromoModel? promo;
-  final double discount; // итоговая скидка по промокоду (₸)
-  final String? error; // понятная причина отказа (RU), null если ок
+  final double discount;
+  final String? error;
 
   const PromoResult.ok(this.promo, this.discount) : error = null;
   const PromoResult.fail(this.error)

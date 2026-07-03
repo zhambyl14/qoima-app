@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 class StoreModel {
   final String adminUid;
   final String storeName;
@@ -62,64 +60,67 @@ class StoreModel {
       .trim()
       .replaceAll(RegExp(r'\s+'), '-');
 
-  factory StoreModel.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final d = doc.data()!;
+  /// Supabase `stores` жолынан (snake_case бағандар; admin_uid = PK).
+  factory StoreModel.fromMap(Map<String, dynamic> m) {
+    DateTime dt(dynamic v) =>
+        v is String ? (DateTime.tryParse(v) ?? DateTime.now()) : DateTime.now();
     return StoreModel(
-      adminUid: doc.id,
-      storeName: d['storeName'] as String? ?? '',
-      storeSlug: d['storeSlug'] as String? ?? '',
-      logoUrl: d['logoUrl'] as String? ?? '',
-      city: d['city'] as String? ?? '',
-      phone: d['phone'] as String? ?? '',
-      description: d['description'] as String? ?? '',
-      address: d['address'] as String? ?? '',
-      visibleWarehouseIds: (d['visibleWarehouseIds'] as List<dynamic>? ?? [])
-          .map((e) => e.toString())
-          .toList(),
-      isPublished: d['isPublished'] as bool? ?? false,
-      createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      updatedAt: (d['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      deliveryFeeCity: (d['deliveryFeeCity'] as num?)?.toDouble() ?? 1500.0,
+      adminUid: m['admin_uid'] as String? ?? '',
+      storeName: m['store_name'] as String? ?? '',
+      storeSlug: m['store_slug'] as String? ?? '',
+      logoUrl: m['logo_url'] as String? ?? '',
+      city: m['city'] as String? ?? '',
+      phone: m['phone'] as String? ?? '',
+      description: m['description'] as String? ?? '',
+      address: m['address'] as String? ?? '',
+      visibleWarehouseIds:
+          (m['visible_warehouse_ids'] as List?)?.map((e) => e.toString()).toList() ??
+              [],
+      isPublished: m['is_published'] as bool? ?? false,
+      createdAt: dt(m['created_at']),
+      updatedAt: dt(m['updated_at']),
+      deliveryFeeCity: (m['delivery_fee_city'] as num?)?.toDouble() ?? 1500,
       deliveryFreeThreshold:
-          (d['deliveryFreeThreshold'] as num?)?.toDouble() ?? 0.0,
-      paymentCardNumber: d['paymentCardNumber'] as String? ?? '',
-      paymentCardHolder: d['paymentCardHolder'] as String? ?? '',
-      paymentBank: d['paymentBank'] as String? ?? '',
-      ownerName: d['ownerName'] as String? ?? '',
-      ownerIin: d['ownerIin'] as String? ?? '',
-      category: d['category'] as String? ?? '',
-      status: d['status'] as String? ?? 'active',
-      blockReason: d['blockReason'] as String? ?? '',
-      blockedAt: (d['blockedAt'] as Timestamp?)?.toDate(),
-      blockedBy: d['blockedBy'] as String? ?? '',
+          (m['delivery_free_threshold'] as num?)?.toDouble() ?? 0,
+      paymentCardNumber: m['payment_card_number'] as String? ?? '',
+      paymentCardHolder: m['payment_card_holder'] as String? ?? '',
+      paymentBank: m['payment_bank'] as String? ?? '',
+      ownerName: m['owner_name'] as String? ?? '',
+      ownerIin: m['owner_iin'] as String? ?? '',
+      category: m['category'] as String? ?? '',
+      status: m['status'] as String? ?? 'active',
+      blockReason: m['block_reason'] as String? ?? '',
+      blockedAt: m['blocked_at'] is String
+          ? DateTime.tryParse(m['blocked_at'] as String)
+          : null,
+      blockedBy: m['blocked_by'] as String? ?? '',
     );
   }
 
-  Map<String, dynamic> toJson() => {
-        'adminUid': adminUid,
-        'storeName': storeName,
-        'storeSlug': storeSlug,
-        'logoUrl': logoUrl,
+  /// Supabase жазу үшін (snake_case; admin_uid upsert кезінде сервисте қосылады).
+  Map<String, dynamic> toMap() => {
+        'store_name': storeName,
+        'store_slug': storeSlug,
+        'logo_url': logoUrl,
         'city': city,
         'phone': phone,
         'description': description,
         'address': address,
-        'visibleWarehouseIds': visibleWarehouseIds,
-        'isPublished': isPublished,
-        'createdAt': Timestamp.fromDate(createdAt),
-        'updatedAt': Timestamp.fromDate(updatedAt),
-        'deliveryFeeCity': deliveryFeeCity,
-        'deliveryFreeThreshold': deliveryFreeThreshold,
-        'paymentCardNumber': paymentCardNumber,
-        'paymentCardHolder': paymentCardHolder,
-        'paymentBank': paymentBank,
-        'ownerName': ownerName,
-        'ownerIin': ownerIin,
+        'visible_warehouse_ids': visibleWarehouseIds,
+        'is_published': isPublished,
+        'delivery_fee_city': deliveryFeeCity,
+        'delivery_free_threshold': deliveryFreeThreshold,
+        'payment_card_number': paymentCardNumber,
+        'payment_card_holder': paymentCardHolder,
+        'payment_bank': paymentBank,
+        'owner_name': ownerName,
+        'owner_iin': ownerIin,
         'category': category,
         'status': status,
-        'blockReason': blockReason,
-        'blockedAt': blockedAt != null ? Timestamp.fromDate(blockedAt!) : null,
-        'blockedBy': blockedBy,
+        'block_reason': blockReason,
+        'blocked_at': blockedAt?.toIso8601String(),
+        'blocked_by': blockedBy,
+        'updated_at': DateTime.now().toIso8601String(),
       };
 
   StoreModel copyWith({

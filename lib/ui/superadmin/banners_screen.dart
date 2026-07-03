@@ -291,7 +291,7 @@ class _BannerEditSheetState extends State<_BannerEditSheet> {
 
     return Padding(
       padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom),
+          bottom: MediaQuery.of(context).viewInsets.bottom + MediaQuery.of(context).padding.bottom),
       child: Container(
         decoration: const BoxDecoration(
           color: cSurface,

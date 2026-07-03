@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'cart_item_model.dart';
 
 class OrderModel {
@@ -25,8 +24,6 @@ class OrderModel {
   final String sellerName;
   final String deliveredByUid;
   final String deliveredByName;
-  // Чек нөмірі (#NNNNN) — тауар берілгенде реттік есептегіштен беріледі.
-  // Заказ нөмірінен (orderNumber) БӨЛЕК идентификатор.
   final String receiptNumber;
 
   // ── Payment receipt flow ────────────────────────────────────────────────────
@@ -36,39 +33,34 @@ class OrderModel {
   final DateTime? paymentConfirmedAt;
   final String rejectionReason;
   final DateTime? rejectedAt;
-  // Клиенттің күту мерзімі (null = таймер жоқ, яғни тексерілуде немесе аяқталды)
   final DateTime? deadlineAt;
-  // Бас тарту кезінде қалдық қайтарылды ма (қайталаудан қорғайды)
   final bool stockRestored;
-  // Тапсырыс кезіндегі продавецтің төлем реквизиттері (снапшот)
   final String paymentCardNumber;
   final String paymentCardHolder;
   final String paymentBank;
-  // Қоймада жасалған доплата әдісі ('cash' / 'kaspi' / 'halyk')
   final String inStorePaymentMethod;
 
   // ── Промокод (снапшот на момент заказа) ──────────────────────────────────────
   final String promoId;
   final String promoCode;
-  final double promoDiscount; // скидка по промокоду, ₸
-  // Этот заказ владеет счётчиком used_count промокода — при отмене вернуть ровно раз
+  final double promoDiscount;
   final bool promoCountsUsage;
 
   static const Duration receiptWindow = Duration(minutes: 30);
-  static const Duration pickupWindow  = Duration(minutes: 60);
+  static const Duration pickupWindow = Duration(minutes: 60);
 
   static const String typeSmartReservation = 'smart_reservation';
   static const String typeClickCollect = 'click_collect';
   static const String typeDelivery = 'delivery';
 
-  static const String statusReserved  = 'reserved';   // Бронь депозиті расталды
-  static const String statusPending   = 'pending';    // Оплата тексерілуде
-  static const String statusRejected  = 'rejected';   // Чек қабылданбады
-  static const String statusConfirmed = 'confirmed';  // Оплата расталды · беруге дайын
-  static const String statusReady     = 'ready';      // legacy — жаңа ағымда қолданылмайды
-  static const String statusCompleted = 'completed';  // Берілді
-  static const String statusCancelled = 'cancelled';  // Бас тартылды
-  static const String statusReturned  = 'returned';   // Қайтарылды (возврат жасалды)
+  static const String statusReserved = 'reserved';
+  static const String statusPending = 'pending';
+  static const String statusRejected = 'rejected';
+  static const String statusConfirmed = 'confirmed';
+  static const String statusReady = 'ready';
+  static const String statusCompleted = 'completed';
+  static const String statusCancelled = 'cancelled';
+  static const String statusReturned = 'returned';
 
   const OrderModel({
     required this.id,
@@ -114,129 +106,117 @@ class OrderModel {
   });
 
   double get total => items.fold(0.0, (s, i) => s + i.subtotal);
-  // Итог после промокода (не ниже нуля)
   double get finalTotal => (total - promoDiscount).clamp(0.0, total);
   double get totalWithDelivery => finalTotal + deliveryFee;
-  double get remainingAmount => (finalTotal - depositAmount).clamp(0.0, finalTotal);
+  double get remainingAmount =>
+      (finalTotal - depositAmount).clamp(0.0, finalTotal);
 
   bool get isSmartReservation => orderType == typeSmartReservation;
   bool get isClickCollect => orderType == typeClickCollect;
   bool get isDelivery => orderType == typeDelivery;
 
-  // Чек жіберілген, бірақ тексерілмеген
   bool get isAwaitingReview => status == statusPending && receiptUrl.isNotEmpty;
-
-  // Тек confirmed кезінде ғана беруге болады
   bool get canHandOver => status == statusConfirmed;
-
-  // Толық онлайн төлем жолы (бронь емес)
   bool get isFullPrepay => orderType != typeSmartReservation;
-
-  // deadlineAt-қа негізделген таймер (клиент + admin/seller экрандарда)
   bool get isExpired =>
       deadlineAt != null && DateTime.now().isAfter(deadlineAt!);
-
-  // Артта қалған legacy геттерлер (ReservationTimerWidget үшін сақталады)
   DateTime get expiresAt =>
       deadlineAt ?? createdAt.add(const Duration(hours: 1));
   int get minutesLeft =>
       expiresAt.difference(DateTime.now()).inMinutes.clamp(0, 60);
 
-  factory OrderModel.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final d = doc.data()!;
+  /// Supabase `orders` жолынан (snake_case + items JSONB).
+  factory OrderModel.fromMap(Map<String, dynamic> m) {
+    DateTime dt(dynamic v) =>
+        v is String ? (DateTime.tryParse(v) ?? DateTime.now()) : DateTime.now();
+    DateTime? dtn(dynamic v) =>
+        v is String && v.isNotEmpty ? DateTime.tryParse(v) : null;
     return OrderModel(
-      id: doc.id,
-      clientPhone: d['clientPhone'] as String? ?? '',
-      clientName: d['clientName'] as String? ?? '',
-      clientUid: d['clientUid'] as String? ?? '',
-      adminUid: d['adminUid'] as String? ?? '',
-      storeName: d['storeName'] as String? ?? '',
-      warehouseId: d['warehouseId'] as String? ?? '',
-      warehouseAddress: d['warehouseAddress'] as String? ?? '',
-      storePhone: d['storePhone'] as String? ?? '',
-      items: (d['items'] as List<dynamic>? ?? [])
-          .map((e) => CartItemModel.fromJson(e as Map<String, dynamic>))
+      id: m['id'] as String? ?? '',
+      clientPhone: m['client_phone'] as String? ?? '',
+      clientName: m['client_name'] as String? ?? '',
+      clientUid: m['client_uid'] as String? ?? '',
+      adminUid: m['admin_uid'] as String? ?? '',
+      storeName: m['store_name'] as String? ?? '',
+      warehouseId: m['warehouse_id'] as String? ?? '',
+      warehouseAddress: m['warehouse_address'] as String? ?? '',
+      storePhone: m['store_phone'] as String? ?? '',
+      items: (m['items'] as List? ?? [])
+          .map((e) => CartItemModel.fromJson(Map<String, dynamic>.from(e as Map)))
           .toList(),
-      status: d['status'] as String? ?? statusPending,
-      orderType: d['orderType'] as String? ?? typeClickCollect,
-      createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      address: d['address'] as String? ?? '',
-      note: d['note'] as String? ?? '',
-      depositAmount: (d['depositAmount'] as num?)?.toDouble() ?? 0.0,
-      deliveryFee: (d['deliveryFee'] as num?)?.toDouble() ?? 0.0,
-      pickupCode: d['pickupCode'] as String? ?? '',
-      orderNumber: (d['orderNumber'] as num?)?.toInt() ?? 0,
-      sellerId: d['sellerId'] as String? ?? 'онлайн',
-      sellerName: d['sellerName'] as String? ?? 'Онлайн',
-      deliveredByUid: d['deliveredByUid'] as String? ?? '',
-      deliveredByName: d['deliveredByName'] as String? ?? '',
-      receiptNumber: d['receiptNumber'] as String? ?? '',
-      receiptUrl: d['receiptUrl'] as String? ?? '',
-      receiptSubmittedAt:
-          (d['receiptSubmittedAt'] as Timestamp?)?.toDate(),
-      paymentConfirmedBy: d['paymentConfirmedBy'] as String? ?? '',
-      paymentConfirmedAt:
-          (d['paymentConfirmedAt'] as Timestamp?)?.toDate(),
-      rejectionReason: d['rejectionReason'] as String? ?? '',
-      rejectedAt: (d['rejectedAt'] as Timestamp?)?.toDate(),
-      deadlineAt: (d['deadlineAt'] as Timestamp?)?.toDate(),
-      stockRestored: d['stockRestored'] as bool? ?? false,
-      paymentCardNumber: d['paymentCardNumber'] as String? ?? '',
-      paymentCardHolder: d['paymentCardHolder'] as String? ?? '',
-      paymentBank: d['paymentBank'] as String? ?? '',
-      inStorePaymentMethod: d['inStorePaymentMethod'] as String? ?? '',
-      promoId: d['promoId'] as String? ?? '',
-      promoCode: d['promoCode'] as String? ?? '',
-      promoDiscount: (d['promoDiscount'] as num?)?.toDouble() ?? 0.0,
-      promoCountsUsage: d['promoCountsUsage'] as bool? ?? false,
+      status: m['status'] as String? ?? statusPending,
+      orderType: m['order_type'] as String? ?? typeClickCollect,
+      createdAt: dt(m['created_at']),
+      address: m['address'] as String? ?? '',
+      note: m['note'] as String? ?? '',
+      depositAmount: (m['deposit_amount'] as num?)?.toDouble() ?? 0,
+      deliveryFee: (m['delivery_fee'] as num?)?.toDouble() ?? 0,
+      pickupCode: m['pickup_code'] as String? ?? '',
+      orderNumber: (m['order_number'] as num?)?.toInt() ?? 0,
+      sellerId: m['seller_id'] as String? ?? 'онлайн',
+      sellerName: m['seller_name'] as String? ?? 'Онлайн',
+      deliveredByUid: m['delivered_by_uid'] as String? ?? '',
+      deliveredByName: m['delivered_by_name'] as String? ?? '',
+      receiptNumber: m['receipt_number'] as String? ?? '',
+      receiptUrl: m['receipt_url'] as String? ?? '',
+      receiptSubmittedAt: dtn(m['receipt_submitted_at']),
+      paymentConfirmedBy: m['payment_confirmed_by'] as String? ?? '',
+      paymentConfirmedAt: dtn(m['payment_confirmed_at']),
+      rejectionReason: m['rejection_reason'] as String? ?? '',
+      rejectedAt: dtn(m['rejected_at']),
+      deadlineAt: dtn(m['deadline_at']),
+      stockRestored: m['stock_restored'] as bool? ?? false,
+      paymentCardNumber: m['payment_card_number'] as String? ?? '',
+      paymentCardHolder: m['payment_card_holder'] as String? ?? '',
+      paymentBank: m['payment_bank'] as String? ?? '',
+      inStorePaymentMethod: m['in_store_payment_method'] as String? ?? '',
+      promoId: m['promo_id'] as String? ?? '',
+      promoCode: m['promo_code'] as String? ?? '',
+      promoDiscount: (m['promo_discount'] as num?)?.toDouble() ?? 0,
+      promoCountsUsage: m['promo_counts_usage'] as bool? ?? false,
     );
   }
 
-  Map<String, dynamic> toJson() => {
-        'clientPhone': clientPhone,
-        'clientName': clientName,
-        'clientUid': clientUid,
-        'adminUid': adminUid,
-        'storeName': storeName,
-        'warehouseId': warehouseId,
-        'warehouseAddress': warehouseAddress,
-        'storePhone': storePhone,
+  /// Supabase жазу үшін (snake_case; items JSONB ішінде camelCase қалады).
+  Map<String, dynamic> toMap() => {
+        'admin_uid': adminUid,
+        'client_uid': clientUid.isEmpty ? null : clientUid,
+        'client_phone': clientPhone,
+        'client_name': clientName,
+        'store_name': storeName,
+        'store_phone': storePhone,
+        'warehouse_id': warehouseId.isEmpty ? null : warehouseId,
+        'warehouse_address': warehouseAddress,
         'items': items.map((i) => i.toJson()).toList(),
         'status': status,
-        'orderType': orderType,
-        'createdAt': Timestamp.fromDate(createdAt),
+        'order_type': orderType,
         'address': address,
         'note': note,
-        'depositAmount': depositAmount,
-        'deliveryFee': deliveryFee,
-        'pickupCode': pickupCode,
-        'orderNumber': orderNumber,
-        'sellerId': sellerId,
-        'sellerName': sellerName,
-        'deliveredByUid': deliveredByUid,
-        'deliveredByName': deliveredByName,
-        'receiptNumber': receiptNumber,
-        'receiptUrl': receiptUrl,
-        'receiptSubmittedAt': receiptSubmittedAt != null
-            ? Timestamp.fromDate(receiptSubmittedAt!)
-            : null,
-        'paymentConfirmedBy': paymentConfirmedBy,
-        'paymentConfirmedAt': paymentConfirmedAt != null
-            ? Timestamp.fromDate(paymentConfirmedAt!)
-            : null,
-        'rejectionReason': rejectionReason,
-        'rejectedAt':
-            rejectedAt != null ? Timestamp.fromDate(rejectedAt!) : null,
-        'deadlineAt':
-            deadlineAt != null ? Timestamp.fromDate(deadlineAt!) : null,
-        'paymentCardNumber': paymentCardNumber,
-        'paymentCardHolder': paymentCardHolder,
-        'paymentBank': paymentBank,
-        'inStorePaymentMethod': inStorePaymentMethod,
-        'promoId': promoId,
-        'promoCode': promoCode,
-        'promoDiscount': promoDiscount,
-        'promoCountsUsage': promoCountsUsage,
+        'deposit_amount': depositAmount,
+        'delivery_fee': deliveryFee,
+        'pickup_code': pickupCode,
+        'order_number': orderNumber,
+        'seller_id': sellerId,
+        'seller_name': sellerName,
+        'delivered_by_uid': deliveredByUid,
+        'delivered_by_name': deliveredByName,
+        'receipt_number': receiptNumber,
+        'receipt_url': receiptUrl,
+        'receipt_submitted_at': receiptSubmittedAt?.toIso8601String(),
+        'payment_confirmed_by': paymentConfirmedBy,
+        'payment_confirmed_at': paymentConfirmedAt?.toIso8601String(),
+        'rejection_reason': rejectionReason,
+        'rejected_at': rejectedAt?.toIso8601String(),
+        'deadline_at': deadlineAt?.toIso8601String(),
+        'stock_restored': stockRestored,
+        'payment_card_number': paymentCardNumber,
+        'payment_card_holder': paymentCardHolder,
+        'payment_bank': paymentBank,
+        'in_store_payment_method': inStorePaymentMethod,
+        'promo_id': promoId,
+        'promo_code': promoCode,
+        'promo_discount': promoDiscount,
+        'promo_counts_usage': promoCountsUsage,
       };
 
   OrderModel copyWith({
