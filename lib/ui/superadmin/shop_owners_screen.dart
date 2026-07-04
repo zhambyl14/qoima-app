@@ -5,6 +5,7 @@ import '../../data/models/user_model.dart';
 import '../../data/repositories/store_moderation_repository.dart';
 import '../../theme/qoima_design.dart';
 
+import '../../core/lang.dart';
 /// Superadmin — дүкен иелерін басқару: ЖАЛПЫ блок (офлайн + онлайн).
 /// Блокталған иесі мен оның сатушылары ешқандай әрекет жасай алмайды
 /// (gate → BlockedScreen); сатушы иесінен босап шыға алады.
@@ -44,8 +45,8 @@ class _ShopOwnersScreenState extends State<ShopOwnersScreen> {
 
               return Column(children: [
                 QGradientHeader(
-                  title: 'Владельцы магазинов',
-                  subtitle: 'Всего ${owners.length}',
+                  title: tr('Владельцы магазинов', 'Дүкен иелері'),
+                  subtitle: tr('Всего ${owners.length}', 'Барлығы ${owners.length}'),
                   compact: true,
                   showBack: true,
                   bottom: [
@@ -56,11 +57,11 @@ class _ShopOwnersScreenState extends State<ShopOwnersScreen> {
                         scrollDirection: Axis.horizontal,
                         children: [
                           _TabChip(
-                              label: 'Активные ($active)',
+                              label: tr('Активные ($active)', 'Белсенді ($active)'),
                               active: _tab == 0,
                               onTap: () => setState(() => _tab = 0)),
                           _TabChip(
-                              label: 'Заблокированные ($blocked)',
+                              label: tr('Заблокированные ($blocked)', 'Блокталғандар ($blocked)'),
                               active: _tab == 1,
                               onTap: () => setState(() => _tab = 1)),
                         ],
@@ -100,7 +101,7 @@ class _ShopOwnersScreenState extends State<ShopOwnersScreen> {
   Future<void> _unblock(UserModel owner) async {
     try {
       await _repo.unblockOwner(owner.uid);
-      _snack('Владелец разблокирован', cGreen);
+      _snack(tr('Владелец разблокирован', 'Иесі блоктан шығарылды'), cGreen);
     } catch (e) {
       _snack(e.toString(), cRed);
     }
@@ -120,7 +121,7 @@ class _ShopOwnersScreenState extends State<ShopOwnersScreen> {
         reason: reason.trim(),
         blockedBy: Supabase.instance.client.auth.currentUser!.id,
       );
-      _snack('Владелец «${owner.name}» заблокирован', cInk);
+      _snack(tr('Владелец «${owner.name}» заблокирован', '«${owner.name}» иесі блокталды'), cInk);
     } catch (e) {
       _snack(e.toString(), cRed);
     }
@@ -148,7 +149,7 @@ class _ShopOwnersScreenState extends State<ShopOwnersScreen> {
                   color: cGreen, size: 34),
             ),
             const SizedBox(height: 14),
-            Text('Нет владельцев',
+            Text(tr('Нет владельцев', 'Иелер жоқ'),
                 style: manrope(16, FontWeight.w700, color: cInk)),
           ],
         ),
@@ -231,7 +232,7 @@ class _OwnerRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(owner.name.isNotEmpty ? owner.name : 'Без имени',
+                  Text(owner.name.isNotEmpty ? owner.name : tr('Без имени', 'Атаусыз'),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: manrope(14.5, FontWeight.w800, color: cInk)
@@ -248,7 +249,7 @@ class _OwnerRow extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            QPill(blocked ? 'Блок' : 'Активен',
+            QPill(blocked ? 'Блок' : tr('Активен', 'Белсенді'),
                 tone: blocked ? 'red' : 'green'),
           ]),
         ),
@@ -269,14 +270,14 @@ class _OwnerRow extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 9),
           child: blocked
               ? _ActionBtn(
-                  label: 'Разблокировать',
+                  label: tr('Разблокировать', 'Блоктан шығару'),
                   bg: cGreenTint,
                   fg: cGreenDeep,
                   icon: Icons.lock_open_rounded,
                   onTap: onUnblock,
                 )
               : _ActionBtn(
-                  label: 'Заблокировать полностью',
+                  label: tr('Заблокировать полностью', 'Толық блоктау'),
                   bg: cRedTint,
                   fg: cRed,
                   icon: Icons.lock_outline_rounded,
@@ -386,7 +387,7 @@ class _BlockOwnerSheetState extends State<_BlockOwnerSheet> {
             ),
             const SizedBox(height: 12),
             Center(
-              child: Text('Заблокировать владельца',
+              child: Text(tr('Заблокировать владельца', 'Иесін блоктау'),
                   style: manrope(17, FontWeight.w800, color: cInk)),
             ),
             const SizedBox(height: 4),
@@ -398,12 +399,12 @@ class _BlockOwnerSheetState extends State<_BlockOwnerSheet> {
                   style: manrope(12.5, FontWeight.w500, color: cInk2)),
             ),
             const SizedBox(height: 18),
-            const QSecLabel('Выберите причину'),
+            QSecLabel(tr('Выберите причину', 'Себепті таңдаңыз')),
             ...List.generate(_blockReasons.length + 1, (i) {
               final sel = _selected == i;
               final label = i < _blockReasons.length
-                  ? _blockReasons[i]
-                  : 'Другая причина';
+                  ? trValue(_blockReasons[i])
+                  : tr('Другая причина', 'Басқа себеп');
               return Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: GestureDetector(
@@ -460,7 +461,7 @@ class _BlockOwnerSheetState extends State<_BlockOwnerSheet> {
                 onChanged: (_) => setState(() {}),
                 style: manrope(14, FontWeight.w600, color: cInk),
                 decoration: InputDecoration(
-                  hintText: 'Опишите причину блокировки',
+                  hintText: tr('Опишите причину блокировки', 'Блоктау себебін сипаттаңыз'),
                   hintStyle: manrope(13.5, FontWeight.w500, color: cInk3),
                   filled: true,
                   fillColor: cBg,
@@ -516,7 +517,7 @@ class _BlockOwnerSheetState extends State<_BlockOwnerSheet> {
                     const Icon(Icons.lock_rounded,
                         color: Colors.white, size: 19),
                     const SizedBox(width: 8),
-                    Text('Подтвердить блокировку',
+                    Text(tr('Подтвердить блокировку', 'Блоктауды растау'),
                         style:
                             manrope(15, FontWeight.w700, color: Colors.white)),
                   ],
@@ -535,7 +536,7 @@ class _BlockOwnerSheetState extends State<_BlockOwnerSheet> {
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(15)),
                 ),
-                child: Text('Отмена',
+                child: Text(tr('Отмена', 'Болдырмау'),
                     style: manrope(14.5, FontWeight.w700, color: cInk2)),
               ),
             ),

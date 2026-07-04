@@ -26,6 +26,7 @@ import 'l10n/app_localizations.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('ru', null);
+  await initializeDateFormatting('kk', null);
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
     statusBarIconBrightness: Brightness.light,
@@ -117,7 +118,7 @@ class QoimaApp extends StatelessWidget {
         ),
       ),
       locale: locale,
-      supportedLocales: const [Locale('ru')],
+      supportedLocales: const [Locale('kk'), Locale('ru')],
       localizationsDelegates: const [
         AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,

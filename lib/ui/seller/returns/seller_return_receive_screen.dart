@@ -4,6 +4,7 @@ import '../../../data/models/return_model.dart';
 import '../../../data/services/return_service.dart';
 import '../../../theme/qoima_design.dart';
 
+import '../../../core/lang.dart';
 /// Step: seller receives the physical item.
 /// 1. Mark item condition (ok / bad)
 /// 2. Optionally upload condition photos (shown as TODO — no new deps)
@@ -264,7 +265,7 @@ class _SellerReturnReceiveScreenState
                                     color: cInk),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis),
-                            Text('Р.${item.size}  ×${item.quantity}',
+                            Text(tr('Р.${item.size}  ×${item.quantity}', 'Ө.${item.size}  ×${item.quantity}'),
                                 style: manrope(12, FontWeight.w500,
                                     color: cInk3)),
                           ],

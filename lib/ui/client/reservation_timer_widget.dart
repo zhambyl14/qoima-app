@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../theme/qoima_design.dart';
 
+import '../../core/lang.dart';
 class ReservationTimerWidget extends StatefulWidget {
   final DateTime expiresAt;
   final VoidCallback? onExpired;
@@ -66,7 +67,7 @@ class _ReservationTimerWidgetState extends State<ReservationTimerWidget> {
         ),
         const SizedBox(width: 6),
         Text(
-          expired ? 'Мерзімі өтті' : '$minutes:$seconds',
+          expired ? tr('Время истекло', 'Мерзімі өтті') : '$minutes:$seconds',
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w700,

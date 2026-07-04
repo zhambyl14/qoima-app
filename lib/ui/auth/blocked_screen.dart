@@ -4,6 +4,7 @@ import '../../core/app_user.dart';
 import '../../data/services/auth_service.dart';
 import '../../theme/qoima_design.dart';
 
+import '../../core/lang.dart';
 /// Жалпы блок экраны: superadmin блоктаған дүкен иесі/сатушысы осында тұрып
 /// қалады — ешқандай әрекет жоқ. Иесі блокталған seller «Открепиться» арқылы
 /// босап шығып, басқа дүкенге қосыла алады (reactive gate → SellerJoinScreen).
@@ -23,20 +24,22 @@ class _BlockedScreenState extends State<BlockedScreen> {
       context: context,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: Text('Открепиться от магазина?',
+        title: Text(tr('Открепиться от магазина?', 'Дүкеннен ажырау керек пе?'),
             style: manrope(16, FontWeight.w800, color: cInk)),
         content: Text(
-            'Вы будете откреплены от текущего владельца и сможете '
-            'присоединиться к другому магазину по бизнес-коду.',
+            tr('Вы будете откреплены от текущего владельца и сможете '
+                    'присоединиться к другому магазину по бизнес-коду.',
+                'Ағымдағы иесінен ажырайсыз және бизнес-код арқылы '
+                    'басқа дүкенге қосыла аласыз.'),
             style: manrope(13.5, FontWeight.w500, color: cInk2, height: 1.4)),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: Text('Отмена',
+              child: Text(tr('Отмена', 'Болдырмау'),
                   style: manrope(14, FontWeight.w600, color: cInk2))),
           TextButton(
               onPressed: () => Navigator.pop(context, true),
-              child: Text('Открепиться',
+              child: Text(tr('Открепиться', 'Ажырау'),
                   style: manrope(14, FontWeight.w700, color: cGreen))),
         ],
       ),
@@ -51,8 +54,8 @@ class _BlockedScreenState extends State<BlockedScreen> {
       context.read<AppUser>().detachedFromOwner();
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Не удалось открепиться. Повторите позже'),
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(tr('Не удалось открепиться. Повторите позже', 'Ажырау сәтсіз болды. Кейінірек қайталаңыз')),
           backgroundColor: cRed,
           behavior: SnackBarBehavior.floating,
         ));
@@ -92,18 +95,24 @@ class _BlockedScreenState extends State<BlockedScreen> {
                 const SizedBox(height: 22),
                 Text(
                   byOwner
-                      ? 'Магазин заблокирован'
-                      : 'Аккаунт заблокирован',
+                      ? tr('Магазин заблокирован', 'Дүкен блокталған')
+                      : tr('Аккаунт заблокирован', 'Аккаунт блокталған'),
                   textAlign: TextAlign.center,
                   style: manrope(21, FontWeight.w800, color: cInk),
                 ),
                 const SizedBox(height: 10),
                 Text(
                   byOwner
-                      ? 'Владелец вашего магазина заблокирован модератором. '
-                          'Все действия недоступны.'
-                      : 'Ваш аккаунт заблокирован модератором маркетплейса. '
-                          'Все действия недоступны.',
+                      ? tr(
+                          'Владелец вашего магазина заблокирован модератором. '
+                              'Все действия недоступны.',
+                          'Дүкеніңіздің иесін модератор блоктаған. '
+                              'Барлық әрекет қолжетімсіз.')
+                      : tr(
+                          'Ваш аккаунт заблокирован модератором маркетплейса. '
+                              'Все действия недоступны.',
+                          'Аккаунтыңызды маркетплейс модераторы блоктаған. '
+                              'Барлық әрекет қолжетімсіз.'),
                   textAlign: TextAlign.center,
                   style: manrope(14, FontWeight.w500, color: cInk2, height: 1.5),
                 ),
@@ -121,7 +130,7 @@ class _BlockedScreenState extends State<BlockedScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Причина блокировки',
+                        Text(tr('Причина блокировки', 'Блоктау себебі'),
                             style:
                                 manrope(12, FontWeight.w800, color: cRed)),
                         const SizedBox(height: 4),
@@ -140,7 +149,7 @@ class _BlockedScreenState extends State<BlockedScreen> {
                     child: ElevatedButton.icon(
                       onPressed: _busy ? null : _detach,
                       icon: const Icon(Icons.link_off_rounded, size: 19),
-                      label: Text('Открепиться от магазина',
+                      label: Text(tr('Открепиться от магазина', 'Дүкеннен ажырау'),
                           style: manrope(15, FontWeight.w700,
                               color: Colors.white)),
                       style: ElevatedButton.styleFrom(
@@ -153,7 +162,7 @@ class _BlockedScreenState extends State<BlockedScreen> {
                     ),
                   ),
                   const SizedBox(height: 6),
-                  Text('Вы сможете присоединиться к другому магазину',
+                  Text(tr('Вы сможете присоединиться к другому магазину', 'Басқа дүкенге қосыла аласыз'),
                       style: manrope(12, FontWeight.w500, color: cInk3)),
                   const SizedBox(height: 12),
                 ],
@@ -163,7 +172,7 @@ class _BlockedScreenState extends State<BlockedScreen> {
                   child: OutlinedButton.icon(
                     onPressed: _busy ? null : _signOut,
                     icon: const Icon(Icons.logout_rounded, size: 18),
-                    label: Text('Выйти из аккаунта',
+                    label: Text(tr('Выйти из аккаунта', 'Аккаунттан шығу'),
                         style: manrope(14.5, FontWeight.w700, color: cInk2)),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: cInk2,

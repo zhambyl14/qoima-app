@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../core/lang.dart';
 class CloudinaryService {
   static const String _cloudName = 'divynstru';
   static const String _uploadPreset = 'qoima_unsigned';
@@ -56,7 +57,7 @@ class CloudinaryService {
     final streamed = await request.send().timeout(
       const Duration(seconds: 60),
       onTimeout: () =>
-          throw CloudinaryException('Время ожидания истекло. Проверьте интернет.'),
+          throw CloudinaryException(tr('Время ожидания истекло. Проверьте интернет.', 'Күту уақыты өтті. Интернетті тексеріңіз.')),
     );
     final resp = await http.Response.fromStream(streamed);
     if (resp.statusCode == 200) {
@@ -64,7 +65,7 @@ class CloudinaryService {
           (jsonDecode(resp.body) as Map<String, dynamic>)['secure_url']
               as String?;
       if (url == null || url.isEmpty) {
-        throw CloudinaryException('Cloudinary не вернул URL.');
+        throw CloudinaryException(tr('Cloudinary не вернул URL.', 'Cloudinary URL қайтармады.'));
       }
       return url;
     }
@@ -72,8 +73,8 @@ class CloudinaryService {
         jsonDecode(resp.body) as Map<String, dynamic>?;
     final msg =
         (errorBody?['error'] as Map?)?['message'] as String? ??
-            'Неизвестная ошибка';
-    throw CloudinaryException('Ошибка [${resp.statusCode}]: $msg');
+            tr('Неизвестная ошибка', 'Белгісіз қате');
+    throw CloudinaryException(tr('Ошибка [${resp.statusCode}]: $msg', 'Қате [${resp.statusCode}]: $msg'));
   }
 
   /// PDF чекті апп ІШІНДЕ inline көрсету үшін 1-бет JPG preview URL жасайды.
@@ -98,7 +99,7 @@ class CloudinaryService {
     final streamedResponse = await request.send().timeout(
           const Duration(seconds: 60),
           onTimeout: () => throw CloudinaryException(
-            'Время ожидания истекло. Проверьте интернет.',
+            tr('Время ожидания истекло. Проверьте интернет.', 'Күту уақыты өтті. Интернетті тексеріңіз.'),
           ),
         );
 
@@ -108,14 +109,14 @@ class CloudinaryService {
       final json = jsonDecode(response.body) as Map<String, dynamic>;
       final url = json['secure_url'] as String?;
       if (url == null || url.isEmpty) {
-        throw CloudinaryException('Cloudinary не вернул URL.');
+        throw CloudinaryException(tr('Cloudinary не вернул URL.', 'Cloudinary URL қайтармады.'));
       }
       return url;
     } else {
       final errorBody = jsonDecode(response.body) as Map<String, dynamic>?;
       final message = (errorBody?['error'] as Map?)?['message'] as String? ??
-          'Неизвестная ошибка Cloudinary';
-      throw CloudinaryException('Ошибка [${response.statusCode}]: $message');
+          tr('Неизвестная ошибка Cloudinary', 'Белгісіз Cloudinary қатесі');
+      throw CloudinaryException(tr('Ошибка [${response.statusCode}]: $message', 'Қате [${response.statusCode}]: $message'));
     }
   }
 

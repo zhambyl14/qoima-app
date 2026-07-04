@@ -8,6 +8,7 @@ import '../../../data/services/firestore_service.dart';
 import '../../../theme/qoima_design.dart';
 import 'seller_drilldown_screen.dart';
 
+import '../../../core/lang.dart';
 class AnalyticsScreen extends StatefulWidget {
   const AnalyticsScreen({super.key});
   @override
@@ -277,7 +278,7 @@ class _OverviewTabState extends State<_OverviewTab> {
                     const Icon(Icons.error_outline_rounded,
                         color: cRed, size: 40),
                     const SizedBox(height: 12),
-                    Text('Деректерді жүктеу қатесі',
+                    Text(tr('Ошибка загрузки данных', 'Деректерді жүктеу қатесі'),
                         style: manrope(15, FontWeight.w700, color: cInk)),
                     const SizedBox(height: 6),
                     Text(sSnap.error.toString(),
@@ -326,7 +327,7 @@ class _OverviewTabState extends State<_OverviewTab> {
                   Icon(Icons.bar_chart_rounded,
                       size: 56, color: cInk3.withValues(alpha: 0.4)),
                   const SizedBox(height: 12),
-                  Text('Бұл айда сатылым жоқ',
+                  Text(tr('В этом месяце продаж нет', 'Бұл айда сатылым жоқ'),
                       style: manrope(16, FontWeight.w700, color: cInk2)),
                 ]),
               );
@@ -342,7 +343,7 @@ class _OverviewTabState extends State<_OverviewTab> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Общая выручка',
+                        Text(tr('Общая выручка', 'Жалпы түсім'),
                             style: manrope(13, FontWeight.w600, color: cInk3)),
                         const SizedBox(height: 2),
                         Text('${_fmt(totalRevenue)} ₸',
@@ -390,7 +391,7 @@ class _OverviewTabState extends State<_OverviewTab> {
                               const Icon(Icons.arrow_downward_rounded,
                                   size: 16, color: cRed),
                               const SizedBox(width: 6),
-                              Text('Себестоимость',
+                              Text(tr('Себестоимость', 'Өзіндік құн'),
                                   style: manrope(12, FontWeight.w600,
                                       color: cInk3)),
                             ]),
@@ -436,10 +437,10 @@ class _OverviewTabState extends State<_OverviewTab> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text('Продажи по дням',
+                            Text(tr('Продажи по дням', 'Күндер бойынша сатылым'),
                                 style: manrope(14, FontWeight.w700,
                                     color: cInk)),
-                            QPill('$totalPairs шт',
+                            QPill(tr('$totalPairs шт', '$totalPairs дана'),
                                 tone: 'green',
                                 icon: const Icon(Icons.trending_up_rounded,
                                     size: 11,
@@ -461,7 +462,7 @@ class _OverviewTabState extends State<_OverviewTab> {
                     final top =
                         _buildTopSalesWidgets(pureSales, onlineOrders);
                     if (top.isEmpty) return <Widget>[];
-                    return [const QSecLabel('Топ продаж'), ...top];
+                    return [QSecLabel(tr('Топ продаж', 'Топ сатылым')), ...top];
                   }(),
                 ],
               ),
@@ -529,7 +530,7 @@ class _OverviewTabState extends State<_OverviewTab> {
                   Text(entry.key,
                       style: manrope(13.5, FontWeight.w700, color: cInk),
                       maxLines: 1, overflow: TextOverflow.ellipsis),
-                  Text('${entry.value.qty} шт. продано',
+                  Text(tr('${entry.value.qty} шт. продано', '${entry.value.qty} дана сатылды'),
                       style: manrope(11.5, FontWeight.w500, color: cInk3)),
                 ],
               ),
@@ -593,8 +594,8 @@ class _SellersTab extends StatelessWidget {
         final grandTotal = ranked.fold<double>(0, (a, s) => a + s.revenue);
 
         if (ranked.isEmpty) {
-          return const Center(
-              child: Text('Сатылым жоқ',
+          return Center(
+              child: Text(tr('Продаж нет', 'Сатылым жоқ'),
                   style: TextStyle(color: cInk2)));
         }
 
@@ -603,12 +604,12 @@ class _SellersTab extends StatelessWidget {
           children: [
             Row(children: [
               _KpiChip(
-                  label: 'Сатушылар',
+                  label: tr('Продавцы', 'Сатушылар'),
                   value: '${ranked.length}',
                   color: cGreen),
               const SizedBox(width: 8),
               _KpiChip(
-                  label: 'Жалпы түсімі',
+                  label: tr('Общая выручка', 'Жалпы түсімі'),
                   value: '${_fmt(grandTotal)} ₸',
                   color: cGreen),
             ]),
@@ -677,7 +678,7 @@ class _SellersTab extends StatelessWidget {
                         Text(stat.name,
                             style: const TextStyle(
                                 fontSize: 14, fontWeight: FontWeight.w700)),
-                        Text('${stat.count} сат · ${stat.pairs} шт',
+                        Text(tr('${stat.count} прод · ${stat.pairs} шт', '${stat.count} сат · ${stat.pairs} дана'),
                             style: const TextStyle(
                                 fontSize: 11, color: cInk2)),
                       ],
@@ -736,8 +737,8 @@ class _WarehousesTab extends StatelessWidget {
                 (snap.data ?? []).where((s) => !s.isOnline).toList();
 
             if (warehouses.isEmpty) {
-              return const Center(
-                  child: Text('Қойма жоқ',
+              return Center(
+                  child: Text(tr('Нет склада', 'Қойма жоқ'),
                       style: TextStyle(color: cInk2)));
             }
 
@@ -845,7 +846,7 @@ class _WarehouseAnalyticsCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Күндік белсенділік',
+                Text(tr('Дневная активность', 'Күндік белсенділік'),
                     style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
@@ -858,7 +859,7 @@ class _WarehouseAnalyticsCard extends StatelessWidget {
                 ),
                 if (top3.isNotEmpty) ...[
                   const SizedBox(height: 14),
-                  const Text('Топ-3 сатылымдар',
+                  Text(tr('Топ-3 продаж', 'Топ-3 сатылымдар'),
                       style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
@@ -891,7 +892,7 @@ class _WarehouseAnalyticsCard extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           )),
-                          Text('${qtyByName[e.value.key] ?? 0} шт',
+                          Text(tr('${qtyByName[e.value.key] ?? 0} шт', '${qtyByName[e.value.key] ?? 0} дана'),
                               style: const TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w700,
@@ -900,7 +901,7 @@ class _WarehouseAnalyticsCard extends StatelessWidget {
                       )),
                 ],
                 const SizedBox(height: 14),
-                const Text('Жатып қалған тауар (30+ күн)',
+                Text(tr('Залежавшийся товар (30+ дней)', 'Жатып қалған тауар (30+ күн)'),
                     style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
@@ -917,7 +918,7 @@ class _WarehouseAnalyticsCard extends StatelessWidget {
                                   strokeWidth: 2, color: cGreen)));
                     }
                     if (snap.data!.isEmpty) {
-                      return const Text('Жатып қалған тауар жоқ 👍',
+                      return Text(tr('Залежавшихся товаров нет 👍', 'Жатып қалған тауар жоқ 👍'),
                           style: TextStyle(
                               fontSize: 12, color: cInk3));
                     }
@@ -943,7 +944,7 @@ class _WarehouseAnalyticsCard extends StatelessWidget {
                                       color: cAmberTint,
                                       borderRadius: BorderRadius.circular(4),
                                     ),
-                                    child: Text('${item.days} күн',
+                                    child: Text(tr('${item.days} дней', '${item.days} күн'),
                                         style: const TextStyle(
                                             fontSize: 10,
                                             fontWeight: FontWeight.w700,
@@ -1051,7 +1052,7 @@ class _OnlineTab extends StatelessWidget {
               padding: const EdgeInsets.all(16),
               children: [
                 _StatCard(
-                  label: 'Түсімі (Онлайн)',
+                  label: tr('Выручка (Онлайн)', 'Түсімі (Онлайн)'),
                   value: '${_fmt(revenue)} ₸',
                   icon: Icons.shopping_cart_rounded,
                   color: cGreen,
@@ -1060,7 +1061,7 @@ class _OnlineTab extends StatelessWidget {
                 Row(children: [
                   Expanded(
                       child: _StatCard(
-                    label: 'Өзіндік құн',
+                    label: tr('Себестоимость', 'Өзіндік құн'),
                     value: '${_fmt(onlineCost)} ₸',
                     icon: Icons.arrow_downward_rounded,
                     color: cRed,
@@ -1078,7 +1079,7 @@ class _OnlineTab extends StatelessWidget {
                 Row(children: [
                   Expanded(
                       child: _StatCard(
-                    label: 'Тапсырыстар',
+                    label: tr('Заказы', 'Тапсырыстар'),
                     value: '$totalCount',
                     icon: Icons.receipt_long_outlined,
                     color: cGreen,
@@ -1086,7 +1087,7 @@ class _OnlineTab extends StatelessWidget {
                   const SizedBox(width: 10),
                   Expanded(
                       child: _StatCard(
-                    label: 'Бас тарту',
+                    label: tr('Отмены', 'Бас тарту'),
                     value: '$cancelled',
                     icon: Icons.cancel_outlined,
                     color: cRed,
@@ -1096,22 +1097,22 @@ class _OnlineTab extends StatelessWidget {
                 Row(children: [
                   Expanded(
                       child: _StatCard(
-                    label: 'Сатылған (онлайн)',
-                    value: '$pairsSold шт',
+                    label: tr('Продано (онлайн)', 'Сатылған (онлайн)'),
+                    value: tr('$pairsSold шт', '$pairsSold дана'),
                     icon: Icons.shopping_bag_outlined,
                     color: cGreen,
                   )),
                   const SizedBox(width: 10),
                   Expanded(
                       child: _StatCard(
-                    label: 'Қайтару',
+                    label: tr('Возвраты', 'Қайтару'),
                     value: '$returned',
                     icon: Icons.assignment_return_outlined,
                     color: cRed,
                   )),
                 ]),
                 const SizedBox(height: 20),
-                const Text('Күндік белсенділік (онлайн)',
+                Text(tr('Дневная активность (онлайн)', 'Күндік белсенділік (онлайн)'),
                     style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
@@ -1219,7 +1220,7 @@ class _MobileDailyChartState extends State<_MobileDailyChart> {
                     key: const ValueKey('total'),
                     children: [
                       Text(
-                        'Жалпы: ',
+                        tr('Итого: ', 'Жалпы: '),
                         style: manrope(12.5, FontWeight.w500, color: cInk3),
                       ),
                       Text(
@@ -1332,21 +1333,11 @@ class _MobileDailyChartState extends State<_MobileDailyChart> {
   }
 
   static String _monthShort(int m) {
-    const names = [
-      'қан',
-      'ақп',
-      'нау',
-      'сәу',
-      'мам',
-      'мау',
-      'шіл',
-      'там',
-      'қыр',
-      'қаз',
-      'қар',
-      'жел'
-    ];
-    return names[m - 1];
+    const ru = ['янв', 'фев', 'мар', 'апр', 'май', 'июн',
+        'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+    const kk = ['қан', 'ақп', 'нау', 'сәу', 'мам', 'мау',
+        'шіл', 'там', 'қыр', 'қаз', 'қар', 'жел'];
+    return tr(ru[m - 1], kk[m - 1]);
   }
 }
 

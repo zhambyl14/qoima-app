@@ -8,6 +8,7 @@ import '../models/client_model.dart';
 import '../../core/app_user.dart';
 import '../../core/supabase_config.dart';
 
+import '../../core/lang.dart';
 /// Аутентификация қателерін UI-ге жеткізетін типтелген қате.
 /// [code] — UI тармақтауы үшін.
 class AuthFailure implements Exception {
@@ -55,7 +56,7 @@ class AuthService {
     // a) Телефон бос па (anon RPC: телефон→email)
     final existing = await emailForPhone(phoneNumber);
     if (existing != null && existing.isNotEmpty) {
-      throw AuthFailure('Бұл телефон нөмір тіркелген', code: 'phone-in-use');
+      throw AuthFailure(tr('Этот номер телефона уже зарегистрирован', 'Бұл телефон нөмір тіркелген'), code: 'phone-in-use');
     }
 
     // b) Auth аккаунты + профиль метадеректері (триггер clients жолын жасайды)
@@ -95,7 +96,7 @@ class AuthService {
   }) async {
     final email = await emailForPhone(phoneNumber);
     if (email == null || email.isEmpty) {
-      throw AuthFailure('Аккаунт табылмады', code: 'user-not-found');
+      throw AuthFailure(tr('Аккаунт не найден', 'Аккаунт табылмады'), code: 'user-not-found');
     }
     try {
       await _sb.auth.signInWithPassword(email: email, password: password);
@@ -128,7 +129,7 @@ class AuthService {
 
     final existing = await emailForPhone(newPhone);
     if (existing != null && existing.isNotEmpty && existing != user.email) {
-      throw AuthFailure('Бұл нөмір басқа аккаунтта тіркелген',
+      throw AuthFailure(tr('Этот номер привязан к другому аккаунту', 'Бұл нөмір басқа аккаунтта тіркелген'),
           code: 'phone-in-use');
     }
     await _sb.from('clients').update({'phone': newPhone}).eq('id', user.id);
@@ -256,16 +257,16 @@ class AuthService {
       } catch (_) {}
       account = await _google.signIn();
     } catch (e) {
-      throw AuthFailure('Google қолжетімсіз: $e', code: 'google-unavailable');
+      throw AuthFailure(tr('Google недоступен: $e', 'Google қолжетімсіз: $e'), code: 'google-unavailable');
     }
     if (account == null) {
-      throw AuthFailure('Кіру тоқтатылды', code: 'cancelled');
+      throw AuthFailure(tr('Вход отменён', 'Кіру тоқтатылды'), code: 'cancelled');
     }
     final auth = await account.authentication;
     final idToken = auth.idToken;
     if (idToken == null || idToken.isEmpty) {
       throw AuthFailure(
-          'Google токені алынбады — Web Client ID баптауын тексеріңіз',
+          tr('Не получен токен Google — проверьте настройку Web Client ID', 'Google токені алынбады — Web Client ID баптауын тексеріңіз'),
           code: 'no-id-token');
     }
     try {
@@ -295,7 +296,7 @@ class AuthService {
     final user = _requireUser();
     final existing = await emailForPhone(phoneNumber);
     if (existing != null && existing.isNotEmpty) {
-      throw AuthFailure('Бұл телефон нөмір тіркелген', code: 'phone-in-use');
+      throw AuthFailure(tr('Этот номер телефона уже зарегистрирован', 'Бұл телефон нөмір тіркелген'), code: 'phone-in-use');
     }
     await _sb.from('clients').upsert({
       'id': user.id,
@@ -403,7 +404,7 @@ class AuthService {
   /// үшін): owner_id тазарады, join_status='none' → SellerJoinScreen.
   Future<void> detachFromOwner() async {
     final uid = currentUid;
-    if (uid == null) throw AuthFailure('Қайта кіріңіз', code: 'no-user');
+    if (uid == null) throw AuthFailure(tr('Войдите заново', 'Қайта кіріңіз'), code: 'no-user');
     await _sb.from('users').update({
       'owner_id': null,
       'join_status': 'none',
@@ -432,7 +433,7 @@ class AuthService {
   User _requireUser() {
     final user = _sb.auth.currentUser;
     if (user == null || (user.email ?? '').isEmpty) {
-      throw AuthFailure('Қауіпсіздік үшін қайта кіріңіз',
+      throw AuthFailure(tr('В целях безопасности войдите заново', 'Қауіпсіздік үшін қайта кіріңіз'),
           code: 'requires-recent-login');
     }
     return user;
@@ -444,7 +445,7 @@ class AuthService {
       await _sb.auth.signInWithPassword(
           email: user.email!, password: currentPassword);
     } on AuthException catch (_) {
-      throw AuthFailure('Құпиясөз қате', code: 'wrong-password');
+      throw AuthFailure(tr('Неверный пароль', 'Құпиясөз қате'), code: 'wrong-password');
     }
   }
 
@@ -454,39 +455,39 @@ class AuthService {
     if (msg.contains('already registered') ||
         msg.contains('already been registered') ||
         msg.contains('user already')) {
-      return AuthFailure('Бұл email тіркелген', code: 'email-already-in-use');
+      return AuthFailure(tr('Этот email уже зарегистрирован', 'Бұл email тіркелген'), code: 'email-already-in-use');
     }
     if (msg.contains('invalid login') ||
         msg.contains('invalid credentials') ||
         msg.contains('invalid email or password')) {
-      return AuthFailure('Email немесе құпиясөз қате', code: 'wrong-password');
+      return AuthFailure(tr('Неверный email или пароль', 'Email немесе құпиясөз қате'), code: 'wrong-password');
     }
     if (msg.contains('email not confirmed')) {
-      return AuthFailure('Поштаңызды растаңыз', code: 'email-not-confirmed');
+      return AuthFailure(tr('Подтвердите почту', 'Поштаңызды растаңыз'), code: 'email-not-confirmed');
     }
     if (msg.contains('token has expired') || msg.contains('invalid token') ||
         msg.contains('otp')) {
-      return AuthFailure('Код қате немесе мерзімі өтті', code: 'invalid-otp');
+      return AuthFailure(tr('Неверный код или истёк срок действия', 'Код қате немесе мерзімі өтті'), code: 'invalid-otp');
     }
     if (msg.contains('password should be') || msg.contains('weak')) {
-      return AuthFailure('Құпиясөз кем дегенде 6 таңба болуы керек',
+      return AuthFailure(tr('Пароль должен быть не короче 6 символов', 'Құпиясөз кем дегенде 6 таңба болуы керек'),
           code: 'weak-password');
     }
     if (msg.contains('invalid email')) {
-      return AuthFailure('Email форматы қате', code: 'invalid-email');
+      return AuthFailure(tr('Неверный формат email', 'Email форматы қате'), code: 'invalid-email');
     }
     if (msg.contains('rate') || msg.contains('too many')) {
-      return AuthFailure('Тым көп сұраныс. Кейінірек қайталаңыз',
+      return AuthFailure(tr('Слишком много запросов. Повторите позже', 'Тым көп сұраныс. Кейінірек қайталаңыз'),
           code: 'too-many-requests');
     }
     if (msg.contains('network')) {
-      return AuthFailure('Интернет байланысын тексеріңіз',
+      return AuthFailure(tr('Проверьте интернет-соединение', 'Интернет байланысын тексеріңіз'),
           code: 'network-request-failed');
     }
-    return AuthFailure('Қате: ${e.message}', code: 'unknown');
+    return AuthFailure(tr('Ошибка: ${e.message}', 'Қате: ${e.message}'), code: 'unknown');
   }
 
   /// Ескі экрандар үшін үйлесімділік: қатені қазақша хабарға аударады.
   static String parseError(Object e) =>
-      e is AuthFailure ? e.message : 'Белгісіз қате';
+      e is AuthFailure ? e.message : tr('Неизвестная ошибка', 'Белгісіз қате');
 }

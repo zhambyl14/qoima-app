@@ -7,6 +7,7 @@ import '../../../theme/qoima_design.dart';
 import 'seller_return_review_screen.dart';
 import 'seller_return_receive_screen.dart';
 
+import '../../../core/lang.dart';
 class SellerReturnsTab extends StatefulWidget {
   const SellerReturnsTab({super.key});
 
@@ -213,14 +214,14 @@ class _ReturnCard extends StatelessWidget {
               ]),
               if (ret.status == ReturnStatus.requested) ...[
                 const SizedBox(height: 8),
-                QPill('Требует рассмотрения',
+                QPill(tr('Требует рассмотрения', 'Қарау қажет'),
                     tone: 'amber',
                     icon: const Icon(Icons.priority_high_rounded,
                         size: 12, color: Color(0xFF92400E))),
               ],
               if (ret.status == ReturnStatus.approved) ...[
                 const SizedBox(height: 8),
-                QPill('Ожидает приёмки',
+                QPill(tr('Ожидает приёмки', 'Қабылдау күтілуде'),
                     tone: 'blue',
                     icon: const Icon(Icons.move_to_inbox_outlined,
                         size: 12, color: Color(0xFF1A5BD0))),

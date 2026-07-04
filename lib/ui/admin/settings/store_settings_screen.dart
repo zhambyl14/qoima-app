@@ -8,6 +8,7 @@ import '../../../data/models/store_model.dart';
 import '../../../data/services/firestore_service.dart';
 import '../../../theme/qoima_design.dart';
 
+import '../../../core/lang.dart';
 // ── Luhn algorithm ──────────────────────────────────────────────────────────────
 bool _luhnCheck(String digits) {
   if (digits.isEmpty) return false;
@@ -113,7 +114,7 @@ class _StoreSettingsScreenState extends State<StoreSettingsScreen> {
         _cardLoadedFromDb = loadedRaw.isNotEmpty;
         _cardIsValid = _isCardValid(loadedRaw);
         if (loadedRaw.isNotEmpty && !_isCardValid(loadedRaw)) {
-          _cardError = 'Бұрын сақталған нөмір тексеруден өтпеді. Картаны қайта енгізіңіз';
+          _cardError = tr('Сохранённый ранее номер не прошёл проверку. Введите карту заново', 'Бұрын сақталған нөмір тексеруден өтпеді. Картаны қайта енгізіңіз');
         }
       });
     }
@@ -136,7 +137,7 @@ class _StoreSettingsScreenState extends State<StoreSettingsScreen> {
       } else if (raw.length < 13) {
         _cardError = null; // still typing
       } else if (!_isCardValid(raw)) {
-        _cardError = 'Карта нөмірі дұрыс емес — цифрларды тексеріңіз';
+        _cardError = tr('Номер карты неверен — проверьте цифры', 'Карта нөмірі дұрыс емес — цифрларды тексеріңіз');
       } else {
         _cardError = null;
       }
@@ -153,19 +154,19 @@ class _StoreSettingsScreenState extends State<StoreSettingsScreen> {
       if (!_isCardValid(rawCard)) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(_cardLoadedFromDb
-              ? 'Бұрын сақталған нөмір тексеруден өтпеді. Картаны қайта енгізіңіз'
-              : 'Карта нөмірі дұрыс емес — цифрларды тексеріңіз'),
+              ? tr('Сохранённый ранее номер не прошёл проверку. Введите карту заново', 'Бұрын сақталған нөмір тексеруден өтпеді. Картаны қайта енгізіңіз')
+              : tr('Номер карты неверен — проверьте цифры', 'Карта нөмірі дұрыс емес — цифрларды тексеріңіз')),
           backgroundColor: cRed,
           behavior: SnackBarBehavior.floating,
         ));
         setState(() => _cardError = _cardLoadedFromDb
-            ? 'Бұрын сақталған нөмір тексеруден өтпеді. Картаны қайта енгізіңіз'
-            : 'Карта нөмірі дұрыс емес — цифрларды тексеріңіз');
+            ? tr('Сохранённый ранее номер не прошёл проверку. Введите карту заново', 'Бұрын сақталған нөмір тексеруден өтпеді. Картаны қайта енгізіңіз')
+            : tr('Номер карты неверен — проверьте цифры', 'Карта нөмірі дұрыс емес — цифрларды тексеріңіз'));
         return;
       }
       if (_cardHolderCtrl.text.trim().isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Карта иесінің атын енгізіңіз'),
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(tr('Введите имя владельца карты', 'Карта иесінің атын енгізіңіз')),
           backgroundColor: cRed,
           behavior: SnackBarBehavior.floating,
         ));
@@ -182,10 +183,10 @@ class _StoreSettingsScreenState extends State<StoreSettingsScreen> {
         builder: (_) => AlertDialog(
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Text('Реквизиттерді тексеріңіз',
+          title: Text(tr('Проверьте реквизиты', 'Реквизиттерді тексеріңіз'),
               style: TextStyle(fontWeight: FontWeight.w700, fontSize: 17)),
           content: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Text('Клиенттер төлем жасайтын картаңыз:',
+            Text(tr('Карта, на которую платят клиенты:', 'Клиенттер төлем жасайтын картаңыз:'),
                 style: TextStyle(color: cInk2, fontSize: 13)),
             const SizedBox(height: 14),
             Container(
@@ -220,7 +221,7 @@ class _StoreSettingsScreenState extends State<StoreSettingsScreen> {
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(context, false),
-                child: const Text('Өзгерту',
+                child: Text(tr('Изменить', 'Өзгерту'),
                     style: TextStyle(color: cInk2))),
             ElevatedButton(
                 onPressed: () => Navigator.pop(context, true),
@@ -229,7 +230,7 @@ class _StoreSettingsScreenState extends State<StoreSettingsScreen> {
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10))),
-                child: const Text('Растау')),
+                child: Text(tr('Подтвердить', 'Растау'))),
           ],
         ),
       );
@@ -263,8 +264,8 @@ class _StoreSettingsScreenState extends State<StoreSettingsScreen> {
           _store = updated;
           _isDirty = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Сақталды'),
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(tr('Сохранено', 'Сақталды')),
           backgroundColor: cGreen,
           behavior: SnackBarBehavior.floating,
         ));
@@ -291,12 +292,12 @@ class _StoreSettingsScreenState extends State<StoreSettingsScreen> {
     return Scaffold(
       backgroundColor: cBg,
       appBar: AppBar(
-        title: const Text('Менің дүкенім'),
+        title: Text(tr('Мой магазин', 'Менің дүкенім')),
         actions: [
           if (_isDirty)
             TextButton(
               onPressed: _isLoading ? null : _save,
-              child: const Text('Сақтау',
+              child: Text(tr('Сохранить', 'Сақтау'),
                   style: TextStyle(
                       color: Colors.white, fontWeight: FontWeight.w700)),
             ),
@@ -311,36 +312,36 @@ class _StoreSettingsScreenState extends State<StoreSettingsScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // ── Section: Мой магазин ───────────────────────────────────
-              _SectionHeader('Менің дүкенім'),
+              _SectionHeader(tr('Мой магазин', 'Менің дүкенім')),
               const SizedBox(height: 12),
 
               _SettingsCard(children: [
                 // Store name
-                _FieldLabel('Дүкен атауы *'),
+                _FieldLabel(tr('Название магазина *', 'Дүкен атауы *')),
                 const SizedBox(height: 6),
                 TextFormField(
                   controller: _nameCtrl,
                   textCapitalization: TextCapitalization.words,
-                  decoration: const InputDecoration(
-                      hintText: 'Мысалы: Alina Shoes',
+                  decoration: InputDecoration(
+                      hintText: tr('Например: Alina Shoes', 'Мысалы: Alina Shoes'),
                       prefixIcon: Icon(Icons.store_outlined)),
                   validator: (v) {
-                    if (v == null || v.trim().isEmpty) return 'Міндетті';
+                    if (v == null || v.trim().isEmpty) return tr('Обязательно', 'Міндетті');
                     return null;
                   },
                 ),
                 const SizedBox(height: 14),
 
                 // City
-                _FieldLabel('Қала'),
+                _FieldLabel(tr('Город', 'Қала')),
                 const SizedBox(height: 6),
                 DropdownButtonFormField<String>(
                   initialValue: _selectedCity,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                       prefixIcon: Icon(Icons.location_city_outlined),
-                      hintText: 'Қаланы таңдаңыз'),
+                      hintText: tr('Выберите город', 'Қаланы таңдаңыз')),
                   items: kzCities
-                      .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                      .map((c) => DropdownMenuItem(value: c, child: Text(trValue(c))))
                       .toList(),
                   onChanged: (v) {
                     setState(() {
@@ -364,10 +365,10 @@ class _StoreSettingsScreenState extends State<StoreSettingsScreen> {
                       prefixText: '+7 '),
                   validator: (v) {
                     if (v == null || v.trim().isEmpty) {
-                      return 'Телефон нөмірін енгізіңіз';
+                      return tr('Введите номер телефона', 'Телефон нөмірін енгізіңіз');
                     }
                     if (v.trim().length < 10) {
-                      return 'Телефон нөмірі дұрыс емес';
+                      return tr('Неверный номер телефона', 'Телефон нөмірі дұрыс емес');
                     }
                     return null;
                   },
@@ -375,14 +376,14 @@ class _StoreSettingsScreenState extends State<StoreSettingsScreen> {
                 const SizedBox(height: 14),
 
                 // Description
-                _FieldLabel('Сипаттама (120 таңба)'),
+                _FieldLabel(tr('Описание (120 символов)', 'Сипаттама (120 таңба)')),
                 const SizedBox(height: 6),
                 TextFormField(
                   controller: _descCtrl,
                   maxLines: 3,
                   maxLength: 120,
-                  decoration: const InputDecoration(
-                    hintText: 'Дүкен туралы қысқаша...',
+                  decoration: InputDecoration(
+                    hintText: tr('Кратко о магазине...', 'Дүкен туралы қысқаша...'),
                     alignLabelWithHint: true,
                     prefixIcon: Padding(
                       padding: EdgeInsets.only(bottom: 48),
@@ -394,17 +395,17 @@ class _StoreSettingsScreenState extends State<StoreSettingsScreen> {
 
                 // Published toggle
                 Row(children: [
-                  const Expanded(
+                  Expanded(
                       child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Жарияланған',
+                      Text(tr('Опубликован', 'Жарияланған'),
                           style: TextStyle(
                               fontWeight: FontWeight.w600,
                               fontSize: 14,
                               color: cInk)),
                       SizedBox(height: 2),
-                      Text('Сатып алушылар дүкенді көреді',
+                      Text(tr('Покупатели видят магазин', 'Сатып алушылар дүкенді көреді'),
                           style: TextStyle(
                               fontSize: 11, color: cInk2)),
                     ],
@@ -422,16 +423,16 @@ class _StoreSettingsScreenState extends State<StoreSettingsScreen> {
               const SizedBox(height: 20),
 
               // ── Section: Видимость складов ─────────────────────────────
-              _SectionHeader('Қойма көрінуі'),
+              _SectionHeader(tr('Видимость складов', 'Қойма көрінуі')),
               const SizedBox(height: 6),
-              const Text(
-                  'Сатып алушыларға қандай қоймалардан тауар көрсету керек?',
+              Text(
+                  tr('С каких складов показывать товары покупателям?', 'Сатып алушыларға қандай қоймалардан тауар көрсету керек?'),
                   style:
                       TextStyle(fontSize: 12, color: cInk2)),
               const SizedBox(height: 10),
 
               if (warehouses.isEmpty)
-                const _EmptyNote('Қойма жоқ')
+                _EmptyNote(tr('Складов нет', 'Қойма жоқ'))
               else
                 _SettingsCard(
                   children: warehouses.map((wh) {
@@ -469,14 +470,14 @@ class _StoreSettingsScreenState extends State<StoreSettingsScreen> {
               const SizedBox(height: 20),
 
               // ── Section: Card requisites ───────────────────────────────
-              _SectionHeader('Төлем реквизиттері'),
+              _SectionHeader(tr('Платёжные реквизиты', 'Төлем реквизиттері')),
               const SizedBox(height: 6),
-              const Text(
-                  'Клиент тапсырыс берген кезде осы картаға ақша аударады',
+              Text(
+                  tr('При заказе клиент переводит деньги на эту карту', 'Клиент тапсырыс берген кезде осы картаға ақша аударады'),
                   style: TextStyle(fontSize: 12, color: cInk2)),
               const SizedBox(height: 10),
               _SettingsCard(children: [
-                _FieldLabel('Карта нөмірі'),
+                _FieldLabel(tr('Номер карты', 'Карта нөмірі')),
                 const SizedBox(height: 6),
                 TextFormField(
                   controller: _cardNumberCtrl,
@@ -496,7 +497,7 @@ class _StoreSettingsScreenState extends State<StoreSettingsScreen> {
                   onChanged: _onCardChanged,
                 ),
                 const SizedBox(height: 14),
-                _FieldLabel('Карта иесінің аты (картадағыдай)'),
+                _FieldLabel(tr('Имя владельца карты (как на карте)', 'Карта иесінің аты (картадағыдай)')),
                 const SizedBox(height: 6),
                 TextFormField(
                   controller: _cardHolderCtrl,
@@ -508,7 +509,7 @@ class _StoreSettingsScreenState extends State<StoreSettingsScreen> {
                   onChanged: (_) => _markDirty(),
                 ),
                 const SizedBox(height: 14),
-                _FieldLabel('Банк (міндетті емес)'),
+                _FieldLabel(tr('Банк (необязательно)', 'Банк (міндетті емес)')),
                 const SizedBox(height: 6),
                 TextFormField(
                   controller: _bankCtrl,
@@ -523,11 +524,11 @@ class _StoreSettingsScreenState extends State<StoreSettingsScreen> {
               const SizedBox(height: 20),
 
               // ── Section: Preview ───────────────────────────────────────
-              _SectionHeader('Сатып алушыларға арналған ақпарат'),
+              _SectionHeader(tr('Информация для покупателей', 'Сатып алушыларға арналған ақпарат')),
               const SizedBox(height: 10),
               _StorePreviewCard(
                 storeName:
-                    _nameCtrl.text.isNotEmpty ? _nameCtrl.text : 'Дүкен атауы',
+                    _nameCtrl.text.isNotEmpty ? _nameCtrl.text : tr('Название магазина', 'Дүкен атауы'),
                 city: _selectedCity ?? '',
                 phone: _phoneCtrl.text,
                 description: _descCtrl.text,
@@ -554,7 +555,7 @@ class _StoreSettingsScreenState extends State<StoreSettingsScreen> {
                             height: 20,
                             child: CircularProgressIndicator(
                                 color: Colors.white, strokeWidth: 2))
-                        : const Text('Сақтау',
+                        : Text(tr('Сохранить', 'Сақтау'),
                             style: TextStyle(
                                 fontWeight: FontWeight.w700, fontSize: 15)),
                   ),
@@ -630,7 +631,7 @@ class _StorePreviewCard extends StatelessWidget {
                     .withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(6)),
             child: Text(
-              isPublished ? 'Жарияланған' : 'Жарияланбаған',
+              isPublished ? tr('Опубликован', 'Жарияланған') : tr('Не опубликован', 'Жарияланбаған'),
               style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.w700,

@@ -3,6 +3,7 @@ import '../../theme/qoima_design.dart';
 import '../auth/client_login_screen.dart';
 import '../auth/login_screen.dart';
 
+import '../../core/lang.dart';
 /// Guest «Войти и оформить» / «Войти» bottom sheet.
 /// Phone → ClientLoginScreen (клиент: телефон + пароль).
 /// Email → LoginScreen (продавец / владелец / модератор).
@@ -53,7 +54,7 @@ class GuestLoginSheet extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  'Ваша корзина сохранена и будет доступна после входа.',
+                  tr('Ваша корзина сохранена и будет доступна после входа.', 'Себетіңіз сақталды, кіргеннен кейін қолжетімді болады.'),
                   style: manrope(13, FontWeight.w500, color: cGreenDeep,
                       height: 1.4),
                 ),
@@ -62,19 +63,19 @@ class GuestLoginSheet extends StatelessWidget {
           ),
           const SizedBox(height: 20),
 
-          Text('Войдите, чтобы оформить заказ',
+          Text(tr('Войдите, чтобы оформить заказ', 'Тапсырыс рәсімдеу үшін кіріңіз'),
               style: manrope(19, FontWeight.w800, color: cInk,
                   letterSpacing: -0.3)),
           const SizedBox(height: 4),
-          Text('Выберите способ входа',
+          Text(tr('Выберите способ входа', 'Кіру тәсілін таңдаңыз'),
               style: manrope(13.5, FontWeight.w500, color: cInk2)),
           const SizedBox(height: 20),
 
           // Телефон — клиент
           _LoginOption(
             icon: Icons.phone_outlined,
-            title: 'По номеру телефона',
-            sub: 'Клиент — покупать товары',
+            title: tr('По номеру телефона', 'Телефон нөмірімен'),
+            sub: tr('Клиент — покупать товары', 'Клиент — тауар сатып алу'),
             color: cGreen,
             tint: cGreenTint,
             onTap: () {
@@ -93,8 +94,8 @@ class GuestLoginSheet extends StatelessWidget {
           // Email — продавец / владелец / суперадмин
           _LoginOption(
             icon: Icons.email_outlined,
-            title: 'По Email',
-            sub: 'Продавец, владелец или модератор',
+            title: tr('По Email', 'Email арқылы'),
+            sub: tr('Продавец, владелец или модератор', 'Сатушы, иесі немесе модератор'),
             color: cBlue,
             tint: cBlueTint,
             onTap: () {
@@ -111,7 +112,7 @@ class GuestLoginSheet extends StatelessWidget {
 
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Продолжить как гость',
+            child: Text(tr('Продолжить как гость', 'Қонақ ретінде жалғастыру'),
                 style: manrope(14, FontWeight.w600, color: cInk3)),
           ),
         ],

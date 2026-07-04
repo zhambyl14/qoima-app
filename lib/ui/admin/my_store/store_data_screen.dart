@@ -9,6 +9,7 @@ import '../../../theme/qoima_design.dart';
 import 'store_edit_pending_screen.dart';
 import 'store_edit_screen.dart';
 
+import '../../../core/lang.dart';
 /// Owner — «Данные магазина» (оқу режимі, v10 §7). «Менің Дүкенім» ішінен ашылады.
 /// Кез келген өзгеріс бірден қолданылмайды — модераторға запрос болып барады.
 class StoreDataScreen extends StatelessWidget {
@@ -29,10 +30,10 @@ class StoreDataScreen extends StatelessWidget {
           final store = snap.data;
           return Column(children: [
             QGradientHeader(
-              title: 'Данные магазина',
+              title: tr('Данные магазина', 'Дүкен деректері'),
               subtitle: store == null
-                  ? 'Менің Дүкенім'
-                  : 'Менің Дүкенім · ${store.storeName}',
+                  ? tr('Мой Магазин', 'Менің Дүкенім')
+                  : tr('Мой Магазин · ${store.storeName}', 'Менің Дүкенім · ${store.storeName}'),
               showBack: true,
             ),
             Expanded(
@@ -42,7 +43,7 @@ class StoreDataScreen extends StatelessWidget {
                           child: CircularProgressIndicator(
                               color: cGreen, strokeWidth: 2))
                       : Center(
-                          child: Text('Магазин не найден',
+                          child: Text(tr('Магазин не найден', 'Дүкен табылмады'),
                               style: manrope(14, FontWeight.w600,
                                   color: cInk3))))
                   : StreamBuilder<StoreEditRequestModel?>(
@@ -78,38 +79,38 @@ class _Body extends StatelessWidget {
             _Banner(
               tone: 'red',
               icon: Icons.lock_outline_rounded,
-              title: 'Магазин заблокирован',
+              title: tr('Магазин заблокирован', 'Дүкен блокталған'),
               sub: store.blockReason.isNotEmpty
                   ? store.blockReason
-                  : 'Обратитесь в поддержку',
-              pillLabel: 'Заблокирован',
+                  : tr('Обратитесь в поддержку', 'Қолдау қызметіне хабарласыңыз'),
+              pillLabel: tr('Заблокирован', 'Блокталған'),
             )
           else
             _Banner(
               tone: 'green',
               icon: Icons.verified_user_outlined,
-              title: 'Магазин подтверждён',
-              sub: 'Одобрено модератором',
-              pillLabel: 'Активен',
+              title: tr('Магазин подтверждён', 'Дүкен расталған'),
+              sub: tr('Одобрено модератором', 'Модератор мақұлдаған'),
+              pillLabel: tr('Активен', 'Белсенді'),
             ),
 
           const SizedBox(height: 18),
-          const QSecLabel('Магазин'),
+          QSecLabel(tr('Магазин', 'Дүкен')),
           QCard(
             child: Column(children: [
-              _InfoRow('Название', store.storeName),
+              _InfoRow(tr('Название', 'Атауы'), store.storeName),
               const SizedBox(height: 8),
-              _InfoRow('Город', store.city.isEmpty ? '—' : store.city),
+              _InfoRow(tr('Город', 'Қала'), store.city.isEmpty ? '—' : trValue(store.city)),
               const SizedBox(height: 8),
               _InfoRow('Категория',
-                  store.category.isEmpty ? '—' : store.category),
+                  store.category.isEmpty ? '—' : trValue(store.category)),
               if (store.description.isNotEmpty) ...[
                 const SizedBox(height: 12),
                 Container(height: 1, color: cLine),
                 const SizedBox(height: 12),
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: Text('ОПИСАНИЕ',
+                  child: Text(tr('ОПИСАНИЕ', 'СИПАТТАМА'),
                       style: manrope(11.5, FontWeight.w700,
                           color: cInk3, letterSpacing: 0.5)),
                 ),
@@ -122,12 +123,12 @@ class _Body extends StatelessWidget {
           ),
 
           const SizedBox(height: 18),
-          const QSecLabel('Владелец'),
+          QSecLabel(tr('Владелец', 'Иесі')),
           QCard(
             child: Column(children: [
-              _InfoRow('ФИО', store.ownerName.isEmpty ? '—' : store.ownerName),
+              _InfoRow(tr('ФИО', 'Аты-жөні'), store.ownerName.isEmpty ? '—' : store.ownerName),
               const SizedBox(height: 8),
-              _InfoRow('ИИН / БИН',
+              _InfoRow(tr('ИИН / БИН', 'ЖСН / БСН'),
                   store.ownerIin.isEmpty ? '—' : store.ownerIin, mono: true),
               const SizedBox(height: 8),
               _InfoRow('Телефон',
@@ -136,7 +137,7 @@ class _Body extends StatelessWidget {
           ),
 
           const SizedBox(height: 18),
-          const QSecLabel('Выплаты'),
+          QSecLabel(tr('Выплаты', 'Төлемдер')),
           QCard(
             child: Row(children: [
               Container(
@@ -199,11 +200,11 @@ class _Body extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Изменения на проверке',
+                      Text(tr('Изменения на проверке', 'Өзгерістер тексеруде'),
                           style: manrope(13.5, FontWeight.w700,
                               color: Color(0xFF9A6A06))),
                       Text(
-                          '${pending!.changes.length} поля · решение в течение 1–2 дней',
+                          tr('${pending!.changes.length} поля · решение в течение 1–2 дней', '${pending!.changes.length} өріс · шешім 1–2 күн ішінде'),
                           style: manrope(12, FontWeight.w500, color: cInk2)),
                     ],
                   ),
@@ -212,7 +213,7 @@ class _Body extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             QSoftButton(
-              label: 'Перейти к запросу',
+              label: tr('Перейти к запросу', 'Сұранысқа өту'),
               icon: const Icon(Icons.chevron_right_rounded,
                   color: cGreenDeep, size: 19),
               onPressed: () => Navigator.push(
@@ -234,8 +235,10 @@ class _Body extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                      'Чтобы изменить любое поле — нажмите «Редактировать». '
-                      'Изменения вступят в силу после одобрения модератором.',
+                      tr('Чтобы изменить любое поле — нажмите «Редактировать». '
+            'Изменения вступят в силу после одобрения модератором.',
+        'Кез келген өрісті өзгерту үшін — «Өңдеу» басыңыз. '
+            'Өзгерістер модератор мақұлдағаннан кейін күшіне енеді.'),
                       style: manrope(12, FontWeight.w500,
                           color: cInk2, height: 1.4)),
                 ),
@@ -243,7 +246,7 @@ class _Body extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             QPrimaryButton(
-              label: 'Редактировать данные',
+              label: tr('Редактировать данные', 'Деректерді өңдеу'),
               icon: const Icon(Icons.edit_outlined,
                   color: Colors.white, size: 19),
               onPressed: () => Navigator.push(

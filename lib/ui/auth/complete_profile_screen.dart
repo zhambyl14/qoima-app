@@ -7,6 +7,7 @@ import '../../core/warehouse_context.dart';
 import '../../data/services/auth_service.dart';
 import '../../theme/qoima_design.dart';
 
+import '../../core/lang.dart';
 /// Google-мен алғаш кірген қолданушының профилін аяқтау экраны.
 /// Auth сессиясы бар, бірақ users/clients жолы жоқ болғанда gate осыны
 /// көрсетеді: рөл таңдалады + тіркеуде міндетті деректер толтырылады
@@ -41,16 +42,16 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
 
   Future<void> _submit() async {
     if (_nameCtrl.text.trim().length < 2) {
-      _setErr('Атыңызды енгізіңіз');
+      _setErr(tr('Введите имя', 'Атыңызды енгізіңіз'));
       return;
     }
     if (_role == 'client') {
       if (!isValidKzPhone(_phoneCtrl.text)) {
-        _setErr('Телефон нөмірін толық енгізіңіз');
+        _setErr(tr('Введите номер телефона полностью', 'Телефон нөмірін толық енгізіңіз'));
         return;
       }
       if (_selectedCity == null) {
-        _setErr('Қаланы таңдаңыз');
+        _setErr(tr('Выберите город', 'Қаланы таңдаңыз'));
         return;
       }
     }
@@ -109,7 +110,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
     } on AuthFailure catch (e) {
       _setErr(e.message);
     } catch (e) {
-      _setErr('Қате: $e');
+      _setErr(tr('Ошибка: $e', 'Қате: $e'));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -122,7 +123,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
       backgroundColor: cBg,
       body: Column(children: [
         QGradientHeader(
-          title: 'Тіркелуді аяқтау',
+          title: tr('Завершение регистрации', 'Тіркелуді аяқтау'),
           subtitle: email,
         ),
         Expanded(
@@ -132,36 +133,36 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Кім ретінде жалғастырасыз?',
+                Text(tr('Кем вы продолжите?', 'Кім ретінде жалғастырасыз?'),
                     style: manrope(13, FontWeight.w700, color: cInk)),
                 const SizedBox(height: 10),
                 _RoleTile(
                   icon: Icons.shopping_bag_outlined,
-                  title: 'Сатып алушы',
-                  subtitle: 'Маркетплейстен тауар аламын',
+                  title: tr('Покупатель', 'Сатып алушы'),
+                  subtitle: tr('Покупаю товары на маркетплейсе', 'Маркетплейстен тауар аламын'),
                   selected: _role == 'client',
                   onTap: () => setState(() => _role = 'client'),
                 ),
                 const SizedBox(height: 10),
                 _RoleTile(
                   icon: Icons.storefront_rounded,
-                  title: 'Дүкен иесі',
-                  subtitle: 'Өз дүкенім/қоймам бар',
+                  title: tr('Владелец магазина', 'Дүкен иесі'),
+                  subtitle: tr('У меня свой магазин/склад', 'Өз дүкенім/қоймам бар'),
                   selected: _role == 'admin',
                   onTap: () => setState(() => _role = 'admin'),
                 ),
                 const SizedBox(height: 10),
                 _RoleTile(
                   icon: Icons.badge_outlined,
-                  title: 'Сатушы',
-                  subtitle: 'Дүкенге бизнес-кодпен қосыламын',
+                  title: tr('Продавец', 'Сатушы'),
+                  subtitle: tr('Присоединяюсь к магазину по бизнес-коду', 'Дүкенге бизнес-кодпен қосыламын'),
                   selected: _role == 'seller',
                   onTap: () => setState(() => _role = 'seller'),
                 ),
                 const SizedBox(height: 18),
 
                 // Аты (барлық рөлге)
-                Text('Атыңыз',
+                Text(tr('Ваше имя', 'Атыңыз'),
                     style: manrope(12.5, FontWeight.w700, color: cInk2)),
                 const SizedBox(height: 6),
                 _box(TextField(
@@ -169,13 +170,13 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                   textCapitalization: TextCapitalization.words,
                   style: manrope(15, FontWeight.w600, color: cInk),
                   cursorColor: cGreen,
-                  decoration: _dec('Мысалы: Алия'),
+                  decoration: _dec(tr('Например: Алия', 'Мысалы: Алия')),
                 )),
 
                 // Клиентке: телефон + қала
                 if (_role == 'client') ...[
                   const SizedBox(height: 14),
-                  Text('Телефон нөмірі',
+                  Text(tr('Номер телефона', 'Телефон нөмірі'),
                       style: manrope(12.5, FontWeight.w700, color: cInk2)),
                   const SizedBox(height: 6),
                   _box(TextField(
@@ -187,7 +188,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                     decoration: _dec('+7 (700) 000-00-00'),
                   )),
                   const SizedBox(height: 14),
-                  Text('Қалаңыз',
+                  Text(tr('Ваш город', 'Қалаңыз'),
                       style: manrope(12.5, FontWeight.w700, color: cInk2)),
                   const SizedBox(height: 6),
                   Container(
@@ -204,7 +205,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                       decoration: InputDecoration(
                         prefixIcon: const Icon(Icons.location_city_outlined,
                             color: cGreen, size: 19),
-                        hintText: 'Қаланы таңдаңыз',
+                        hintText: tr('Выберите город', 'Қаланы таңдаңыз'),
                         hintStyle: manrope(15, FontWeight.w500, color: cInk3),
                         border: InputBorder.none,
                         enabledBorder: InputBorder.none,
@@ -218,7 +219,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                       items: kzCities
                           .map((c) => DropdownMenuItem(
                               value: c,
-                              child: Text(c,
+                              child: Text(trValue(c),
                                   style: manrope(14, FontWeight.w500,
                                       color: cInk))))
                           .toList(),
@@ -241,7 +242,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                            'Келесі қадамда дүкен иесінің бизнес-кодын енгізесіз',
+                            tr('На следующем шаге введёте бизнес-код владельца магазина', 'Келесі қадамда дүкен иесінің бизнес-кодын енгізесіз'),
                             style:
                                 manrope(12, FontWeight.w500, color: cGreen)),
                       ),
@@ -271,7 +272,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
 
                 const SizedBox(height: 22),
                 QPrimaryButton(
-                  label: 'Жалғастыру',
+                  label: tr('Продолжить', 'Жалғастыру'),
                   isLoading: _loading,
                   onPressed: _submit,
                 ),
@@ -279,7 +280,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                 Center(
                   child: GestureDetector(
                     onTap: _loading ? null : () => _authService.signOut(),
-                    child: Text('Басқа аккаунтпен кіру',
+                    child: Text(tr('Войти с другим аккаунтом', 'Басқа аккаунтпен кіру'),
                         style: manrope(14, FontWeight.w600, color: cInk2)),
                   ),
                 ),

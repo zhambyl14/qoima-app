@@ -8,6 +8,7 @@ import 'login_screen.dart';
 import 'client_register_screen.dart';
 import 'forgot_password_screen.dart';
 
+import '../../core/lang.dart';
 /// Клиенттің кіру экраны: телефон + құпиясөз.
 /// Телефон → phoneIndex → email → Firebase Auth (auth_service ішінде).
 class ClientLoginScreen extends StatefulWidget {
@@ -38,11 +39,11 @@ class _ClientLoginScreenState extends State<ClientLoginScreen> {
 
   Future<void> _signIn() async {
     if (!isValidKzPhone(_phoneCtrl.text)) {
-      setState(() => _errorMessage = 'Телефон нөмірін толық енгізіңіз');
+      setState(() => _errorMessage = tr('Введите номер телефона полностью', 'Телефон нөмірін толық енгізіңіз'));
       return;
     }
     if (_passwordCtrl.text.isEmpty) {
-      setState(() => _errorMessage = 'Құпиясөзді енгізіңіз');
+      setState(() => _errorMessage = tr('Введите пароль', 'Құпиясөзді енгізіңіз'));
       return;
     }
     setState(() {
@@ -60,7 +61,7 @@ class _ClientLoginScreenState extends State<ClientLoginScreen> {
     } on AuthFailure catch (e) {
       setState(() => _errorMessage = e.message);
     } catch (_) {
-      if (mounted) setState(() => _errorMessage = 'Белгісіз қате');
+      if (mounted) setState(() => _errorMessage = tr('Неизвестная ошибка', 'Белгісіз қате'));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -99,7 +100,7 @@ class _ClientLoginScreenState extends State<ClientLoginScreen> {
                         style: manrope(38, FontWeight.w800,
                             color: Colors.white, letterSpacing: -1)),
                     const SizedBox(height: 6),
-                    Text('Умный учёт обуви и онлайн-продажи',
+                    Text(tr('Умный учёт обуви и онлайн-продажи', 'Аяқ киімнің ақылды есебі және онлайн-сатылым'),
                         style: manrope(15, FontWeight.w500,
                             color: Colors.white.withValues(alpha: 0.8))),
                   ],
@@ -121,14 +122,14 @@ class _ClientLoginScreenState extends State<ClientLoginScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('Аккаунтқа кіру',
+              Text(tr('Вход в аккаунт', 'Аккаунтқа кіру'),
                   style: manrope(21, FontWeight.w800, color: cInk)),
               const SizedBox(height: 14),
 
               // Телефон
               _buildField(
                 controller: _phoneCtrl,
-                label: 'Телефон нөмірі',
+                label: tr('Номер телефона', 'Телефон нөмірі'),
                 hint: '+7 (700) 000-00-00',
                 icon: Icons.phone_outlined,
                 keyboardType: TextInputType.phone,
@@ -139,8 +140,8 @@ class _ClientLoginScreenState extends State<ClientLoginScreen> {
               // Құпиясөз
               _buildField(
                 controller: _passwordCtrl,
-                label: 'Құпиясөз',
-                hint: 'Құпиясөз',
+                label: tr('Пароль', 'Құпиясөз'),
+                hint: tr('Пароль', 'Құпиясөз'),
                 icon: Icons.lock_outlined,
                 obscureText: _obscurePassword,
                 suffix: GestureDetector(
@@ -164,7 +165,7 @@ class _ClientLoginScreenState extends State<ClientLoginScreen> {
                       context,
                       MaterialPageRoute(
                           builder: (_) => const ForgotPasswordScreen())),
-                  child: Text('Құпиясөзді ұмыттыңыз ба?',
+                  child: Text(tr('Забыли пароль?', 'Құпиясөзді ұмыттыңыз ба?'),
                       style: manrope(13, FontWeight.w600, color: cGreen)),
                 ),
               ),
@@ -176,7 +177,7 @@ class _ClientLoginScreenState extends State<ClientLoginScreen> {
 
               const SizedBox(height: 14),
               QPrimaryButton(
-                label: 'Кіру',
+                label: tr('Войти', 'Кіру'),
                 isLoading: _isLoading,
                 onPressed: _signIn,
               ),
@@ -186,7 +187,7 @@ class _ClientLoginScreenState extends State<ClientLoginScreen> {
 
               const SizedBox(height: 14),
               Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Text('Аккаунтыңыз жоқ па?',
+                Text(tr('Нет аккаунта?', 'Аккаунтыңыз жоқ па?'),
                     style: manrope(13.5, FontWeight.w500, color: cInk2)),
                 const SizedBox(width: 4),
                 GestureDetector(
@@ -194,7 +195,7 @@ class _ClientLoginScreenState extends State<ClientLoginScreen> {
                       context,
                       MaterialPageRoute(
                           builder: (_) => const ClientRegisterScreen())),
-                  child: Text('Тіркелу',
+                  child: Text(tr('Регистрация', 'Тіркелу'),
                       style: manrope(13.5, FontWeight.w700, color: cGreen)),
                 ),
               ]),
@@ -214,7 +215,7 @@ class _ClientLoginScreenState extends State<ClientLoginScreen> {
                       const Icon(Icons.storefront_outlined,
                           color: cGreen, size: 18),
                       const SizedBox(width: 7),
-                      Text('Войти как продавец',
+                      Text(tr('Войти как продавец', 'Сатушы ретінде кіру'),
                           style: manrope(14, FontWeight.w600, color: cInk2)),
                     ],
                   ),

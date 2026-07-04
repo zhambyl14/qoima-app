@@ -4,6 +4,7 @@ import '../../../data/models/return_model.dart';
 import '../../../data/services/return_service.dart';
 import '../../../theme/qoima_design.dart';
 
+import '../../../core/lang.dart';
 class AdminReturnAnalyticsScreen extends StatefulWidget {
   final String adminUid;
   const AdminReturnAnalyticsScreen({super.key, required this.adminUid});
@@ -58,7 +59,7 @@ class _AdminReturnAnalyticsScreenState
             scrollDirection: Axis.horizontal,
             child: Row(children: [
               _PeriodChip(
-                label: 'Месяц',
+                label: tr('Месяц', 'Ай'),
                 active: _isMonth(),
                 onTap: () {
                   setState(() => _range = DateRange.forMonth(DateTime.now()));
@@ -67,7 +68,7 @@ class _AdminReturnAnalyticsScreenState
               ),
               const SizedBox(width: 8),
               _PeriodChip(
-                label: 'Неделя',
+                label: tr('Неделя', 'Апта'),
                 active: _isWeek(),
                 onTap: () {
                   setState(() => _range = DateRange.forWeek(DateTime.now()));
@@ -76,7 +77,7 @@ class _AdminReturnAnalyticsScreenState
               ),
               const SizedBox(width: 8),
               _PeriodChip(
-                label: 'Год',
+                label: tr('Год', 'Жыл'),
                 active: _isYear(),
                 onTap: () {
                   setState(() => _range = DateRange.forYear(DateTime.now()));
@@ -164,7 +165,7 @@ class _AnalyticsContent extends StatelessWidget {
               icon: Icons.shopping_bag_outlined,
               tone: 'blue',
               value: '${a.totalSales}',
-              label: 'Продаж за период',
+              label: tr('Продаж за период', 'Кезеңдегі сатылым'),
             ),
           ),
           const SizedBox(width: 12),
@@ -173,7 +174,7 @@ class _AnalyticsContent extends StatelessWidget {
               icon: Icons.check_circle_outline_rounded,
               tone: 'green',
               value: '${a.perSellerClosed.values.fold(0, (s, v) => s + v)}',
-              label: 'Завершено',
+              label: tr('Завершено', 'Аяқталды'),
             ),
           ),
         ]),
@@ -267,7 +268,7 @@ class _AnalyticsContent extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis),
                     ),
-                    Text('${e.value.count} шт.',
+                    Text(tr('${e.value.count} шт.', '${e.value.count} дана'),
                         style: manrope(13, FontWeight.w700, color: cGreen)),
                   ]),
                 ),
@@ -321,7 +322,7 @@ class _AnalyticsContent extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    Text('${e.value.value} шт.',
+                    Text(tr('${e.value.value} шт.', '${e.value.value} дана'),
                         style: manrope(13, FontWeight.w700, color: cGreen)),
                   ]),
                 ),

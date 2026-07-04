@@ -12,6 +12,7 @@ import 'admin_store_visibility_screen.dart';
 import 'ms_widgets.dart';
 import 'store_data_screen.dart';
 
+import '../../../core/lang.dart';
 class AdminMyStoreHubScreen extends StatelessWidget {
   const AdminMyStoreHubScreen({super.key});
 
@@ -28,7 +29,7 @@ class AdminMyStoreHubScreen extends StatelessWidget {
           final store = snap.data;
           final name = (store?.storeName.isNotEmpty ?? false)
               ? store!.storeName
-              : 'Мой магазин';
+              : tr('Мой магазин', 'Менің дүкенім');
           final isOnline = store?.isPublished ?? false;
 
           return Column(children: [
@@ -58,7 +59,7 @@ class AdminMyStoreHubScreen extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Менің дүкенім',
+                            Text(tr('Мой магазин', 'Менің дүкенім'),
                                 style: manrope(22, FontWeight.w800,
                                     color: Colors.white, letterSpacing: -0.5)),
                             Text(name,
@@ -99,8 +100,8 @@ class AdminMyStoreHubScreen extends StatelessWidget {
                         Expanded(
                           child: Text(
                             isOnline
-                                ? 'Онлайн-витрина қосулы'
-                                : 'Онлайн-витрина өшірулі',
+                                ? tr('Онлайн-витрина включена', 'Онлайн-витрина қосулы')
+                                : tr('Онлайн-витрина выключена', 'Онлайн-витрина өшірулі'),
                             style: manrope(14, FontWeight.w700,
                                 color: Colors.white),
                           ),
@@ -154,7 +155,7 @@ class AdminMyStoreHubScreen extends StatelessWidget {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text('Магазин заблокирован',
+                                    Text(tr('Магазин заблокирован', 'Дүкен блокталған'),
                                         style: manrope(13.5, FontWeight.w800,
                                             color: const Color(0xFFB11A2B))),
                                     if (store.blockReason.isNotEmpty)
@@ -172,47 +173,47 @@ class AdminMyStoreHubScreen extends StatelessWidget {
                         Row(children: [
                           _HubStat(icon: Icons.percent_rounded, val: '$disc', lbl: 'Акция', tone: 'red'),
                           const SizedBox(width: 10),
-                          _HubStat(icon: Icons.warehouse_outlined, val: '$whTotal', lbl: 'Қойма', tone: 'green'),
+                          _HubStat(icon: Icons.warehouse_outlined, val: '$whTotal', lbl: tr('Склад', 'Қойма'), tone: 'green'),
                           const SizedBox(width: 10),
                           _HubStat(icon: Icons.language_rounded, val: isOnline ? 'ON' : 'OFF', lbl: 'Витрина', tone: 'blue'),
                         ]),
                         const SizedBox(height: 20),
 
-                        QSecLabel('Акциялар'),
+                        QSecLabel(tr('Акции', 'Акциялар')),
                         const SizedBox(height: 8),
                         QMenuItem(
                           icon: Icons.percent_rounded, tone: 'red',
-                          title: 'Скидки на товары',
-                          subtitle: disc > 0 ? '$disc активных' : 'Нет активных скидок',
+                          title: tr('Скидки на товары', 'Тауарларға жеңілдіктер'),
+                          subtitle: disc > 0 ? tr('$disc активных', '$disc белсенді') : tr('Нет активных скидок', 'Белсенді жеңілдік жоқ'),
                           onTap: () => Navigator.push(context,
                               MaterialPageRoute(builder: (_) => const AdminMyStoreDiscountsScreen())),
                         ),
                         const SizedBox(height: 10),
                         QMenuItem(
                           icon: Icons.local_activity_outlined, tone: 'purple',
-                          title: 'Промокоды',
-                          subtitle: 'Коды со скидкой для клиентов',
+                          title: tr('Промокоды', 'Промокодтар'),
+                          subtitle: tr('Коды со скидкой для клиентов', 'Клиенттерге жеңілдік кодтары'),
                           onTap: () => Navigator.push(context,
                               MaterialPageRoute(builder: (_) => const PromosScreen())),
                         ),
                         const SizedBox(height: 20),
 
-                        QSecLabel('Магазин'),
+                        QSecLabel(tr('Магазин', 'Дүкен')),
                         const SizedBox(height: 8),
                         QMenuItem(
                           icon: Icons.warehouse_outlined, tone: 'green',
-                          title: 'Витрина қоймалары',
+                          title: tr('Склады витрины', 'Витрина қоймалары'),
                           subtitle: whVisible > 0
-                              ? '$whVisible / $whTotal қойма көрсетілген'
-                              : 'Қойма таңдалмаған',
+                              ? tr('$whVisible / $whTotal складов отображается', '$whVisible / $whTotal қойма көрсетілген')
+                              : tr('Склад не выбран', 'Қойма таңдалмаған'),
                           onTap: () => Navigator.push(context,
                               MaterialPageRoute(builder: (_) => const AdminStoreVisibilityScreen())),
                         ),
                         const SizedBox(height: 10),
                         QMenuItem(
                           icon: Icons.storefront_rounded, tone: 'blue',
-                          title: 'Данные магазина',
-                          subtitle: 'Реквизиты и владелец',
+                          title: tr('Данные магазина', 'Дүкен деректері'),
+                          subtitle: tr('Реквизиты и владелец', 'Реквизиттер мен иесі'),
                           onTap: () => Navigator.push(context,
                               MaterialPageRoute(builder: (_) => const StoreDataScreen())),
                         ),

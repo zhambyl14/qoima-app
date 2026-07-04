@@ -583,123 +583,123 @@ class AppLocalizationsRu extends AppLocalizations {
   String get pairsSuffix => 'Пар';
 
   @override
-  String get cartTitle => 'Себет';
+  String get cartTitle => 'Корзина';
 
   @override
-  String get clearCart => 'Себетті тазалау';
+  String get clearCart => 'Очистить корзину';
 
   @override
-  String get clearCartConfirm => 'Барлық тауарды себеттен алып тастайсыз ба?';
+  String get clearCartConfirm => 'Убрать все товары из корзины?';
 
   @override
-  String get cartClear => 'Тазалау';
+  String get cartClear => 'Очистить';
 
   @override
-  String get cartEmpty => 'Себет бос';
+  String get cartEmpty => 'Корзина пуста';
 
   @override
-  String get pickupMethod => 'Алу тәсілі';
+  String get pickupMethod => 'Способ получения';
 
   @override
   String get smartReservationTitle => 'Смарт-Бронь';
 
   @override
   String get smartReservationDesc =>
-      '1 сағатқа брондаңыз, дүкенде киіп көріңіз';
+      'Забронируйте на 1 час и примерьте в магазине';
 
   @override
-  String get smartReservationBadge => '10% депозит';
+  String get smartReservationBadge => 'Депозит 10%';
 
   @override
   String get clickCollectTitle => 'Click & Collect';
 
   @override
-  String get clickCollectDesc => 'Онлайн төлеп, қоймадан алыңыз';
+  String get clickCollectDesc => 'Оплатите онлайн и заберите со склада';
 
   @override
   String get clickCollectBadge => '100% онлайн';
 
   @override
-  String get deliveryTitle => 'Жеткізу';
+  String get deliveryTitle => 'Доставка';
 
   @override
-  String get deliveryDesc => 'Мекенжай көрсетіп, курьермен алыңыз';
+  String get deliveryDesc => 'Укажите адрес и получите курьером';
 
   @override
-  String get enterDeliveryAddress => 'Жеткізу мекенжайын енгізіңіз';
+  String get enterDeliveryAddress => 'Введите адрес доставки';
 
   @override
-  String get deliveryAddressLabel => 'Жеткізу мекенжайы *';
+  String get deliveryAddressLabel => 'Адрес доставки *';
 
   @override
-  String get deliveryAddressPlaceholder => 'Қала, көше, үй, пәтер';
+  String get deliveryAddressPlaceholder => 'Город, улица, дом, квартира';
 
   @override
-  String get noteOptional => 'Ескертпе (міндетті емес)';
+  String get noteOptional => 'Примечание (необязательно)';
 
   @override
-  String get additionalInfoHint => 'Қосымша ақпарат...';
+  String get additionalInfoHint => 'Дополнительная информация...';
 
   @override
   String itemsUnavailable(String names) {
-    return '$names қолжетімсіз (сатылып кетті немесе дүкен жаңартылды). Себеттен алып тастаңыз.';
+    return '$names недоступны (проданы или магазин обновился). Уберите их из корзины.';
   }
 
   @override
   String ordersCreated(int count) {
-    return '$count тапсырыс құрылды';
+    return 'Создано заказов: $count';
   }
 
   @override
-  String get soldOutUnavailable => 'Сатылып кетті / қолжетімсіз';
+  String get soldOutUnavailable => 'Продано / недоступно';
 
   @override
-  String get goodsTotal => 'Тауар сомасы';
+  String get goodsTotal => 'Сумма товаров';
 
   @override
-  String get totalToPay => 'Төленетін сома';
+  String get totalToPay => 'Сумма к оплате';
 
   @override
-  String get payNowDeposit => 'Қазір төлеу (10%)';
+  String get payNowDeposit => 'Оплатить сейчас (10%)';
 
   @override
-  String get payAtStoreBalance => 'Дүкенде доплата (90%)';
+  String get payAtStoreBalance => 'Доплата в магазине (90%)';
 
   @override
-  String get confirmAndReserve => 'Растап брондау';
+  String get confirmAndReserve => 'Подтвердить и забронировать';
 
   @override
-  String get confirmAndPay => 'Растап төлеу';
+  String get confirmAndPay => 'Подтвердить и оплатить';
 
   @override
   String reserveWithAmount(String amount) {
-    return 'Брондау — $amount ₸';
+    return 'Забронировать — $amount ₸';
   }
 
   @override
   String payWithAmount(String amount) {
-    return 'Төлеу — $amount ₸';
+    return 'Оплатить — $amount ₸';
   }
 
   @override
-  String get pickupAddressLabel => 'Алу мекенжайы';
+  String get pickupAddressLabel => 'Адрес получения';
 
   @override
-  String get reservationTimeframe => 'Бронь мерзімі';
+  String get reservationTimeframe => 'Срок брони';
 
   @override
-  String get oneHour => '1 сағат';
+  String get oneHour => '1 час';
 
   @override
   String sizeQtyLabel(String size, String qty) {
-    return 'Өлшем: $size  ×$qty';
+    return 'Размер: $size  ×$qty';
   }
 
   @override
   String get onlineTab => 'Онлайн';
 
   @override
-  String get totalRevenueLabel => 'Жалпы Түсірілке';
+  String get totalRevenueLabel => 'Общая выручка';
 
   @override
   String offlineOnlineRevSub(String offline, String online) {
@@ -710,7 +710,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get marginLabel => 'Маржа';
 
   @override
-  String get pairsSoldLabel => 'Сатылған жұп';
+  String get pairsSoldLabel => 'Продано пар';
 
   @override
   String offlineOnlinePairsSub(String offline, String online) {
@@ -718,36 +718,36 @@ class AppLocalizationsRu extends AppLocalizations {
   }
 
   @override
-  String get revenueOnline => 'Түсімі (Онлайн)';
+  String get revenueOnline => 'Выручка (Онлайн)';
 
   @override
-  String get ordersLabel => 'Тапсырыстар';
+  String get ordersLabel => 'Заказы';
 
   @override
-  String get cancelledLabel => 'Бас тарту';
+  String get cancelledLabel => 'Отмены';
 
   @override
-  String get pairsSoldOnline => 'Сатылған жұп (онлайн)';
+  String get pairsSoldOnline => 'Продано пар (онлайн)';
 
   @override
-  String get dailyActivityOnline => 'Күндік белсенділік (онлайн)';
+  String get dailyActivityOnline => 'Дневная активность (онлайн)';
 
   @override
   String totalChartAmount(String amount) {
-    return 'Жалпы: $amount ₸';
+    return 'Итого: $amount ₸';
   }
 
   @override
-  String get noStaleItems => 'Жатып қалған тауар жоқ 👍';
+  String get noStaleItems => 'Залежавшихся товаров нет 👍';
 
   @override
-  String get staleItemsTitle => 'Жатып қалған тауар (30+ күн)';
+  String get staleItemsTitle => 'Залежавшийся товар (30+ дней)';
 
   @override
-  String get topThreeSales => 'Топ-3 сатылымдар';
+  String get topThreeSales => 'Топ-3 продаж';
 
   @override
-  String get noSalesLabel => 'Сатылым жоқ';
+  String get noSalesLabel => 'Продаж нет';
 
   @override
   String topOneSeller(String name) {
@@ -756,152 +756,151 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String sellerSalesCount(int count, int pairs) {
-    return '$count сат · $pairs жұп';
+    return '$count прод · $pairs пар';
   }
 
   @override
-  String get ordersTitle => 'Тапсырыстар';
+  String get ordersTitle => 'Заказы';
 
   @override
-  String get noPhoneNumber => 'Телефон нөмірі жоқ';
+  String get noPhoneNumber => 'Нет номера телефона';
 
   @override
-  String get noOrders => 'Тапсырыс жоқ';
+  String get noOrders => 'Заказов нет';
 
   @override
-  String get statusReserved => 'Брондалды';
+  String get statusReserved => 'Забронирован';
 
   @override
-  String get statusPending => 'Күтуде';
+  String get statusPending => 'В ожидании';
 
   @override
-  String get statusCompleted => 'Аяқталды';
+  String get statusCompleted => 'Завершён';
 
   @override
-  String get statusCancelled => 'Бас тартылды';
+  String get statusCancelled => 'Отменён';
 
   @override
-  String get goodsAmount => 'Тауар сомасы';
+  String get goodsAmount => 'Сумма товаров';
 
   @override
-  String get paidDeposit => 'Төленген депозит';
+  String get paidDeposit => 'Оплаченный депозит';
 
   @override
-  String get remainsAtStore => 'Дүкенде қалды';
+  String get remainsAtStore => 'Осталось в магазине';
 
   @override
-  String get paidLabel => 'Төленді';
+  String get paidLabel => 'Оплачено';
 
   @override
-  String get showQrToSeller => 'Сатушыға осы QR кодты көрсетіңіз';
+  String get showQrToSeller => 'Покажите этот QR-код продавцу';
 
   @override
-  String get showQrToStore => 'Дүкенге осы QR кодты көрсетіңіз';
+  String get showQrToStore => 'Покажите этот QR-код магазину';
 
   @override
-  String get onlineOrdersTitle => 'Онлайн тапсырыстар';
+  String get onlineOrdersTitle => 'Онлайн-заказы';
 
   @override
-  String get enterOrderCode => 'Тапсырыс кодын енгізіңіз...';
+  String get enterOrderCode => 'Введите код заказа...';
 
   @override
-  String get findButton => 'Іздеу';
+  String get findButton => 'Найти';
 
   @override
-  String get invalidCodeOrNotFound => 'Код қате немесе тапсырыс табылмады';
+  String get invalidCodeOrNotFound => 'Неверный код или заказ не найден';
 
   @override
-  String get orderNotForWarehouse =>
-      'Бұл тапсырыс сіздің қоймаңызға тиесілі емес';
+  String get orderNotForWarehouse => 'Этот заказ не относится к вашему складу';
 
   @override
-  String get orderNotFoundLabel => 'Тапсырыс табылмады';
+  String get orderNotFoundLabel => 'Заказ не найден';
 
   @override
   String allWithCount(int count) {
-    return 'Барлығы $count';
+    return 'Все $count';
   }
 
   @override
   String activeWithCount(int count) {
-    return 'Белсенді $count';
+    return 'Активные $count';
   }
 
   @override
   String completedWithCount(int count) {
-    return 'Аяқталды $count';
+    return 'Завершённые $count';
   }
 
   @override
   String cancelledWithCount(int count) {
-    return 'Бас тартылды $count';
+    return 'Отменённые $count';
   }
 
   @override
-  String get orderFoundLabel => 'Тапсырыс табылды';
+  String get orderFoundLabel => 'Заказ найден';
 
   @override
-  String get noActiveOrders => 'Белсенді тапсырыс жоқ';
+  String get noActiveOrders => 'Активных заказов нет';
 
   @override
-  String get noCompletedOrders => 'Аяқталған тапсырыс жоқ';
+  String get noCompletedOrders => 'Завершённых заказов нет';
 
   @override
-  String get noCancelledOrders => 'Бас тартылған тапсырыс жоқ';
+  String get noCancelledOrders => 'Отменённых заказов нет';
 
   @override
-  String get noOrdersLabel => 'Тапсырыс жоқ';
+  String get noOrdersLabel => 'Заказов нет';
 
   @override
-  String get nameNotSpecified => 'Аты көрсетілмеген';
+  String get nameNotSpecified => 'Имя не указано';
 
   @override
-  String get phoneCopied => 'Телефон көшірілді';
+  String get phoneCopied => 'Телефон скопирован';
 
   @override
-  String get depositPaidBadge => 'Депозит төленді (10%)';
+  String get depositPaidBadge => 'Депозит оплачен (10%)';
 
   @override
-  String get payAtStoreLabel => 'Дүкенде доплата';
+  String get payAtStoreLabel => 'Доплата в магазине';
 
   @override
-  String get totalPaidLabel => 'Барлығы төленді';
+  String get totalPaidLabel => 'Всего оплачено';
 
   @override
-  String get clientPaidFull => 'Клиент толық сомасын төледі ме?';
+  String get clientPaidFull => 'Клиент оплатил полную сумму?';
 
   @override
-  String get markAsDeliveredQ => 'Жеткізілді деп белгілеу?';
+  String get markAsDeliveredQ => 'Отметить как доставленный?';
 
   @override
-  String get markAsGivenQ => 'Берілді деп белгілеу?';
+  String get markAsGivenQ => 'Отметить как выданный?';
 
   @override
-  String get confirmationTitle => 'Растау';
+  String get confirmationTitle => 'Подтверждение';
 
   @override
-  String get yesConfirmBtn => 'Иә, растаймын';
+  String get yesConfirmBtn => 'Да, подтверждаю';
 
   @override
-  String get cancelOrderDialog => 'Тапсырысты болдырмау';
+  String get cancelOrderDialog => 'Отменить заказ';
 
   @override
-  String get cancelOrderMsg => 'Тапсырыс болдырылмайды, тауар қоймаға оралады.';
+  String get cancelOrderMsg => 'Заказ будет отменён, товар вернётся на склад.';
 
   @override
-  String get cancelOrderBtn => 'Тапсырысты болдырмау';
+  String get cancelOrderBtn => 'Отменить заказ';
 
   @override
-  String get fullPaymentLabel => 'Толық төлем';
+  String get fullPaymentLabel => 'Полная оплата';
 
   @override
-  String get deliveredLabel => 'Жеткізілді';
+  String get deliveredLabel => 'Доставлен';
 
   @override
-  String get givenLabel => 'Тауар берілді';
+  String get givenLabel => 'Товар выдан';
 
   @override
-  String get cancelBtn => 'Болдырмау';
+  String get cancelBtn => 'Отмена';
 
   @override
   String get smartResBadgeUpper => 'СМАРТ-БРОНЬ';
@@ -910,35 +909,35 @@ class AppLocalizationsRu extends AppLocalizations {
   String get clickCollectUpper => 'CLICK & COLLECT';
 
   @override
-  String get deliveryUpper => 'ЖЕТКІЗУ';
+  String get deliveryUpper => 'ДОСТАВКА';
 
   @override
-  String get storeTitle => 'Дүкен';
+  String get storeTitle => 'Магазин';
 
   @override
-  String get productSearchHint => 'Тауар іздеу...';
+  String get productSearchHint => 'Поиск товара...';
 
   @override
-  String get noActiveStores => 'Белсенді дүкен жоқ';
+  String get noActiveStores => 'Активных магазинов нет';
 
   @override
   String searchNotFoundMsg(String query) {
-    return '«$query» табылмады';
+    return '«$query» не найдено';
   }
 
   @override
-  String get noProductsLabel => 'Тауар жоқ';
+  String get noProductsLabel => 'Товаров нет';
 
   @override
-  String get outOfStock => 'Қолда жоқ';
+  String get outOfStock => 'Нет в наличии';
 
   @override
   String addedToCartMsg(String name) {
-    return '$name себетке қосылды';
+    return '$name добавлен в корзину';
   }
 
   @override
-  String get addToCartBtn => 'Себетке';
+  String get addToCartBtn => 'В корзину';
 
   @override
   String get returnsTitle => 'Возвраты';

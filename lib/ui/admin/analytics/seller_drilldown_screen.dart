@@ -3,6 +3,7 @@ import '../../../data/models/models.dart';
 import '../../../data/services/firestore_service.dart';
 import '../../../theme/qoima_design.dart';
 
+import '../../../core/lang.dart';
 class SellerDrilldownScreen extends StatelessWidget {
   final String sellerId;
   final String sellerName;
@@ -76,19 +77,19 @@ class SellerDrilldownScreen extends StatelessWidget {
                       child: Row(
                         children: [
                           _KpiCard(
-                              label: 'Сатулар',
+                              label: tr('Продажи', 'Сатулар'),
                               value: '$netCount',
-                              sub: 'транзакция',
+                              sub: tr('транзакций', 'транзакция'),
                               color: cGreen),
                           const SizedBox(width: 8),
                           _KpiCard(
-                              label: 'Дана',
+                              label: tr('Штук', 'Дана'),
                               value: '$totalPairs',
-                              sub: 'шт',
+                              sub: tr('шт', 'дана'),
                               color: cGreenBright),
                           const SizedBox(width: 8),
                           _KpiCard(
-                              label: 'Орт. чек',
+                              label: tr('Ср. чек', 'Орт. чек'),
                               value: _fmt(avgCheck),
                               sub: '₸',
                               color: cGreen),
@@ -110,10 +111,10 @@ class SellerDrilldownScreen extends StatelessWidget {
 
                   // Daily chart (возврат теріс сома → күндік белсенділік нетпен)
                   if (entries.isNotEmpty) ...[
-                    const SliverToBoxAdapter(
+                    SliverToBoxAdapter(
                       child: Padding(
                         padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
-                        child: Text('Күндік белсенділік',
+                        child: Text(tr('Дневная активность', 'Күндік белсенділік'),
                             style: TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,
@@ -142,10 +143,10 @@ class SellerDrilldownScreen extends StatelessWidget {
                     ),
 
                   // Recent sales header
-                  const SliverToBoxAdapter(
+                  SliverToBoxAdapter(
                     child: Padding(
                       padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
-                      child: Text('Соңғы сатулар',
+                      child: Text(tr('Последние продажи', 'Соңғы сатулар'),
                           style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w700,
@@ -155,11 +156,11 @@ class SellerDrilldownScreen extends StatelessWidget {
 
                   // Sales list (возврат жолы да көрсетіледі — қызыл, теріс сома)
                   if (entries.isEmpty)
-                    const SliverToBoxAdapter(
+                    SliverToBoxAdapter(
                       child: Center(
                         child: Padding(
                           padding: EdgeInsets.all(32),
-                          child: Text('Осы айда сатулар жоқ',
+                          child: Text(tr('В этом месяце продаж нет', 'Осы айда сатулар жоқ'),
                               style: TextStyle(
                                   color: cInk2, fontSize: 14)),
                         ),
@@ -202,20 +203,13 @@ class _Header extends StatelessWidget {
   const _Header(
       {required this.sellerName, required this.month, required this.onBack});
 
-  static const _months = [
-    '',
-    'Қаңтар',
-    'Ақпан',
-    'Наурыз',
-    'Сәуір',
-    'Мамыр',
-    'Маусым',
-    'Шілде',
-    'Тамыз',
-    'Қыркүйек',
-    'Қазан',
-    'Қараша',
-    'Желтоқсан',
+  static const _monthsRu = [
+    '', 'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
+    'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь',
+  ];
+  static const _monthsKk = [
+    '', 'Қаңтар', 'Ақпан', 'Наурыз', 'Сәуір', 'Мамыр', 'Маусым',
+    'Шілде', 'Тамыз', 'Қыркүйек', 'Қазан', 'Қараша', 'Желтоқсан',
   ];
 
   @override
@@ -251,7 +245,7 @@ class _Header extends StatelessWidget {
                               fontSize: 20,
                               fontWeight: FontWeight.w700)),
                       const SizedBox(height: 2),
-                      Text('${_months[month.month]} ${month.year}',
+                      Text('${tr(_monthsRu[month.month], _monthsKk[month.month])} ${month.year}',
                           style: const TextStyle(
                               color: Colors.white70, fontSize: 13)),
                     ],
@@ -344,7 +338,7 @@ class _RevenueCard extends StatelessWidget {
           Expanded(
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('Жалпы түсім',
+              Text(tr('Общая выручка', 'Жалпы түсім'),
                   style:
                       TextStyle(fontSize: 12, color: cInk2)),
               Text(_fmt(totalRevenue),
@@ -356,7 +350,7 @@ class _RevenueCard extends StatelessWidget {
           ),
           if (totalDiscount > 0)
             Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              const Text('Жеңілдік',
+              Text(tr('Скидка', 'Жеңілдік'),
                   style:
                       TextStyle(fontSize: 11, color: cInk2)),
               Text('−${_fmt(totalDiscount)}',
@@ -397,8 +391,10 @@ class _DiscountCard extends StatelessWidget {
         const SizedBox(width: 10),
         Expanded(
             child: Text(
-          'Жеңілдікпен $salesWithDiscount сату ($pct%) — '
-          'барлығы ${totalDiscount.toStringAsFixed(0)} ₸',
+          tr('Продаж со скидкой: $salesWithDiscount ($pct%) — '
+                  'итого ${totalDiscount.toStringAsFixed(0)} ₸',
+              'Жеңілдікпен $salesWithDiscount сату ($pct%) — '
+                  'барлығы ${totalDiscount.toStringAsFixed(0)} ₸'),
           style: const TextStyle(
               fontSize: 13,
               color: Color(0xFF92400E),
@@ -453,7 +449,7 @@ class _DailyChartState extends State<_DailyChart> {
             height: 26,
             child: Row(children: [
               if (_tapped != null) ...[
-                Text('${_tapped! + 1} күн',
+                Text(tr('${_tapped! + 1} день', '${_tapped! + 1} күн'),
                     style: const TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
@@ -465,7 +461,7 @@ class _DailyChartState extends State<_DailyChart> {
                         fontWeight: FontWeight.w800,
                         color: cGreen)),
               ] else ...[
-                const Text('Барлығы',
+                Text(tr('Итого', 'Барлығы'),
                     style: TextStyle(fontSize: 12, color: cInk3)),
                 const Spacer(),
                 Text(
@@ -606,7 +602,7 @@ class _SaleRow extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis),
             Text(
-                '${isReturn ? 'Возврат · ' : ''}Өл. ${sale.selectedSize} · $dateStr',
+                '${isReturn ? tr('Возврат · ', 'Қайтару · ') : ''}${tr('Р', 'Ө')}. ${sale.selectedSize} · $dateStr',
                 style: TextStyle(
                     fontSize: productName.isNotEmpty ? 11 : 13,
                     fontWeight: productName.isNotEmpty

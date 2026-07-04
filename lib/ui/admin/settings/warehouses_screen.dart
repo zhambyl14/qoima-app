@@ -3,6 +3,7 @@ import '../../../data/models/warehouse_model.dart';
 import '../../../data/services/firestore_service.dart';
 import '../../../theme/qoima_design.dart';
 
+import '../../../core/lang.dart';
 class WarehousesScreen extends StatefulWidget {
   const WarehousesScreen({super.key});
   @override
@@ -67,7 +68,7 @@ class _WarehousesScreenState extends State<WarehousesScreen> {
                           child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                            Text('Склады',
+                            Text(tr('Склады', 'Қоймалар'),
                                 style: manrope(23, FontWeight.w800,
                                     color: Colors.white, letterSpacing: -0.5)),
                             FutureBuilder<int>(
@@ -75,8 +76,8 @@ class _WarehousesScreenState extends State<WarehousesScreen> {
                               builder: (_, snap) {
                                 final total = snap.data;
                                 final sub = total != null
-                                    ? '${warehouses.length} склада · $total шт.'
-                                    : '${warehouses.length} склада';
+                                    ? tr('${warehouses.length} склада · $total шт.', '${warehouses.length} қойма · $total дана')
+                                    : tr('${warehouses.length} склада', '${warehouses.length} қойма');
                                 return Text(sub,
                                     style: manrope(13, FontWeight.w500,
                                         color: Colors.white.withValues(alpha: 0.78)));
@@ -105,13 +106,13 @@ class _WarehousesScreenState extends State<WarehousesScreen> {
                       Icon(Icons.warehouse_outlined,
                           size: 64, color: Colors.grey.shade300),
                       const SizedBox(height: 16),
-                      const Text('Қойма жоқ',
+                      Text(tr('Складов нет', 'Қойма жоқ'),
                           style: TextStyle(
                               fontSize: 16,
                               color: cInk2,
                               fontWeight: FontWeight.w500)),
                       const SizedBox(height: 8),
-                      const Text('+ батырмасын басып қосыңыз',
+                      Text(tr('Нажмите «+», чтобы добавить', '+ батырмасын басып қосыңыз'),
                           style: TextStyle(
                               fontSize: 13, color: cInk3)),
                     ]),
@@ -148,7 +149,7 @@ class _WarehousesScreenState extends State<WarehousesScreen> {
                             const Icon(Icons.add_rounded,
                                 color: cGreen, size: 20),
                             const SizedBox(width: 8),
-                            Text('Добавить склад',
+                            Text(tr('Добавить склад', 'Қойма қосу'),
                                 style: manrope(14, FontWeight.w700,
                                     color: cGreen)),
                           ]),
@@ -207,7 +208,7 @@ class _WarehouseCard extends StatelessWidget {
           ),
           if (wh.isMain) ...[
             const SizedBox(width: 8),
-            QPill('Главный', tone: 'green'),
+            QPill(tr('Главный', 'Негізгі'), tone: 'green'),
           ],
         ]),
         subtitle: wh.address != null && wh.address!.isNotEmpty
@@ -226,21 +227,23 @@ class _WarehouseCard extends StatelessWidget {
                 builder: (_) => AlertDialog(
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20)),
-                  title: const Text('Қойманы жою'),
+                  title: Text(tr('Удалить склад', 'Қойманы жою')),
                   content: Text(
-                    '«${wh.name}» қойманы жоямыз ба?\n\n'
-                    'Бұл қоймадағы өнімдердің байланысы жоғалады.',
+                    tr('Удалить склад «${wh.name}»?\n\n'
+                            'Связь товаров с этим складом будет потеряна.',
+                        '«${wh.name}» қойманы жоямыз ба?\n\n'
+                            'Бұл қоймадағы өнімдердің байланысы жоғалады.'),
                   ),
                   actions: [
                     TextButton(
                         onPressed: () => Navigator.pop(context, false),
-                        child: const Text('Болдырмау')),
+                        child: Text(tr('Отмена', 'Болдырмау'))),
                     ElevatedButton(
                         onPressed: () => Navigator.pop(context, true),
                         style: ElevatedButton.styleFrom(
                             backgroundColor: cRed,
                             foregroundColor: Colors.white),
-                        child: const Text('Жою')),
+                        child: Text(tr('Удалить', 'Жою'))),
                   ],
                 ),
               );
@@ -252,22 +255,24 @@ class _WarehouseCard extends StatelessWidget {
                 builder: (_) => AlertDialog(
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20)),
-                  title: const Text('Сенімдісіз бе?',
+                  title: Text(tr('Вы уверены?', 'Сенімдісіз бе?'),
                       style: TextStyle(color: cRed)),
-                  content: const Text(
-                    'Бұл әрекетті болдырмау мүмкін емес. '
-                    'Қойма түпкілікті жойылады.',
+                  content: Text(
+                    tr('Это действие нельзя отменить. '
+                            'Склад будет удалён безвозвратно.',
+                        'Бұл әрекетті болдырмау мүмкін емес. '
+                            'Қойма түпкілікті жойылады.'),
                   ),
                   actions: [
                     TextButton(
                         onPressed: () => Navigator.pop(context, false),
-                        child: const Text('Болдырмау')),
+                        child: Text(tr('Отмена', 'Болдырмау'))),
                     ElevatedButton(
                         onPressed: () => Navigator.pop(context, true),
                         style: ElevatedButton.styleFrom(
                             backgroundColor: cRed,
                             foregroundColor: Colors.white),
-                        child: const Text('Иә, жою')),
+                        child: Text(tr('Да, удалить', 'Иә, жою'))),
                   ],
                 ),
               );
@@ -278,13 +283,13 @@ class _WarehouseCard extends StatelessWidget {
           },
           itemBuilder: (_) => [
             if (!wh.isMain)
-              const PopupMenuItem(
+              PopupMenuItem(
                   value: 'delete',
                   child: Row(children: [
                     Icon(Icons.delete_outline,
                         size: 16, color: cRed),
                     SizedBox(width: 8),
-                    Text('Жою', style: TextStyle(color: cRed)),
+                    Text(tr('Удалить', 'Жою'), style: TextStyle(color: cRed)),
                   ])),
           ],
         ),
@@ -339,7 +344,7 @@ class _AddWarehouseSheetState extends State<_AddWarehouseSheet> {
                           color: Colors.grey.shade300,
                           borderRadius: BorderRadius.circular(2)))),
               const SizedBox(height: 16),
-              const Text('Жаңа қойма',
+              Text(tr('Новый склад', 'Жаңа қойма'),
                   style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
@@ -347,8 +352,8 @@ class _AddWarehouseSheetState extends State<_AddWarehouseSheet> {
               const SizedBox(height: 16),
               _Field(
                   ctrl: _nameCtrl,
-                  label: 'Қойма атауы *',
-                  hint: 'Мысалы: ТРЦ Mega',
+                  label: tr('Название склада *', 'Қойма атауы *'),
+                  hint: tr('Например: ТРЦ Mega', 'Мысалы: ТРЦ Mega'),
                   icon: Icons.warehouse_outlined),
               const SizedBox(height: 12),
               TextFormField(
@@ -356,8 +361,8 @@ class _AddWarehouseSheetState extends State<_AddWarehouseSheet> {
                 style:
                     const TextStyle(fontSize: 14, color: cInk),
                 decoration: InputDecoration(
-                  labelText: 'Мекен-жай *',
-                  hintText: 'Алматы, Абай к-сі 10',
+                  labelText: tr('Адрес *', 'Мекен-жай *'),
+                  hintText: tr('Алматы, ул. Абая 10', 'Алматы, Абай к-сі 10'),
                   hintStyle: const TextStyle(color: cInk3),
                   prefixIcon: const Icon(Icons.location_on_outlined,
                       color: cGreen, size: 20),
@@ -379,17 +384,17 @@ class _AddWarehouseSheetState extends State<_AddWarehouseSheet> {
                 ),
                 validator: (v) {
                   if (v == null || v.trim().isEmpty) {
-                    return 'Мекенжай міндетті!';
+                    return tr('Адрес обязателен!', 'Мекенжай міндетті!');
                   }
-                  if (v.trim().length < 5) return 'Толық мекенжай енгізіңіз';
+                  if (v.trim().length < 5) return tr('Введите полный адрес', 'Толық мекенжай енгізіңіз');
                   return null;
                 },
               ),
               const SizedBox(height: 12),
               _Field(
                   ctrl: _noteCtrl,
-                  label: 'Ескерту',
-                  hint: 'Қосымша ақпарат',
+                  label: tr('Примечание', 'Ескерту'),
+                  hint: tr('Дополнительная информация', 'Қосымша ақпарат'),
                   icon: Icons.notes_rounded),
               if (_error != null) ...[
                 const SizedBox(height: 10),
@@ -416,7 +421,7 @@ class _AddWarehouseSheetState extends State<_AddWarehouseSheet> {
                             }
                             final name = _nameCtrl.text.trim();
                             if (name.isEmpty) {
-                              setState(() => _error = 'Атауын енгізіңіз');
+                              setState(() => _error = tr('Введите название', 'Атауын енгізіңіз'));
                               return;
                             }
                             setState(() {
@@ -445,7 +450,7 @@ class _AddWarehouseSheetState extends State<_AddWarehouseSheet> {
                             height: 22,
                             child: CircularProgressIndicator(
                                 color: Colors.white, strokeWidth: 2))
-                        : const Text('Сақтау',
+                        : Text(tr('Сохранить', 'Сақтау'),
                             style: TextStyle(fontWeight: FontWeight.w700)),
                   )),
             ]),

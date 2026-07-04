@@ -5,6 +5,7 @@ import '../../../data/services/firestore_service.dart';
 import '../../../theme/qoima_design.dart';
 import 'promo_edit_sheet.dart';
 
+import '../../../core/lang.dart';
 /// Админ-экран управления промокодами магазина.
 class PromosScreen extends StatelessWidget {
   const PromosScreen({super.key});
@@ -16,8 +17,8 @@ class PromosScreen extends StatelessWidget {
       backgroundColor: cBg,
       body: Column(children: [
         QGradientHeader(
-          title: 'Промокоды',
-          subtitle: 'Скидки по коду для клиентов',
+          title: tr('Промокоды', 'Промокодтар'),
+          subtitle: tr('Скидки по коду для клиентов', 'Клиенттерге код бойынша жеңілдік'),
           showBack: true,
         ),
         Expanded(
@@ -31,13 +32,13 @@ class PromosScreen extends StatelessWidget {
               if (snap.hasError) {
                 return _Empty(
                     icon: Icons.error_outline_rounded,
-                    message: 'Ошибка загрузки промокодов');
+                    message: tr('Ошибка загрузки промокодов', 'Промокодтарды жүктеу қатесі'));
               }
               final promos = snap.data ?? [];
               if (promos.isEmpty) {
                 return _Empty(
                     icon: Icons.local_activity_outlined,
-                    message: 'Пока нет промокодов.\nСоздайте первый.');
+                    message: tr('Пока нет промокодов.\nСоздайте первый.', 'Әзірге промокод жоқ.\nАлғашқысын жасаңыз.'));
               }
               return ListView.builder(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
@@ -54,7 +55,7 @@ class PromosScreen extends StatelessWidget {
         foregroundColor: Colors.white,
         onPressed: () => showPromoEditSheet(context),
         icon: const Icon(Icons.add_rounded),
-        label: Text('Создать', style: manrope(14, FontWeight.w700,
+        label: Text(tr('Создать', 'Жасау'), style: manrope(14, FontWeight.w700,
             color: Colors.white)),
       ),
     );
@@ -71,15 +72,15 @@ class _PromoCard extends StatelessWidget {
                       : '−${money(promo.value)}';
 
   String get _scopeLabel => promo.scope == 'products'
-      ? 'На ${promo.productIds.length} тов.'
-      : 'На всё';
+      ? tr('На ${promo.productIds.length} тов.', '${promo.productIds.length} тауарға')
+      : tr('На всё', 'Барлығына');
 
   ({String text, Color color}) get _status {
-    if (!promo.active) return (text: 'Выключен', color: cInk3);
-    if (promo.isExpired) return (text: 'Завершён', color: cRed);
-    if (promo.isExhausted) return (text: 'Исчерпан', color: cRed);
-    if (!promo.isStarted) return (text: 'Запланирован', color: cAmber);
-    return (text: 'Активен', color: cGreen);
+    if (!promo.active) return (text: tr('Выключен', 'Өшірулі'), color: cInk3);
+    if (promo.isExpired) return (text: tr('Завершён', 'Аяқталды'), color: cRed);
+    if (promo.isExhausted) return (text: tr('Исчерпан', 'Таусылды'), color: cRed);
+    if (!promo.isStarted) return (text: tr('Запланирован', 'Жоспарланған'), color: cAmber);
+    return (text: tr('Активен', 'Белсенді'), color: cGreen);
   }
 
   @override
@@ -102,7 +103,7 @@ class _PromoCard extends StatelessWidget {
               onTap: () {
                 Clipboard.setData(ClipboardData(text: promo.code));
                 ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                  content: Text('Код ${promo.code} скопирован'),
+                  content: Text(tr('Код ${promo.code} скопирован', '${promo.code} коды көшірілді')),
                   behavior: SnackBarBehavior.floating,
                   backgroundColor: cGreen,
                 ));
@@ -160,25 +161,25 @@ class _PromoCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
-          Text('${promo.usedCount} / ${promo.maxUses} использований',
+          Text(tr('${promo.usedCount} / ${promo.maxUses} использований', '${promo.usedCount} / ${promo.maxUses} қолданылды'),
               style: manrope(11.5, FontWeight.w500, color: cInk3)),
         ] else
-          Text('${promo.usedCount} использований · без лимита',
+          Text(tr('${promo.usedCount} использований · без лимита', '${promo.usedCount} қолданылды · лимитсіз'),
               style: manrope(11.5, FontWeight.w500, color: cInk3)),
         const SizedBox(height: 6),
         Row(children: [
           if (promo.daysLeft != null)
-            Text('Осталось ${promo.daysLeft} дн.',
+            Text(tr('Осталось ${promo.daysLeft} дн.', 'Қалды ${promo.daysLeft} күн'),
                 style: manrope(11.5, FontWeight.w500, color: cInk3)),
           const Spacer(),
           TextButton(
             onPressed: () => showPromoEditSheet(context, existing: promo),
-            child: Text('Изменить',
+            child: Text(tr('Изменить', 'Өзгерту'),
                 style: manrope(12.5, FontWeight.w600, color: cGreen)),
           ),
           TextButton(
             onPressed: () => _confirmDelete(context),
-            child: Text('Удалить',
+            child: Text(tr('Удалить', 'Өшіру'),
                 style: manrope(12.5, FontWeight.w600, color: cRed)),
           ),
         ]),
@@ -192,21 +193,21 @@ class _PromoCard extends StatelessWidget {
       builder: (ctx) => AlertDialog(
         shape:
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: Text('Удалить промокод?',
+        title: Text(tr('Удалить промокод?', 'Промокодты өшіру керек пе?'),
             style: manrope(17, FontWeight.w700, color: cInk)),
-        content: Text('«${promo.code}» будет удалён безвозвратно.',
+        content: Text(tr('«${promo.code}» будет удалён безвозвратно.', '«${promo.code}» біржола өшіріледі.'),
             style: manrope(14, FontWeight.w500, color: cInk2)),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: Text('Отмена',
+              child: Text(tr('Отмена', 'Болдырмау'),
                   style: manrope(14, FontWeight.w600, color: cInk2))),
           TextButton(
               onPressed: () {
                 service.deletePromo(promo.id);
                 Navigator.pop(ctx);
               },
-              child: Text('Удалить',
+              child: Text(tr('Удалить', 'Өшіру'),
                   style: manrope(14, FontWeight.w600, color: cRed))),
         ],
       ),

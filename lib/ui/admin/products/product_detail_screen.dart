@@ -9,6 +9,7 @@ import '../../widgets/image_crop_screen.dart';
 import 'dart:typed_data';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../core/lang.dart';
 class ProductDetailScreen extends StatefulWidget {
   final ProductModel product;
   const ProductDetailScreen({super.key, required this.product});
@@ -29,18 +30,18 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Удалить поставку?'),
-        content: const Text(
-            'Действие необратимо. Поставка и связанные продажи будут удалены.'),
+        title: Text(tr('Удалить поставку?', 'Партияны өшіру керек пе?')),
+        content: Text(
+            tr('Действие необратимо. Поставка и связанные продажи будут удалены.', 'Әрекет қайтарылмайды. Партия және байланысты сатылымдар өшіріледі.')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Отмена'),
+            child: Text(tr('Отмена', 'Болдырмау')),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(backgroundColor: cRed),
-            child: const Text('Удалить'),
+            child: Text(tr('Удалить', 'Өшіру')),
           ),
         ],
       ),
@@ -61,7 +62,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setS) => AlertDialog(
-          title: const Text('Редактировать поставку'),
+          title: Text(tr('Редактировать поставку', 'Партияны өңдеу')),
           content: SizedBox(
             width: 340,
             child: SingleChildScrollView(
@@ -89,7 +90,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
                     decoration:
-                        const InputDecoration(labelText: 'Закупочная цена'),
+                        InputDecoration(labelText: tr('Закупочная цена', 'Сатып алу бағасы')),
                   ),
                   const SizedBox(height: 8),
                   TextField(
@@ -97,10 +98,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
                     decoration:
-                        const InputDecoration(labelText: 'Цена продажи'),
+                        InputDecoration(labelText: tr('Цена продажи', 'Сату бағасы')),
                   ),
                   const SizedBox(height: 10),
-                  const Text('Размеры',
+                  Text(tr('Размеры', 'Өлшемдер'),
                       style: TextStyle(fontWeight: FontWeight.w700)),
                   const SizedBox(height: 6),
                   ...tempSizes.keys.map((size) {
@@ -132,10 +133,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Отмена')),
+                child: Text(tr('Отмена', 'Болдырмау'))),
             ElevatedButton(
                 onPressed: () => Navigator.pop(ctx, true),
-                child: const Text('Сохранить')),
+                child: Text(tr('Сохранить', 'Сақтау'))),
           ],
         ),
       ),
@@ -390,7 +391,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                           child: const Icon(Icons.inventory_2_outlined,
                               color: cGreen, size: 22)),
                       const SizedBox(height: 4),
-                      Text('$totalPairs шт.',
+                      Text(tr('$totalPairs шт.', '$totalPairs дана'),
                           style: const TextStyle(
                               fontSize: 11,
                               color: cInk2,
@@ -418,7 +419,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   if (context.read<AppUser>().isAdmin) ...[
                     // Админ: тек қолда бар размерлер (Wrap)
                     if (availSizes.isNotEmpty) ...[
-                      const _SecTitle('Доступные размеры'),
+                      _SecTitle(tr('Доступные размеры', 'Қолжетімді өлшемдер')),
                       const SizedBox(height: 10),
                       Wrap(
                         spacing: 8,
@@ -447,7 +448,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                             fontWeight: FontWeight.w800,
                                             fontSize: 15,
                                             color: cGreen)),
-                                    Text('${e.value} шт',
+                                    Text(tr('${e.value} шт', '${e.value} дана'),
                                         style: const TextStyle(
                                             fontSize: 10,
                                             color: cInk2)),
@@ -459,25 +460,25 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                     ],
                   ] else ...[
                     // Саттушы: барлық размерлер grid-те (қолда бар/жоқ)
-                    const _SecTitle('Размерлер'),
+                    _SecTitle(tr('Размеры', 'Өлшемдер')),
                     const SizedBox(height: 10),
                     _buildSizesGrid(totalSizes),
                     const SizedBox(height: 20),
                   ],
 
                   // Партии
-                  const _SecTitle('Партии поставок'),
+                  _SecTitle(tr('Партии поставок', 'Жеткізілім партиялары')),
                   const SizedBox(height: 10),
                   if (batchSnap.connectionState == ConnectionState.waiting)
                     const Center(
                         child:
                             CircularProgressIndicator(color: cGreen))
                   else if (batches.isEmpty)
-                    const Text('Нет партий',
+                    Text(tr('Нет партий', 'Партия жоқ'),
                         style: TextStyle(color: cInk3))
                   else ...[
                     if (activeBatches.isNotEmpty) ...[
-                      const _SecTitle('В наличии'),
+                      _SecTitle(tr('В наличии', 'Қолда бар')),
                       const SizedBox(height: 8),
                       ...activeBatches.map((b) => _BatchWithSales(
                             batch: b,
@@ -490,7 +491,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                     ],
                     if (soldBatches.isNotEmpty) ...[
                       const SizedBox(height: 12),
-                      const _SecTitle('Продано'),
+                      _SecTitle(tr('Продано', 'Сатылды')),
                       const SizedBox(height: 8),
                       ...soldBatches.map((b) => _BatchWithSales(
                             batch: b,
@@ -552,7 +553,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   fontWeight: FontWeight.w800,
                   color: avail ? cGreen : cInk3,
                 )),
-            Text(avail ? '$qty шт.' : 'жоқ',
+            Text(avail ? tr('$qty шт.', '$qty дана') : tr('нет', 'жоқ'),
                 style: TextStyle(
                   fontSize: 11,
                   color: avail ? cInk2 : cInk3,
@@ -628,7 +629,7 @@ class _BatchWithSales extends StatelessWidget {
                     size: 16, color: cGreen),
               ),
               const SizedBox(width: 8),
-              Text('Поставка от $dateStr',
+              Text(tr('Поставка от $dateStr', '$dateStr жеткізілімі'),
                   style: const TextStyle(
                       fontWeight: FontWeight.w600,
                       fontSize: 14,
@@ -642,8 +643,8 @@ class _BatchWithSales extends StatelessWidget {
                     color: Colors.grey,
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Text(
-                    'Продано',
+                  child: Text(
+                    tr('Продано', 'Сатылды'),
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 10,
@@ -667,7 +668,7 @@ class _BatchWithSales extends StatelessWidget {
                   visualDensity: VisualDensity.compact,
                 ),
               ],
-              Text('${batch.totalQuantity} шт.',
+              Text(tr('${batch.totalQuantity} шт.', '${batch.totalQuantity} дана'),
                   style: const TextStyle(
                       color: cInk2,
                       fontSize: 13,
@@ -677,13 +678,13 @@ class _BatchWithSales extends StatelessWidget {
             Row(children: [
               if (context.read<AppUser>().isAdmin) ...[
                 _PriceTag(
-                    label: 'Закуп',
+                    label: tr('Закуп', 'Сатып алу'),
                     value: '${batch.purchasePrice.toStringAsFixed(0)} ₸',
                     color: cRed),
                 const SizedBox(width: 8),
               ],
               _PriceTag(
-                  label: 'Продажа',
+                  label: tr('Продажа', 'Сату'),
                   value: '${batch.sellingPrice.toStringAsFixed(0)} ₸',
                   color: cGreen),
               if (context.read<AppUser>().isAdmin) ...[
@@ -723,7 +724,7 @@ class _BatchWithSales extends StatelessWidget {
                       const Icon(Icons.receipt_long_outlined,
                           size: 14, color: cInk3),
                       const SizedBox(width: 6),
-                      Text('Продажи из этой партии — ${sales.length} опер.',
+                      Text(tr('Продажи из этой партии — ${sales.length} опер.', 'Осы партиядан сатылымдар — ${sales.length} опер.'),
                           style: const TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
@@ -752,7 +753,7 @@ class _SaleRow extends StatelessWidget {
         '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
     final sizes = sale.sizesSold.entries
         .where((e) => e.value > 0)
-        .map((e) => 'Р.${e.key}×${e.value}')
+        .map((e) => tr('Р.${e.key}×${e.value}', 'Ө.${e.key}×${e.value}'))
         .join('  ');
 
     return Padding(
@@ -905,7 +906,7 @@ class _PhotoManagerSheetState extends State<_PhotoManagerSheet> {
     if (_busy) return;
     // Тауарда әрқашан кемінде 1 сурет болу керек — соңғысын өшіртпейміз.
     if (_imgs.length <= 1) {
-      _snack('Кемінде 1 сурет болуы керек — алдымен жаңа сурет қосыңыз',
+      _snack(tr('Нужно минимум 1 фото — сначала добавьте новое', 'Кемінде 1 сурет болуы керек — алдымен жаңа сурет қосыңыз'),
           error: true);
       return;
     }
@@ -919,7 +920,7 @@ class _PhotoManagerSheetState extends State<_PhotoManagerSheet> {
       // Cloudinary-ден жою — best-effort (credentials бос болса үнсіз өтеді)
       await _cloud.deleteByUrl(url);
     } catch (e) {
-      _snack('Не удалось удалить: $e', error: true);
+      _snack(tr('Не удалось удалить: $e', 'Өшіру мүмкін болмады: $e'), error: true);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -928,7 +929,7 @@ class _PhotoManagerSheetState extends State<_PhotoManagerSheet> {
   Future<void> _add(ImageSource source) async {
     if (_busy) return;
     if (_imgs.length >= _maxImages) {
-      _snack('Максимум $_maxImages фото', error: true);
+      _snack(tr('Максимум $_maxImages фото', 'Ең көбі $_maxImages фото'), error: true);
       return;
     }
     final remaining = _maxImages - _imgs.length;
@@ -954,7 +955,7 @@ class _PhotoManagerSheetState extends State<_PhotoManagerSheet> {
           builder: (_) => ImageCropScreen(
             raw: raw,
             outputSize: _cropSize,
-            title: toAdd.length > 1 ? 'Фото ${i + 1} из ${toAdd.length}' : null,
+            title: toAdd.length > 1 ? tr('Фото ${i + 1} из ${toAdd.length}', 'Фото ${i + 1} / ${toAdd.length}') : null,
           ),
         ),
       );
@@ -968,10 +969,10 @@ class _PhotoManagerSheetState extends State<_PhotoManagerSheet> {
       setState(() => _imgs = [..._imgs, ...urls]);
       await _persist();
       if (picked.length > remaining) {
-        _snack('Добавлено $remaining — лимит $_maxImages фото');
+        _snack(tr('Добавлено $remaining — лимит $_maxImages фото', 'Қосылды $remaining — лимит $_maxImages фото'));
       }
     } catch (e) {
-      _snack('Ошибка загрузки: $e', error: true);
+      _snack(tr('Ошибка загрузки: $e', 'Жүктеу қатесі: $e'), error: true);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -984,14 +985,14 @@ class _PhotoManagerSheetState extends State<_PhotoManagerSheet> {
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           ListTile(
               leading: const Icon(Icons.camera_alt_outlined, color: cGreen),
-              title: const Text('Сфотографировать'),
+              title: Text(tr('Сфотографировать', 'Суретке түсіру')),
               onTap: () {
                 Navigator.pop(ctx);
                 _add(ImageSource.camera);
               }),
           ListTile(
               leading: const Icon(Icons.photo_library_outlined, color: cGreen),
-              title: const Text('Из галереи'),
+              title: Text(tr('Из галереи', 'Галереядан')),
               onTap: () {
                 Navigator.pop(ctx);
                 _add(ImageSource.gallery);
@@ -1019,7 +1020,7 @@ class _PhotoManagerSheetState extends State<_PhotoManagerSheet> {
                 color: cLine, borderRadius: BorderRadius.circular(2))),
         const SizedBox(height: 14),
         Row(children: [
-          const Text('Фотографии',
+          Text(tr('Фотографии', 'Фотосуреттер'),
               style: TextStyle(
                   fontSize: 17, fontWeight: FontWeight.w700, color: cInk)),
           const Spacer(),
@@ -1079,9 +1080,9 @@ class _PhotoManagerSheetState extends State<_PhotoManagerSheet> {
             padding: EdgeInsets.only(bottom: 8),
             child: LinearProgressIndicator(color: cGreen),
           ),
-        const Align(
+        Align(
           alignment: Alignment.centerLeft,
-          child: Text('Квадрат 1:1 · максимум 4 фото',
+          child: Text(tr('Квадрат 1:1 · максимум 4 фото', '1:1 шаршы · ең көбі 4 фото'),
               style: TextStyle(fontSize: 12, color: cInk3)),
         ),
       ]),

@@ -6,6 +6,7 @@ import '../../core/phone_input.dart';
 import '../../data/services/auth_service.dart';
 import '../../theme/qoima_design.dart';
 
+import '../../core/lang.dart';
 /// Барлық рөлдерге ортақ «Жеке деректер» экраны: телефон/email/құпиясөз өзгерту.
 /// Әр сезімтал өзгеріс алдында ағымдағы құпиясөзбен қайта аутентификация (reauth).
 ///
@@ -21,8 +22,8 @@ class AccountSecurityScreen extends StatelessWidget {
       backgroundColor: cBg,
       body: Column(children: [
         QGradientHeader(
-          title: 'Жеке деректер',
-          subtitle: 'Аккаунт қауіпсіздігі',
+          title: tr('Личные данные', 'Жеке деректер'),
+          subtitle: tr('Безопасность аккаунта', 'Аккаунт қауіпсіздігі'),
           showBack: true,
           onBack: () => Navigator.pop(context),
         ),
@@ -34,8 +35,8 @@ class AccountSecurityScreen extends StatelessWidget {
                 QMenuItem(
                   icon: Icons.phone_outlined,
                   tone: 'green',
-                  title: 'Телефон нөмірі',
-                  subtitle: 'Кіру нөмірін өзгерту',
+                  title: tr('Номер телефона', 'Телефон нөмірі'),
+                  subtitle: tr('Изменить номер входа', 'Кіру нөмірін өзгерту'),
                   onTap: () => _openSheet(context, const _ChangePhoneSheet()),
                 ),
                 const SizedBox(height: 10),
@@ -44,15 +45,15 @@ class AccountSecurityScreen extends StatelessWidget {
                 icon: Icons.email_outlined,
                 tone: 'blue',
                 title: 'Email',
-                subtitle: 'Поштаны өзгерту',
+                subtitle: tr('Изменить почту', 'Поштаны өзгерту'),
                 onTap: () => _openSheet(context, const _ChangeEmailSheet()),
               ),
               const SizedBox(height: 10),
               QMenuItem(
                 icon: Icons.lock_outline_rounded,
                 tone: 'amber',
-                title: 'Құпиясөз',
-                subtitle: 'Құпиясөзді өзгерту',
+                title: tr('Пароль', 'Құпиясөз'),
+                subtitle: tr('Изменение пароля', 'Құпиясөзді өзгерту'),
                 onTap: () => _openSheet(context, const _ChangePasswordSheet()),
               ),
             ],
@@ -237,11 +238,11 @@ class _ChangePhoneSheetState extends State<_ChangePhoneSheet> {
 
   Future<void> _submit() async {
     if (_passCtrl.text.isEmpty) {
-      setState(() => _error = 'Ағымдағы құпиясөзді енгізіңіз');
+      setState(() => _error = tr('Введите текущий пароль', 'Ағымдағы құпиясөзді енгізіңіз'));
       return;
     }
     if (!isValidKzPhone(_phoneCtrl.text)) {
-      setState(() => _error = 'Телефон нөмірін толық енгізіңіз');
+      setState(() => _error = tr('Введите номер телефона полностью', 'Телефон нөмірін толық енгізіңіз'));
       return;
     }
     setState(() {
@@ -257,7 +258,7 @@ class _ChangePhoneSheetState extends State<_ChangePhoneSheet> {
       if (!mounted) return;
       context.read<AppUser>().updatePhone(newPhone);
       Navigator.pop(context);
-      _toast(context, 'Телефон нөмірі өзгертілді');
+      _toast(context, tr('Номер телефона изменён', 'Телефон нөмірі өзгертілді'));
     } on AuthFailure catch (e) {
       setState(() => _error = e.message);
     } finally {
@@ -268,12 +269,12 @@ class _ChangePhoneSheetState extends State<_ChangePhoneSheet> {
   @override
   Widget build(BuildContext context) {
     return _SheetShell(
-      title: 'Телефон нөмірін өзгерту',
+      title: tr('Изменение номера телефона', 'Телефон нөмірін өзгерту'),
       children: [
         _SecurityField(
           controller: _passCtrl,
-          label: 'Ағымдағы құпиясөз',
-          hint: 'Құпиясөз',
+          label: tr('Текущий пароль', 'Ағымдағы құпиясөз'),
+          hint: tr('Пароль', 'Құпиясөз'),
           icon: Icons.lock_outline_rounded,
           obscure: _obscure,
           suffix: GestureDetector(
@@ -288,7 +289,7 @@ class _ChangePhoneSheetState extends State<_ChangePhoneSheet> {
         ),
         _SecurityField(
           controller: _phoneCtrl,
-          label: 'Жаңа телефон нөмірі',
+          label: tr('Новый номер телефона', 'Жаңа телефон нөмірі'),
           hint: '+7 (700) 000-00-00',
           icon: Icons.phone_outlined,
           keyboard: TextInputType.phone,
@@ -296,7 +297,7 @@ class _ChangePhoneSheetState extends State<_ChangePhoneSheet> {
         ),
         if (_error != null) _SheetError(_error!),
         QPrimaryButton(
-          label: 'Сақтау',
+          label: tr('Сохранить', 'Сақтау'),
           isLoading: _loading,
           onPressed: _submit,
         ),
@@ -331,12 +332,12 @@ class _ChangeEmailSheetState extends State<_ChangeEmailSheet> {
 
   Future<void> _submit() async {
     if (_passCtrl.text.isEmpty) {
-      setState(() => _error = 'Ағымдағы құпиясөзді енгізіңіз');
+      setState(() => _error = tr('Введите текущий пароль', 'Ағымдағы құпиясөзді енгізіңіз'));
       return;
     }
     final email = _emailCtrl.text.trim();
     if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
-      setState(() => _error = 'Email форматы қате');
+      setState(() => _error = tr('Неверный формат email', 'Email форматы қате'));
       return;
     }
     setState(() {
@@ -350,7 +351,7 @@ class _ChangeEmailSheetState extends State<_ChangeEmailSheet> {
       );
       if (!mounted) return;
       Navigator.pop(context);
-      _toast(context, 'Жаңа поштаңызды тексеріңіз. Растау сілтемесі жіберілді.');
+      _toast(context, tr('Проверьте новую почту. Отправлена ссылка подтверждения.', 'Жаңа поштаңызды тексеріңіз. Растау сілтемесі жіберілді.'));
     } on AuthFailure catch (e) {
       setState(() => _error = e.message);
     } finally {
@@ -361,12 +362,12 @@ class _ChangeEmailSheetState extends State<_ChangeEmailSheet> {
   @override
   Widget build(BuildContext context) {
     return _SheetShell(
-      title: 'Email өзгерту',
+      title: tr('Изменение email', 'Email өзгерту'),
       children: [
         _SecurityField(
           controller: _passCtrl,
-          label: 'Ағымдағы құпиясөз',
-          hint: 'Құпиясөз',
+          label: tr('Текущий пароль', 'Ағымдағы құпиясөз'),
+          hint: tr('Пароль', 'Құпиясөз'),
           icon: Icons.lock_outline_rounded,
           obscure: _obscure,
           suffix: GestureDetector(
@@ -381,14 +382,14 @@ class _ChangeEmailSheetState extends State<_ChangeEmailSheet> {
         ),
         _SecurityField(
           controller: _emailCtrl,
-          label: 'Жаңа email',
+          label: tr('Новый email', 'Жаңа email'),
           hint: 'example@mail.com',
           icon: Icons.email_outlined,
           keyboard: TextInputType.emailAddress,
         ),
         if (_error != null) _SheetError(_error!),
         QPrimaryButton(
-          label: 'Растау сілтемесін жіберу',
+          label: tr('Отправить ссылку подтверждения', 'Растау сілтемесін жіберу'),
           isLoading: _loading,
           onPressed: _submit,
         ),
@@ -426,15 +427,15 @@ class _ChangePasswordSheetState extends State<_ChangePasswordSheet> {
 
   Future<void> _submit() async {
     if (_currentCtrl.text.isEmpty) {
-      setState(() => _error = 'Ағымдағы құпиясөзді енгізіңіз');
+      setState(() => _error = tr('Введите текущий пароль', 'Ағымдағы құпиясөзді енгізіңіз'));
       return;
     }
     if (_newCtrl.text.length < 6) {
-      setState(() => _error = 'Құпиясөз кем дегенде 6 таңба болуы керек');
+      setState(() => _error = tr('Пароль должен быть не короче 6 символов', 'Құпиясөз кем дегенде 6 таңба болуы керек'));
       return;
     }
     if (_newCtrl.text != _confirmCtrl.text) {
-      setState(() => _error = 'Құпиясөздер сәйкес келмейді');
+      setState(() => _error = tr('Пароли не совпадают', 'Құпиясөздер сәйкес келмейді'));
       return;
     }
     setState(() {
@@ -448,7 +449,7 @@ class _ChangePasswordSheetState extends State<_ChangePasswordSheet> {
       );
       if (!mounted) return;
       Navigator.pop(context);
-      _toast(context, 'Құпиясөз сәтті өзгертілді');
+      _toast(context, tr('Пароль успешно изменён', 'Құпиясөз сәтті өзгертілді'));
     } on AuthFailure catch (e) {
       setState(() => _error = e.message);
     } finally {
@@ -459,12 +460,12 @@ class _ChangePasswordSheetState extends State<_ChangePasswordSheet> {
   @override
   Widget build(BuildContext context) {
     return _SheetShell(
-      title: 'Құпиясөзді өзгерту',
+      title: tr('Изменение пароля', 'Құпиясөзді өзгерту'),
       children: [
         _SecurityField(
           controller: _currentCtrl,
-          label: 'Ағымдағы құпиясөз',
-          hint: 'Құпиясөз',
+          label: tr('Текущий пароль', 'Ағымдағы құпиясөз'),
+          hint: tr('Пароль', 'Құпиясөз'),
           icon: Icons.lock_outline_rounded,
           obscure: _obscureCur,
           suffix: GestureDetector(
@@ -479,8 +480,8 @@ class _ChangePasswordSheetState extends State<_ChangePasswordSheet> {
         ),
         _SecurityField(
           controller: _newCtrl,
-          label: 'Жаңа құпиясөз',
-          hint: 'Кемінде 6 таңба',
+          label: tr('Новый пароль', 'Жаңа құпиясөз'),
+          hint: tr('Минимум 6 символов', 'Кемінде 6 таңба'),
           icon: Icons.lock_reset_rounded,
           obscure: _obscureNew,
           suffix: GestureDetector(
@@ -495,14 +496,14 @@ class _ChangePasswordSheetState extends State<_ChangePasswordSheet> {
         ),
         _SecurityField(
           controller: _confirmCtrl,
-          label: 'Жаңа құпиясөзді қайталаңыз',
-          hint: 'Қайталаңыз',
+          label: tr('Повторите новый пароль', 'Жаңа құпиясөзді қайталаңыз'),
+          hint: tr('Повторите', 'Қайталаңыз'),
           icon: Icons.lock_reset_rounded,
           obscure: _obscureNew,
         ),
         if (_error != null) _SheetError(_error!),
         QPrimaryButton(
-          label: 'Сақтау',
+          label: tr('Сохранить', 'Сақтау'),
           isLoading: _loading,
           onPressed: _submit,
         ),

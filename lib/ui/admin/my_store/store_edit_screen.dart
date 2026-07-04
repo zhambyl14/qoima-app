@@ -9,6 +9,7 @@ import '../../../data/repositories/store_edit_repository.dart';
 import '../../../theme/qoima_design.dart';
 import 'store_edit_pending_screen.dart';
 
+import '../../../core/lang.dart';
 /// Owner — дүкен мәліметтерін өңдеу (v10 §8). Өрістер ағымдағы мәндермен
 /// толтырылады; өзгерген өріс «ИЗМЕНЕНО» badge + «Было:» көрсетеді. «Отправить»
 /// тек ӨЗГЕРГЕН өрістерден `changes` массивін құрып, storeEditRequests-ке жазады.
@@ -59,13 +60,13 @@ class _StoreEditScreenState extends State<StoreEditScreen> {
       }
     }
 
-    add('storeName', 'Название', store.storeName, _nameCtrl.text);
-    add('city', 'Город', store.city, _city);
-    add('description', 'Описание', store.description, _descCtrl.text);
-    add('ownerName', 'ФИО', store.ownerName, _ownerNameCtrl.text);
-    add('ownerIin', 'ИИН / БИН', store.ownerIin, _iinCtrl.text);
+    add('storeName', tr('Название', 'Атауы'), store.storeName, _nameCtrl.text);
+    add('city', tr('Город', 'Қала'), store.city, _city);
+    add('description', tr('Описание', 'Сипаттама'), store.description, _descCtrl.text);
+    add('ownerName', tr('ФИО', 'Аты-жөні'), store.ownerName, _ownerNameCtrl.text);
+    add('ownerIin', tr('ИИН / БИН', 'ЖСН / БСН'), store.ownerIin, _iinCtrl.text);
     add('phone', 'Телефон', store.phone, _phoneCtrl.text);
-    add('paymentCardNumber', 'Номер карты', store.paymentCardNumber,
+    add('paymentCardNumber', tr('Номер карты', 'Карта нөмірі'), store.paymentCardNumber,
         cardDigitsOnly(_cardCtrl.text));
     return changes;
   }
@@ -82,11 +83,11 @@ class _StoreEditScreenState extends State<StoreEditScreen> {
   Future<void> _onSubmit() async {
     final changes = _collectChanges();
     if (changes.isEmpty) {
-      _snack('Вы ничего не изменили');
+      _snack(tr('Вы ничего не изменили', 'Ештеңе өзгертпедіңіз'));
       return;
     }
     if (!_cardOk) {
-      _snack('Карта должна содержать 16 цифр и пройти проверку');
+      _snack(tr('Карта должна содержать 16 цифр и пройти проверку', 'Картада 16 сан болып, тексеруден өтуі керек'));
       return;
     }
 
@@ -95,21 +96,23 @@ class _StoreEditScreenState extends State<StoreEditScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: cSurface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: Text('Отправить на проверку?',
+        title: Text(tr('Отправить на проверку?', 'Тексеруге жіберу керек пе?'),
             style: manrope(16.5, FontWeight.w800, color: cInk)),
         content: Text(
-            'Будет изменено ${changes.length} ${_plural(changes.length)}. '
+            tr('Будет изменено ${changes.length} ${_plural(changes.length)}. '
             'Изменения вступят в силу после одобрения модератором.',
+        '${changes.length} ${_plural(changes.length)} өзгертіледі. '
+            'Өзгерістер модератор мақұлдағаннан кейін күшіне енеді.'),
             style: manrope(13.5, FontWeight.w500, color: cInk2, height: 1.4)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text('Отмена',
+            child: Text(tr('Отмена', 'Болдырмау'),
                 style: manrope(14, FontWeight.w600, color: cInk2)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text('Отправить',
+            child: Text(tr('Отправить', 'Жіберу'),
                 style: manrope(14, FontWeight.w800, color: cGreen)),
           ),
         ],
@@ -143,11 +146,11 @@ class _StoreEditScreenState extends State<StoreEditScreen> {
   }
 
   String _plural(int n) {
-    if (n % 10 == 1 && n % 100 != 11) return 'поле';
+    if (n % 10 == 1 && n % 100 != 11) return tr('поле', 'өріс');
     if ([2, 3, 4].contains(n % 10) && !(n % 100 >= 12 && n % 100 <= 14)) {
-      return 'поля';
+      return tr('поля', 'өріс');
     }
-    return 'полей';
+    return tr('полей', 'өріс');
   }
 
   void _snack(String msg) {
@@ -166,9 +169,9 @@ class _StoreEditScreenState extends State<StoreEditScreen> {
       backgroundColor: cBg,
       body: Column(children: [
         QGradientHeader(
-          title: 'Редактирование',
+          title: tr('Редактирование', 'Өңдеу'),
           subtitle:
-              count > 0 ? '$count ${_plural(count)} изменено' : 'Без изменений',
+              count > 0 ? tr('$count ${_plural(count)} изменено', '$count ${_plural(count)} өзгертілді') : tr('Без изменений', 'Өзгеріс жоқ'),
           showBack: true,
           onBack: _loading ? null : () => Navigator.maybePop(context),
         ),
@@ -191,8 +194,10 @@ class _StoreEditScreenState extends State<StoreEditScreen> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                          'Изменения применяются не сразу. После сохранения '
-                          'запрос отправляется модератору на проверку.',
+                          tr('Изменения применяются не сразу. После сохранения '
+            'запрос отправляется модератору на проверку.',
+        'Өзгерістер бірден қолданылмайды. Сақталған соң '
+            'сұраныс модераторға тексеруге жіберіледі.'),
                           style: manrope(12.5, FontWeight.w500,
                               color: const Color(0xFF7A4F00), height: 1.4)),
                     ),
@@ -200,9 +205,9 @@ class _StoreEditScreenState extends State<StoreEditScreen> {
                 ),
 
                 const SizedBox(height: 20),
-                const QSecLabel('Магазин'),
+                QSecLabel(tr('Магазин', 'Дүкен')),
                 _EditField(
-                  label: 'Название',
+                  label: tr('Название', 'Атауы'),
                   icon: Icons.store_outlined,
                   controller: _nameCtrl,
                   original: store.storeName,
@@ -216,7 +221,7 @@ class _StoreEditScreenState extends State<StoreEditScreen> {
                 ),
                 const SizedBox(height: 14),
                 _EditField(
-                  label: 'Описание',
+                  label: tr('Описание', 'Сипаттама'),
                   icon: Icons.notes_rounded,
                   controller: _descCtrl,
                   original: store.description,
@@ -225,9 +230,9 @@ class _StoreEditScreenState extends State<StoreEditScreen> {
                 ),
 
                 const SizedBox(height: 20),
-                const QSecLabel('Владелец'),
+                QSecLabel(tr('Владелец', 'Иесі')),
                 _EditField(
-                  label: 'ФИО',
+                  label: tr('ФИО', 'Аты-жөні'),
                   icon: Icons.person_outline_rounded,
                   controller: _ownerNameCtrl,
                   original: store.ownerName,
@@ -235,7 +240,7 @@ class _StoreEditScreenState extends State<StoreEditScreen> {
                 ),
                 const SizedBox(height: 14),
                 _EditField(
-                  label: 'ИИН / БИН',
+                  label: tr('ИИН / БИН', 'ЖСН / БСН'),
                   icon: Icons.credit_card_outlined,
                   controller: _iinCtrl,
                   original: store.ownerIin,
@@ -255,22 +260,22 @@ class _StoreEditScreenState extends State<StoreEditScreen> {
                 ),
 
                 const SizedBox(height: 20),
-                const QSecLabel('Выплаты'),
+                QSecLabel(tr('Выплаты', 'Төлемдер')),
                 _EditField(
-                  label: 'Номер карты',
+                  label: tr('Номер карты', 'Карта нөмірі'),
                   icon: Icons.account_balance_wallet_outlined,
                   controller: _cardCtrl,
                   original: formatCardDisplay(store.paymentCardNumber),
                   onChanged: (_) => setState(() {}),
                   keyboardType: TextInputType.number,
                   formatters: [CardNumberFormatter()],
-                  errorText: (!_cardOk) ? '16 цифр, проверка не пройдена' : null,
+                  errorText: (!_cardOk) ? tr('16 цифр, проверка не пройдена', '16 сан, тексеруден өтпеді') : null,
                 ),
 
                 const SizedBox(height: 14),
-                const QSecLabel('Комментарий (необязательно)'),
+                QSecLabel(tr('Комментарий (необязательно)', 'Пікір (міндетті емес)')),
                 _EditField(
-                  label: 'Для модератора',
+                  label: tr('Для модератора', 'Модераторға'),
                   icon: Icons.chat_bubble_outline_rounded,
                   controller: _commentCtrl,
                   original: '',
@@ -284,7 +289,7 @@ class _StoreEditScreenState extends State<StoreEditScreen> {
                   opacity: _canSubmit ? 1.0 : 0.4,
                   duration: const Duration(milliseconds: 200),
                   child: QPrimaryButton(
-                    label: 'Отправить изменения',
+                    label: tr('Отправить изменения', 'Өзгерістерді жіберу'),
                     isLoading: _loading,
                     icon: const Icon(Icons.check_rounded,
                         color: Colors.white, size: 20),
@@ -304,7 +309,7 @@ class _StoreEditScreenState extends State<StoreEditScreen> {
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(15)),
                     ),
-                    child: Text('Отмена',
+                    child: Text(tr('Отмена', 'Болдырмау'),
                         style: manrope(14.5, FontWeight.w700, color: cInk2)),
                   ),
                 ),
@@ -364,7 +369,7 @@ class _EditField extends StatelessWidget {
                 color: cAmberTint,
                 borderRadius: BorderRadius.circular(7),
               ),
-              child: Text('ИЗМЕНЕНО',
+              child: Text(tr('ИЗМЕНЕНО', 'ӨЗГЕРТІЛДІ'),
                   style: manrope(9.5, FontWeight.w800,
                       color: const Color(0xFF9A6A06), letterSpacing: 0.5)),
             ),
@@ -430,7 +435,7 @@ class _EditField extends StatelessWidget {
           Text(errorText!, style: manrope(11.5, FontWeight.w600, color: cRed)),
         ] else if (changed) ...[
           const SizedBox(height: 4),
-          Text('Было: ${original.isEmpty ? '—' : original}',
+          Text(tr('Было: ${original.isEmpty ? '—' : original}', 'Бұрын: ${original.isEmpty ? '—' : original}'),
               style: manrope(11.5, FontWeight.w500, color: cInk3)
                   .copyWith(decoration: TextDecoration.lineThrough)),
         ],
@@ -458,7 +463,7 @@ class _CityEdit extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(children: [
-          Text('Город', style: manrope(12.5, FontWeight.w700, color: cInk2)),
+          Text(tr('Город', 'Қала'), style: manrope(12.5, FontWeight.w700, color: cInk2)),
           const Spacer(),
           if (changed)
             Container(
@@ -467,7 +472,7 @@ class _CityEdit extends StatelessWidget {
                 color: cAmberTint,
                 borderRadius: BorderRadius.circular(7),
               ),
-              child: Text('ИЗМЕНЕНО',
+              child: Text(tr('ИЗМЕНЕНО', 'ӨЗГЕРТІЛДІ'),
                   style: manrope(9.5, FontWeight.w800,
                       color: const Color(0xFF9A6A06), letterSpacing: 0.5)),
             ),
@@ -497,7 +502,7 @@ class _CityEdit extends StatelessWidget {
             items: kzCities
                 .map((c) => DropdownMenuItem(
                     value: c,
-                    child: Text(c,
+                    child: Text(trValue(c),
                         style: manrope(14, FontWeight.w500, color: cInk))))
                 .toList(),
             onChanged: onChanged,
@@ -505,7 +510,7 @@ class _CityEdit extends StatelessWidget {
         ),
         if (changed) ...[
           const SizedBox(height: 4),
-          Text('Было: ${original.isEmpty ? '—' : original}',
+          Text(tr('Было: ${original.isEmpty ? '—' : original}', 'Бұрын: ${original.isEmpty ? '—' : original}'),
               style: manrope(11.5, FontWeight.w500, color: cInk3)
                   .copyWith(decoration: TextDecoration.lineThrough)),
         ],

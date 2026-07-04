@@ -7,6 +7,7 @@ import '../../../theme/qoima_design.dart';
 import '../../shared/edit_field_display.dart';
 import 'store_edit_screen.dart';
 
+import '../../../core/lang.dart';
 /// Owner — өзгерту запросын күту экраны (v10 §9). Статус өзгерісін бақылайды:
 /// approved → дүкен мәліметтеріне қайтару; rejected → себеп + «Редактировать заново».
 class StoreEditPendingScreen extends StatelessWidget {
@@ -20,20 +21,20 @@ class StoreEditPendingScreen extends StatelessWidget {
       builder: (ctx) => AlertDialog(
         backgroundColor: cSurface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: Text('Отозвать запрос?',
+        title: Text(tr('Отозвать запрос?', 'Сұранысты кері қайтару керек пе?'),
             style: manrope(16, FontWeight.w800, color: cInk)),
-        content: Text('Изменения не будут отправлены модератору.',
+        content: Text(tr('Изменения не будут отправлены модератору.', 'Өзгерістер модераторға жіберілмейді.'),
             style: manrope(13.5, FontWeight.w500, color: cInk2)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
             child:
-                Text('Нет', style: manrope(14, FontWeight.w600, color: cInk2)),
+                Text(tr('Нет', 'Жоқ'), style: manrope(14, FontWeight.w600, color: cInk2)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             child:
-                Text('Отозвать', style: manrope(14, FontWeight.w700, color: cRed)),
+                Text(tr('Отозвать', 'Кері қайтару'), style: manrope(14, FontWeight.w700, color: cRed)),
           ),
         ],
       ),
@@ -63,8 +64,8 @@ class StoreEditPendingScreen extends StatelessWidget {
           final req = snap.data;
           return Column(children: [
             QGradientHeader(
-              title: 'Данные магазина',
-              subtitle: req?.shopName ?? 'Изменения',
+              title: tr('Данные магазина', 'Дүкен деректері'),
+              subtitle: req?.shopName ?? tr('Изменения', 'Өзгерістер'),
               showBack: true,
             ),
             Expanded(
@@ -99,7 +100,7 @@ class StoreEditPendingScreen extends StatelessWidget {
                   const Icon(Icons.inbox_outlined, color: cGreen, size: 34),
             ),
             const SizedBox(height: 14),
-            Text('Нет активных запросов',
+            Text(tr('Нет активных запросов', 'Белсенді сұраныс жоқ'),
                 style: manrope(15, FontWeight.w700, color: cInk)),
           ],
         ),
@@ -111,14 +112,14 @@ class StoreEditPendingScreen extends StatelessWidget {
         _StatusCard(
           tone: 'green',
           icon: Icons.check_circle_rounded,
-          title: 'Изменения одобрены!',
-          sub: 'Данные магазина обновлены модератором.',
+          title: tr('Изменения одобрены!', 'Өзгерістер мақұлданды!'),
+          sub: tr('Данные магазина обновлены модератором.', 'Дүкен деректерін модератор жаңартты.'),
         ),
         const SizedBox(height: 16),
-        _ChangesCard(req: req, title: 'Применённые изменения'),
+        _ChangesCard(req: req, title: tr('Применённые изменения', 'Қолданылған өзгерістер')),
         const SizedBox(height: 18),
         QPrimaryButton(
-          label: 'К данным магазина',
+          label: tr('К данным магазина', 'Дүкен деректеріне'),
           icon: const Icon(Icons.chevron_right_rounded,
               color: Colors.white, size: 20),
           onPressed: () => Navigator.maybePop(context),
@@ -131,16 +132,16 @@ class StoreEditPendingScreen extends StatelessWidget {
         _StatusCard(
           tone: 'red',
           icon: Icons.cancel_rounded,
-          title: 'Изменения отклонены',
+          title: tr('Изменения отклонены', 'Өзгерістер қабылданбады'),
           sub: req.reviewNote.isNotEmpty
               ? req.reviewNote
-              : 'Модератор отклонил запрос.',
+              : tr('Модератор отклонил запрос.', 'Модератор сұранысты қабылдамады.'),
         ),
         const SizedBox(height: 16),
-        _ChangesCard(req: req, title: 'Отклонённые изменения'),
+        _ChangesCard(req: req, title: tr('Отклонённые изменения', 'Қабылданбаған өзгерістер')),
         const SizedBox(height: 18),
         QPrimaryButton(
-          label: 'Редактировать заново',
+          label: tr('Редактировать заново', 'Қайта өңдеу'),
           icon: const Icon(Icons.edit_outlined, color: Colors.white, size: 19),
           onPressed: () => _reEdit(context),
         ),
@@ -169,12 +170,14 @@ class StoreEditPendingScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Изменения отправлены модератору',
+                Text(tr('Изменения отправлены модератору', 'Өзгерістер модераторға жіберілді'),
                     style: manrope(14, FontWeight.w800, color: cInk)),
                 const SizedBox(height: 2),
                 Text(
-                    'Отправлено: ${_fmtDateTime(req.createdAt)} · '
-                    '${req.changes.length} поля · решение в течение 1–2 дней',
+                    tr('Отправлено: ${_fmtDateTime(req.createdAt)} · '
+            '${req.changes.length} поля · решение в течение 1–2 дней',
+        'Жіберілді: ${_fmtDateTime(req.createdAt)} · '
+            '${req.changes.length} өріс · шешім 1–2 күн ішінде'),
                     style: manrope(11.5, FontWeight.w500,
                         color: cInk2, height: 1.35)),
               ],
@@ -183,7 +186,7 @@ class StoreEditPendingScreen extends StatelessWidget {
         ]),
       ),
       const SizedBox(height: 18),
-      _ChangesCard(req: req, title: 'Изменения на проверке', pending: true),
+      _ChangesCard(req: req, title: tr('Изменения на проверке', 'Өзгерістер тексеруде'), pending: true),
       const SizedBox(height: 16),
       Container(
         padding: const EdgeInsets.all(12),
@@ -197,8 +200,10 @@ class StoreEditPendingScreen extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-                'До решения эти поля нельзя редактировать повторно. '
-                'Запрос можно отозвать.',
+                tr('До решения эти поля нельзя редактировать повторно. '
+            'Запрос можно отозвать.',
+        'Шешімге дейін бұл өрістерді қайта өңдеуге болмайды. '
+            'Сұранысты кері қайтаруға болады.'),
                 style: manrope(12, FontWeight.w500, color: cInk2, height: 1.4)),
           ),
         ]),
@@ -210,7 +215,7 @@ class StoreEditPendingScreen extends StatelessWidget {
         child: OutlinedButton.icon(
           onPressed: () => _cancel(context, req.id),
           icon: const Icon(Icons.close_rounded, color: cRed, size: 19),
-          label: Text('Отозвать запрос',
+          label: Text(tr('Отозвать запрос', 'Сұранысты кері қайтару'),
               style: manrope(15, FontWeight.w700, color: cRed)),
           style: OutlinedButton.styleFrom(
             side: const BorderSide(color: cRed),
@@ -233,7 +238,7 @@ class StoreEditPendingScreen extends StatelessWidget {
             shape:
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
           ),
-          child: Text('Назад',
+          child: Text(tr('Назад', 'Артқа'),
               style: manrope(14.5, FontWeight.w700, color: cInk2)),
         ),
       );
@@ -345,7 +350,7 @@ class _ChangesCard extends StatelessWidget {
                     ),
                     if (pending) ...[
                       const SizedBox(width: 6),
-                      const QPill('Ожидание', tone: 'amber'),
+                      QPill(tr('Ожидание', 'Күту'), tone: 'amber'),
                     ],
                   ],
                 ),

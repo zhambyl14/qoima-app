@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../data/models/category_data.dart';
 import 'qoima_design.dart';
 
+import '../core/lang.dart';
 // ── QCategoryTag — маленький тег категории товара ─────────────────────────────
 class QCategoryTag extends StatelessWidget {
   final CategoryData category;
@@ -191,7 +192,7 @@ class QSizeQtyGrid extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(on ? '$qty шт' : 'Нет',
+                child: Text(on ? tr('$qty шт', '$qty дана') : tr('Нет', 'Жоқ'),
                     style: manrope(13.5, FontWeight.w600, color: cInk2)),
               ),
               _QtyBtn(
@@ -269,7 +270,7 @@ class QLazyLoadIndicator extends StatelessWidget {
       child: Column(
         children: [
           if (total > 0)
-            Text('Показано $loaded из $total',
+            Text(tr('Показано $loaded из $total', 'Көрсетілгені: $total ішінен $loaded'),
                 style: manrope(12, FontWeight.w600, color: cInk3)),
           const SizedBox(height: 8),
           if (total > 0)
@@ -300,7 +301,7 @@ class QLazyLoadIndicator extends StatelessWidget {
                 const Icon(Icons.keyboard_arrow_down_rounded,
                     size: 16, color: cGreen),
                 const SizedBox(width: 4),
-                Text('Загрузить ещё',
+                Text(tr('Загрузить ещё', 'Тағы жүктеу'),
                     style: manrope(12.5, FontWeight.w700, color: cGreen)),
               ]),
             ),

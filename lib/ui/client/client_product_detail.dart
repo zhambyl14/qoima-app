@@ -9,6 +9,7 @@ import '../../data/services/client_service.dart';
 import '../../theme/qoima_design.dart';
 import 'client_shell.dart';
 
+import '../../core/lang.dart';
 class ClientProductDetail extends StatefulWidget {
   final ProductModel product;
   final StoreModel store;
@@ -213,15 +214,15 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
 
   void _addToCart() {
     if (_selectedSize == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Выберите размер'),
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(tr('Выберите размер', 'Өлшемді таңдаңыз')),
         behavior: SnackBarBehavior.floating,
       ));
       return;
     }
     context.read<CartProvider>().addItem(_buildCartItem()!);
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text('${_currentProduct.name} добавлен в корзину'),
+      content: Text(tr('${_currentProduct.name} добавлен в корзину', '${_currentProduct.name} себетке қосылды')),
       backgroundColor: cGreen,
       behavior: SnackBarBehavior.floating,
     ));
@@ -230,8 +231,8 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
 
   void _buyNow() {
     if (_selectedSize == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Выберите размер'),
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(tr('Выберите размер', 'Өлшемді таңдаңыз')),
         behavior: SnackBarBehavior.floating,
       ));
       return;
@@ -363,7 +364,7 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
 
                       // ── Түсі (color variants) ───────────────────────
                       if (_variants.length > 1) ...[
-                        QSecLabel('Түсі'),
+                        QSecLabel(tr('Цвет', 'Түсі')),
                         Wrap(
                           spacing: 8,
                           runSpacing: 8,
@@ -403,7 +404,7 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
                                       Text(
                                           v.color.isNotEmpty
                                               ? v.color
-                                              : 'Түс ${i + 1}',
+                                              : tr('Цвет ${i + 1}', 'Түс ${i + 1}'),
                                           style: manrope(13, FontWeight.w700,
                                               color: selected
                                                   ? cGreenDeep
@@ -419,7 +420,7 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
                       // Sizes — барлық анықталған размерлер; қолжетімді
                       // емес болса үсті сызылған күйде көрінеді.
                       if (allSizes.isNotEmpty) ...[
-                        QSecLabel('Размер'),
+                        QSecLabel(tr('Размер', 'Өлшем')),
                         Wrap(
                           spacing: 9,
                           runSpacing: 9,
@@ -570,8 +571,8 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
                   Expanded(
                     child: QPrimaryButton(
                       label: _price > 0
-                          ? 'Купить · ${money(_price)}'
-                          : 'В корзину',
+                          ? tr('Купить · ${money(_price)}', 'Сатып алу · ${money(_price)}')
+                          : tr('В корзину', 'Себетке'),
                       onPressed: _buyNow,
                       height: 52,
                     ),
@@ -639,11 +640,11 @@ class _SpecSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final rows = <_SpecRow>[
-      if (product.category.isNotEmpty) _SpecRow('Для кого', product.category),
+      if (product.category.isNotEmpty) _SpecRow(tr('Для кого', 'Кімге'), trValue(product.category)),
       if (product.material.isNotEmpty) _SpecRow('Материал', product.material),
       if (product.brand.isNotEmpty)    _SpecRow('Бренд', product.brand),
-      if (product.color.isNotEmpty)    _SpecRow('Цвет', product.color),
-      if (product.type.isNotEmpty)     _SpecRow('Тип', product.type),
+      if (product.color.isNotEmpty)    _SpecRow(tr('Цвет', 'Түсі'), trValue(product.color)),
+      if (product.type.isNotEmpty)     _SpecRow(tr('Тип', 'Түрі'), trValue(product.type)),
       if (product.articul.isNotEmpty)  _SpecRow('Артикул', product.articul),
     ];
     if (rows.isEmpty) return const SizedBox.shrink();
@@ -652,7 +653,7 @@ class _SpecSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 20),
-        const QSecLabel('Характеристики'),
+        QSecLabel(tr('Характеристики', 'Сипаттамалар')),
         QCard(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
           child: Column(

@@ -10,6 +10,7 @@ import '../../data/services/cloudinary_service.dart';
 import '../../data/services/firestore_service.dart';
 import '../../theme/qoima_design.dart';
 
+import '../../core/lang.dart';
 class AdminShell extends StatefulWidget {
   const AdminShell({super.key});
   @override
@@ -87,7 +88,7 @@ class _AdminShellState extends State<AdminShell> {
                         ]),
                         const SizedBox(height: 3),
                         Text(
-                          _tabs[i].label,
+                          trValue(_tabs[i].label),
                           style: manrope(
                             10.5,
                             active ? FontWeight.w700 : FontWeight.w600,

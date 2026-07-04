@@ -7,6 +7,7 @@ import 'register_screen.dart';
 import 'client_login_screen.dart';
 import 'forgot_password_screen.dart';
 
+import '../../core/lang.dart';
 class LoginScreen extends StatefulWidget {
   /// Гость flow-дан келгенде (GuestLoginSheet) — gate маршрутты шешеді,
   /// бірақ callback анимация/UX мақсаттарында қолданылады.
@@ -89,7 +90,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         style: manrope(38, FontWeight.w800,
                             color: Colors.white, letterSpacing: -1)),
                     const SizedBox(height: 6),
-                    Text('Умный учёт обуви и онлайн-продажи',
+                    Text(tr('Умный учёт обуви и онлайн-продажи', 'Аяқ киімнің ақылды есебі және онлайн-сатылым'),
                         style: manrope(15, FontWeight.w500,
                             color: Colors.white.withValues(alpha: 0.8))),
                   ],
@@ -113,7 +114,7 @@ class _LoginScreenState extends State<LoginScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('Вход продавца',
+                Text(tr('Вход продавца', 'Сатушы кірісі'),
                     style: manrope(21, FontWeight.w800, color: cInk)),
                 const SizedBox(height: 14),
 
@@ -168,7 +169,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         context,
                         MaterialPageRoute(
                             builder: (_) => const ForgotPasswordScreen())),
-                    child: Text('Құпиясөзді ұмыттыңыз ба?',
+                    child: Text(tr('Забыли пароль?', 'Құпиясөзді ұмыттыңыз ба?'),
                         style: manrope(13, FontWeight.w600, color: cGreen)),
                   ),
                 ),
@@ -234,7 +235,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         const Icon(Icons.person_outline_rounded,
                             color: cGreen, size: 18),
                         const SizedBox(width: 7),
-                        Text('Войти как клиент',
+                        Text(tr('Войти как клиент', 'Клиент ретінде кіру'),
                             style: manrope(14, FontWeight.w600, color: cInk2)),
                       ],
                     ),

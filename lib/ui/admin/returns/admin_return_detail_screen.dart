@@ -5,6 +5,7 @@ import '../../../data/models/return_model.dart';
 import '../../../data/services/return_service.dart';
 import '../../../theme/qoima_design.dart';
 
+import '../../../core/lang.dart';
 class AdminReturnDetailScreen extends StatelessWidget {
   final ReturnModel ret;
   const AdminReturnDetailScreen({super.key, required this.ret});
@@ -190,12 +191,12 @@ class _DetailBodyState extends State<_DetailBody> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     if (r.clientName.isNotEmpty)
-                      _InfoRow('Имя', r.clientName),
+                      _InfoRow(tr('Имя', 'Аты'), r.clientName),
                     if (r.clientPhone.isNotEmpty)
                       _InfoRow('Телефон', r.clientPhone),
-                    _InfoRow('Тип', r.type.label(context)),
-                    _InfoRow('Способ доставки', r.pickup.label(context)),
-                    _InfoRow('Способ возврата', r.refundMethod.label(context)),
+                    _InfoRow(tr('Тип', 'Түрі'), r.type.label(context)),
+                    _InfoRow(tr('Способ доставки', 'Жеткізу тәсілі'), r.pickup.label(context)),
+                    _InfoRow(tr('Способ возврата', 'Қайтару тәсілі'), r.refundMethod.label(context)),
                   ],
                 ),
               ),
@@ -211,9 +212,9 @@ class _DetailBodyState extends State<_DetailBody> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       if (r.orderId != null)
-                        _InfoRow('Заказ ID', r.orderId!),
+                        _InfoRow(tr('Заказ ID', 'Тапсырыс ID'), r.orderId!),
                       if (r.saleId != null)
-                        _InfoRow('Чек ID', r.saleId!),
+                        _InfoRow(tr('Чек ID', 'Чек ID'), r.saleId!),
                     ],
                   ),
                 ),
@@ -256,7 +257,7 @@ class _DetailBodyState extends State<_DetailBody> {
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis),
                               Text(
-                                  'Р.${item.size}  ×${item.quantity}',
+                                  tr('Р.${item.size}  ×${item.quantity}', 'Ө.${item.size}  ×${item.quantity}'),
                                   style: manrope(12, FontWeight.w500,
                                       color: cInk3)),
                             ],
@@ -309,7 +310,7 @@ class _DetailBodyState extends State<_DetailBody> {
               // Condition photos (after receive step)
               if (r.conditionPhotos.isNotEmpty) ...[
                 const SizedBox(height: 14),
-                _SectionHeader('Фото состояния товара'),
+                _SectionHeader(tr('Фото состояния товара', 'Тауар күйінің фотосы')),
                 if (r.itemConditionOk != null)
                   QPill(
                     r.itemConditionOk!

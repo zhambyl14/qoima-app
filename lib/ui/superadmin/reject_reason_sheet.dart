@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import '../../theme/qoima_design.dart';
 
+import '../../core/lang.dart';
 /// Бас тарту/қайтару себебін таңдау bottom-sheet (v10 §6). Radio-пресет таңдалғанда
 /// комментарий өрісіне автоматты қойылады, бірақ оны өңдеуге болады. Растағанда
 /// финал мәтінді қайтарады (бос болса — null). Заявка + өзгерту запросы reject-те қолданылады.
 Future<String?> showRejectReasonSheet(
   BuildContext context, {
-  String title = 'Причина отклонения',
+  String? title,
   String subtitle = '',
   List<String>? reasons,
 }) {
@@ -15,7 +16,7 @@ Future<String?> showRejectReasonSheet(
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
     builder: (_) => _RejectReasonSheet(
-      title: title,
+      title: title ?? tr('Причина отклонения', 'Қабылдамау себебі'),
       subtitle: subtitle,
       reasons: reasons ?? _defaultReasons,
     ),
@@ -113,7 +114,7 @@ class _RejectReasonSheetState extends State<_RejectReasonSheet> {
               ),
             ]),
             const SizedBox(height: 18),
-            const QSecLabel('Выберите причину'),
+            QSecLabel(tr('Выберите причину', 'Себепті таңдаңыз')),
             ...List.generate(widget.reasons.length, (i) {
               final sel = _selected == i;
               return Padding(
@@ -152,7 +153,7 @@ class _RejectReasonSheetState extends State<_RejectReasonSheet> {
                       ),
                       const SizedBox(width: 11),
                       Expanded(
-                        child: Text(widget.reasons[i],
+                        child: Text(trValue(widget.reasons[i]),
                             style: manrope(13.5,
                                 sel ? FontWeight.w700 : FontWeight.w600,
                                 color: sel ? const Color(0xFFB11A2B) : cInk2)),
@@ -163,7 +164,7 @@ class _RejectReasonSheetState extends State<_RejectReasonSheet> {
               );
             }),
             const SizedBox(height: 8),
-            const QSecLabel('Комментарий (виден владельцу)'),
+            QSecLabel(tr('Комментарий (виден владельцу)', 'Пікір (иесіне көрінеді)')),
             Container(
               decoration: BoxDecoration(
                 color: cBg,
@@ -178,7 +179,7 @@ class _RejectReasonSheetState extends State<_RejectReasonSheet> {
                 style: manrope(14.5, FontWeight.w600, color: cInk),
                 cursorColor: cGreen,
                 decoration: InputDecoration(
-                  hintText: 'Опишите причину...',
+                  hintText: tr('Опишите причину...', 'Себебін сипаттаңыз...'),
                   hintStyle: manrope(14.5, FontWeight.w500, color: cInk3),
                   border: InputBorder.none,
                   enabledBorder: InputBorder.none,
@@ -208,7 +209,7 @@ class _RejectReasonSheetState extends State<_RejectReasonSheet> {
                     const Icon(Icons.close_rounded,
                         color: Colors.white, size: 19),
                     const SizedBox(width: 8),
-                    Text('Подтвердить отклонение',
+                    Text(tr('Подтвердить отклонение', 'Қабылдамауды растау'),
                         style: manrope(15, FontWeight.w700,
                             color: Colors.white)),
                   ],
@@ -227,7 +228,7 @@ class _RejectReasonSheetState extends State<_RejectReasonSheet> {
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(15)),
                 ),
-                child: Text('Отмена',
+                child: Text(tr('Отмена', 'Болдырмау'),
                     style: manrope(14.5, FontWeight.w700, color: cInk2)),
               ),
             ),

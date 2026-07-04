@@ -5,6 +5,7 @@ import '../../data/services/client_service.dart';
 import '../../theme/qoima_design.dart';
 import 'client_product_detail.dart';
 
+import '../../core/lang.dart';
 class FavoritesScreen extends StatelessWidget {
   const FavoritesScreen({super.key});
 
@@ -27,7 +28,7 @@ class FavoritesScreen extends StatelessWidget {
                       color: Colors.white, size: 28),
                 ),
                 const SizedBox(width: 10),
-                Text('Избранное',
+                Text(tr('Избранное', 'Таңдаулылар'),
                     style: manrope(20, FontWeight.w800, color: Colors.white)),
               ]),
             ),
@@ -47,10 +48,10 @@ class FavoritesScreen extends StatelessWidget {
                     Icon(Icons.favorite_border_rounded,
                         size: 60, color: cInk3.withValues(alpha: 0.35)),
                     const SizedBox(height: 14),
-                    Text('Список желаний пуст',
+                    Text(tr('Список желаний пуст', 'Қалаулар тізімі бос'),
                         style: manrope(16, FontWeight.w700, color: cInk2)),
                     const SizedBox(height: 6),
-                    Text('Нажмите ♡ на товаре чтобы добавить',
+                    Text(tr('Нажмите ♡ на товаре чтобы добавить', 'Қосу үшін тауардағы ♡ басыңыз'),
                         style: manrope(13, FontWeight.w500, color: cInk3)),
                   ]),
                 );
@@ -195,7 +196,7 @@ class _FavCardState extends State<_FavCard> {
                 Text(store, style: manrope(12, FontWeight.w500, color: cInk3)),
                 const SizedBox(height: 4),
                 if (dimmed)
-                  Text('Нет в наличии',
+                  Text(tr('Нет в наличии', 'Қолда жоқ'),
                       style: manrope(13, FontWeight.w700, color: cInk3))
                 else
                   Text(money(price),

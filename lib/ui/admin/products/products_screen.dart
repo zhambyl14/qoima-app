@@ -11,6 +11,7 @@ import '../../shared/skeletons.dart';
 import 'add_product_screen.dart';
 import 'product_detail_screen.dart';
 
+import '../../../core/lang.dart';
 enum _SortType { nameAz, nameZa, stockHigh, stockLow }
 
 class ProductsScreen extends StatefulWidget {
@@ -230,7 +231,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    widget.readOnly ? 'Qoima' : 'Товары',
+                                    widget.readOnly ? 'Qoima' : tr('Товары', 'Тауарлар'),
                                     style: manrope(
                                       widget.readOnly ? 28 : 23,
                                       FontWeight.w800,
@@ -241,7 +242,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                   Text(
                                     widget.readOnly
                                         ? context.l10n.inStockSubtitle
-                                        : '$inStockCount мод. · $_cachedTotalPairs шт.',
+                                        : tr('$inStockCount мод. · $_cachedTotalPairs шт.', '$inStockCount мод. · $_cachedTotalPairs дана'),
                                     style: manrope(13, FontWeight.w500,
                                         color: Colors.white
                                             .withValues(alpha: 0.78)),
@@ -270,7 +271,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                         const Icon(Icons.add_rounded,
                                             color: Colors.white, size: 20),
                                         const SizedBox(width: 6),
-                                        Text('Добавить',
+                                        Text(tr('Добавить', 'Қосу'),
                                             style: manrope(13.5, FontWeight.w700,
                                                 color: Colors.white)),
                                       ]),
@@ -377,25 +378,25 @@ class _ProductsScreenState extends State<ProductsScreen> {
                               scrollDirection: Axis.horizontal,
                               child: Row(children: [
                                 _StockChip(
-                                    label: 'Все',
+                                    label: tr('Все', 'Барлығы'),
                                     i: 0,
                                     cur: _tab,
                                     onTap: (i) => setState(() => _tab = i)),
                                 const SizedBox(width: 8),
                                 _StockChip(
-                                    label: 'В наличии',
+                                    label: tr('В наличии', 'Қолда бар'),
                                     i: 1,
                                     cur: _tab,
                                     onTap: (i) => setState(() => _tab = i)),
                                 const SizedBox(width: 8),
                                 _StockChip(
-                                    label: 'Заканчиваются',
+                                    label: tr('Заканчиваются', 'Таусылып жатыр'),
                                     i: 2,
                                     cur: _tab,
                                     onTap: (i) => setState(() => _tab = i)),
                                 const SizedBox(width: 8),
                                 _StockChip(
-                                    label: 'Нет',
+                                    label: tr('Нет', 'Жоқ'),
                                     i: 3,
                                     cur: _tab,
                                     onTap: (i) => setState(() => _tab = i)),
@@ -444,7 +445,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                                         : Colors.white),
                                                 const SizedBox(width: 6),
                                               ],
-                                              Text(cat?.short ?? 'Все',
+                                              Text(cat?.short ?? tr('Все', 'Барлығы'),
                                                   style: manrope(12.5,
                                                       FontWeight.w700,
                                                       color: active
@@ -496,17 +497,17 @@ class _ProductsScreenState extends State<ProductsScreen> {
                         const SizedBox(height: 16),
                         Text(
                             _tab == 2
-                                ? 'Нет проданных товаров'
+                                ? tr('Нет проданных товаров', 'Сатылған тауар жоқ')
                                 : _q.isNotEmpty
-                                    ? 'Ничего не найдено'
-                                    : 'Товаров нет',
+                                    ? tr('Ничего не найдено', 'Ештеңе табылмады')
+                                    : tr('Товаров нет', 'Тауар жоқ'),
                             style: const TextStyle(
                                 fontSize: 17,
                                 fontWeight: FontWeight.w600,
                                 color: cInk2)),
                         if (_tab != 2 && _q.isEmpty) ...[
                           const SizedBox(height: 6),
-                          const Text('Нажмите «+» чтобы добавить товар',
+                          Text(tr('Нажмите «+» чтобы добавить товар', 'Тауар қосу үшін «+» басыңыз'),
                               style: TextStyle(
                                   fontSize: 13, color: cInk3)),
                         ],
@@ -797,14 +798,14 @@ class StockSummaryWidget extends StatelessWidget {
                   fontWeight: FontWeight.w800,
                   color: cGreen,
                   fontSize: 15)),
-          const TextSpan(text: ' вид. товаров  ×  '),
+          TextSpan(text: tr(' вид. товаров  ×  ', ' көр. тауар  ×  ')),
           TextSpan(
               text: '$pairs',
               style: const TextStyle(
                   fontWeight: FontWeight.w800,
                   color: cGreen,
                   fontSize: 15)),
-          const TextSpan(text: ' шт.'),
+          TextSpan(text: tr(' шт.', ' дана')),
         ],
       ),
     );
@@ -847,7 +848,7 @@ class _WarehouseChip extends StatelessWidget {
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           const Icon(Icons.warehouse_outlined, color: Colors.white70, size: 14),
           const SizedBox(width: 6),
-          Text(current?.name ?? 'Қойма таңдау',
+          Text(current?.name ?? tr('Выбор склада', 'Қойма таңдау'),
               style: const TextStyle(
                   color: Colors.white,
                   fontSize: 12,
@@ -883,7 +884,7 @@ class _WarehousePickerSheet extends StatelessWidget {
                     color: Colors.grey.shade300,
                     borderRadius: BorderRadius.circular(2)))),
         const SizedBox(height: 16),
-        const Text('Қойма таңдау',
+        Text(tr('Выбор склада', 'Қойма таңдау'),
             style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
@@ -896,7 +897,7 @@ class _WarehousePickerSheet extends StatelessWidget {
                       : cInk3),
               title: Text(wh.name),
               subtitle: wh.isMain
-                  ? const Text('Негізгі қойма',
+                  ? Text(tr('Основной склад', 'Негізгі қойма'),
                       style: TextStyle(fontSize: 11, color: cInk3))
                   : null,
               trailing: wh.id == currentId

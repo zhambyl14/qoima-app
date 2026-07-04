@@ -13,6 +13,7 @@ import 'shop_owners_screen.dart';
 import 'shop_request_detail_screen.dart';
 import 'store_edit_requests_screen.dart';
 
+import '../../core/lang.dart';
 /// Superadmin (маркетплейс модераторы) басты экраны — дүкен заявкалары.
 /// Корневой gate role=='superadmin' болғанда осыны home етіп көрсетеді.
 class ShopRequestsScreen extends StatefulWidget {
@@ -48,7 +49,7 @@ class _ShopRequestsScreenState extends State<ShopRequestsScreen> {
   Future<void> _approve(ShopRequestModel req) async {
     try {
       await _repo.approveRequest(requestId: req.id, reviewedBy: _uid);
-      _snack('Магазин «${req.shopName}» одобрен', cGreen);
+      _snack(tr('Магазин «${req.shopName}» одобрен', '«${req.shopName}» дүкені мақұлданды'), cGreen);
     } catch (e) {
       _snack(e.toString(), cRed);
     }
@@ -57,14 +58,14 @@ class _ShopRequestsScreenState extends State<ShopRequestsScreen> {
   Future<void> _reject(ShopRequestModel req) async {
     final note = await showRejectReasonSheet(
       context,
-      title: 'Отклонение заявки',
+      title: tr('Отклонение заявки', 'Өтінімді қабылдамау'),
       subtitle: req.shopName,
     );
     if (note == null) return;
     try {
       await _repo.rejectRequest(
           requestId: req.id, reviewedBy: _uid, reviewNote: note);
-      _snack('Заявка отклонена', cInk);
+      _snack(tr('Заявка отклонена', 'Өтінім қабылданбады'), cInk);
     } catch (e) {
       _snack(e.toString(), cRed);
     }
@@ -86,18 +87,18 @@ class _ShopRequestsScreenState extends State<ShopRequestsScreen> {
         backgroundColor: cSurface,
         shape:
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: Text('Выйти', style: manrope(16, FontWeight.w800, color: cInk)),
-        content: Text('Выйти из аккаунта?',
+        title: Text(tr('Выйти', 'Шығу'), style: manrope(16, FontWeight.w800, color: cInk)),
+        content: Text(tr('Выйти из аккаунта?', 'Аккаунттан шығу керек пе?'),
             style: manrope(14, FontWeight.w500, color: cInk2)),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: Text('Нет',
+              child: Text(tr('Нет', 'Жоқ'),
                   style: manrope(14, FontWeight.w600, color: cInk2))),
           TextButton(
               onPressed: () => Navigator.pop(ctx, true),
               child:
-                  Text('Выйти', style: manrope(14, FontWeight.w700, color: cRed))),
+                  Text(tr('Выйти', 'Шығу'), style: manrope(14, FontWeight.w700, color: cRed))),
         ],
       ),
     );
@@ -117,8 +118,8 @@ class _ShopRequestsScreenState extends State<ShopRequestsScreen> {
 
           return Column(children: [
             QGradientHeader(
-              title: 'Заявки магазинов',
-              subtitle: 'Управление маркетплейсом',
+              title: tr('Заявки магазинов', 'Дүкен өтінімдері'),
+              subtitle: tr('Управление маркетплейсом', 'Маркетплейсті басқару'),
               compact: true,
               action: _HeaderActions(
                 editPending: _editPending,
@@ -132,19 +133,19 @@ class _ShopRequestsScreenState extends State<ShopRequestsScreen> {
                     scrollDirection: Axis.horizontal,
                     children: [
                       _TabChip(
-                          label: 'Все (${all.length})',
+                          label: tr('Все (${all.length})', 'Барлығы (${all.length})'),
                           active: _tab == 0,
                           onTap: () => setState(() => _tab = 0)),
                       _TabChip(
-                          label: 'Новые ($pending)',
+                          label: tr('Новые ($pending)', 'Жаңа ($pending)'),
                           active: _tab == 1,
                           onTap: () => setState(() => _tab = 1)),
                       _TabChip(
-                          label: 'Одобренные',
+                          label: tr('Одобренные', 'Мақұлданғандар'),
                           active: _tab == 2,
                           onTap: () => setState(() => _tab = 2)),
                       _TabChip(
-                          label: 'Отклонённые',
+                          label: tr('Отклонённые', 'Қабылданбағандар'),
                           active: _tab == 3,
                           onTap: () => setState(() => _tab = 3)),
                     ],
@@ -194,10 +195,10 @@ class _ShopRequestsScreenState extends State<ShopRequestsScreen> {
               child: const Icon(Icons.inbox_outlined, color: cGreen, size: 34),
             ),
             const SizedBox(height: 14),
-            Text('Нет заявок',
+            Text(tr('Нет заявок', 'Өтінім жоқ'),
                 style: manrope(16, FontWeight.w700, color: cInk)),
             const SizedBox(height: 4),
-            Text('В этой категории пока пусто',
+            Text(tr('В этой категории пока пусто', 'Бұл санатта әзірге бос'),
                 style: manrope(13, FontWeight.w500, color: cInk3)),
           ],
         ),
@@ -297,9 +298,9 @@ class _RequestCard extends StatelessWidget {
   });
 
   ({String tone, String label}) get _statusPill {
-    if (req.isApproved) return (tone: 'green', label: 'Одобрено');
-    if (req.isRejected) return (tone: 'red', label: 'Отклонено');
-    return (tone: 'amber', label: 'Новая');
+    if (req.isApproved) return (tone: 'green', label: tr('Одобрено', 'Мақұлданды'));
+    if (req.isRejected) return (tone: 'red', label: tr('Отклонено', 'Қабылданбады'));
+    return (tone: 'amber', label: tr('Новая', 'Жаңа'));
   }
 
   @override
@@ -339,7 +340,7 @@ class _RequestCard extends StatelessWidget {
                         style: manrope(14.5, FontWeight.w800, color: cInk)),
                     const SizedBox(height: 2),
                     Text(
-                        '${req.category}${req.city.isNotEmpty ? ' · ${req.city}' : ''}',
+                        '${trValue(req.category)}${req.city.isNotEmpty ? ' · ${trValue(req.city)}' : ''}',
                         style:
                             manrope(12.5, FontWeight.w500, color: cInk3)),
                   ],
@@ -364,7 +365,7 @@ class _RequestCard extends StatelessWidget {
               child: Row(children: [
                 Expanded(
                   child: _SmallBtn(
-                    label: 'Одобрить',
+                    label: tr('Одобрить', 'Мақұлдау'),
                     bg: cGreenTint,
                     fg: cGreenDeep,
                     onTap: onApprove,
@@ -373,7 +374,7 @@ class _RequestCard extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: _SmallBtn(
-                    label: 'Отклонить',
+                    label: tr('Отклонить', 'Қабылдамау'),
                     bg: cRedTint,
                     fg: cRed,
                     onTap: onReject,
@@ -381,7 +382,7 @@ class _RequestCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 _SmallBtn(
-                  label: 'Детали',
+                  label: tr('Детали', 'Егжей-тегжей'),
                   bg: cBg,
                   fg: cInk2,
                   onTap: onOpen,

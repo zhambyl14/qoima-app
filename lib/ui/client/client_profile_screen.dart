@@ -13,6 +13,7 @@ import 'favorites_screen.dart';
 import 'addresses_screen.dart';
 import '../auth/account_security_screen.dart';
 
+import '../../core/lang.dart';
 class ClientProfileScreen extends StatelessWidget {
   /// «Тапсырыстарым» басылғанда — ClientShell тапсырыстар экранын ашады.
   final VoidCallback onOpenOrders;
@@ -21,7 +22,7 @@ class ClientProfileScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final appUser = context.watch<AppUser>();
-    final name = appUser.name.isNotEmpty ? appUser.name : 'Сатып алушы';
+    final name = appUser.name.isNotEmpty ? appUser.name : tr('Покупатель', 'Сатып алушы');
     final phone = appUser.phone;
     final initials = _initials(name);
 
@@ -92,8 +93,8 @@ class ClientProfileScreen extends StatelessWidget {
               _MenuItem(
                 icon: Icons.favorite_border_rounded,
                 tone: 'red',
-                title: 'Таңдаулылар',
-                sub: 'Қалаулар тізімі',
+                title: tr('Избранное', 'Таңдаулылар'),
+                sub: tr('Список желаний', 'Қалаулар тізімі'),
                 onTap: () => Navigator.push(context,
                     MaterialPageRoute(builder: (_) => const FavoritesScreen())),
               ),
@@ -101,8 +102,8 @@ class ClientProfileScreen extends StatelessWidget {
               _MenuItem(
                 icon: Icons.location_on_outlined,
                 tone: 'blue',
-                title: 'Мекенжайларым',
-                sub: 'Сақталған мекенжайлар',
+                title: tr('Мои адреса', 'Мекенжайларым'),
+                sub: tr('Сохранённые адреса', 'Сақталған мекенжайлар'),
                 onTap: () => Navigator.push(context,
                     MaterialPageRoute(builder: (_) => const AddressesScreen())),
               ),
@@ -110,10 +111,10 @@ class ClientProfileScreen extends StatelessWidget {
               _MenuItem(
                 icon: Icons.notifications_outlined,
                 tone: 'amber',
-                title: 'Хабарламалар',
-                value: 'Қосылған',
+                title: tr('Уведомления', 'Хабарламалар'),
+                value: tr('Включены', 'Қосылған'),
                 onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Хабарламалар — жақында'),
+                  SnackBar(content: Text(tr('Уведомления — скоро', 'Хабарламалар — жақында')),
                       behavior: SnackBarBehavior.floating,
                       duration: Duration(seconds: 2)),
                 ),
@@ -122,8 +123,8 @@ class ClientProfileScreen extends StatelessWidget {
               _MenuItem(
                 icon: Icons.location_city_outlined,
                 tone: 'blue',
-                title: 'Қала',
-                value: appUser.city.isNotEmpty ? appUser.city : 'Таңдалмаған',
+                title: tr('Город', 'Қала'),
+                value: appUser.city.isNotEmpty ? trValue(appUser.city) : tr('Не выбран', 'Таңдалмаған'),
                 onTap: () => _showCityDialog(context, appUser),
               ),
               const SizedBox(height: 10),
@@ -140,8 +141,8 @@ class ClientProfileScreen extends StatelessWidget {
               _MenuItem(
                 icon: Icons.shield_outlined,
                 tone: 'green',
-                title: 'Аккаунт қауіпсіздігі',
-                sub: 'Телефон, email, құпиясөз',
+                title: tr('Безопасность аккаунта', 'Аккаунт қауіпсіздігі'),
+                sub: tr('Телефон, email, пароль', 'Телефон, email, құпиясөз'),
                 onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -152,25 +153,25 @@ class ClientProfileScreen extends StatelessWidget {
               _MenuItem(
                 icon: Icons.logout_rounded,
                 tone: 'red',
-                title: 'Шығу',
+                title: tr('Выйти', 'Шығу'),
                 danger: true,
                 onTap: () async {
                   final ok = await showDialog<bool>(
                     context: context,
                     builder: (_) => AlertDialog(
-                      title: Text('Шығу',
+                      title: Text(tr('Выйти', 'Шығу'),
                           style: manrope(17, FontWeight.w700, color: cInk)),
-                      content: Text('Аккаунттан шығасыз ба?',
+                      content: Text(tr('Выйти из аккаунта?', 'Аккаунттан шығасыз ба?'),
                           style: manrope(14, FontWeight.w500, color: cInk2)),
                       actions: [
                         TextButton(
                             onPressed: () => Navigator.pop(context, false),
-                            child: Text('Жоқ',
+                            child: Text(tr('Нет', 'Жоқ'),
                                 style: manrope(14, FontWeight.w600,
                                     color: cInk2))),
                         TextButton(
                             onPressed: () => Navigator.pop(context, true),
-                            child: Text('Шығу',
+                            child: Text(tr('Выйти', 'Шығу'),
                                 style: manrope(14, FontWeight.w600,
                                     color: cRed))),
                       ],
@@ -218,11 +219,11 @@ class ClientProfileScreen extends StatelessWidget {
               ),
               const SizedBox(height: 14),
               Row(children: [
-                Text('Ваш город',
+                Text(tr('Ваш город', 'Қалаңыз'),
                     style: manrope(17, FontWeight.w700, color: cInk)),
               ]),
               const SizedBox(height: 4),
-              Text('Вы будете видеть только магазины своего города',
+              Text(tr('Вы будете видеть только магазины своего города', 'Тек өз қалаңыздың дүкендерін көресіз'),
                   style: manrope(12.5, FontWeight.w500, color: cInk3)),
               const SizedBox(height: 12),
               const Divider(height: 1),
@@ -361,10 +362,10 @@ class _OrdersTile extends StatelessWidget {
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Тапсырыстарым',
+                    Text(tr('Мои заказы', 'Тапсырыстарым'),
                         style: manrope(14.5, FontWeight.w800, color: cInk)),
                     const SizedBox(height: 2),
-                    Text('$activeCount белсенді тапсырыс',
+                    Text(tr('$activeCount активных заказов', '$activeCount белсенді тапсырыс'),
                         style: manrope(12.5, FontWeight.w500, color: cInk3)),
                   ]),
             ),

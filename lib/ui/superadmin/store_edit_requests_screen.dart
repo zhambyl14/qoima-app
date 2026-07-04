@@ -4,6 +4,7 @@ import '../../data/repositories/store_edit_repository.dart';
 import '../../theme/qoima_design.dart';
 import 'store_edit_diff_screen.dart';
 
+import '../../core/lang.dart';
 /// Superadmin — дүкен мәліметтерін өзгерту запростары (v10 §10).
 class StoreEditRequestsScreen extends StatefulWidget {
   const StoreEditRequestsScreen({super.key});
@@ -44,8 +45,8 @@ class _StoreEditRequestsScreenState extends State<StoreEditRequestsScreen> {
 
           return Column(children: [
             QGradientHeader(
-              title: 'Запросы на изменение',
-              subtitle: pending > 0 ? '$pending в ожидании' : 'Нет новых',
+              title: tr('Запросы на изменение', 'Өзгеріс сұраныстары'),
+              subtitle: pending > 0 ? tr('$pending в ожидании', '$pending күтуде') : tr('Нет новых', 'Жаңасы жоқ'),
               compact: true,
               showBack: true,
               bottom: [
@@ -56,15 +57,15 @@ class _StoreEditRequestsScreenState extends State<StoreEditRequestsScreen> {
                     scrollDirection: Axis.horizontal,
                     children: [
                       _TabChip(
-                          label: 'Ожидание ($pending)',
+                          label: tr('Ожидание ($pending)', 'Күтуде ($pending)'),
                           active: _tab == 0,
                           onTap: () => setState(() => _tab = 0)),
                       _TabChip(
-                          label: 'Одобренные ($approved)',
+                          label: tr('Одобренные ($approved)', 'Мақұлданған ($approved)'),
                           active: _tab == 1,
                           onTap: () => setState(() => _tab = 1)),
                       _TabChip(
-                          label: 'Отклонённые ($rejected)',
+                          label: tr('Отклонённые ($rejected)', 'Қабылданбаған ($rejected)'),
                           active: _tab == 2,
                           onTap: () => setState(() => _tab = 2)),
                     ],
@@ -114,10 +115,10 @@ class _StoreEditRequestsScreenState extends State<StoreEditRequestsScreen> {
                   const Icon(Icons.edit_outlined, color: cGreen, size: 34),
             ),
             const SizedBox(height: 14),
-            Text('Нет запросов',
+            Text(tr('Нет запросов', 'Сұраныс жоқ'),
                 style: manrope(16, FontWeight.w700, color: cInk)),
             const SizedBox(height: 4),
-            Text('В этой категории пока пусто',
+            Text(tr('В этой категории пока пусто', 'Бұл санатта әзірге бос'),
                 style: manrope(13, FontWeight.w500, color: cInk3)),
           ],
         ),
@@ -138,11 +139,11 @@ String _risk(StoreEditRequestModel r) {
 ({Color color, String tone, String label}) _riskInfo(String risk) {
   switch (risk) {
     case 'high':
-      return (color: cRed, tone: 'red', label: 'Высокий риск');
+      return (color: cRed, tone: 'red', label: tr('Высокий риск', 'Жоғары тәуекел'));
     case 'medium':
-      return (color: cAmber, tone: 'amber', label: 'Средний риск');
+      return (color: cAmber, tone: 'amber', label: tr('Средний риск', 'Орташа тәуекел'));
     default:
-      return (color: cGreen, tone: 'green', label: 'Низкий риск');
+      return (color: cGreen, tone: 'green', label: tr('Низкий риск', 'Төмен тәуекел'));
   }
 }
 
@@ -184,10 +185,10 @@ class _EditReqCard extends StatelessWidget {
   const _EditReqCard({required this.req, required this.onOpen});
 
   ({String tone, String label}) get _statusPill {
-    if (req.isApproved) return (tone: 'green', label: 'Одобрено');
-    if (req.isRejected) return (tone: 'red', label: 'Отклонено');
-    if (req.isCancelled) return (tone: 'gray', label: 'Отозвано');
-    return (tone: 'amber', label: 'Новый');
+    if (req.isApproved) return (tone: 'green', label: tr('Одобрено', 'Мақұлданды'));
+    if (req.isRejected) return (tone: 'red', label: tr('Отклонено', 'Қабылданбады'));
+    if (req.isCancelled) return (tone: 'gray', label: tr('Отозвано', 'Кері қайтарылды'));
+    return (tone: 'amber', label: tr('Новый', 'Жаңа'));
   }
 
   @override

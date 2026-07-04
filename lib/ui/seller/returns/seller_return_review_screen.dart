@@ -5,6 +5,7 @@ import '../../../data/services/return_service.dart';
 import '../../../theme/qoima_design.dart';
 import 'seller_return_receive_screen.dart';
 
+import '../../../core/lang.dart';
 /// Shows details of a return request for the seller to review (approve/reject).
 /// Also used as a read-only detail view for received/refunded/rejected returns.
 class SellerReturnReviewScreen extends StatelessWidget {
@@ -200,12 +201,12 @@ class _ReviewBodyState extends State<_ReviewBody> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     if (r.clientName.isNotEmpty)
-                      _Row('Имя', r.clientName),
+                      _Row(tr('Имя', 'Аты'), r.clientName),
                     if (r.clientPhone.isNotEmpty)
                       _Row('Телефон', r.clientPhone),
-                    _Row('Тип', r.type.label(context)),
-                    _Row('Доставка', r.pickup.label(context)),
-                    _Row('Возврат средств', r.refundMethod.label(context)),
+                    _Row(tr('Тип', 'Түрі'), r.type.label(context)),
+                    _Row(tr('Доставка', 'Жеткізу'), r.pickup.label(context)),
+                    _Row(tr('Возврат средств', 'Ақшаны қайтару'), r.refundMethod.label(context)),
                   ],
                 ),
               ),
@@ -247,7 +248,7 @@ class _ReviewBodyState extends State<_ReviewBody> {
                                       color: cInk),
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis),
-                              Text('Р.${item.size}  ×${item.quantity}',
+                              Text(tr('Р.${item.size}  ×${item.quantity}', 'Ө.${item.size}  ×${item.quantity}'),
                                   style: manrope(12, FontWeight.w500,
                                       color: cInk3)),
                             ],

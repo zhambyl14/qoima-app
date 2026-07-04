@@ -10,6 +10,7 @@ import '../../data/repositories/shop_request_repository.dart';
 import '../../theme/qoima_design.dart';
 import 'contract_screen.dart';
 
+import '../../core/lang.dart';
 /// Дүкен ашу заявкасының формасы. Owner толтырып жібереді — superadmin бекітеді.
 /// Жіберілген соң `shopRequests`-ке жазылады; корневой gate күту экранына ауысады.
 class ShopApplyScreen extends StatefulWidget {
@@ -129,8 +130,8 @@ class _ShopApplyScreenState extends State<ShopApplyScreen> {
       backgroundColor: cBg,
       body: Column(children: [
         QGradientHeader(
-          title: 'Открытие магазина',
-          subtitle: 'Подача заявки',
+          title: tr('Открытие магазина', 'Дүкен ашу'),
+          subtitle: tr('Подача заявки', 'Өтінім беру'),
           showBack: widget.onCancel != null,
           onBack: _loading ? null : widget.onCancel,
         ),
@@ -154,8 +155,10 @@ class _ShopApplyScreenState extends State<ShopApplyScreen> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        'Магазин не открывается сразу. После отправки заявки '
-                        'модератор проверит данные и уведомит вас.',
+                        tr('Магазин не открывается сразу. После отправки заявки '
+                                'модератор проверит данные и уведомит вас.',
+                            'Дүкен бірден ашылмайды. Өтінім жіберілген соң '
+                                'модератор деректерді тексеріп, сізге хабарлайды.'),
                         style: manrope(12.5, FontWeight.w500,
                             color: const Color(0xFF7A4F00), height: 1.4),
                       ),
@@ -179,7 +182,7 @@ class _ShopApplyScreenState extends State<ShopApplyScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Предыдущая заявка отклонена',
+                            Text(tr('Предыдущая заявка отклонена', 'Алдыңғы өтінім қабылданбады'),
                                 style: manrope(12.5, FontWeight.w700,
                                     color: const Color(0xFFB11A2B))),
                             const SizedBox(height: 2),
@@ -194,11 +197,11 @@ class _ShopApplyScreenState extends State<ShopApplyScreen> {
                 ],
 
                 const SizedBox(height: 18),
-                const QSecLabel('О магазине'),
+                QSecLabel(tr('О магазине', 'Дүкен туралы')),
                 _Field(
                   controller: _shopNameCtrl,
-                  label: 'Название магазина',
-                  hint: 'Например: SneakerHub',
+                  label: tr('Название магазина', 'Дүкен атауы'),
+                  hint: tr('Например: SneakerHub', 'Мысалы: SneakerHub'),
                   icon: Icons.store_outlined,
                   onChanged: (_) => setState(() {}),
                 ),
@@ -209,7 +212,7 @@ class _ShopApplyScreenState extends State<ShopApplyScreen> {
                 ),
                 const SizedBox(height: 14),
 
-                Text('Категория',
+                Text(tr('Категория', 'Категория'),
                     style: manrope(12.5, FontWeight.w700, color: cInk2)),
                 const SizedBox(height: 8),
                 Wrap(
@@ -229,7 +232,7 @@ class _ShopApplyScreenState extends State<ShopApplyScreen> {
                           border: Border.all(
                               color: sel ? cGreen : cLine, width: 1.5),
                         ),
-                        child: Text(c,
+                        child: Text(trValue(c),
                             style: manrope(13.5, FontWeight.w700,
                                 color: sel ? cGreenDeep : cInk2)),
                       ),
@@ -238,11 +241,11 @@ class _ShopApplyScreenState extends State<ShopApplyScreen> {
                 ),
 
                 const SizedBox(height: 20),
-                const QSecLabel('О владельце'),
+                QSecLabel(tr('О владельце', 'Иесі туралы')),
                 _Field(
                   controller: _ownerNameCtrl,
-                  label: 'Полное имя',
-                  hint: 'Имя и фамилия',
+                  label: tr('Полное имя', 'Толық аты-жөні'),
+                  hint: tr('Имя и фамилия', 'Аты мен тегі'),
                   icon: Icons.person_outline_rounded,
                   textCapitalization: TextCapitalization.words,
                   onChanged: (_) => setState(() {}),
@@ -250,7 +253,7 @@ class _ShopApplyScreenState extends State<ShopApplyScreen> {
                 const SizedBox(height: 14),
                 _Field(
                   controller: _phoneCtrl,
-                  label: 'Телефон',
+                  label: tr('Телефон', 'Телефон'),
                   hint: '+7 700 000 00 00',
                   icon: Icons.phone_outlined,
                   keyboardType: TextInputType.phone,
@@ -259,8 +262,8 @@ class _ShopApplyScreenState extends State<ShopApplyScreen> {
                 const SizedBox(height: 14),
                 _Field(
                   controller: _iinCtrl,
-                  label: 'ИИН / БИН',
-                  hint: '12 цифр',
+                  label: tr('ИИН / БИН', 'ЖСН / БСН'),
+                  hint: tr('12 цифр', '12 сан'),
                   icon: Icons.credit_card_outlined,
                   keyboardType: TextInputType.number,
                   maxLength: 12,
@@ -268,7 +271,7 @@ class _ShopApplyScreenState extends State<ShopApplyScreen> {
                 ),
 
                 const SizedBox(height: 14),
-                Text('Краткое описание',
+                Text(tr('Краткое описание', 'Қысқаша сипаттама'),
                     style: manrope(12.5, FontWeight.w700, color: cInk2)),
                 const SizedBox(height: 6),
                 Container(
@@ -284,7 +287,7 @@ class _ShopApplyScreenState extends State<ShopApplyScreen> {
                     style: manrope(15, FontWeight.w600, color: cInk),
                     cursorColor: cGreen,
                     decoration: InputDecoration(
-                      hintText: 'Расскажите о своём магазине...',
+                      hintText: tr('Расскажите о своём магазине...', 'Дүкеніңіз туралы айтып беріңіз...'),
                       hintStyle: manrope(15, FontWeight.w500, color: cInk3),
                       border: InputBorder.none,
                       enabledBorder: InputBorder.none,
@@ -296,7 +299,7 @@ class _ShopApplyScreenState extends State<ShopApplyScreen> {
                 ),
 
                 const SizedBox(height: 20),
-                const QSecLabel('Финансы'),
+                QSecLabel(tr('Финансы', 'Қаржы')),
                 _CardField(
                   controller: _cardCtrl,
                   onChanged: (_) => setState(() {}),
@@ -304,17 +307,17 @@ class _ShopApplyScreenState extends State<ShopApplyScreen> {
                 const SizedBox(height: 14),
                 _Field(
                   controller: _cardHolderCtrl,
-                  label: 'Имя владельца карты (необязательно)',
+                  label: tr('Имя владельца карты (необязательно)', 'Карта иесінің аты (міндетті емес)'),
                   hint: 'A. NURLAN',
                   icon: Icons.badge_outlined,
                   textCapitalization: TextCapitalization.characters,
                 ),
                 const SizedBox(height: 6),
-                Text('Имя владельца карты должно совпадать с владельцем ИИН',
+                Text(tr('Имя владельца карты должно совпадать с владельцем ИИН', 'Карта иесінің аты ЖСН иесімен сәйкес болуы керек'),
                     style: manrope(11.5, FontWeight.w600, color: cInk3)),
 
                 const SizedBox(height: 20),
-                const QSecLabel('Договор'),
+                QSecLabel(tr('Договор', 'Шарт')),
                 _ContractRow(
                   accepted: _contractAccepted,
                   onOpen: () => Navigator.push(
@@ -330,7 +333,7 @@ class _ShopApplyScreenState extends State<ShopApplyScreen> {
                   opacity: _canSubmit ? 1.0 : 0.4,
                   duration: const Duration(milliseconds: 200),
                   child: QPrimaryButton(
-                    label: 'Отправить заявку',
+                    label: tr('Отправить заявку', 'Өтінім жіберу'),
                     isLoading: _loading,
                     icon: const Icon(Icons.chevron_right_rounded,
                         color: Colors.white, size: 20),
@@ -357,7 +360,7 @@ class _CityDropdown extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Город',
+        Text(tr('Город', 'Қала'),
             style: manrope(12.5, FontWeight.w700, color: cInk2)),
         const SizedBox(height: 6),
         Container(
@@ -373,7 +376,7 @@ class _CityDropdown extends StatelessWidget {
             decoration: InputDecoration(
               prefixIcon:
                   const Icon(Icons.location_on_outlined, color: cGreen, size: 19),
-              hintText: 'Выберите город',
+              hintText: tr('Выберите город', 'Қаланы таңдаңыз'),
               hintStyle: manrope(15, FontWeight.w500, color: cInk3),
               border: InputBorder.none,
               enabledBorder: InputBorder.none,
@@ -387,7 +390,7 @@ class _CityDropdown extends StatelessWidget {
             items: kzCities
                 .map((c) => DropdownMenuItem(
                     value: c,
-                    child: Text(c,
+                    child: Text(trValue(c),
                         style: manrope(14, FontWeight.w500, color: cInk))))
                 .toList(),
             onChanged: onChanged,
@@ -486,7 +489,7 @@ class _CardField extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Номер карты (для выплат)',
+        Text(tr('Номер карты (для выплат)', 'Карта нөмірі (төлемдер үшін)'),
             style: manrope(12.5, FontWeight.w700, color: cInk2)),
         const SizedBox(height: 6),
         Container(
@@ -528,7 +531,7 @@ class _CardField extends StatelessWidget {
         ),
         if (showError) ...[
           const SizedBox(height: 6),
-          Text('Карта должна содержать 16 цифр и пройти проверку',
+          Text(tr('Карта должна содержать 16 цифр и пройти проверку', 'Картада 16 сан болып, тексеруден өтуі керек'),
               style: manrope(11.5, FontWeight.w600, color: cRed)),
         ],
       ],
@@ -571,9 +574,9 @@ class _ContractRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Договор оферты',
+                  Text(tr('Договор оферты', 'Оферта шарты'),
                       style: manrope(14, FontWeight.w800, color: cInk)),
-                  Text('Нажмите, чтобы прочитать',
+                  Text(tr('Нажмите, чтобы прочитать', 'Оқу үшін басыңыз'),
                       style: manrope(12, FontWeight.w500, color: cInk3)),
                 ],
               ),
@@ -613,7 +616,7 @@ class _ContractRow extends StatelessWidget {
             const SizedBox(width: 11),
             Expanded(
               child: Text(
-                  'Я ознакомился с договором оферты и принимаю условия',
+                  tr('Я ознакомился с договором оферты и принимаю условия', 'Оферта шартымен таныстым және шарттарды қабылдаймын'),
                   style: manrope(13.5, FontWeight.w600, color: cInk,
                       height: 1.35)),
             ),

@@ -6,6 +6,7 @@ import '../../data/services/firestore_service.dart';
 import '../../theme/qoima_design.dart';
 import '../client/reservation_timer_widget.dart';
 
+import '../../core/lang.dart';
 class OnlineOrdersScreen extends StatefulWidget {
   const OnlineOrdersScreen({super.key});
 
@@ -48,7 +49,7 @@ class _OnlineOrdersScreenState extends State<OnlineOrdersScreen> {
         _lookupResult = order;
         _lookupLoading = false;
         _lookupError =
-            order == null ? 'Неверный код или заказ не найден' : null;
+            order == null ? tr('Неверный код или заказ не найден', 'Код қате немесе тапсырыс табылмады') : null;
       });
     } catch (e) {
       if (mounted) {
@@ -116,7 +117,7 @@ class _OnlineOrdersScreenState extends State<OnlineOrdersScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Онлайн-заказы',
+                          Text(tr('Онлайн-заказы', 'Онлайн тапсырыстар'),
                               style: manrope(23, FontWeight.w800,
                                   color: Colors.white, letterSpacing: -0.5)),
                           StreamBuilder<List<OrderModel>>(
@@ -127,8 +128,8 @@ class _OnlineOrdersScreenState extends State<OnlineOrdersScreen> {
                                   .length;
                               return Text(
                                 review > 0
-                                    ? 'Ждут проверки: $review'
-                                    : 'Нет заказов на проверке',
+                                    ? tr('Ждут проверки: $review', 'Тексеруді күтуде: $review')
+                                    : tr('Нет заказов на проверке', 'Тексерудегі тапсырыс жоқ'),
                                 style: manrope(13, FontWeight.w500,
                                     color: Colors.white.withValues(alpha: 0.78)));
                             },
@@ -155,8 +156,8 @@ class _OnlineOrdersScreenState extends State<OnlineOrdersScreen> {
                           onSubmitted: (_) => _lookup(),
                           style: const TextStyle(
                               color: Colors.black87, fontSize: 14),
-                          decoration: const InputDecoration(
-                            hintText: 'Введите код заказа...',
+                          decoration: InputDecoration(
+                            hintText: tr('Введите код заказа...', 'Тапсырыс кодын енгізіңіз...'),
                             hintStyle:
                                 TextStyle(color: Colors.black38, fontSize: 14),
                             prefixIcon: Icon(Icons.qr_code_scanner_rounded,
@@ -190,8 +191,8 @@ class _OnlineOrdersScreenState extends State<OnlineOrdersScreen> {
                                     child: CircularProgressIndicator(
                                         color: cGreen,
                                         strokeWidth: 2)))
-                            : const Center(
-                                child: Text('Найти',
+                            : Center(
+                                child: Text(tr('Найти', 'Іздеу'),
                                     style: TextStyle(
                                         color: cGreen,
                                         fontWeight: FontWeight.w700,
@@ -224,7 +225,7 @@ class _OnlineOrdersScreenState extends State<OnlineOrdersScreen> {
 
                       return Row(children: [
                         _FilterChip(
-                            label: 'Активные $active',
+                            label: tr('Активные $active', 'Белсенді $active'),
                             value: 'active',
                             current: _filter,
                             onTap: (v) => setState(() {
@@ -233,7 +234,7 @@ class _OnlineOrdersScreenState extends State<OnlineOrdersScreen> {
                                 })),
                         const SizedBox(width: 8),
                         _FilterChip(
-                            label: 'Завершено $done',
+                            label: tr('Завершено $done', 'Аяқталды $done'),
                             value: 'done',
                             current: _filter,
                             onTap: (v) => setState(() {
@@ -242,7 +243,7 @@ class _OnlineOrdersScreenState extends State<OnlineOrdersScreen> {
                                 })),
                         const SizedBox(width: 8),
                         _FilterChip(
-                            label: 'Всё ${all.length}',
+                            label: tr('Всё ${all.length}', 'Барлығы ${all.length}'),
                             value: 'all',
                             current: _filter,
                             onTap: (v) => setState(() {
@@ -251,7 +252,7 @@ class _OnlineOrdersScreenState extends State<OnlineOrdersScreen> {
                                 })),
                         const SizedBox(width: 8),
                         _FilterChip(
-                            label: 'Отменено $cancelled',
+                            label: tr('Отменено $cancelled', 'Бас тартылды $cancelled'),
                             value: 'cancelled',
                             current: _filter,
                             onTap: (v) => setState(() {
@@ -340,7 +341,7 @@ class _OnlineOrdersScreenState extends State<OnlineOrdersScreen> {
                             const Icon(Icons.check_circle_outline,
                                 color: Colors.white, size: 16),
                             const SizedBox(width: 8),
-                            const Text('Заказ найден',
+                            Text(tr('Заказ найден', 'Тапсырыс табылды'),
                                 style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.w700,
@@ -384,14 +385,14 @@ class _OnlineOrdersScreenState extends State<OnlineOrdersScreen> {
                         const SizedBox(height: 12),
                         Text(
                           _filter == 'review'
-                              ? 'Нет чеков на проверке'
+                              ? tr('Нет чеков на проверке', 'Тексеруде чек жоқ')
                               : _filter == 'active'
-                                  ? 'Нет активных заказов'
+                                  ? tr('Нет активных заказов', 'Белсенді тапсырыс жоқ')
                                   : _filter == 'done'
-                                      ? 'Нет завершённых заказов'
+                                      ? tr('Нет завершённых заказов', 'Аяқталған тапсырыс жоқ')
                                       : _filter == 'cancelled'
-                                          ? 'Нет отменённых заказов'
-                                          : 'Заказов нет',
+                                          ? tr('Нет отменённых заказов', 'Бас тартылған тапсырыс жоқ')
+                                          : tr('Заказов нет', 'Тапсырыс жоқ'),
                           style: const TextStyle(
                               fontSize: 15, color: cInk2),
                         ),
@@ -457,7 +458,7 @@ class _OrderCardState extends State<_OrderCard> {
       case OrderModel.typeClickCollect:
         return 'CLICK & COLLECT';
       case OrderModel.typeDelivery:
-        return 'ДОСТАВКА';
+        return tr('ДОСТАВКА', 'ЖЕТКІЗУ');
       default:
         return o.orderType.toUpperCase();
     }
@@ -466,19 +467,19 @@ class _OrderCardState extends State<_OrderCard> {
   String get _statusLabel {
     switch (o.status) {
       case OrderModel.statusPending:
-        return 'Ожидает оплаты';
+        return tr('Ожидает оплаты', 'Төлем күтілуде');
       case OrderModel.statusReserved:
-        return 'Бронь подтверждена';
+        return tr('Бронь подтверждена', 'Бронь расталды');
       case OrderModel.statusRejected:
-        return 'Чек отклонён';
+        return tr('Чек отклонён', 'Чек қабылданбады');
       case OrderModel.statusConfirmed:
-        return 'Оплачено · Готов к выдаче';
+        return tr('Оплачено · Готов к выдаче', 'Төленді · Беруге дайын');
       case OrderModel.statusCompleted:
-        return 'Завершён';
+        return tr('Завершён', 'Аяқталды');
       case OrderModel.statusCancelled:
-        return 'Отменён';
+        return tr('Отменён', 'Бас тартылды');
       case OrderModel.statusReturned:
-        return 'Возврат';
+        return tr('Возврат', 'Қайтару');
       default:
         return o.status;
     }
@@ -508,19 +509,19 @@ class _OrderCardState extends State<_OrderCard> {
       context: context,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Выдача товара'),
+        title: Text(tr('Выдача товара', 'Тауар беру')),
         content: Text(o.isSmartReservation && o.inStorePaymentMethod.isNotEmpty
-            ? 'Выдать товар клиенту?\n\nДоплата: ${_payMethodLabel(o.inStorePaymentMethod)}'
-            : 'Выдать товар клиенту?'),
+            ? tr('Выдать товар клиенту?\n\nДоплата: ${_payMethodLabel(o.inStorePaymentMethod)}', 'Тауарды клиентке беру керек пе?\n\nДоплата: ${_payMethodLabel(o.inStorePaymentMethod)}')
+            : tr('Выдать товар клиенту?', 'Тауарды клиентке беру керек пе?')),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('Нет')),
+              child: Text(tr('Нет', 'Жоқ'))),
           ElevatedButton(
               onPressed: () => Navigator.pop(context, true),
               style: ElevatedButton.styleFrom(
                   backgroundColor: cGreen, foregroundColor: Colors.white),
-              child: const Text('Да, выдать')),
+              child: Text(tr('Да, выдать', 'Иә, беру'))),
         ],
       ),
     );
@@ -555,13 +556,13 @@ class _OrderCardState extends State<_OrderCard> {
           Container(width: 36, height: 4,
               decoration: BoxDecoration(color: cLine, borderRadius: BorderRadius.circular(2))),
           const SizedBox(height: 16),
-          Text('Выдача товара · Доплата ${o.remainingAmount.toStringAsFixed(0)} ₸',
+          Text(tr('Выдача товара · Доплата ${o.remainingAmount.toStringAsFixed(0)} ₸', 'Тауар беру · Доплата ${o.remainingAmount.toStringAsFixed(0)} ₸'),
               style: manrope(16, FontWeight.w800, color: cInk)),
           const SizedBox(height: 4),
-          Text('Клиент доплату қалай берді?',
+          Text(tr('Как клиент внёс доплату?', 'Клиент доплату қалай берді?'),
               style: manrope(13, FontWeight.w500, color: cInk2)),
           const SizedBox(height: 20),
-          _PayBtn(label: '💵  Наличный', color: cGreen,
+          _PayBtn(label: tr('💵  Наличный', '💵  Қолма-қол'), color: cGreen,
               onTap: () => Navigator.pop(ctx, 'cash')),
           const SizedBox(height: 10),
           _PayBtn(label: '📱  Kaspi', color: const Color(0xFFEB3333),
@@ -594,18 +595,18 @@ class _OrderCardState extends State<_OrderCard> {
       context: context,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Отмена заказа'),
-        content: const Text('Заказ будет отменён, товар вернётся на склад.'),
+        title: Text(tr('Отмена заказа', 'Тапсырысты болдырмау')),
+        content: Text(tr('Заказ будет отменён, товар вернётся на склад.', 'Тапсырыс болдырылмайды, тауар қоймаға оралады.')),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('Отмена')),
+              child: Text(tr('Отмена', 'Болдырмау'))),
           ElevatedButton(
               onPressed: () => Navigator.pop(context, true),
               style: ElevatedButton.styleFrom(
                   backgroundColor: cRed,
                   foregroundColor: Colors.white),
-              child: const Text('Отменить заказ')),
+              child: Text(tr('Отменить заказ', 'Тапсырысты болдырмау'))),
         ],
       ),
     );
@@ -723,7 +724,7 @@ class _OrderCardState extends State<_OrderCard> {
                                 child: Text(
                                     o.clientName.isNotEmpty
                                         ? o.clientName
-                                        : 'Имя не указано',
+                                        : tr('Имя не указано', 'Аты көрсетілмеген'),
                                     style: const TextStyle(
                                         fontSize: 14,
                                         fontWeight: FontWeight.w600,
@@ -744,8 +745,8 @@ class _OrderCardState extends State<_OrderCard> {
                                   Clipboard.setData(
                                       ClipboardData(text: o.clientPhone));
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                          content: Text('Телефон скопирован'),
+                                      SnackBar(
+                                          content: Text(tr('Телефон скопирован', 'Телефон көшірілді')),
                                           behavior: SnackBarBehavior.floating,
                                           duration: Duration(seconds: 1)));
                                 },
@@ -811,54 +812,54 @@ class _OrderCardState extends State<_OrderCard> {
                           // Payment summary
                           if (o.isSmartReservation) ...[
                             _PayRow(
-                                label: 'Сумма товаров',
+                                label: tr('Сумма товаров', 'Тауар сомасы'),
                                 value: '${o.total.toStringAsFixed(0)} ₸'),
                             _PayRow(
-                                label: 'Задаток (10%)',
+                                label: tr('Задаток (10%)', 'Кепілпұл (10%)'),
                                 value: '${o.depositAmount.toStringAsFixed(0)} ₸',
                                 valueColor: cGreen),
                             if (o.paymentBank.isNotEmpty)
                               _PayRow(
-                                  label: 'Задаток через',
+                                  label: tr('Задаток через', 'Кепілпұл әдісі'),
                                   value: _payMethodLabel(o.paymentBank),
                                   valueColor: _payMethodColor(o.paymentBank)),
                             _PayRow(
-                                label: 'Доплата в магазине',
+                                label: tr('Доплата в магазине', 'Дүкенде доплата'),
                                 value: '${o.remainingAmount.toStringAsFixed(0)} ₸',
                                 valueColor: cAmber,
                                 bold: true),
                             if (o.inStorePaymentMethod.isNotEmpty)
                               _PayRow(
-                                  label: 'Доплата через',
+                                  label: tr('Доплата через', 'Доплата әдісі'),
                                   value: _payMethodLabel(o.inStorePaymentMethod),
                                   valueColor: _payMethodColor(o.inStorePaymentMethod)),
                           ] else if (o.isDelivery) ...[
                             _PayRow(
-                                label: 'Сумма товаров',
+                                label: tr('Сумма товаров', 'Тауар сомасы'),
                                 value: '${o.total.toStringAsFixed(0)} ₸'),
                             if (o.deliveryFee > 0)
                               _PayRow(
-                                  label: 'Доставка',
+                                  label: tr('Доставка', 'Жеткізу'),
                                   value: '${o.deliveryFee.toStringAsFixed(0)} ₸'),
                             _PayRow(
-                                label: 'Итого к оплате',
+                                label: tr('Итого к оплате', 'Барлығы төленетіні'),
                                 value: '${o.totalWithDelivery.toStringAsFixed(0)} ₸',
                                 valueColor: cGreen,
                                 bold: true),
                             if (o.paymentBank.isNotEmpty)
                               _PayRow(
-                                  label: 'Оплачено через',
+                                  label: tr('Оплачено через', 'Төлем әдісі'),
                                   value: _payMethodLabel(o.paymentBank),
                                   valueColor: _payMethodColor(o.paymentBank)),
                           ] else ...[
                             _PayRow(
-                                label: 'Итого к оплате',
+                                label: tr('Итого к оплате', 'Барлығы төленетіні'),
                                 value: '${o.total.toStringAsFixed(0)} ₸',
                                 valueColor: cGreen,
                                 bold: true),
                             if (o.paymentBank.isNotEmpty)
                               _PayRow(
-                                  label: 'Оплачено через',
+                                  label: tr('Оплачено через', 'Төлем әдісі'),
                                   value: _payMethodLabel(o.paymentBank),
                                   valueColor: _payMethodColor(o.paymentBank)),
                           ],
@@ -879,8 +880,8 @@ class _OrderCardState extends State<_OrderCard> {
                                   border: Border.all(
                                       color: cAmber.withValues(alpha: 0.3)),
                                 ),
-                                child: const Text(
-                                  '⏳ Ожидает оплаты от клиента',
+                                child: Text(
+                                  tr('⏳ Ожидает оплаты от клиента', '⏳ Клиенттен төлем күтілуде'),
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
                                       fontSize: 13,
@@ -904,7 +905,7 @@ class _OrderCardState extends State<_OrderCard> {
                                   elevation: 0,
                                 ),
                                 child: Text(
-                                    'Выдать товар · доплата ${o.remainingAmount.toStringAsFixed(0)} ₸',
+                                    tr('Выдать товар · доплата ${o.remainingAmount.toStringAsFixed(0)} ₸', 'Тауар беру · доплата ${o.remainingAmount.toStringAsFixed(0)} ₸'),
                                     style: const TextStyle(
                                         fontSize: 13,
                                         fontWeight: FontWeight.w700)),
@@ -924,7 +925,7 @@ class _OrderCardState extends State<_OrderCard> {
                                           BorderRadius.circular(10)),
                                   elevation: 0,
                                 ),
-                                child: const Text('Выдать товар',
+                                child: Text(tr('Выдать товар', 'Тауар беру'),
                                     style: TextStyle(
                                         fontSize: 13,
                                         fontWeight: FontWeight.w700)),
@@ -944,7 +945,7 @@ class _OrderCardState extends State<_OrderCard> {
                                   padding: const EdgeInsets.symmetric(
                                       vertical: 8),
                                 ),
-                                child: const Text('Отменить заказ',
+                                child: Text(tr('Отменить заказ', 'Тапсырысты болдырмау'),
                                     style: TextStyle(
                                         fontSize: 13,
                                         fontWeight: FontWeight.w700)),
@@ -1053,7 +1054,7 @@ String _payMethodLabel(String method) {
   switch (_normMethod(method)) {
     case 'kaspi':  return '📱 Kaspi';
     case 'halyk':  return '📱 Halyk Bank';
-    case 'cash':   return '💵 Наличный';
+    case 'cash':   return tr('💵 Наличный', '💵 Қолма-қол');
     default:       return method.isNotEmpty ? method : '—';
   }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../data/models/shop_request_model.dart';
 import '../../theme/qoima_design.dart';
 
+import '../../core/lang.dart';
 /// Заявка жіберілгеннен кейінгі күту экраны. Деректерді AdminApprovalGate-тегі
 /// StreamBuilder-ден алады (req). Статус 'approved'-ке ауысқанда gate-тің өзі
 /// дүкенді provision етіп, AdminShell-ге өткізеді.
@@ -17,8 +18,8 @@ class ShopPendingScreen extends StatelessWidget {
       backgroundColor: cBg,
       body: Column(children: [
         QGradientHeader(
-          title: 'Заявка отправлена',
-          subtitle: 'Открытие магазина',
+          title: tr('Заявка отправлена', 'Өтінім жіберілді'),
+          subtitle: tr('Открытие магазина', 'Дүкен ашу'),
           showBack: onCancel != null,
           onBack: onCancel,
         ),
@@ -36,14 +37,16 @@ class ShopPendingScreen extends StatelessWidget {
                       color: cAmber, size: 50),
                 ),
                 const SizedBox(height: 20),
-                Text('Заявка на рассмотрении',
+                Text(tr('Заявка на рассмотрении', 'Өтінім қаралуда'),
                     style: manrope(22, FontWeight.w800,
                         color: cInk, letterSpacing: -0.4),
                     textAlign: TextAlign.center),
                 const SizedBox(height: 8),
                 Text(
-                  'Модератор маркетплейса проверит данные вашего магазина '
-                  'и уведомит вас. Обычно это занимает 1–2 рабочих дня.',
+                  tr('Модератор маркетплейса проверит данные вашего магазина '
+                          'и уведомит вас. Обычно это занимает 1–2 рабочих дня.',
+                      'Маркетплейс модераторы дүкеніңіздің деректерін тексеріп, '
+                          'сізге хабарлайды. Әдетте бұл 1–2 жұмыс күнін алады.'),
                   style: manrope(14, FontWeight.w500, color: cInk2, height: 1.45),
                   textAlign: TextAlign.center,
                 ),
@@ -68,13 +71,13 @@ class ShopPendingScreen extends StatelessWidget {
                             Text(req.shopName,
                                 style: manrope(15, FontWeight.w800, color: cInk)),
                             Text(
-                                '${req.category}${req.city.isNotEmpty ? ' · ${req.city}' : ''}',
+                                '${trValue(req.category)}${req.city.isNotEmpty ? ' · ${trValue(req.city)}' : ''}',
                                 style: manrope(12.5, FontWeight.w500,
                                     color: cInk3)),
                           ],
                         ),
                       ),
-                      const QPill('Ожидание',
+                      QPill(tr('Ожидание', 'Күту'),
                           tone: 'amber',
                           icon: Icon(Icons.access_time_rounded,
                               size: 13, color: Color(0xFF9A6A06))),
@@ -87,19 +90,19 @@ class ShopPendingScreen extends StatelessWidget {
                 // 3-step progress
                 _StepRow(
                   icon: Icons.check_circle_rounded,
-                  label: 'Заявка отправлена',
+                  label: tr('Заявка отправлена', 'Өтінім жіберілді'),
                   state: _StepState.done,
                 ),
                 _StepConnector(active: true),
                 _StepRow(
                   icon: Icons.access_time_rounded,
-                  label: 'Модератор проверяет',
+                  label: tr('Модератор проверяет', 'Модератор тексеруде'),
                   state: _StepState.active,
                 ),
                 _StepConnector(active: false),
                 _StepRow(
                   icon: Icons.storefront_rounded,
-                  label: 'Магазин откроется',
+                  label: tr('Магазин откроется', 'Дүкен ашылады'),
                   state: _StepState.future,
                 ),
               ],

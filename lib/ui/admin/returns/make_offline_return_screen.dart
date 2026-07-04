@@ -5,6 +5,7 @@ import '../../../data/models/models.dart';
 import '../../../data/services/return_service.dart';
 import '../../../theme/qoima_design.dart';
 
+import '../../../core/lang.dart';
 /// Admin-side offline return: browse recent sales → select items → pick refund method.
 class MakeOfflineReturnScreen extends StatefulWidget {
   const MakeOfflineReturnScreen({super.key});
@@ -176,7 +177,7 @@ class _MakeOfflineReturnScreenState extends State<MakeOfflineReturnScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Офлайн возврат',
+                      Text(tr('Офлайн возврат', 'Офлайн қайтару'),
                           style: manrope(21, FontWeight.w800,
                               color: Colors.white, letterSpacing: -0.5)),
                       Text(
@@ -299,10 +300,10 @@ class _StepFind extends StatelessWidget {
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
         child: Row(children: [
-          Text('Последние 14 дней',
+          Text(tr('Последние 14 дней', 'Соңғы 14 күн'),
               style: manrope(12, FontWeight.w600, color: cInk3)),
           const Spacer(),
-          Text('${sales.length} продаж',
+          Text(tr('${sales.length} продаж', '${sales.length} сатылым'),
               style: manrope(12, FontWeight.w600, color: cInk3)),
         ]),
       ),
@@ -320,8 +321,8 @@ class _StepFind extends StatelessWidget {
                 const SizedBox(height: 12),
                 Text(
                   searchQuery.isNotEmpty
-                      ? 'По запросу «$searchQuery» ничего не найдено'
-                      : 'Офлайн-продаж за последние 14 дней нет',
+                      ? tr('По запросу «$searchQuery» ничего не найдено', '«$searchQuery» сұранысы бойынша ештеңе табылмады')
+                      : tr('Офлайн-продаж за последние 14 дней нет', 'Соңғы 14 күнде офлайн-сатылым жоқ'),
                   style: manrope(14, FontWeight.w500, color: cInk2),
                   textAlign: TextAlign.center,
                 ),
@@ -331,7 +332,7 @@ class _StepFind extends StatelessWidget {
                     onPressed: onRefresh,
                     icon: const Icon(Icons.refresh_rounded,
                         color: cGreen, size: 16),
-                    label: Text('Обновить',
+                    label: Text(tr('Обновить', 'Жаңарту'),
                         style: manrope(13, FontWeight.w600, color: cGreen)),
                   ),
                 ],
@@ -470,7 +471,7 @@ class _StepItems extends StatelessWidget {
                                   manrope(13.5, FontWeight.w700, color: cInk),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis),
-                          Text('Р.${entry.item.size}  ×${entry.item.quantity}',
+                          Text(tr('Р.${entry.item.size}  ×${entry.item.quantity}', 'Ө.${entry.item.size}  ×${entry.item.quantity}'),
                               style:
                                   manrope(12, FontWeight.w500, color: cInk3)),
                         ],
@@ -532,7 +533,7 @@ class _StepItems extends StatelessWidget {
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14)),
             ),
-            child: Text('Далее',
+            child: Text(tr('Далее', 'Әрі қарай'),
                 style: manrope(15, FontWeight.w700, color: Colors.white)),
           ),
         ),
@@ -587,7 +588,7 @@ class _StepRefund extends StatelessWidget {
                       Text(method.label(context),
                           style: manrope(15, FontWeight.w700,
                               color: cGreenDeep)),
-                      Text('Төлем әдісіне сәйкес',
+                      Text(tr('Согласно способу оплаты', 'Төлем әдісіне сәйкес'),
                           style:
                               manrope(12, FontWeight.w500, color: cInk3)),
                     ],

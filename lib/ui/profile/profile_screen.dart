@@ -17,6 +17,7 @@ import '../admin/my_store/admin_my_store_hub_screen.dart';
 import '../onboarding/my_store_gate.dart';
 import '../auth/account_security_screen.dart';
 
+import '../../core/lang.dart';
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
@@ -228,7 +229,7 @@ class ProfileScreen extends StatelessWidget {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      QSecLabel('Статистика за месяц'),
+                      QSecLabel(tr('Статистика за месяц', 'Айлық статистика')),
                       Row(children: [
                         Expanded(
                           child: QCard(
@@ -239,7 +240,7 @@ class ProfileScreen extends StatelessWidget {
                                 Text('${mySales.length}',
                                     style: manrope(22, FontWeight.w800,
                                         color: cInk)),
-                                Text('Продаж за месяц',
+                                Text(tr('Продаж за месяц', 'Айдағы сатылым'),
                                     style: manrope(12, FontWeight.w600,
                                         color: cInk3)),
                               ],
@@ -256,7 +257,7 @@ class ProfileScreen extends StatelessWidget {
                                 Text(money(total),
                                     style: manrope(18, FontWeight.w800,
                                         color: cGreen)),
-                                Text('Выручка, ₸',
+                                Text(tr('Выручка, ₸', 'Түсім, ₸'),
                                     style: manrope(12, FontWeight.w600,
                                         color: cInk3)),
                               ],
@@ -269,20 +270,20 @@ class ProfileScreen extends StatelessWidget {
                   );
                 },
               ),
-              QSecLabel('Настройки'),
+              QSecLabel(tr('Настройки', 'Баптаулар')),
               QMenuItem(
                 icon: Icons.storefront_outlined,
                 tone: 'blue',
-                title: 'Мой склад',
+                title: tr('Мой склад', 'Менің қоймам'),
                 subtitle: warehouseName.isNotEmpty ? warehouseName : null,
-                value: warehouseName.isNotEmpty ? 'Привязан' : null,
+                value: warehouseName.isNotEmpty ? tr('Привязан', 'Байланған') : null,
               ),
               const SizedBox(height: 8),
               QMenuItem(
                 icon: Icons.shield_outlined,
                 tone: 'green',
-                title: 'Личные данные',
-                subtitle: 'Email, пароль',
+                title: tr('Личные данные', 'Жеке деректер'),
+                subtitle: tr('Email, пароль', 'Email, құпиясөз'),
                 onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -412,8 +413,8 @@ class ProfileScreen extends StatelessWidget {
             _MenuItem(
               icon: Icons.shield_outlined,
               color: cGreen,
-              title: 'Личные данные',
-              subtitle: 'Email, пароль',
+              title: tr('Личные данные', 'Жеке деректер'),
+              subtitle: tr('Email, пароль', 'Email, құпиясөз'),
               onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -443,7 +444,7 @@ class ProfileScreen extends StatelessWidget {
                           borderRadius: BorderRadius.circular(20)),
                       title: const Text('Qoima',
                           style: TextStyle(fontWeight: FontWeight.w700)),
-                      content: const Text('Версия 2.3\n© 2024 Qoima'),
+                      content: Text(tr('Версия 2.3\n© 2024 Qoima', 'Нұсқа 2.3\n© 2024 Qoima')),
                       actions: [
                         TextButton(
                             onPressed: () => Navigator.pop(ctx),
@@ -579,8 +580,8 @@ class _ContactCardState extends State<_ContactCard> {
 
   static const _phone = '87474005347';
   static const _tgUser = 'zhambyl_magzhan';
-  static const _waMsg =
-      'Сәлеметсіз бе! Мен Qoima қолданбасы бойынша хабарласып тұрмын.';
+  static String get _waMsg =>
+      tr('Здравствуйте! Я обращаюсь по поводу приложения Qoima.', 'Сәлеметсіз бе! Мен Qoima қолданбасы бойынша хабарласып тұрмын.');
 
   static void _showErr(ScaffoldMessengerState messenger, String text) {
     messenger.showSnackBar(SnackBar(
@@ -644,13 +645,13 @@ class _ContactCardState extends State<_ContactCard> {
               bgColor: cBlueTint,
               label: l.contactPhone,
               value: _phone,
-              actionLabel: 'Қоңырау / Звонок',
+              actionLabel: tr('Звонок', 'Қоңырау'),
               onTap: () async {
                 final messenger = ScaffoldMessenger.of(context);
                 try {
                   await makePhoneCall(_phone);
                 } catch (_) {
-                  _showErr(messenger, 'Телефон қосымшасы табылмады');
+                  _showErr(messenger, tr('Приложение телефона не найдено', 'Телефон қосымшасы табылмады'));
                 }
               },
             ),
@@ -667,7 +668,7 @@ class _ContactCardState extends State<_ContactCard> {
                 try {
                   await openTelegram(_tgUser);
                 } catch (_) {
-                  _showErr(messenger, 'Telegram қосымшасы табылмады');
+                  _showErr(messenger, tr('Приложение Telegram не найдено', 'Telegram қосымшасы табылмады'));
                 }
               },
             ),
@@ -684,7 +685,7 @@ class _ContactCardState extends State<_ContactCard> {
                 try {
                   await openWhatsApp(_phone, _waMsg);
                 } catch (_) {
-                  _showErr(messenger, 'WhatsApp қосымшасы табылмады');
+                  _showErr(messenger, tr('Приложение WhatsApp не найдено', 'WhatsApp қосымшасы табылмады'));
                 }
               },
             ),
@@ -832,7 +833,7 @@ class _AdminStoreCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final repo = MyStoreRepository();
-    final name = storeName.isNotEmpty ? storeName : 'Мой магазин';
+    final name = storeName.isNotEmpty ? storeName : tr('Мой магазин', 'Менің дүкенім');
     return StreamBuilder<List<StoreDiscountModel>>(
       stream: repo.watchDiscounts(),
       builder: (ctx, dSnap) {
@@ -863,12 +864,12 @@ class _AdminStoreCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Менің дүкенім',
+                      Text(tr('Мой магазин', 'Менің дүкенім'),
                           style: manrope(17, FontWeight.w800,
                               color: Colors.white, letterSpacing: -0.3)),
                       const SizedBox(height: 2),
                       Text(
-                        '$name · ${isOnline ? "Онлайн қосулы" : "Онлайн өшірулі"}',
+                        '$name · ${isOnline ? tr('Онлайн включён', 'Онлайн қосулы') : tr('Онлайн выключен', 'Онлайн өшірулі')}',
                         style: manrope(12.5, FontWeight.w500,
                             color: Colors.white.withValues(alpha: 0.72)),
                       ),
@@ -921,9 +922,9 @@ class _OpenStoreMenuItem extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Менің дүкенім',
+                  Text(tr('Мой магазин', 'Менің дүкенім'),
                       style: manrope(14.5, FontWeight.w700, color: cInk)),
-                  Text('Интернет-дүкен ашуға сұраныс жіберу',
+                  Text(tr('Отправить заявку на открытие интернет-магазина', 'Интернет-дүкен ашуға сұраныс жіберу'),
                       style: manrope(12, FontWeight.w500, color: cInk3)),
                 ],
               ),

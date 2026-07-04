@@ -9,6 +9,7 @@ import '../../../theme/qoima_design.dart';
 import '../../../theme/qoima_v2.dart';
 import '../../shared/mandatory_warehouse_picker.dart';
 
+import '../../../core/lang.dart';
 // ── CartItem ──────────────────────────────────────────────────────────────────
 class CartItem {
   final ProductModel product;
@@ -142,13 +143,13 @@ class _MakeSaleScreenState extends State<MakeSaleScreen> {
                   borderRadius: BorderRadius.circular(2)),
             ),
             const SizedBox(height: 16),
-            Text('Төлем түрі', style: manrope(18, FontWeight.w800, color: cInk)),
+            Text(tr('Тип оплаты', 'Төлем түрі'), style: manrope(18, FontWeight.w800, color: cInk)),
             const SizedBox(height: 4),
-            Text('Клиент қалай төледі?',
+            Text(tr('Как клиент оплатил?', 'Клиент қалай төледі?'),
                 style: manrope(13, FontWeight.w500, color: cInk2)),
             const SizedBox(height: 20),
             _PaymentMethodTile(
-              label: '💵  Наличный',
+              label: tr('💵  Наличный', '💵  Қолма-қол'),
               onTap: () => Navigator.pop(ctx, 'cash'),
             ),
             const SizedBox(height: 10),
@@ -173,7 +174,7 @@ class _MakeSaleScreenState extends State<MakeSaleScreen> {
     try {
       final validItems = _cart.where((c) => c.qty > 0).toList();
       if (validItems.isEmpty) {
-        _snack('Выберите хотя бы 1 товар', isError: true);
+        _snack(tr('Выберите хотя бы 1 товар', 'Кемінде 1 тауар таңдаңыз'), isError: true);
         return;
       }
 
@@ -183,7 +184,7 @@ class _MakeSaleScreenState extends State<MakeSaleScreen> {
           (c) => c.batch.warehouseId.isNotEmpty && c.batch.warehouseId != whId);
       if (hasConflict) {
         _snack(
-          'Ошибка: Ваша привязка к складу была изменена Админом. Данная продажа отменена.',
+          tr('Ошибка: Ваша привязка к складу была изменена Админом. Данная продажа отменена.', 'Қате: Қоймаға байлануыңызды Әкімші өзгертті. Бұл сатылым болдырылмады.'),
           isError: true,
         );
         setState(() {
@@ -208,10 +209,14 @@ class _MakeSaleScreenState extends State<MakeSaleScreen> {
                 builder: (_) => AlertDialog(
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16)),
-                  title: const Text('Тауар брондалған'),
-                  content: Text('${item.product.name} (р. ${entry.key}) — '
-                      'онлайн тапсырыспен брондалған. '
-                      'Аздан кейін қайталаңыз.'),
+                  title: Text(tr('Товар забронирован', 'Тауар брондалған')),
+                  content: Text(tr(
+                      '${item.product.name} (р. ${entry.key}) — '
+                          'забронирован онлайн-заказом. '
+                          'Повторите чуть позже.',
+                      '${item.product.name} (ө. ${entry.key}) — '
+                          'онлайн тапсырыспен брондалған. '
+                          'Аздан кейін қайталаңыз.')),
                   actions: [
                     ElevatedButton(
                         onPressed: () => Navigator.pop(context),
@@ -219,7 +224,7 @@ class _MakeSaleScreenState extends State<MakeSaleScreen> {
                             backgroundColor: cGreen,
                             foregroundColor: Colors.white,
                             elevation: 0),
-                        child: const Text('Понятно')),
+                        child: Text(tr('Понятно', 'Түсінікті'))),
                   ],
                 ),
               );
@@ -258,7 +263,7 @@ class _MakeSaleScreenState extends State<MakeSaleScreen> {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                  'Продано $totalQty шт. · ${totalPrice.toStringAsFixed(0)} ₸\n$receipt'),
+                  tr('Продано $totalQty шт. · ${totalPrice.toStringAsFixed(0)} ₸\n$receipt', 'Сатылды $totalQty дана · ${totalPrice.toStringAsFixed(0)} ₸\n$receipt')),
             ),
           ]),
           backgroundColor: cGreen,
@@ -288,7 +293,7 @@ class _MakeSaleScreenState extends State<MakeSaleScreen> {
     final wCtx = context.watch<WarehouseContext>();
     final whId =
         wCtx.current?.id ?? context.read<AppUser>().assignedWarehouseId;
-    final whName = wCtx.current?.name ?? 'Нет склада';
+    final whName = wCtx.current?.name ?? tr('Нет склада', 'Қойма жоқ');
 
     return Scaffold(
       backgroundColor: cBg,
@@ -322,10 +327,10 @@ class _MakeSaleScreenState extends State<MakeSaleScreen> {
                   child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                    Text(_step == 0 ? 'Новая продажа' : 'Размер и скидка',
+                    Text(_step == 0 ? tr('Новая продажа', 'Жаңа сатылым') : tr('Размер и скидка', 'Өлшем және жеңілдік'),
                         style: manrope(21, FontWeight.w800,
                             color: Colors.white, letterSpacing: -0.4)),
-                    Text('Склад: $whName',
+                    Text(tr('Склад: $whName', 'Қойма: $whName'),
                         style: manrope(13, FontWeight.w500,
                             color: Colors.white.withValues(alpha: 0.78))),
                   ])),
@@ -392,7 +397,7 @@ class _MakeSaleScreenState extends State<MakeSaleScreen> {
                     onChanged: (v) => setState(() => _headerQ = v.trim()),
                     style: manrope(14.5, FontWeight.w500, color: Colors.white),
                     decoration: InputDecoration(
-                      hintText: 'Найти товар или сканировать...',
+                      hintText: tr('Найти товар или сканировать...', 'Тауар іздеу немесе сканерлеу...'),
                       hintStyle: manrope(14.5, FontWeight.w500,
                           color: Colors.white.withValues(alpha: 0.8)),
                       filled: false,
@@ -504,20 +509,20 @@ class _MakeSaleScreenState extends State<MakeSaleScreen> {
                               color: Colors.grey.shade300,
                               borderRadius: BorderRadius.circular(2)))),
                   const SizedBox(height: 14),
-                  Text('${item.product.name} — Скидка',
+                  Text(tr('${item.product.name} — Скидка', '${item.product.name} — Жеңілдік'),
                       style: manrope(16, FontWeight.w700, color: cInk)),
                   const SizedBox(height: 4),
-                  Text('Базовая цена: ${item.base.toStringAsFixed(0)} ₸',
+                  Text(tr('Базовая цена: ${item.base.toStringAsFixed(0)} ₸', 'Базалық баға: ${item.base.toStringAsFixed(0)} ₸'),
                       style: manrope(13, FontWeight.w500, color: cInk2)),
                   const SizedBox(height: 14),
                   Row(children: [
                     _ToggleBtn(
-                        label: '% от цены',
+                        label: tr('% от цены', '% бағадан'),
                         active: byPercent,
                         onTap: () => setS(() => byPercent = true)),
                     const SizedBox(width: 8),
                     _ToggleBtn(
-                        label: '₸ Новая цена',
+                        label: tr('₸ Новая цена', '₸ Жаңа баға'),
                         active: !byPercent,
                         onTap: () => setS(() => byPercent = false)),
                   ]),
@@ -554,7 +559,7 @@ class _MakeSaleScreenState extends State<MakeSaleScreen> {
                     ],
                     style: manrope(15, FontWeight.w600, color: cInk),
                     decoration: InputDecoration(
-                      labelText: byPercent ? 'Скидка %' : 'Финальная цена ₸',
+                      labelText: byPercent ? tr('Скидка %', 'Жеңілдік %') : tr('Финальная цена ₸', 'Соңғы баға ₸'),
                       suffixText: byPercent ? '%' : '₸',
                       filled: true,
                       fillColor: cSurface,
@@ -594,7 +599,7 @@ class _MakeSaleScreenState extends State<MakeSaleScreen> {
                                 () => _cart[cartIndex].discountPercent = pct);
                             Navigator.pop(ctx);
                           },
-                          child: const Text('Применить',
+                          child: Text(tr('Применить', 'Қолдану'),
                               style: TextStyle(fontWeight: FontWeight.w700)))),
                 ]),
           );
@@ -627,7 +632,7 @@ class _WhPickerSheet extends StatelessWidget {
                     color: Colors.grey.shade300,
                     borderRadius: BorderRadius.circular(2)))),
         const SizedBox(height: 14),
-        const Text('Выберите склад для продажи',
+        Text(tr('Выберите склад для продажи', 'Сату үшін қойма таңдаңыз'),
             style: TextStyle(
                 fontSize: 17,
                 fontWeight: FontWeight.w700,
@@ -718,13 +723,13 @@ class _Step1State extends State<_Step1> {
                       size: 36, color: cGreen.withValues(alpha: 0.4)),
                 ),
                 const SizedBox(height: 16),
-                const Text('На этом складе нет товаров',
+                Text(tr('На этом складе нет товаров', 'Бұл қоймада тауар жоқ'),
                     style: TextStyle(
                         fontSize: 15,
                         color: cInk2,
                         fontWeight: FontWeight.w500)),
                 const SizedBox(height: 6),
-                const Text('Выберите другой склад',
+                Text(tr('Выберите другой склад', 'Басқа қойма таңдаңыз'),
                     style: TextStyle(fontSize: 12, color: cInk3)),
               ]));
         }
@@ -766,7 +771,7 @@ class _Step1State extends State<_Step1> {
                 style:
                     const TextStyle(fontSize: 14, color: cInk),
                 decoration: InputDecoration(
-                  hintText: 'Название, бренд, категория...',
+                  hintText: tr('Название, бренд, категория...', 'Атауы, бренд, категория...'),
                   hintStyle:
                       const TextStyle(color: cInk3, fontSize: 13),
                   prefixIcon: const Icon(Icons.search_rounded,
@@ -803,7 +808,7 @@ class _Step1State extends State<_Step1> {
                     Icon(Icons.search_off_rounded,
                         size: 52, color: Colors.grey.shade300),
                     const SizedBox(height: 12),
-                    Text('«$_query» не найдено',
+                    Text(tr('«$_query» не найдено', '«$_query» табылмады'),
                         style: const TextStyle(
                             fontSize: 14, color: cInk2)),
                   ])),
@@ -1059,7 +1064,7 @@ class _CartCard extends StatelessWidget {
                           color: cInk),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis),
-                  Text('${item.batch.sellingPrice.toStringAsFixed(0)} ₸/шт.',
+                  Text(tr('${item.batch.sellingPrice.toStringAsFixed(0)} ₸/шт.', '${item.batch.sellingPrice.toStringAsFixed(0)} ₸/дана'),
                       style: const TextStyle(
                           fontSize: 12,
                           color: cGreen,
@@ -1079,7 +1084,7 @@ class _CartCard extends StatelessWidget {
 
           // Размер секциясының тақырыбы (метка зависит от категории)
           Text(
-              '${categoryByKey(item.product.effectiveCategoryKey).sizeLabel.toUpperCase()} И КОЛИЧЕСТВО',
+              tr('${categoryByKey(item.product.effectiveCategoryKey).sizeLabel.toUpperCase()} И КОЛИЧЕСТВО', '${categoryByKey(item.product.effectiveCategoryKey).sizeLabel.toUpperCase()} ЖӘНЕ САНЫ'),
               style: const TextStyle(
                   fontSize: 9,
                   fontWeight: FontWeight.w800,
@@ -1089,7 +1094,7 @@ class _CartCard extends StatelessWidget {
 
           // Размер чиптері
           if (_availSizes.isEmpty)
-            const Text('В этой партии нет остатка',
+            Text(tr('В этой партии нет остатка', 'Бұл партияда қалдық жоқ'),
                 style: TextStyle(color: cRed, fontSize: 12))
           else
             Wrap(
@@ -1154,7 +1159,7 @@ class _CartCard extends StatelessWidget {
                                 fontSize: 12,
                                 color: cAmber,
                                 fontWeight: FontWeight.w600))
-                        : const Text('Добавить скидку',
+                        : Text(tr('Добавить скидку', 'Жеңілдік қосу'),
                             style: TextStyle(
                                 fontSize: 12, color: cInk3))),
                 if (item.qty > 0)
@@ -1186,7 +1191,7 @@ class _CartCard extends StatelessWidget {
       context: ctx,
       builder: (dCtx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Размер $size · макс. $max шт.',
+        title: Text(tr('Размер $size · макс. $max шт.', 'Өлшем $size · макс. $max дана'),
             style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
         content: TextField(
             controller: ctrl,
@@ -1194,7 +1199,7 @@ class _CartCard extends StatelessWidget {
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             autofocus: true,
             decoration: InputDecoration(
-                suffixText: 'шт.',
+                suffixText: tr('шт.', 'дана'),
                 border:
                     OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                 focusedBorder: OutlineInputBorder(
@@ -1204,7 +1209,7 @@ class _CartCard extends StatelessWidget {
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(dCtx),
-              child: const Text('Отмена',
+              child: Text(tr('Отмена', 'Болдырмау'),
                   style: TextStyle(color: cInk2))),
           ElevatedButton(
               onPressed: () {
@@ -1373,7 +1378,7 @@ class _Footer extends StatelessWidget {
         if (step == 1 && totalQty > 0) ...[
           if (hasDiscount)
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              const Text('Итого:',
+              Text(tr('Итого:', 'Барлығы:'),
                   style:
                       TextStyle(color: cInk2, fontSize: 13)),
               Text('${baseTotal.toStringAsFixed(0)} ₸',
@@ -1383,7 +1388,7 @@ class _Footer extends StatelessWidget {
                       decoration: TextDecoration.lineThrough)),
             ]),
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            Text('Итого: $totalQty шт.',
+            Text(tr('Итого: $totalQty шт.', 'Барлығы: $totalQty дана'),
                 style: const TextStyle(
                     color: cInk2, fontSize: 14)),
             Text('${finalTotal.toStringAsFixed(0)} ₸',
@@ -1427,8 +1432,8 @@ class _Footer extends StatelessWidget {
                       const SizedBox(width: 8),
                       Text(
                           step == 0
-                              ? 'Далее · $selectedCount товаров'
-                              : 'Подтвердить продажу · ${finalTotal.toStringAsFixed(0)} ₸',
+                              ? tr('Далее · $selectedCount товаров', 'Әрі қарай · $selectedCount тауар')
+                              : tr('Подтвердить продажу · ${finalTotal.toStringAsFixed(0)} ₸', 'Сатуды растау · ${finalTotal.toStringAsFixed(0)} ₸'),
                           style: const TextStyle(
                               fontWeight: FontWeight.w700, fontSize: 14)),
                     ]),

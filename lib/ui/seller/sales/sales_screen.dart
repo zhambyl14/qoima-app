@@ -10,6 +10,7 @@ import 'make_sale_screen.dart';
 import '../returns/seller_returns_tab.dart';
 import '../returns/seller_make_offline_return_screen.dart';
 
+import '../../../core/lang.dart';
 class SalesScreen extends StatefulWidget {
   const SalesScreen({super.key});
   @override
@@ -116,7 +117,7 @@ class _SalesScreenState extends State<SalesScreen>
               elevation: 0,
               icon: const Icon(Icons.assignment_return_outlined,
                   color: Colors.white, size: 22),
-              label: Text('Офлайн возврат',
+              label: Text(tr('Офлайн возврат', 'Офлайн қайтару'),
                   style:
                       manrope(14.5, FontWeight.w700, color: Colors.white)),
             );
@@ -192,14 +193,14 @@ class _SalesScreenState extends State<SalesScreen>
                                     Text(
                                         appUser.isAdmin
                                             ? context.l10n.salesTitle
-                                            : 'Мои продажи',
+                                            : tr('Мои продажи', 'Менің сатылымдарым'),
                                         style: manrope(23, FontWeight.w800,
                                             color: Colors.white,
                                             letterSpacing: -0.5)),
                                     Text(
                                       appUser.isAdmin
                                           ? context.l10n.overviewSub
-                                          : 'Сегодня · ${monthSales.where((s) { final n = DateTime.now(); return !s.isReturn && s.saleDate.year == n.year && s.saleDate.month == n.month && s.saleDate.day == n.day; }).length} продаж',
+                                          : tr('Сегодня · ${monthSales.where((s) { final n = DateTime.now(); return !s.isReturn && s.saleDate.year == n.year && s.saleDate.month == n.month && s.saleDate.day == n.day; }).length} продаж', 'Бүгін · ${monthSales.where((s) { final n = DateTime.now(); return !s.isReturn && s.saleDate.year == n.year && s.saleDate.month == n.month && s.saleDate.day == n.day; }).length} сатылым'),
                                       style: manrope(13, FontWeight.w500,
                                           color: Colors.white
                                               .withValues(alpha: 0.78)),
@@ -237,12 +238,12 @@ class _SalesScreenState extends State<SalesScreen>
                                 children: [
                                   Text(
                                     appUser.isAdmin
-                                        ? 'Выручка за сегодня'
+                                        ? tr('Выручка за сегодня', 'Бүгінгі түсім')
                                         : _sellerPeriod == 'today'
-                                            ? 'Выручка за сегодня'
+                                            ? tr('Выручка за сегодня', 'Бүгінгі түсім')
                                             : _sellerPeriod == 'week'
-                                                ? 'Выручка за неделю'
-                                                : 'Выручка за месяц',
+                                                ? tr('Выручка за неделю', 'Апталық түсім')
+                                                : tr('Выручка за месяц', 'Айлық түсім'),
                                     style: manrope(12.5, FontWeight.w600,
                                         color: Colors.white
                                             .withValues(alpha: 0.8)),
@@ -265,7 +266,7 @@ class _SalesScreenState extends State<SalesScreen>
                               scrollDirection: Axis.horizontal,
                               child: Row(children: [
                                 _PeriodChip(
-                                  label: 'Сегодня',
+                                  label: tr('Сегодня', 'Бүгін'),
                                   value: 'today',
                                   current: _sellerPeriod,
                                   onTap: (v) =>
@@ -273,7 +274,7 @@ class _SalesScreenState extends State<SalesScreen>
                                 ),
                                 const SizedBox(width: 8),
                                 _PeriodChip(
-                                  label: 'Неделя',
+                                  label: tr('Неделя', 'Апта'),
                                   value: 'week',
                                   current: _sellerPeriod,
                                   onTap: (v) =>
@@ -281,7 +282,7 @@ class _SalesScreenState extends State<SalesScreen>
                                 ),
                                 const SizedBox(width: 8),
                                 _PeriodChip(
-                                  label: 'Месяц',
+                                  label: tr('Месяц', 'Ай'),
                                   value: 'month',
                                   current: _sellerPeriod,
                                   onTap: (v) =>
@@ -498,7 +499,7 @@ class _SalesBody extends StatelessWidget {
             ])
           else
             Text(
-                'Сегодня: ${sales.where((s) => !s.isReturn && _isToday(s.saleDate)).length} прод.',
+                tr('Сегодня: ${sales.where((s) => !s.isReturn && _isToday(s.saleDate)).length} прод.', 'Бүгін: ${sales.where((s) => !s.isReturn && _isToday(s.saleDate)).length} сат.'),
                 style: manrope(13, FontWeight.w600, color: cInk2)),
         ]),
       ),
@@ -558,9 +559,9 @@ class _SalesBody extends StatelessWidget {
 
       final String label;
       if (day == today) {
-        label = 'Бүгін';
+        label = tr('Сегодня', 'Бүгін');
       } else if (day == yesterday) {
-        label = 'Кеше';
+        label = tr('Вчера', 'Кеше');
       } else {
         label = '${day.day.toString().padLeft(2, '0')}'
             '.${day.month.toString().padLeft(2, '0')}'
@@ -682,8 +683,8 @@ class _SaleCard extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                       sale.isReturn
-                          ? 'Қайтару · $timeStr'
-                          : '${sale.receiptNumber.isNotEmpty ? '${sale.receiptNumber}  ·  ' : ''}Р: ${sale.sizesSold.entries.where((e) => e.value > 0).map((e) => e.key).join(', ')}  ·  $timeStr',
+                          ? tr('Возврат · $timeStr', 'Қайтару · $timeStr')
+                          : '${sale.receiptNumber.isNotEmpty ? '${sale.receiptNumber}  ·  ' : ''}${tr('Р', 'Ө')}: ${sale.sizesSold.entries.where((e) => e.value > 0).map((e) => e.key).join(', ')}  ·  $timeStr',
                       style: manrope(12, FontWeight.w500,
                           color: sale.isReturn ? cRed : cInk3),
                       maxLines: 1,
@@ -763,14 +764,14 @@ class _SaleCard extends StatelessWidget {
               const Divider(),
               const SizedBox(height: 10),
               if (sale.receiptNumber.isNotEmpty)
-                _InfoRow(label: 'Чек нөмірі', value: sale.receiptNumber),
-              _InfoRow(label: 'Сату күні', value: '$dateStr · $timeStr'),
+                _InfoRow(label: tr('Номер чека', 'Чек нөмірі'), value: sale.receiptNumber),
+              _InfoRow(label: tr('Дата продажи', 'Сату күні'), value: '$dateStr · $timeStr'),
               _InfoRow(
-                label: 'Саттушы',
+                label: tr('Продавец', 'Сатушы'),
                 value: sale.isOnline ? 'Онлайн 🛒' : sale.sellerName,
               ),
               _InfoRow(
-                label: 'Төлем түрі',
+                label: tr('Тип оплаты', 'Төлем түрі'),
                 value: _paymentLabel(_resolveMethod(sale)),
               ),
               if (sale.isOnline && sale.depositPaymentMethod.isNotEmpty)
@@ -779,21 +780,21 @@ class _SaleCard extends StatelessWidget {
                   value: _paymentLabel(sale.depositPaymentMethod),
                 ),
               if (sale.isOnline && sale.deliveredByName.isNotEmpty)
-                _InfoRow(label: 'Тапсырды берген', value: sale.deliveredByName),
+                _InfoRow(label: tr('Выдал заказ', 'Тапсырды берген'), value: sale.deliveredByName),
               if (warehouseName.isNotEmpty)
-                _InfoRow(label: 'Қойма', value: warehouseName),
+                _InfoRow(label: tr('Склад', 'Қойма'), value: warehouseName),
               if (sale.hasDiscount) ...[
                 _InfoRow(
-                    label: 'Базалық баға',
+                    label: tr('Базовая цена', 'Базалық баға'),
                     value: '${sale.basePrice.toStringAsFixed(0)} ₸'),
                 _InfoRow(
-                    label: 'Скидка',
+                    label: tr('Скидка', 'Жеңілдік'),
                     value:
                         '-${sale.effectiveDiscountPercent.toStringAsFixed(0)}% '
                         '(−${(sale.basePrice - sale.totalPrice).toStringAsFixed(0)} ₸)'),
               ],
               const SizedBox(height: 10),
-              const Text('Сатылған размерлер:',
+              Text(tr('Проданные размеры:', 'Сатылған өлшемдер:'),
                   style: TextStyle(
                       fontWeight: FontWeight.w600,
                       fontSize: 13,
@@ -810,7 +811,7 @@ class _SaleCard extends StatelessWidget {
                         decoration: BoxDecoration(
                             color: cGreenTint,
                             borderRadius: BorderRadius.circular(8)),
-                        child: Text('Р.${e.key} × ${e.value} шт.',
+                        child: Text(tr('Р.${e.key} × ${e.value} шт.', 'Ө.${e.key} × ${e.value} дана'),
                             style: const TextStyle(
                                 fontWeight: FontWeight.w600,
                                 color: cGreen,
@@ -821,7 +822,7 @@ class _SaleCard extends StatelessWidget {
               const Divider(),
               const SizedBox(height: 8),
               Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                const Text('Барлығы:',
+                Text(tr('Итого:', 'Барлығы:'),
                     style: TextStyle(fontSize: 15, color: cInk2)),
                 Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
                   if (sale.hasDiscount) ...[
@@ -897,13 +898,13 @@ class _HistorySheet extends StatelessWidget {
                       borderRadius: BorderRadius.circular(2)))),
           const SizedBox(height: 12),
           Row(children: [
-            const Text('Операциялар тарихы',
+            Text(tr('История операций', 'Операциялар тарихы'),
                 style: TextStyle(
                     fontSize: 17,
                     fontWeight: FontWeight.w700,
                     color: cInk)),
             const Spacer(),
-            Text('${sales.length} жазба',
+            Text(tr('${sales.length} записей', '${sales.length} жазба'),
                 style: const TextStyle(color: cInk3, fontSize: 13)),
           ]),
           const SizedBox(height: 12),
@@ -912,8 +913,8 @@ class _HistorySheet extends StatelessWidget {
       ),
       Expanded(
         child: sales.isEmpty
-            ? const Center(
-                child: Text('Сатылым жоқ',
+            ? Center(
+                child: Text(tr('Продаж нет', 'Сатылым жоқ'),
                     style: TextStyle(color: cInk2)))
             : ListView.builder(
                 controller: scrollCtrl,
@@ -926,9 +927,9 @@ class _HistorySheet extends StatelessWidget {
                     final total = dayTotals[item] ?? 0.0;
                     final String label;
                     if (item == today) {
-                      label = 'Бүгін';
+                      label = tr('Сегодня', 'Бүгін');
                     } else if (item == yesterday) {
-                      label = 'Кеше';
+                      label = tr('Вчера', 'Кеше');
                     } else {
                       label = '${item.day.toString().padLeft(2, '0')}'
                           '.${item.month.toString().padLeft(2, '0')}'
@@ -959,7 +960,7 @@ class _HistorySheet extends StatelessWidget {
                   final prod = products.firstWhere((p) => p.id == s.productId,
                       orElse: () => ProductModel(
                           id: '',
-                          name: 'Жойылды',
+                          name: tr('Удалён', 'Жойылды'),
                           brand: '',
                           type: '',
                           material: '',
@@ -1058,7 +1059,7 @@ String _paymentLabel(String method) {
     case 'kaspi':  return '📱 Kaspi';
     case 'halyk':  return '📱 Halyk Bank';
     case 'online': return '🛒 Онлайн';
-    default:       return '💵 Наличный';
+    default:       return tr('💵 Наличный', '💵 Қолма-қол');
   }
 }
 

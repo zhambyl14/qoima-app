@@ -10,6 +10,7 @@ import '../../theme/qoima_design.dart';
 import '../../theme/qoima_v2.dart';
 import 'client_shell.dart';
 
+import '../../core/lang.dart';
 /// Wildberries-стиль карточка группы: одна карточка на товар, цветовые
 /// варианты (same name+brand+type) переключаются точками под названием.
 class ProductGroupCard extends StatefulWidget {
@@ -169,7 +170,7 @@ class _ProductGroupCardState extends State<ProductGroupCard> {
                       color: cInk.withValues(alpha: 0.72),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Text('$variantCount түс',
+                    child: Text(tr('$variantCount цв.', '$variantCount түс'),
                         style:
                             manrope(10, FontWeight.w800, color: Colors.white)),
                   ),
@@ -349,7 +350,7 @@ class _SizePickerSheetState extends State<_SizePickerSheet> {
     ));
     navigator.pop();
     messenger.showSnackBar(SnackBar(
-      content: Text('${widget.product.name} ($size) себетке қосылды'),
+      content: Text(tr('${widget.product.name} ($size) добавлен в корзину', '${widget.product.name} ($size) себетке қосылды')),
       backgroundColor: cGreen,
       behavior: SnackBarBehavior.floating,
       duration: const Duration(seconds: 2),
@@ -403,7 +404,7 @@ class _SizePickerSheetState extends State<_SizePickerSheet> {
           ),
         ]),
         const SizedBox(height: 16),
-        QSecLabel('Өлшемді таңдаңыз'),
+        QSecLabel(tr('Выберите размер', 'Өлшемді таңдаңыз')),
         Wrap(
           spacing: 9,
           runSpacing: 9,
@@ -432,7 +433,7 @@ class _SizePickerSheetState extends State<_SizePickerSheet> {
         ),
         const SizedBox(height: 20),
         QPrimaryButton(
-          label: 'Себетке қосу',
+          label: tr('Добавить в корзину', 'Себетке қосу'),
           onPressed: (_selected != null && !_saving) ? _confirm : null,
           height: 52,
           icon: const Icon(Icons.shopping_cart_outlined,

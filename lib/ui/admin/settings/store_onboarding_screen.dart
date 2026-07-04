@@ -7,6 +7,7 @@ import '../../../data/models/store_model.dart';
 import '../../../data/services/firestore_service.dart';
 import '../../../theme/qoima_design.dart';
 
+import '../../../core/lang.dart';
 class StoreOnboardingScreen extends StatefulWidget {
   final VoidCallback onDone;
   const StoreOnboardingScreen({super.key, required this.onDone});
@@ -96,8 +97,8 @@ class _StoreOnboardingScreenState extends State<StoreOnboardingScreen> {
                   ),
                 ),
                 const SizedBox(height: 20),
-                const Center(
-                  child: Text('Дүкеніңізді жасаңыз',
+                Center(
+                  child: Text(tr('Создайте свой магазин', 'Дүкеніңізді жасаңыз'),
                       style: TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.w800,
@@ -105,8 +106,8 @@ class _StoreOnboardingScreenState extends State<StoreOnboardingScreen> {
                           letterSpacing: -0.3)),
                 ),
                 const SizedBox(height: 6),
-                const Center(
-                  child: Text('Сатып алушылар үшін витрина алдын ала баптау',
+                Center(
+                  child: Text(tr('Предварительная настройка витрины для покупателей', 'Сатып алушылар үшін витрина алдын ала баптау'),
                       textAlign: TextAlign.center,
                       style: TextStyle(
                           fontSize: 13, color: cInk2)),
@@ -114,34 +115,34 @@ class _StoreOnboardingScreenState extends State<StoreOnboardingScreen> {
                 const SizedBox(height: 32),
 
                 // ── Store name ─────────────────────────────────────────────
-                _Label('Дүкен атауы *'),
+                _Label(tr('Название магазина *', 'Дүкен атауы *')),
                 const SizedBox(height: 6),
                 TextFormField(
                   controller: _nameCtrl,
                   textCapitalization: TextCapitalization.words,
-                  decoration: const InputDecoration(
-                    hintText: 'Мысалы: Alina Shoes',
+                  decoration: InputDecoration(
+                    hintText: tr('Например: Alina Shoes', 'Мысалы: Alina Shoes'),
                     prefixIcon: Icon(Icons.store_outlined),
                   ),
                   validator: (v) {
-                    if (v == null || v.trim().isEmpty) return 'Атауы міндетті';
-                    if (v.trim().length < 2) return 'Кем дегенде 2 таңба';
+                    if (v == null || v.trim().isEmpty) return tr('Название обязательно', 'Атауы міндетті');
+                    if (v.trim().length < 2) return tr('Минимум 2 символа', 'Кем дегенде 2 таңба');
                     return null;
                   },
                 ),
                 const SizedBox(height: 16),
 
                 // ── City ───────────────────────────────────────────────────
-                _Label('Қала'),
+                _Label(tr('Город', 'Қала')),
                 const SizedBox(height: 6),
                 DropdownButtonFormField<String>(
                   initialValue: _selectedCity,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     prefixIcon: Icon(Icons.location_city_outlined),
-                    hintText: 'Қаланы таңдаңыз',
+                    hintText: tr('Выберите город', 'Қаланы таңдаңыз'),
                   ),
                   items: kzCities
-                      .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                      .map((c) => DropdownMenuItem(value: c, child: Text(trValue(c))))
                       .toList(),
                   onChanged: (v) => setState(() => _selectedCity = v),
                 ),
@@ -163,17 +164,17 @@ class _StoreOnboardingScreenState extends State<StoreOnboardingScreen> {
                 const SizedBox(height: 16),
 
                 // ── Address ────────────────────────────────────────────────
-                _Label('Мекен-жай *'),
+                _Label(tr('Адрес *', 'Мекен-жай *')),
                 const SizedBox(height: 6),
                 TextFormField(
                   controller: _addressCtrl,
-                  decoration: const InputDecoration(
-                    hintText: 'Мысалы: Алматы, Абай д-лы 52',
+                  decoration: InputDecoration(
+                    hintText: tr('Например: Алматы, пр. Абая 52', 'Мысалы: Алматы, Абай д-лы 52'),
                     prefixIcon: Icon(Icons.location_on_outlined),
                   ),
                   validator: (v) {
                     if (v == null || v.trim().isEmpty) {
-                      return 'Мекен-жай міндетті';
+                      return tr('Адрес обязателен', 'Мекен-жай міндетті');
                     }
                     return null;
                   },
@@ -181,14 +182,14 @@ class _StoreOnboardingScreenState extends State<StoreOnboardingScreen> {
                 const SizedBox(height: 16),
 
                 // ── Description ────────────────────────────────────────────
-                _Label('Сипаттама (120 таңба)'),
+                _Label(tr('Описание (120 символов)', 'Сипаттама (120 таңба)')),
                 const SizedBox(height: 6),
                 TextFormField(
                   controller: _descCtrl,
                   maxLines: 3,
                   maxLength: 120,
-                  decoration: const InputDecoration(
-                    hintText: 'Дүкен туралы қысқаша...',
+                  decoration: InputDecoration(
+                    hintText: tr('Кратко о магазине...', 'Дүкен туралы қысқаша...'),
                     prefixIcon: Padding(
                       padding: EdgeInsets.only(bottom: 48),
                       child: Icon(Icons.notes_rounded),
@@ -216,7 +217,7 @@ class _StoreOnboardingScreenState extends State<StoreOnboardingScreen> {
                             height: 20,
                             child: CircularProgressIndicator(
                                 color: Colors.white, strokeWidth: 2))
-                        : const Text('Дүкен жасау',
+                        : Text(tr('Создать магазин', 'Дүкен жасау'),
                             style: TextStyle(
                                 fontWeight: FontWeight.w700, fontSize: 15)),
                   ),
@@ -227,7 +228,7 @@ class _StoreOnboardingScreenState extends State<StoreOnboardingScreen> {
                   height: 48,
                   child: TextButton(
                     onPressed: _isLoading ? null : widget.onDone,
-                    child: const Text('Өткізіп жіберу',
+                    child: Text(tr('Пропустить', 'Өткізіп жіберу'),
                         style: TextStyle(
                             color: cInk2, fontSize: 14)),
                   ),

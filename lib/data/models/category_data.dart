@@ -1,27 +1,38 @@
 import 'package:flutter/material.dart';
+import '../../core/lang.dart';
 
 /// Категория товара (тип) для мульти-категорийного каталога Qoima v2.
 ///
 /// Существующие «обувные» товары без поля `categoryKey` трактуются как `shoes`
 /// (см. [ProductModel.effectiveCategoryKey]) — обратная совместимость.
+///
+/// Атаулар ru/kk қос нұсқада сақталады; [name]/[short]/[sizeLabel] —
+/// ағымдағы тілге сай getter-лер (шақыру орындары өзгеріссіз).
 class CategoryData {
   final String key; // 'shoes' | 'tshirt' | 'outer' | ...
-  final String name; // полное название («Обувь»)
-  final String short; // короткое («Обувь», «Футболки»)
+  final String nameRu, nameKk; // полное название («Обувь»)
+  final String shortRu, shortKk; // короткое («Обувь», «Футболки»)
   final String iconKey; // ключ иконки для CategoryIcon
   final String tone; // ключ тона (см. kCategoryTones)
-  final String sizeLabel; // подпись поля размера («Размер», «Обхват»)
+  final String sizeLabelRu, sizeLabelKk; // подпись поля размера
   final List<String> sizes;
 
   const CategoryData({
     required this.key,
-    required this.name,
-    required this.short,
+    required this.nameRu,
+    required this.nameKk,
+    required this.shortRu,
+    required this.shortKk,
     required this.iconKey,
     required this.tone,
-    required this.sizeLabel,
+    required this.sizeLabelRu,
+    required this.sizeLabelKk,
     required this.sizes,
   });
+
+  String get name => tr(nameRu, nameKk);
+  String get short => tr(shortRu, shortKk);
+  String get sizeLabel => tr(sizeLabelRu, sizeLabelKk);
 }
 
 class CategoryTone {
@@ -35,67 +46,91 @@ class CategoryTone {
 const List<CategoryData> kCategories = [
   CategoryData(
       key: 'shoes',
-      name: 'Обувь',
-      short: 'Обувь',
+      nameRu: 'Обувь',
+      nameKk: 'Аяқ киім',
+      shortRu: 'Обувь',
+      shortKk: 'Аяқ киім',
       iconKey: 'shoe',
       tone: 'green',
-      sizeLabel: 'Размер',
+      sizeLabelRu: 'Размер',
+      sizeLabelKk: 'Өлшем',
       sizes: ['36', '37', '38', '39', '40', '41', '42', '43', '44', '45']),
   CategoryData(
       key: 'tshirt',
-      name: 'Футболки и майки',
-      short: 'Футболки',
+      nameRu: 'Футболки и майки',
+      nameKk: 'Футболкалар мен майкалар',
+      shortRu: 'Футболки',
+      shortKk: 'Футболкалар',
       iconKey: 'tshirt',
       tone: 'blue',
-      sizeLabel: 'Размер',
+      sizeLabelRu: 'Размер',
+      sizeLabelKk: 'Өлшем',
       sizes: ['XS', 'S', 'M', 'L', 'XL', 'XXL']),
   CategoryData(
       key: 'outer',
-      name: 'Верхняя одежда',
-      short: 'Куртки',
+      nameRu: 'Верхняя одежда',
+      nameKk: 'Сырт киім',
+      shortRu: 'Куртки',
+      shortKk: 'Күртелер',
       iconKey: 'jacket',
       tone: 'purple',
-      sizeLabel: 'Размер',
+      sizeLabelRu: 'Размер',
+      sizeLabelKk: 'Өлшем',
       sizes: ['S', 'M', 'L', 'XL', 'XXL']),
   CategoryData(
       key: 'caps',
-      name: 'Головные уборы',
-      short: 'Головные',
+      nameRu: 'Головные уборы',
+      nameKk: 'Бас киімдер',
+      shortRu: 'Головные',
+      shortKk: 'Бас киім',
       iconKey: 'cap',
       tone: 'amber',
-      sizeLabel: 'Обхват',
+      sizeLabelRu: 'Обхват',
+      sizeLabelKk: 'Айналымы',
       sizes: ['56', '57', '58', '59', '60', 'Univ']),
   CategoryData(
       key: 'pants',
-      name: 'Брюки и джинсы',
-      short: 'Брюки',
+      nameRu: 'Брюки и джинсы',
+      nameKk: 'Шалбарлар мен джинсылар',
+      shortRu: 'Брюки',
+      shortKk: 'Шалбарлар',
       iconKey: 'pants',
       tone: 'slate',
-      sizeLabel: 'Размер',
+      sizeLabelRu: 'Размер',
+      sizeLabelKk: 'Өлшем',
       sizes: ['28', '30', '32', '34', '36', '38']),
   CategoryData(
       key: 'dress',
-      name: 'Платья и юбки',
-      short: 'Платья',
+      nameRu: 'Платья и юбки',
+      nameKk: 'Көйлектер мен юбкалар',
+      shortRu: 'Платья',
+      shortKk: 'Көйлектер',
       iconKey: 'dress',
       tone: 'pink',
-      sizeLabel: 'Размер',
+      sizeLabelRu: 'Размер',
+      sizeLabelKk: 'Өлшем',
       sizes: ['XS', 'S', 'M', 'L', 'XL']),
   CategoryData(
       key: 'acc',
-      name: 'Аксессуары',
-      short: 'Аксесс.',
+      nameRu: 'Аксессуары',
+      nameKk: 'Аксессуарлар',
+      shortRu: 'Аксесс.',
+      shortKk: 'Аксесс.',
       iconKey: 'bag',
       tone: 'green',
-      sizeLabel: 'Размер',
+      sizeLabelRu: 'Размер',
+      sizeLabelKk: 'Өлшем',
       sizes: ['Один размер']),
   CategoryData(
       key: 'sport',
-      name: 'Спорт',
-      short: 'Спорт',
+      nameRu: 'Спорт',
+      nameKk: 'Спорт',
+      shortRu: 'Спорт',
+      shortKk: 'Спорт',
       iconKey: 'sport',
       tone: 'blue',
-      sizeLabel: 'Размер',
+      sizeLabelRu: 'Размер',
+      sizeLabelKk: 'Өлшем',
       sizes: ['S', 'M', 'L', 'XL']),
 ];
 

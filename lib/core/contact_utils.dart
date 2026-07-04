@@ -1,10 +1,11 @@
 import 'package:url_launcher/url_launcher.dart';
 
+import 'lang.dart';
 /// Прямой звонок. Использует схему tel:.
 Future<void> makePhoneCall(String phone) async {
   final uri = Uri(scheme: 'tel', path: phone);
   if (!await launchUrl(uri)) {
-    throw Exception('Не удалось совершить звонок: $phone');
+    throw Exception(tr('Не удалось совершить звонок: $phone', 'Қоңырау шалу мүмкін болмады: $phone'));
   }
 }
 
@@ -13,7 +14,7 @@ Future<void> makePhoneCall(String phone) async {
 Future<void> openTelegram(String username) async {
   final uri = Uri.parse('https://t.me/$username');
   if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-    throw Exception('Не удалось открыть Telegram');
+    throw Exception(tr('Не удалось открыть Telegram', 'Telegram ашылмады'));
   }
 }
 
@@ -27,6 +28,6 @@ Future<void> openWhatsApp(String phone, String message) async {
   final encoded = Uri.encodeComponent(message);
   final uri = Uri.parse('https://wa.me/$cleaned?text=$encoded');
   if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-    throw Exception('Не удалось открыть WhatsApp');
+    throw Exception(tr('Не удалось открыть WhatsApp', 'WhatsApp ашылмады'));
   }
 }

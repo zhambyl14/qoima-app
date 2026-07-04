@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import '../../core/lang.dart';
 import '../../theme/qoima_design.dart';
 import '../auth/client_login_screen.dart';
 import '../client/client_home_screen.dart';
@@ -121,7 +122,7 @@ class GuestShellState extends State<GuestShell> {
                         ]),
                         const SizedBox(height: 3),
                         Text(
-                          _tabs[i].label,
+                          trValue(_tabs[i].label),
                           style: manrope(
                             10.5,
                             active ? FontWeight.w700 : FontWeight.w600,

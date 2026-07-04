@@ -7,6 +7,7 @@ import '../../../data/services/firestore_service.dart';
 import '../../../theme/qoima_design.dart';
 import 'admin_my_store_discount_add_screen.dart';
 
+import '../../../core/lang.dart';
 class AdminMyStoreDiscountsScreen extends StatelessWidget {
   const AdminMyStoreDiscountsScreen({super.key});
 
@@ -23,8 +24,8 @@ class AdminMyStoreDiscountsScreen extends StatelessWidget {
             final active = (snap.data ?? []).where((d) => d.isActive).length;
             return QGradientHeader(
               compact: true,
-              title: 'Скидки',
-              subtitle: '$active активных акций',
+              title: tr('Скидки', 'Жеңілдіктер'),
+              subtitle: tr('$active активных акций', '$active белсенді акция'),
               showBack: true,
               action: QHeaderBtn(Icons.add_rounded,
                   onTap: () => Navigator.push(context,
@@ -217,7 +218,7 @@ class _DiscountCardState extends State<_DiscountCard> {
               ]),
             ),
             Column(children: [
-              QPill(d.isActive ? 'Активна' : 'Выключена',
+              QPill(d.isActive ? tr('Активна', 'Белсенді') : tr('Выключена', 'Өшірулі'),
                   tone: d.isActive ? 'red' : 'gray'),
               const SizedBox(height: 6),
               GestureDetector(
@@ -241,8 +242,8 @@ class _DiscountCardState extends State<_DiscountCard> {
               Expanded(
                 child: Text(
                   d.hasDateLimit && d.daysLeft != null
-                      ? (d.daysLeft! > 0 ? 'Қалды ${d.daysLeft} күн' : 'Бүгін соңғы күн')
-                      : 'Мерзімсіз',
+                      ? (d.daysLeft! > 0 ? tr('Осталось ${d.daysLeft} дн.', 'Қалды ${d.daysLeft} күн') : tr('Сегодня последний день', 'Бүгін соңғы күн'))
+                      : tr('Бессрочно', 'Мерзімсіз'),
                   style: manrope(12.5, FontWeight.w700,
                       color: urgent ? const Color(0xFF9A6A06) : cInk2),
                 ),
@@ -250,7 +251,7 @@ class _DiscountCardState extends State<_DiscountCard> {
               GestureDetector(
                 onTap: _ids.isEmpty ? null : _toggleExpand,
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Text('${_ids.length} тауар',
+                  Text(tr('${_ids.length} товаров', '${_ids.length} тауар'),
                       style: manrope(12, FontWeight.w600,
                           color: _ids.isEmpty ? cInk3 : cGreen)),
                   if (_ids.isNotEmpty) ...[
@@ -294,7 +295,7 @@ class _DiscountCardState extends State<_DiscountCard> {
                       else if (_products.isEmpty)
                         Padding(
                           padding: const EdgeInsets.symmetric(vertical: 8),
-                          child: Text('Барлық тауарлар сатылды немесе жасырылды',
+                          child: Text(tr('Все товары проданы или скрыты', 'Барлық тауарлар сатылды немесе жасырылды'),
                               style: manrope(12.5, FontWeight.w500, color: cInk3)),
                         )
                       else
@@ -319,7 +320,7 @@ class _DiscountCardState extends State<_DiscountCard> {
                           child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                             const Icon(Icons.add_rounded, color: cGreen, size: 17),
                             const SizedBox(width: 6),
-                            Text('Тауар қосу', style: manrope(13, FontWeight.w700, color: cGreen)),
+                            Text(tr('Добавить товар', 'Тауар қосу'), style: manrope(13, FontWeight.w700, color: cGreen)),
                           ]),
                         ),
                       ),
@@ -337,16 +338,16 @@ class _DiscountCardState extends State<_DiscountCard> {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: Text('Акцияны жою?', style: manrope(17, FontWeight.w700, color: cInk)),
-        content: Text('«${widget.d.displayValue}» — ${widget.d.scopeLabel}.\nТауарлардағы скидка алынады.',
+        title: Text(tr('Удалить акцию?', 'Акцияны жою?'), style: manrope(17, FontWeight.w700, color: cInk)),
+        content: Text(tr('«${widget.d.displayValue}» — ${widget.d.scopeLabel}.\nСкидка с товаров будет снята.', '«${widget.d.displayValue}» — ${widget.d.scopeLabel}.\nТауарлардағы скидка алынады.'),
             style: manrope(14, FontWeight.w500, color: cInk2)),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: Text('Болдырмау', style: manrope(14, FontWeight.w600, color: cInk2))),
+              child: Text(tr('Отмена', 'Болдырмау'), style: manrope(14, FontWeight.w600, color: cInk2))),
           TextButton(
               onPressed: () { Navigator.pop(ctx); _delete(); },
-              child: Text('Жою', style: manrope(14, FontWeight.w600, color: cRed))),
+              child: Text(tr('Удалить', 'Жою'), style: manrope(14, FontWeight.w600, color: cRed))),
         ],
       ),
     );
@@ -434,14 +435,14 @@ class _AddProductSheetState extends State<_AddProductSheet> {
                 color: cLine, borderRadius: BorderRadius.circular(2)),
           ),
         ),
-        Text('Акцияға тауар қосу',
+        Text(tr('Добавить товар в акцию', 'Акцияға тауар қосу'),
             style: manrope(16, FontWeight.w800, color: cInk)),
         const SizedBox(height: 14),
         TextField(
           controller: _searchCtrl,
           onChanged: (_) => setState(() {}),
-          decoration: const InputDecoration(
-            hintText: 'Тауар іздеу (атауы, бренд, артикул)',
+          decoration: InputDecoration(
+            hintText: tr('Поиск товара (название, бренд, артикул)', 'Тауар іздеу (атауы, бренд, артикул)'),
             prefixIcon: Icon(Icons.search_rounded, color: cInk3),
           ),
         ),
@@ -457,7 +458,7 @@ class _AddProductSheetState extends State<_AddProductSheet> {
             child: _filtered.isEmpty
                 ? Padding(
                     padding: const EdgeInsets.all(24),
-                    child: Text('Тауар табылмады',
+                    child: Text(tr('Товары не найдены', 'Тауар табылмады'),
                         style: manrope(13.5, FontWeight.w500, color: cInk3),
                         textAlign: TextAlign.center),
                   )
@@ -622,7 +623,7 @@ class _AddBtn extends StatelessWidget {
           child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
             const Icon(Icons.add_rounded, color: cRed, size: 20),
             const SizedBox(width: 8),
-            Text('Жаңа акция жасау',
+            Text(tr('Создать новую акцию', 'Жаңа акция жасау'),
                 style: manrope(14, FontWeight.w700, color: cRed)),
           ]),
         ),
@@ -640,14 +641,14 @@ class _Empty extends StatelessWidget {
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
             const Icon(Icons.percent_rounded, size: 56, color: cInk3),
             const SizedBox(height: 12),
-            Text('Акциялар жоқ',
+            Text(tr('Акций нет', 'Акциялар жоқ'),
                 style: manrope(16, FontWeight.w700, color: cInk2)),
             const SizedBox(height: 6),
-            Text('Тауарға, санатқа немесе қоймаға скидка қойыңыз',
+            Text(tr('Установите скидку на товар, категорию или склад', 'Тауарға, санатқа немесе қоймаға скидка қойыңыз'),
                 textAlign: TextAlign.center,
                 style: manrope(13, FontWeight.w500, color: cInk3)),
             const SizedBox(height: 20),
-            QPrimaryButton(label: 'Акция жасау', onPressed: onAdd, height: 46),
+            QPrimaryButton(label: tr('Создать акцию', 'Акция жасау'), onPressed: onAdd, height: 46),
           ]),
         ),
       );

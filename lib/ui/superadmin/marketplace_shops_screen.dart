@@ -4,6 +4,7 @@ import '../../data/models/store_model.dart';
 import '../../data/repositories/store_moderation_repository.dart';
 import '../../theme/qoima_design.dart';
 
+import '../../core/lang.dart';
 /// Superadmin — маркетплейс дүкендерін басқару + блоктау (v10 §12).
 class MarketplaceShopsScreen extends StatefulWidget {
   const MarketplaceShopsScreen({super.key});
@@ -40,8 +41,8 @@ class _MarketplaceShopsScreenState extends State<MarketplaceShopsScreen> {
 
           return Column(children: [
             QGradientHeader(
-              title: 'Магазины маркетплейса',
-              subtitle: 'Всего ${real.length}',
+              title: tr('Магазины маркетплейса', 'Маркетплейс дүкендері'),
+              subtitle: tr('Всего ${real.length}', 'Барлығы ${real.length}'),
               compact: true,
               showBack: true,
               bottom: [
@@ -52,11 +53,11 @@ class _MarketplaceShopsScreenState extends State<MarketplaceShopsScreen> {
                     scrollDirection: Axis.horizontal,
                     children: [
                       _TabChip(
-                          label: 'Активные ($active)',
+                          label: tr('Активные ($active)', 'Белсенді ($active)'),
                           active: _tab == 0,
                           onTap: () => setState(() => _tab = 0)),
                       _TabChip(
-                          label: 'Заблокированные ($blocked)',
+                          label: tr('Заблокированные ($blocked)', 'Блокталғандар ($blocked)'),
                           active: _tab == 1,
                           onTap: () => setState(() => _tab = 1)),
                     ],
@@ -92,7 +93,7 @@ class _MarketplaceShopsScreenState extends State<MarketplaceShopsScreen> {
   Future<void> _unblock(StoreModel shop) async {
     try {
       await _repo.unblockStore(shop.adminUid);
-      _snack('Магазин разблокирован', cGreen);
+      _snack(tr('Магазин разблокирован', 'Дүкен блоктан шығарылды'), cGreen);
     } catch (e) {
       _snack(e.toString(), cRed);
     }
@@ -112,7 +113,7 @@ class _MarketplaceShopsScreenState extends State<MarketplaceShopsScreen> {
         reason: reason,
         blockedBy: Supabase.instance.client.auth.currentUser!.id,
       );
-      _snack('Магазин «${shop.storeName}» заблокирован', cInk);
+      _snack(tr('Магазин «${shop.storeName}» заблокирован', '«${shop.storeName}» дүкені блокталды'), cInk);
     } catch (e) {
       _snack(e.toString(), cRed);
     }
@@ -140,7 +141,7 @@ class _MarketplaceShopsScreenState extends State<MarketplaceShopsScreen> {
                   color: cGreen, size: 34),
             ),
             const SizedBox(height: 14),
-            Text('Нет магазинов',
+            Text(tr('Нет магазинов', 'Дүкендер жоқ'),
                 style: manrope(16, FontWeight.w700, color: cInk)),
           ],
         ),
@@ -237,7 +238,7 @@ class _ShopRow extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            QPill(blocked ? 'Блок' : 'Активен',
+            QPill(blocked ? 'Блок' : tr('Активен', 'Белсенді'),
                 tone: blocked ? 'red' : 'green'),
           ]),
         ),
@@ -258,14 +259,14 @@ class _ShopRow extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 9),
           child: blocked
               ? _ActionBtn(
-                  label: 'Разблокировать',
+                  label: tr('Разблокировать', 'Блоктан шығару'),
                   bg: cGreenTint,
                   fg: cGreenDeep,
                   icon: Icons.lock_open_rounded,
                   onTap: onUnblock,
                 )
               : _ActionBtn(
-                  label: 'Заблокировать',
+                  label: tr('Заблокировать', 'Блоктау'),
                   bg: cRedTint,
                   fg: cRed,
                   icon: Icons.lock_outline_rounded,
@@ -362,18 +363,18 @@ class _BlockSheetState extends State<_BlockSheet> {
             ),
             const SizedBox(height: 12),
             Center(
-              child: Text('Заблокировать магазин',
+              child: Text(tr('Заблокировать магазин', 'Дүкенді блоктау'),
                   style: manrope(17, FontWeight.w800, color: cInk)),
             ),
             const SizedBox(height: 4),
             Center(
               child: Text(
-                  '«${widget.shop.storeName}» будет скрыт с маркетплейса',
+                  tr('«${widget.shop.storeName}» будет скрыт с маркетплейса', '«${widget.shop.storeName}» маркетплейстен жасырылады'),
                   textAlign: TextAlign.center,
                   style: manrope(12.5, FontWeight.w500, color: cInk2)),
             ),
             const SizedBox(height: 18),
-            const QSecLabel('Выберите причину'),
+            QSecLabel(tr('Выберите причину', 'Себепті таңдаңыз')),
             ...List.generate(_blockReasons.length, (i) {
               final sel = _selected == i;
               return Padding(
@@ -412,7 +413,7 @@ class _BlockSheetState extends State<_BlockSheet> {
                       ),
                       const SizedBox(width: 11),
                       Expanded(
-                        child: Text(_blockReasons[i],
+                        child: Text(trValue(_blockReasons[i]),
                             style: manrope(13.5,
                                 sel ? FontWeight.w700 : FontWeight.w600,
                                 color: sel
@@ -465,7 +466,7 @@ class _BlockSheetState extends State<_BlockSheet> {
                     const Icon(Icons.lock_rounded,
                         color: Colors.white, size: 19),
                     const SizedBox(width: 8),
-                    Text('Подтвердить блокировку',
+                    Text(tr('Подтвердить блокировку', 'Блоктауды растау'),
                         style:
                             manrope(15, FontWeight.w700, color: Colors.white)),
                   ],
@@ -484,7 +485,7 @@ class _BlockSheetState extends State<_BlockSheet> {
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(15)),
                 ),
-                child: Text('Отмена',
+                child: Text(tr('Отмена', 'Болдырмау'),
                     style: manrope(14.5, FontWeight.w700, color: cInk2)),
               ),
             ),

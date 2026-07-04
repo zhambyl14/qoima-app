@@ -6,6 +6,7 @@ import '../../data/repositories/shop_request_repository.dart';
 import '../../theme/qoima_design.dart';
 import 'reject_reason_sheet.dart';
 
+import '../../core/lang.dart';
 /// Superadmin — заявка детальі. Бекіту / бас тарту (себебімен).
 class ShopRequestDetailScreen extends StatefulWidget {
   final ShopRequestModel req;
@@ -32,7 +33,7 @@ class _ShopRequestDetailScreenState extends State<ShopRequestDetailScreen> {
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Магазин «${req.shopName}» одобрен'),
+          content: Text(tr('Магазин «${req.shopName}» одобрен', '«${req.shopName}» дүкені мақұлданды')),
           backgroundColor: cGreen,
           behavior: SnackBarBehavior.floating,
         ));
@@ -52,7 +53,7 @@ class _ShopRequestDetailScreenState extends State<ShopRequestDetailScreen> {
   Future<void> _reject() async {
     final note = await showRejectReasonSheet(
       context,
-      title: 'Отклонение заявки',
+      title: tr('Отклонение заявки', 'Өтінімді қабылдамау'),
       subtitle: req.shopName,
     );
     if (note == null || !mounted) return;
@@ -65,8 +66,8 @@ class _ShopRequestDetailScreenState extends State<ShopRequestDetailScreen> {
       );
       if (mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Заявка отклонена'),
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(tr('Заявка отклонена', 'Өтінім қабылданбады')),
           backgroundColor: cInk,
           behavior: SnackBarBehavior.floating,
         ));
@@ -91,7 +92,7 @@ class _ShopRequestDetailScreenState extends State<ShopRequestDetailScreen> {
       backgroundColor: cBg,
       body: Column(children: [
         QGradientHeader(
-          title: 'Заявка #$idShort',
+          title: tr('Заявка #$idShort', 'Өтінім #$idShort'),
           subtitle: '${req.shopName} · ${_fmtDate(req.createdAt)}',
           showBack: true,
         ),
@@ -101,7 +102,7 @@ class _ShopRequestDetailScreenState extends State<ShopRequestDetailScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const QSecLabel('О владельце'),
+                QSecLabel(tr('О владельце', 'Иесі туралы')),
                 QCard(
                   child: Column(children: [
                     Row(children: [
@@ -121,7 +122,7 @@ class _ShopRequestDetailScreenState extends State<ShopRequestDetailScreen> {
                                     manrope(15, FontWeight.w800, color: cInk)),
                             Text(
                                 req.ownerPhone.isEmpty
-                                    ? 'Телефон не указан'
+                                    ? tr('Телефон не указан', 'Телефон көрсетілмеген')
                                     : req.ownerPhone,
                                 style: manrope(12.5, FontWeight.w500,
                                     color: cInk3)),
@@ -133,30 +134,30 @@ class _ShopRequestDetailScreenState extends State<ShopRequestDetailScreen> {
                     Container(height: 1, color: cLine),
                     const SizedBox(height: 12),
                     _InfoRow(
-                        'ИИН / БИН',
+                        tr('ИИН / БИН', 'ЖСН / БСН'),
                         req.ownerIin.isEmpty ? '—' : req.ownerIin),
                     const SizedBox(height: 8),
-                    _InfoRow('Дата подачи', _fmtDateTime(req.createdAt)),
+                    _InfoRow(tr('Дата подачи', 'Берілген күні'), _fmtDateTime(req.createdAt)),
                   ]),
                 ),
 
                 const SizedBox(height: 18),
-                const QSecLabel('О магазине'),
+                QSecLabel(tr('О магазине', 'Дүкен туралы')),
                 QCard(
                   child: Column(children: [
-                    _InfoRow('Название', req.shopName),
+                    _InfoRow(tr('Название', 'Атауы'), req.shopName),
                     const SizedBox(height: 8),
-                    _InfoRow('Город', req.city.isEmpty ? '—' : req.city),
+                    _InfoRow(tr('Город', 'Қала'), req.city.isEmpty ? '—' : trValue(req.city)),
                     const SizedBox(height: 8),
                     _InfoRow('Категория',
-                        req.category.isEmpty ? '—' : req.category),
+                        req.category.isEmpty ? '—' : trValue(req.category)),
                     if (req.description.isNotEmpty) ...[
                       const SizedBox(height: 12),
                       Container(height: 1, color: cLine),
                       const SizedBox(height: 12),
                       Align(
                         alignment: Alignment.centerLeft,
-                        child: Text('Описание',
+                        child: Text(tr('Описание', 'Сипаттама'),
                             style: manrope(12.5, FontWeight.w600, color: cInk3)),
                       ),
                       const SizedBox(height: 4),
@@ -169,7 +170,7 @@ class _ShopRequestDetailScreenState extends State<ShopRequestDetailScreen> {
 
                 if (req.cardNumber.isNotEmpty) ...[
                   const SizedBox(height: 18),
-                  const QSecLabel('Финансы — карта'),
+                  QSecLabel(tr('Финансы — карта', 'Қаржы — карта')),
                   _CardInfoCard(req: req),
                 ],
 
@@ -177,7 +178,7 @@ class _ShopRequestDetailScreenState extends State<ShopRequestDetailScreen> {
 
                 if (req.isPending) ...[
                   QPrimaryButton(
-                    label: 'Одобрить магазин',
+                    label: tr('Одобрить магазин', 'Дүкенді мақұлдау'),
                     isLoading: _loading,
                     icon: const Icon(Icons.check_rounded,
                         color: Colors.white, size: 20),
@@ -195,7 +196,7 @@ class _ShopRequestDetailScreenState extends State<ShopRequestDetailScreen> {
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(15)),
                       ),
-                      child: Text('Отклонить',
+                      child: Text(tr('Отклонить', 'Қабылдамау'),
                           style: manrope(15, FontWeight.w700, color: cRed)),
                     ),
                   ),
@@ -205,7 +206,7 @@ class _ShopRequestDetailScreenState extends State<ShopRequestDetailScreen> {
                     bg: cGreenTint,
                     icon: Icons.check_circle_rounded,
                     text:
-                        'Одобрено · ${req.reviewedAt != null ? _fmtDate(req.reviewedAt!) : ''}',
+                        tr('Одобрено · ${req.reviewedAt != null ? _fmtDate(req.reviewedAt!) : ''}', 'Мақұлданды · ${req.reviewedAt != null ? _fmtDate(req.reviewedAt!) : ''}'),
                   ),
                 ] else if (req.isRejected) ...[
                   _StatusBanner(
@@ -213,7 +214,7 @@ class _ShopRequestDetailScreenState extends State<ShopRequestDetailScreen> {
                     bg: cRedTint,
                     icon: Icons.cancel_rounded,
                     text:
-                        'Отклонено · ${req.reviewedAt != null ? _fmtDate(req.reviewedAt!) : ''}',
+                        tr('Отклонено · ${req.reviewedAt != null ? _fmtDate(req.reviewedAt!) : ''}', 'Қабылданбады · ${req.reviewedAt != null ? _fmtDate(req.reviewedAt!) : ''}'),
                     note: req.reviewNote,
                   ),
                 ],
@@ -271,15 +272,15 @@ class _CardInfoCard extends StatelessWidget {
             ),
           ),
         ]),
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
         Wrap(
           spacing: 8,
           runSpacing: 8,
-          children: const [
-            QPill('БИН проверен',
+          children: [
+            QPill(tr('БИН проверен', 'БСН тексерілді'),
                 tone: 'green',
                 icon: Icon(Icons.check_rounded, color: cGreenDeep, size: 13)),
-            QPill('Владелец совпадает',
+            QPill(tr('Владелец совпадает', 'Иесі сәйкес келеді'),
                 tone: 'green',
                 icon: Icon(Icons.check_rounded, color: cGreenDeep, size: 13)),
           ],

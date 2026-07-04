@@ -7,6 +7,7 @@ import '../../../data/services/return_service.dart';
 import '../../../theme/qoima_design.dart';
 import 'client_return_status_screen.dart';
 
+import '../../../core/lang.dart';
 class ClientReturnFormScreen extends StatefulWidget {
   final OrderModel order;
   const ClientReturnFormScreen({super.key, required this.order});
@@ -301,7 +302,7 @@ class _ItemsPage extends StatelessWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis),
                           Text(
-                              'Р.${entry.item.size}  ×${entry.item.quantity}',
+                              tr('Р.${entry.item.size}  ×${entry.item.quantity}', 'Ө.${entry.item.size}  ×${entry.item.quantity}'),
                               style: manrope(12, FontWeight.w500,
                                   color: cInk3)),
                         ],
@@ -317,7 +318,7 @@ class _ItemsPage extends StatelessWidget {
           ],
         ),
       ),
-      _NextButton(label: 'Далее', enabled: hasSelection, onTap: onNext),
+      _NextButton(label: tr('Далее', 'Әрі қарай'), enabled: hasSelection, onTap: onNext),
     ]);
   }
 }
@@ -420,7 +421,7 @@ class _ReasonPage extends StatelessWidget {
                     const Icon(Icons.add_photo_alternate_outlined,
                         color: cInk3, size: 28),
                     const SizedBox(height: 4),
-                    Text('Фото жүктеу (жоспарда)',
+                    Text(tr('Загрузка фото (в планах)', 'Фото жүктеу (жоспарда)'),
                         style: manrope(12, FontWeight.w500, color: cInk3)),
                   ],
                 ),
@@ -429,7 +430,7 @@ class _ReasonPage extends StatelessWidget {
           ],
         ),
       ),
-      _NextButton(label: 'Далее', onTap: onNext),
+      _NextButton(label: tr('Далее', 'Әрі қарай'), onTap: onNext),
     ]);
   }
 }
@@ -494,7 +495,7 @@ class _DeliveryPage extends StatelessWidget {
                           Text(
                             isCourier
                                 ? '${courierFee.toStringAsFixed(0)} ₸'
-                                : 'Тегін',
+                                : tr('Бесплатно', 'Тегін'),
                             style: manrope(12, FontWeight.w600,
                                 color: isCourier ? cAmber : cGreen),
                           ),
@@ -535,7 +536,7 @@ class _DeliveryPage extends StatelessWidget {
                       Text(refundMethod.label(context),
                           style: manrope(14, FontWeight.w700,
                               color: cGreenDeep)),
-                      Text('Төлем әдісіне сәйкес',
+                      Text(tr('Согласно способу оплаты', 'Төлем әдісіне сәйкес'),
                           style:
                               manrope(11.5, FontWeight.w500, color: cInk3)),
                     ],
@@ -547,7 +548,7 @@ class _DeliveryPage extends StatelessWidget {
           ],
         ),
       ),
-      _NextButton(label: 'Далее', onTap: onNext),
+      _NextButton(label: tr('Далее', 'Әрі қарай'), onTap: onNext),
     ]);
   }
 }
@@ -600,7 +601,7 @@ class _SummaryPage extends StatelessWidget {
                           child: Row(children: [
                             Expanded(
                               child: Text(
-                                '${i.productTitle}  Р.${i.size}  ×${i.quantity}',
+                                tr('${i.productTitle}  Р.${i.size}  ×${i.quantity}', '${i.productTitle}  Ө.${i.size}  ×${i.quantity}'),
                                 style:
                                     manrope(13, FontWeight.w500, color: cInk),
                                 maxLines: 1,
@@ -647,7 +648,7 @@ class _SummaryPage extends StatelessWidget {
                 Text(
                   isCourier
                       ? '-${courierFee.toStringAsFixed(0)} ₸'
-                      : 'Тегін',
+                      : tr('Бесплатно', 'Тегін'),
                   style: manrope(13, FontWeight.w600,
                       color: isCourier ? cAmber : cGreen),
                 ),
@@ -677,7 +678,7 @@ class _SummaryPage extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Тауарлар сомасы',
+                    Text(tr('Сумма товаров', 'Тауарлар сомасы'),
                         style: manrope(13, FontWeight.w500, color: cInk2)),
                     Text('${itemsTotal.toStringAsFixed(0)} ₸',
                         style: manrope(13, FontWeight.w600, color: cInk)),

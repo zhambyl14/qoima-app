@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/qoima_design.dart';
 import '../data/models/order_model.dart';
 
+import 'lang.dart';
 /// Тапсырыс статусын қазақша белгілерге, түстерге және QPill тонына
 /// айналдыратын ортақ көмекшілер. Қолданыстағы [OrderModel] статустарына
 /// негізделген (жаңа статус схемасын ЕНГІЗБЕЙДІ — админ/сатушы ағындары сол
@@ -9,21 +10,21 @@ import '../data/models/order_model.dart';
 String orderStatusLabel(String status) {
   switch (status) {
     case OrderModel.statusPending:
-      return 'Төлем күтілуде';
+      return tr('Ожидает оплаты', 'Төлем күтілуде');
     case OrderModel.statusReserved:
-      return 'Броньда';
+      return tr('В брони', 'Броньда');
     case OrderModel.statusRejected:
-      return 'Қабылданбады';
+      return tr('Отклонён', 'Қабылданбады');
     case OrderModel.statusConfirmed:
-      return 'Төленді · Дайын';
+      return tr('Оплачен · Готов', 'Төленді · Дайын');
     case OrderModel.statusReady:
-      return 'Дайын';
+      return tr('Готов', 'Дайын');
     case OrderModel.statusCompleted:
-      return 'Алынды';
+      return tr('Получен', 'Алынды');
     case OrderModel.statusCancelled:
-      return 'Бас тартылды';
+      return tr('Отменён', 'Бас тартылды');
     case OrderModel.statusReturned:
-      return 'Қайтарылды';
+      return tr('Возвращён', 'Қайтарылды');
     default:
       return status;
   }

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../core/app_user.dart';
 import '../../theme/qoima_design.dart';
 
+import '../../core/lang.dart';
 /// Шарттарды қабылдау экраны. Жаңа admin (owner) тіркелген соң алғашқы қадам.
 /// Екі checkbox белгіленбейінше «Завершить» белсенді емес. Қабылдаған соң
 /// users/{uid}.termsAccepted=true жазылып, AppUser жаңарады — ары қарай
@@ -54,8 +55,8 @@ class _TermsScreenState extends State<TermsScreen> {
       backgroundColor: cBg,
       body: Column(children: [
         QGradientHeader(
-          title: 'Условия использования',
-          subtitle: 'Шаг 1 из 2',
+          title: tr('Условия использования', 'Қолдану шарттары'),
+          subtitle: tr('Шаг 1 из 2', '2 қадамның 1-і'),
           showBack: widget.onCancel != null,
           onBack: _loading ? null : widget.onCancel,
         ),
@@ -82,7 +83,7 @@ class _TermsScreenState extends State<TermsScreen> {
                               borderRadius: BorderRadius.circular(2)))),
                 ]),
                 const SizedBox(height: 16),
-                Text('Ознакомьтесь с условиями',
+                Text(tr('Ознакомьтесь с условиями', 'Шарттармен танысыңыз'),
                     style: manrope(15, FontWeight.w700, color: cInk)),
                 const SizedBox(height: 12),
 
@@ -95,12 +96,12 @@ class _TermsScreenState extends State<TermsScreen> {
                       children: [
                         Row(children: [
                           QIconTile(
-                            icon: const Icon(Icons.verified_user_outlined,
+                            icon: Icon(Icons.verified_user_outlined,
                                 color: cGreen, size: 20),
                             tone: 'green',
                             size: 40,
                           ),
-                          const SizedBox(width: 12),
+                          SizedBox(width: 12),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -108,58 +109,58 @@ class _TermsScreenState extends State<TermsScreen> {
                                 Text('Qoima Маркетплейс',
                                     style: manrope(14.5, FontWeight.w800,
                                         color: cInk)),
-                                Text('Условия и политика',
+                                Text(tr('Условия и политика', 'Шарттар мен саясат'),
                                     style: manrope(12, FontWeight.w500,
                                         color: cInk3)),
                               ],
                             ),
                           ),
                         ]),
-                        const SizedBox(height: 12),
+                        SizedBox(height: 12),
                         Container(height: 1, color: cLine),
-                        const SizedBox(height: 12),
+                        SizedBox(height: 12),
                         Expanded(
                           child: SingleChildScrollView(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
-                              children: const [
+                              children: [
                                 _TermsSection(
-                                  title: '1. Общие положения',
+                                  title: tr('1. Общие положения', '1. Жалпы ережелер'),
                                   points: [
-                                    'Используя платформу Qoima, вы полностью принимаете настоящие условия.',
-                                    'Платформа предназначена только для законной торговой деятельности.',
-                                    'Безопасность данных аккаунта — ваша ответственность.',
+                                    tr('Используя платформу Qoima, вы полностью принимаете настоящие условия.', 'Qoima платформасын қолдана отырып, осы шарттарды толық қабылдайсыз.'),
+                                    tr('Платформа предназначена только для законной торговой деятельности.', 'Платформа тек заңды сауда қызметіне арналған.'),
+                                    tr('Безопасность данных аккаунта — ваша ответственность.', 'Аккаунт деректерінің қауіпсіздігі — сіздің жауапкершілігіңіз.'),
                                   ],
                                 ),
                                 _TermsSection(
-                                  title: '2. Сбор данных',
+                                  title: tr('2. Сбор данных', '2. Деректерді жинау'),
                                   points: [
-                                    'При регистрации сохраняются имя, телефон и город.',
-                                    'Данные продаж обрабатываются в аналитических целях.',
-                                    'Данные не передаются третьим лицам; раскрываются только по закону.',
+                                    tr('При регистрации сохраняются имя, телефон и город.', 'Тіркелу кезінде аты, телефоны және қаласы сақталады.'),
+                                    tr('Данные продаж обрабатываются в аналитических целях.', 'Сатылым деректері аналитикалық мақсатта өңделеді.'),
+                                    tr('Данные не передаются третьим лицам; раскрываются только по закону.', 'Деректер үшінші тұлғаларға берілмейді; тек заң бойынша ашылады.'),
                                   ],
                                 ),
                                 _TermsSection(
-                                  title: '3. Разрешённые действия',
+                                  title: tr('3. Разрешённые действия', '3. Рұқсат етілген әрекеттер'),
                                   points: [
-                                    'Открывать магазин и продавать товары как физ. или юр. лицо.',
-                                    'Добавлять продавцов и контролировать их работу.',
-                                    'Использовать онлайн-продажи, доставку и самовывоз.',
+                                    tr('Открывать магазин и продавать товары как физ. или юр. лицо.', 'Жеке немесе заңды тұлға ретінде дүкен ашып, тауар сату.'),
+                                    tr('Добавлять продавцов и контролировать их работу.', 'Сатушыларды қосып, жұмысын бақылау.'),
+                                    tr('Использовать онлайн-продажи, доставку и самовывоз.', 'Онлайн-сатылым, жеткізу және өзі алып кетуді қолдану.'),
                                   ],
                                 ),
                                 _TermsSection(
-                                  title: '4. Запрещённые действия',
+                                  title: tr('4. Запрещённые действия', '4. Тыйым салынған әрекеттер'),
                                   points: [
-                                    'Реклама товаров с ложными или вводящими в заблуждение сведениями.',
-                                    'Нарушение работы платформы, автоматизированный спам.',
-                                    'Обман покупателей или получение оплаты без отправки товара.',
+                                    tr('Реклама товаров с ложными или вводящими в заблуждение сведениями.', 'Жалған немесе жаңылыстыратын мәліметпен тауар жарнамалау.'),
+                                    tr('Нарушение работы платформы, автоматизированный спам.', 'Платформа жұмысын бұзу, автоматтандырылған спам.'),
+                                    tr('Обман покупателей или получение оплаты без отправки товара.', 'Сатып алушыларды алдау немесе тауар жібермей төлем алу.'),
                                   ],
                                 ),
                                 _TermsSection(
-                                  title: '5. Прекращение работы',
+                                  title: tr('5. Прекращение работы', '5. Жұмысты тоқтату'),
                                   points: [
-                                    'При нарушении правил Qoima вправе закрыть магазин без предупреждения.',
-                                    'Для добровольного закрытия — обратитесь в поддержку.',
+                                    tr('При нарушении правил Qoima вправе закрыть магазин без предупреждения.', 'Ережелер бұзылса, Qoima дүкенді ескертусіз жабуға құқылы.'),
+                                    tr('Для добровольного закрытия — обратитесь в поддержку.', 'Өз еркімен жабу үшін — қолдау қызметіне хабарласыңыз.'),
                                   ],
                                   last: true,
                                 ),
@@ -188,7 +189,7 @@ class _TermsScreenState extends State<TermsScreen> {
                   child: Column(children: [
                     _CheckRow(
                       checked: _terms,
-                      label: 'Ознакомился с условиями использования и принимаю их',
+                      label: tr('Ознакомился с условиями использования и принимаю их', 'Қолдану шарттарымен таныстым және оларды қабылдаймын'),
                       onTap: () => setState(() => _terms = !_terms),
                     ),
                     Container(
@@ -198,8 +199,8 @@ class _TermsScreenState extends State<TermsScreen> {
                             : cLine),
                     _CheckRow(
                       checked: _privacy,
-                      label: 'Согласен с политикой конфиденциальности',
-                      sub: 'Разрешаю хранение моих данных на платформе',
+                      label: tr('Согласен с политикой конфиденциальности', 'Құпиялылық саясатына келісемін'),
+                      sub: tr('Разрешаю хранение моих данных на платформе', 'Деректерімнің платформада сақталуына рұқсат беремін'),
                       onTap: () => setState(() => _privacy = !_privacy),
                     ),
                   ]),
@@ -210,7 +211,7 @@ class _TermsScreenState extends State<TermsScreen> {
                   opacity: _bothChecked ? 1.0 : 0.4,
                   duration: const Duration(milliseconds: 200),
                   child: QPrimaryButton(
-                    label: 'Принять и продолжить',
+                    label: tr('Принять и продолжить', 'Қабылдап жалғастыру'),
                     isLoading: _loading,
                     onPressed: _bothChecked ? _onAccept : null,
                   ),
@@ -218,7 +219,7 @@ class _TermsScreenState extends State<TermsScreen> {
                 if (!_bothChecked) ...[
                   const SizedBox(height: 8),
                   Center(
-                    child: Text('Отметьте оба пункта, чтобы продолжить',
+                    child: Text(tr('Отметьте оба пункта, чтобы продолжить', 'Жалғастыру үшін екі тармақты да белгілеңіз'),
                         style: manrope(12, FontWeight.w500, color: cInk3)),
                   ),
                 ],

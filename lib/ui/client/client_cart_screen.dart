@@ -13,6 +13,7 @@ import '../../theme/qoima_design.dart';
 import '../auth/client_login_screen.dart';
 import 'client_shell.dart';
 
+import '../../core/lang.dart';
 class ClientCartScreen extends StatefulWidget {
   /// Тапсырыс сәтті жасалғанда (төлемге дайын) шақырылады — ClientShell
   /// Профиль → Тапсырыстарым экранына ауыстырады. null болса (қонақ) — әрекет жоқ.
@@ -109,12 +110,12 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
         setState(() {
           _appliedPromo = null;
           _appliedAdminUid = '';
-          _promoError = firstError ?? 'Промокод не найден';
+          _promoError = firstError ?? tr('Промокод не найден', 'Промокод табылмады');
         });
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _promoError = 'Не удалось проверить промокод');
+        setState(() => _promoError = tr('Не удалось проверить промокод', 'Промокодты тексеру мүмкін болмады'));
       }
     } finally {
       if (mounted) setState(() => _applyingPromo = false);
@@ -209,8 +210,8 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
 
     if (_orderType == OrderModel.typeDelivery &&
         _addressCtrl.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Введите адрес доставки'),
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(tr('Введите адрес доставки', 'Жеткізу мекенжайын енгізіңіз')),
         behavior: SnackBarBehavior.floating,
       ));
       return;
@@ -252,7 +253,7 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
             .map((i) => '«${i.productName}»')
             .join(', ');
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('$badItems недоступен. Удалите из корзины.'),
+          content: Text(tr('$badItems недоступен. Удалите из корзины.', '$badItems қолжетімсіз. Себеттен өшіріңіз.')),
           backgroundColor: cRed,
           behavior: SnackBarBehavior.floating,
           duration: const Duration(seconds: 4),
@@ -389,8 +390,8 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
       } else {
         shell?.openOrdersFromCart();
       }
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Тапсырыс қабылданды! ✓'),
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(tr('Заказ принят! ✓', 'Тапсырыс қабылданды! ✓')),
         backgroundColor: cGreen,
         behavior: SnackBarBehavior.floating,
         duration: Duration(seconds: 3),
@@ -417,9 +418,9 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
       backgroundColor: cBg,
       body: Column(children: [
         QGradientHeader(
-          title: 'Корзина',
+          title: tr('Корзина', 'Себет'),
           subtitle: itemCount == 0
-              ? 'Пусто'
+              ? tr('Пусто', 'Бос')
               : '$itemCount ${_pluralItem(itemCount)}',
           action: itemCount > 0
               ? QHeaderBtn(
@@ -427,14 +428,14 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                   onTap: () => showDialog(
                     context: context,
                     builder: (_) => AlertDialog(
-                      title: Text('Очистить корзину',
+                      title: Text(tr('Очистить корзину', 'Себетті тазалау'),
                           style: manrope(17, FontWeight.w700, color: cInk)),
-                      content: Text('Убрать все товары?',
+                      content: Text(tr('Убрать все товары?', 'Барлық тауарды алып тастау керек пе?'),
                           style: manrope(14, FontWeight.w500, color: cInk2)),
                       actions: [
                         TextButton(
                             onPressed: () => Navigator.pop(context),
-                            child: Text('Нет',
+                            child: Text(tr('Нет', 'Жоқ'),
                                 style: manrope(14, FontWeight.w600,
                                     color: cInk2))),
                         TextButton(
@@ -442,7 +443,7 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                               cart.clear();
                               Navigator.pop(context);
                             },
-                            child: Text('Да',
+                            child: Text(tr('Да', 'Иә'),
                                 style: manrope(14, FontWeight.w600,
                                     color: cRed))),
                       ],
@@ -460,7 +461,7 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                       const Icon(Icons.shopping_cart_outlined,
                           size: 64, color: cInk3),
                       const SizedBox(height: 16),
-                      Text('Корзина пуста',
+                      Text(tr('Корзина пуста', 'Себет бос'),
                           style: manrope(16, FontWeight.w500, color: cInk2)),
                     ]))
               : ListView(
@@ -490,7 +491,7 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                     }),
 
                     const SizedBox(height: 8),
-                    QSecLabel('Способ получения'),
+                    QSecLabel(tr('Способ получения', 'Алу тәсілі')),
 
                     // Delivery methods
                     ...[
@@ -498,23 +499,23 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                         OrderModel.typeSmartReservation,
                         Icons.timer_outlined,
                         'Смарт-Бронь',
-                        'Бронь на 1 час, 10% депозит',
+                        tr('Бронь на 1 час, 10% депозит', '1 сағатқа бронь, 10% депозит'),
                         'blue',
                       ),
                       (
                         OrderModel.typeClickCollect,
                         Icons.qr_code_rounded,
                         'Click & Collect',
-                        '100% онлайн, самовывоз',
+                        tr('100% онлайн, самовывоз', '100% онлайн, өзі алып кету'),
                         'green',
                       ),
                       (
                         OrderModel.typeDelivery,
                         Icons.local_shipping_outlined,
-                        'Доставка',
+                        tr('Доставка', 'Жеткізу'),
                         AppConfig.deliveryFee > 0
-                            ? 'Курьером по адресу +${AppConfig.deliveryFee.toStringAsFixed(0)} ₸'
-                            : 'Курьером по адресу · Бесплатно',
+                            ? tr('Курьером по адресу +${AppConfig.deliveryFee.toStringAsFixed(0)} ₸', 'Мекенжайға курьермен +${AppConfig.deliveryFee.toStringAsFixed(0)} ₸')
+                            : tr('Курьером по адресу · Бесплатно', 'Мекенжайға курьермен · Тегін'),
                         'amber',
                       ),
                     ].map((t) {
@@ -593,7 +594,7 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                           const SizedBox(width: 8),
                           Expanded(
                               child: Text(
-                            'Получение: ${_warehouseAddress(cart.items)}',
+                            tr('Получение: ${_warehouseAddress(cart.items)}', 'Алу: ${_warehouseAddress(cart.items)}'),
                             style: manrope(12, FontWeight.w500,
                                 color: cGreenDeep),
                           )),
@@ -604,7 +605,7 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
 
                     // Delivery address input
                     if (_orderType == OrderModel.typeDelivery) ...[
-                      Text('Адрес доставки *',
+                      Text(tr('Адрес доставки *', 'Жеткізу мекенжайы *'),
                           style: manrope(12.5, FontWeight.w700, color: cInk2)),
                       const SizedBox(height: 6),
                       // Saved addresses picker
@@ -616,7 +617,7 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                           return Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('Сохранённые адреса',
+                              Text(tr('Сохранённые адреса', 'Сақталған мекенжайлар'),
                                   style: manrope(11.5, FontWeight.w600,
                                       color: cInk3)),
                               const SizedBox(height: 6),
@@ -687,7 +688,7 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                           style: manrope(14, FontWeight.w500, color: cInk),
                           onChanged: (_) => setState(() {}),
                           decoration: InputDecoration(
-                            hintText: 'Город, улица, дом',
+                            hintText: tr('Город, улица, дом', 'Қала, көше, үй'),
                             hintStyle:
                                 manrope(14, FontWeight.w500, color: cInk3),
                             prefixIcon: const Icon(Icons.location_on_outlined,
@@ -720,7 +721,7 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                     const SizedBox(height: 12),
 
                     // Note
-                    Text('Примечание',
+                    Text(tr('Примечание', 'Ескертпе'),
                         style: manrope(12.5, FontWeight.w700, color: cInk2)),
                     const SizedBox(height: 6),
                     Container(
@@ -734,7 +735,7 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                         maxLines: 2,
                         style: manrope(14, FontWeight.w500, color: cInk),
                         decoration: InputDecoration(
-                          hintText: 'Дополнительная информация...',
+                          hintText: tr('Дополнительная информация...', 'Қосымша ақпарат...'),
                           hintStyle:
                               manrope(14, FontWeight.w500, color: cInk3),
                           filled: false,
@@ -769,7 +770,7 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                         (cart.total - promoDiscount).clamp(0.0, cart.total);
                     return Column(children: [
                       if (productSavings > 0)
-                        _SummaryLine('Скидка по акции',
+                        _SummaryLine(tr('Скидка по акции', 'Акция бойынша жеңілдік'),
                             '−${money(productSavings)}', color: cGreen),
                       if (promoDiscount > 0)
                         _SummaryLine(
@@ -783,8 +784,8 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                           children: [
                             Text(
                               _orderType == OrderModel.typeSmartReservation
-                                  ? 'К оплате сейчас (депозит 10%)'
-                                  : 'К оплате',
+                                  ? tr('К оплате сейчас (депозит 10%)', 'Қазір төленетіні (10% депозит)')
+                                  : tr('К оплате', 'Төленетін сома'),
                               style: manrope(13.5, FontWeight.w600,
                                   color: cInk2),
                             ),
@@ -799,8 +800,8 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                   const SizedBox(height: 11),
                   QPrimaryButton(
                     label: _orderType == OrderModel.typeSmartReservation
-                        ? 'Забронировать'
-                        : 'Оплатить',
+                        ? tr('Забронировать', 'Брондау')
+                        : tr('Оплатить', 'Төлеу'),
                     isLoading: _isLoading,
                     onPressed: (_isLoading || _unavailableKeys.isNotEmpty)
                         ? null
@@ -836,11 +837,11 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
   }
 
   String _pluralItem(int n) {
-    if (n % 10 == 1 && n % 100 != 11) return 'товар';
+    if (n % 10 == 1 && n % 100 != 11) return tr('товар', 'тауар');
     if (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) {
-      return 'товара';
+      return tr('товара', 'тауар');
     }
-    return 'товаров';
+    return tr('товаров', 'тауар');
   }
 }
 
@@ -895,11 +896,11 @@ class _CartItemCard extends StatelessWidget {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis),
               const SizedBox(height: 2),
-              Text('Размер ${item.size}',
+              Text(tr('Размер ${item.size}', 'Өлшем ${item.size}'),
                   style: manrope(12, FontWeight.w500, color: cInk3)),
               const SizedBox(height: 6),
               if (isUnavailable)
-                QPill('Товар закончился', tone: 'red',
+                QPill(tr('Товар закончился', 'Тауар таусылды'), tone: 'red',
                     icon: const Icon(Icons.info_outline,
                         size: 12, color: Color(0xFFB11A2B)))
               else if (item.hasDiscount)
@@ -991,7 +992,7 @@ class _PaymentSheet extends StatelessWidget {
     final isCC = orderType == OrderModel.typeClickCollect;
 
     final String typeLabel =
-        isSmartRes ? 'Смарт-Бронь' : isCC ? 'Click & Collect' : 'Доставка';
+        isSmartRes ? 'Смарт-Бронь' : isCC ? 'Click & Collect' : tr('Доставка', 'Жеткізу');
 
     return Container(
       decoration: const BoxDecoration(
@@ -1013,13 +1014,13 @@ class _PaymentSheet extends StatelessWidget {
             style: manrope(34, FontWeight.w800, color: cInk, letterSpacing: -1)),
         const SizedBox(height: 4),
         Text(
-          isSmartRes ? 'К оплате сейчас (10% депозит)' : 'Итого к оплате',
+          isSmartRes ? tr('К оплате сейчас (10% депозит)', 'Қазір төленетіні (10% депозит)') : tr('Итого к оплате', 'Барлығы төленетіні'),
           style: manrope(13, FontWeight.w500, color: cInk2),
         ),
         if (isSmartRes) ...[
           const SizedBox(height: 6),
           Text(
-            'В магазине: ${money((total - deposit).clamp(0, total))}',
+            tr('В магазине: ${money((total - deposit).clamp(0, total))}', 'Дүкенде: ${money((total - deposit).clamp(0, total))}'),
             style: manrope(13, FontWeight.w500, color: cInk3),
           ),
         ],
@@ -1027,8 +1028,8 @@ class _PaymentSheet extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             deliveryFee > 0
-                ? 'Товары: ${money(total)}  +  Доставка: ${money(deliveryFee)}'
-                : 'Товары: ${money(total)}  +  Доставка: Бесплатно',
+                ? tr('Товары: ${money(total)}  +  Доставка: ${money(deliveryFee)}', 'Тауарлар: ${money(total)}  +  Жеткізу: ${money(deliveryFee)}')
+                : tr('Товары: ${money(total)}  +  Доставка: Бесплатно', 'Тауарлар: ${money(total)}  +  Жеткізу: Тегін'),
             style: manrope(13, FontWeight.w500, color: cInk3),
           ),
         ],
@@ -1037,24 +1038,24 @@ class _PaymentSheet extends StatelessWidget {
         const SizedBox(height: 12),
         // Подытог → Промокод → Итого
         if (promoDiscount > 0) ...[
-          _SummaryLine('Подытог', money(subtotal), color: cInk2),
+          _SummaryLine(tr('Подытог', 'Аралық сома'), money(subtotal), color: cInk2),
           _SummaryLine(
               promoCode.isNotEmpty ? 'Промокод $promoCode' : 'Промокод',
               '−${money(promoDiscount)}',
               color: cGreen),
-          _SummaryLine('Итого', money(total), color: cInk, bold: true),
+          _SummaryLine(tr('Итого', 'Барлығы'), money(total), color: cInk, bold: true),
           const SizedBox(height: 8),
         ],
         if (!isDelivery && warehouseAddress.isNotEmpty)
-          _InfoRow(Icons.location_on_outlined, 'Адрес получения',
+          _InfoRow(Icons.location_on_outlined, tr('Адрес получения', 'Алу мекенжайы'),
               warehouseAddress),
         if (isDelivery && deliveryAddress.isNotEmpty)
-          _InfoRow(Icons.local_shipping_outlined, 'Доставка', deliveryAddress),
+          _InfoRow(Icons.local_shipping_outlined, tr('Доставка', 'Жеткізу'), deliveryAddress),
         if (isSmartRes)
-          _InfoRow(Icons.timer_outlined, 'Срок брони', '1 час'),
+          _InfoRow(Icons.timer_outlined, tr('Срок брони', 'Бронь мерзімі'), tr('1 час', '1 сағат')),
         const SizedBox(height: 20),
         Text(
-          isSmartRes ? 'Депозит банкі' : 'Банк арқылы төлеу',
+          isSmartRes ? tr('Банк для депозита', 'Депозит банкі') : tr('Оплата через банк', 'Банк арқылы төлеу'),
           style: manrope(13, FontWeight.w700, color: cInk2),
         ),
         const SizedBox(height: 10),
@@ -1094,7 +1095,7 @@ class _PaymentSheet extends StatelessWidget {
         const SizedBox(height: 8),
         TextButton(
           onPressed: () => Navigator.pop(context, null),
-          child: Text('Отмена',
+          child: Text(tr('Отмена', 'Болдырмау'),
               style: manrope(14, FontWeight.w600, color: cInk3)),
         ),
       ]),
@@ -1210,15 +1211,15 @@ class _PromoField extends StatelessWidget {
                     decoration: BoxDecoration(
                         color: ineffective ? cAmber : cGreen,
                         borderRadius: BorderRadius.circular(6)),
-                    child: Text(ineffective ? 'Не активен' : 'Применён',
+                    child: Text(ineffective ? tr('Не активен', 'Белсенді емес') : tr('Применён', 'Қолданылды'),
                         style: manrope(10, FontWeight.w700,
                             color: Colors.white)),
                   ),
                 ]),
                 Text(
                   ineffective
-                      ? 'Не хватает до минимальной суммы заказа'
-                      : 'Скидка −${money(discount)}',
+                      ? tr('Не хватает до минимальной суммы заказа', 'Тапсырыстың ең аз сомасына жетпейді')
+                      : tr('Скидка −${money(discount)}', 'Жеңілдік −${money(discount)}'),
                   style: manrope(12, FontWeight.w600,
                       color: ineffective ? cAmber : cGreenDeep),
                 ),
@@ -1249,7 +1250,7 @@ class _PromoField extends StatelessWidget {
               textCapitalization: TextCapitalization.characters,
               style: manrope(14, FontWeight.w700, color: cInk),
               decoration: InputDecoration(
-                hintText: 'Введите промокод',
+                hintText: tr('Введите промокод', 'Промокод енгізіңіз'),
                 hintStyle: manrope(14, FontWeight.w500, color: cInk3),
                 prefixIcon:
                     const Icon(Icons.local_offer_outlined, color: cInk3, size: 19),
@@ -1282,7 +1283,7 @@ class _PromoField extends StatelessWidget {
                     height: 18,
                     child: CircularProgressIndicator(
                         color: Colors.white, strokeWidth: 2))
-                : Text('Применить',
+                : Text(tr('Применить', 'Қолдану'),
                     style: manrope(14, FontWeight.w700, color: Colors.white)),
           ),
         ),

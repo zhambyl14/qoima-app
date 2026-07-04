@@ -12,6 +12,7 @@ import '../../../data/services/firestore_service.dart';
 import '../../../theme/qoima_design.dart';
 import 'ms_widgets.dart';
 
+import '../../../core/lang.dart';
 class AdminMyStoreDiscountAddScreen extends StatefulWidget {
   const AdminMyStoreDiscountAddScreen({super.key});
 
@@ -147,7 +148,7 @@ class _AdminMyStoreDiscountAddScreenState
               .map((p) => p.id)
               .toList();
           scopeLabel =
-              '${categoryByKey(key).name} · ${targets.length} тауар';
+              tr('${categoryByKey(key).name} · ${targets.length} товаров', '${categoryByKey(key).name} · ${targets.length} тауар');
           break;
         default:
           scope = DiscountScope.store;
@@ -157,13 +158,13 @@ class _AdminMyStoreDiscountAddScreenState
           final whName = whList
               .firstWhere((w) => w.id == whId,
                   orElse: () => WarehouseModel(
-                      id: whId, name: 'Қойма', createdAt: DateTime.now()))
+                      id: whId, name: tr('Склад', 'Қойма'), createdAt: DateTime.now()))
               .name;
-          scopeLabel = '$whName · ${targets.length} тауар';
+          scopeLabel = tr('$whName · ${targets.length} товаров', '$whName · ${targets.length} тауар');
       }
 
       if (targets.isEmpty) {
-        throw Exception('Бұл аяда тауар табылмады');
+        throw Exception(tr('В этой области товары не найдены', 'Бұл аяда тауар табылмады'));
       }
 
       // 2. apply real batch discount (auto-reverts after endsAt)
@@ -214,11 +215,11 @@ class _AdminMyStoreDiscountAddScreenState
       backgroundColor: cBg,
       body: Column(children: [
         QGradientHeader(
-          title: 'Жаңа акция',
+          title: tr('Новая акция', 'Жаңа акция'),
           showBack: true,
           action: TextButton(
             onPressed: (_canSave && !_saving) ? _onSave : null,
-            child: Text('Сақтау',
+            child: Text(tr('Сохранить', 'Сақтау'),
                 style: manrope(14.5, FontWeight.w700, color: Colors.white)),
           ),
         ),
@@ -227,9 +228,9 @@ class _AdminMyStoreDiscountAddScreenState
             padding: const EdgeInsets.all(18),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               // Type
-              QSecLabel('Скидка түрі'),
+              QSecLabel(tr('Тип скидки', 'Скидка түрі')),
               MSSeg(
-                options: const ['Пайыз %', 'Сомма ₸'],
+                options: [tr('Процент %', 'Пайыз %'), tr('Сумма ₸', 'Сомма ₸')],
                 active: _typeIdx,
                 onChanged: (i) => setState(() {
                   _typeIdx = i;
@@ -241,7 +242,7 @@ class _AdminMyStoreDiscountAddScreenState
               // Counter
               QCard(
                 child: Row(children: [
-                  Expanded(child: Text('Скидка мөлшері', style: manrope(14, FontWeight.w700, color: cInk))),
+                  Expanded(child: Text(tr('Размер скидки', 'Скидка мөлшері'), style: manrope(14, FontWeight.w700, color: cInk))),
                   MSCounterBtn(icon: Icons.remove, bg: cBg, fg: cInk2, onTap: _dec),
                   const SizedBox(width: 14),
                   SizedBox(
@@ -257,9 +258,9 @@ class _AdminMyStoreDiscountAddScreenState
               const SizedBox(height: 16),
 
               // Scope
-              QSecLabel('Қолдану аясы'),
+              QSecLabel(tr('Область применения', 'Қолдану аясы')),
               MSSeg(
-                options: const ['Тауар', 'Санат', 'Қойма'],
+                options: [tr('Товар', 'Тауар'), tr('Категория', 'Санат'), tr('Склад', 'Қойма')],
                 active: _scopeIdx,
                 onChanged: (i) => setState(() => _scopeIdx = i),
               ),
@@ -277,24 +278,24 @@ class _AdminMyStoreDiscountAddScreenState
               const SizedBox(height: 16),
 
               // Date limit
-              QSecLabel('Мерзімі'),
+              QSecLabel(tr('Срок', 'Мерзімі')),
               QCard(
                 child: Column(children: [
                   Row(children: [
                     const Icon(Icons.calendar_today_rounded, color: cGreen, size: 20),
                     const SizedBox(width: 11),
-                    Expanded(child: Text('Уақыт шектеу', style: manrope(14, FontWeight.w700, color: cInk))),
+                    Expanded(child: Text(tr('Ограничить по времени', 'Уақыт шектеу'), style: manrope(14, FontWeight.w700, color: cInk))),
                     MSToggle(on: _hasLimit, onTap: () => setState(() => _hasLimit = !_hasLimit)),
                   ]),
                   if (_hasLimit) ...[
                     const SizedBox(height: 13),
                     Row(children: [
-                      Expanded(child: MSDateBtn(label: 'Бастап', date: _startDate, onTap: () => _pickDate(isStart: true))),
+                      Expanded(child: MSDateBtn(label: tr('С', 'Бастап'), date: _startDate, onTap: () => _pickDate(isStart: true))),
                       const SizedBox(width: 10),
-                      Expanded(child: MSDateBtn(label: 'Дейін', date: _endDate, onTap: () => _pickDate(isStart: false))),
+                      Expanded(child: MSDateBtn(label: tr('По', 'Дейін'), date: _endDate, onTap: () => _pickDate(isStart: false))),
                     ]),
                     const SizedBox(height: 8),
-                    Text('Мерзім біткен соң баға автоматты түрде қайтады',
+                    Text(tr('После окончания срока цена вернётся автоматически', 'Мерзім біткен соң баға автоматты түрде қайтады'),
                         style: manrope(11.5, FontWeight.w500, color: cInk3)),
                   ],
                 ]),
@@ -302,7 +303,7 @@ class _AdminMyStoreDiscountAddScreenState
               const SizedBox(height: 24),
 
               QPrimaryButton(
-                label: 'Акцияны сақтау',
+                label: tr('Сохранить акцию', 'Акцияны сақтау'),
                 isLoading: _saving,
                 onPressed: (_canSave && !_saving) ? _onSave : null,
               ),
@@ -328,8 +329,8 @@ class _AdminMyStoreDiscountAddScreenState
       TextField(
         controller: _searchCtrl,
         onChanged: (_) => setState(() {}),
-        decoration: const InputDecoration(
-          hintText: 'Тауар іздеу (атауы, бренд, артикул)',
+        decoration: InputDecoration(
+          hintText: tr('Поиск товара (название, бренд, артикул)', 'Тауар іздеу (атауы, бренд, артикул)'),
           prefixIcon: Icon(Icons.search_rounded, color: cInk3),
         ),
       ),
@@ -345,7 +346,7 @@ class _AdminMyStoreDiscountAddScreenState
           child: filtered.isEmpty
               ? Padding(
                   padding: const EdgeInsets.all(16),
-                  child: Text('Тауар табылмады',
+                  child: Text(tr('Товары не найдены', 'Тауар табылмады'),
                       style: manrope(13, FontWeight.w500, color: cInk3)))
               : ListView.separated(
                   shrinkWrap: true,
@@ -388,7 +389,7 @@ class _AdminMyStoreDiscountAddScreenState
   Widget _buildCategoryPicker() {
     final cats = _availableCategories;
     if (cats.isEmpty) {
-      return Text('Санат табылмады', style: manrope(13, FontWeight.w500, color: cInk3));
+      return Text(tr('Категории не найдены', 'Санат табылмады'), style: manrope(13, FontWeight.w500, color: cInk3));
     }
     return Wrap(
       spacing: 8,
@@ -421,7 +422,7 @@ class _AdminMyStoreDiscountAddScreenState
   Widget _buildWarehousePicker(BuildContext context) {
     final whs = _visibleWarehouses(context);
     if (whs.isEmpty) {
-      return Text('Витринада қойма жоқ. Алдымен «Витрина қоймалары» бөлімінен қойма қосыңыз.',
+      return Text(tr('На витрине нет складов. Сначала добавьте склад в разделе «Склады витрины».', 'Витринада қойма жоқ. Алдымен «Витрина қоймалары» бөлімінен қойма қосыңыз.'),
           style: manrope(13, FontWeight.w500, color: cInk3));
     }
     return Column(

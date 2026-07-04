@@ -6,6 +6,7 @@ import '../../data/services/auth_service.dart';
 import '../../theme/qoima_design.dart';
 import 'google_sign_in_button.dart';
 
+import '../../core/lang.dart';
 /// Клиентті тіркеу: телефон + email + құпиясөз + аты + қаласы.
 class ClientRegisterScreen extends StatefulWidget {
   const ClientRegisterScreen({super.key});
@@ -43,28 +44,28 @@ class _ClientRegisterScreenState extends State<ClientRegisterScreen> {
   Future<void> _register() async {
     // ── Валидация ────────────────────────────────────────────────────────────
     if (!isValidKzPhone(_phoneCtrl.text)) {
-      _setErr('Телефон нөмірін толық енгізіңіз');
+      _setErr(tr('Введите номер телефона полностью', 'Телефон нөмірін толық енгізіңіз'));
       return;
     }
     final email = _emailCtrl.text.trim();
     if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
-      _setErr('Email форматы қате');
+      _setErr(tr('Неверный формат email', 'Email форматы қате'));
       return;
     }
     if (_passwordCtrl.text.length < 6) {
-      _setErr('Құпиясөз кем дегенде 6 таңба болуы керек');
+      _setErr(tr('Пароль должен быть не короче 6 символов', 'Құпиясөз кем дегенде 6 таңба болуы керек'));
       return;
     }
     if (_passwordCtrl.text != _confirmCtrl.text) {
-      _setErr('Құпиясөздер сәйкес келмейді');
+      _setErr(tr('Пароли не совпадают', 'Құпиясөздер сәйкес келмейді'));
       return;
     }
     if (_nameCtrl.text.trim().length < 2) {
-      _setErr('Атыңызды енгізіңіз');
+      _setErr(tr('Введите имя', 'Атыңызды енгізіңіз'));
       return;
     }
     if (_selectedCity == null) {
-      _setErr('Қаланы таңдаңыз');
+      _setErr(tr('Выберите город', 'Қаланы таңдаңыз'));
       return;
     }
 
@@ -101,8 +102,8 @@ class _ClientRegisterScreenState extends State<ClientRegisterScreen> {
       backgroundColor: cBg,
       body: Column(children: [
         QGradientHeader(
-          title: 'Тіркелу',
-          subtitle: 'Сатып алушы аккаунтын жасау',
+          title: tr('Регистрация', 'Тіркелу'),
+          subtitle: tr('Создание аккаунта покупателя', 'Сатып алушы аккаунтын жасау'),
           showBack: true,
           onBack: _isLoading ? null : () => Navigator.pop(context),
         ),
@@ -116,7 +117,7 @@ class _ClientRegisterScreenState extends State<ClientRegisterScreen> {
                 // Телефон
                 _Field(
                   controller: _phoneCtrl,
-                  label: 'Телефон нөмірі',
+                  label: tr('Номер телефона', 'Телефон нөмірі'),
                   hint: '+7 (700) 000-00-00',
                   icon: Icons.phone_outlined,
                   keyboard: TextInputType.phone,
@@ -137,8 +138,8 @@ class _ClientRegisterScreenState extends State<ClientRegisterScreen> {
                 // Құпиясөз
                 _Field(
                   controller: _passwordCtrl,
-                  label: 'Құпиясөз',
-                  hint: 'Кемінде 6 таңба',
+                  label: tr('Пароль', 'Құпиясөз'),
+                  hint: tr('Минимум 6 символов', 'Кемінде 6 таңба'),
                   icon: Icons.lock_outline_rounded,
                   obscure: _obscurePass,
                   suffix: _EyeButton(
@@ -151,8 +152,8 @@ class _ClientRegisterScreenState extends State<ClientRegisterScreen> {
                 // Құпиясөзді қайталау
                 _Field(
                   controller: _confirmCtrl,
-                  label: 'Құпиясөзді қайталаңыз',
-                  hint: 'Құпиясөзді қайталаңыз',
+                  label: tr('Повторите пароль', 'Құпиясөзді қайталаңыз'),
+                  hint: tr('Повторите пароль', 'Құпиясөзді қайталаңыз'),
                   icon: Icons.lock_outline_rounded,
                   obscure: _obscureConfirm,
                   suffix: _EyeButton(
@@ -166,15 +167,15 @@ class _ClientRegisterScreenState extends State<ClientRegisterScreen> {
                 // Аты
                 _Field(
                   controller: _nameCtrl,
-                  label: 'Атыңыз',
-                  hint: 'Мысалы: Алия',
+                  label: tr('Ваше имя', 'Атыңыз'),
+                  hint: tr('Например: Алия', 'Мысалы: Алия'),
                   icon: Icons.person_outline_rounded,
                   capitalization: TextCapitalization.words,
                 ),
                 const SizedBox(height: 14),
 
                 // Қала
-                Text('Қалаңыз',
+                Text(tr('Ваш город', 'Қалаңыз'),
                     style: manrope(12.5, FontWeight.w700, color: cInk2)),
                 const SizedBox(height: 6),
                 Container(
@@ -191,7 +192,7 @@ class _ClientRegisterScreenState extends State<ClientRegisterScreen> {
                     decoration: InputDecoration(
                       prefixIcon: const Icon(Icons.location_city_outlined,
                           color: cGreen, size: 19),
-                      hintText: 'Қаланы таңдаңыз',
+                      hintText: tr('Выберите город', 'Қаланы таңдаңыз'),
                       hintStyle: manrope(15, FontWeight.w500, color: cInk3),
                       border: InputBorder.none,
                       enabledBorder: InputBorder.none,
@@ -205,7 +206,7 @@ class _ClientRegisterScreenState extends State<ClientRegisterScreen> {
                     items: kzCities
                         .map((c) => DropdownMenuItem(
                             value: c,
-                            child: Text(c,
+                            child: Text(trValue(c),
                                 style: manrope(14, FontWeight.w500, color: cInk))))
                         .toList(),
                     onChanged: (v) => setState(() => _selectedCity = v),
@@ -219,7 +220,7 @@ class _ClientRegisterScreenState extends State<ClientRegisterScreen> {
 
                 const SizedBox(height: 22),
                 QPrimaryButton(
-                  label: 'Тіркелу',
+                  label: tr('Регистрация', 'Тіркелу'),
                   isLoading: _isLoading,
                   onPressed: _register,
                 ),
@@ -227,12 +228,12 @@ class _ClientRegisterScreenState extends State<ClientRegisterScreen> {
                 const GoogleSignInButton(),
                 const SizedBox(height: 14),
                 Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Text('Аккаунтыңыз бар ма?',
+                  Text(tr('Уже есть аккаунт?', 'Аккаунтыңыз бар ма?'),
                       style: manrope(13.5, FontWeight.w500, color: cInk2)),
                   const SizedBox(width: 4),
                   GestureDetector(
                     onTap: _isLoading ? null : () => Navigator.pop(context),
-                    child: Text('Кіру',
+                    child: Text(tr('Войти', 'Кіру'),
                         style: manrope(13.5, FontWeight.w700, color: cGreen)),
                   ),
                 ]),

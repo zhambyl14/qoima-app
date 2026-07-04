@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../data/services/client_service.dart';
 import '../../theme/qoima_design.dart';
 
+import '../../core/lang.dart';
 class AddressesScreen extends StatelessWidget {
   const AddressesScreen({super.key});
 
@@ -15,7 +16,7 @@ class AddressesScreen extends StatelessWidget {
         backgroundColor: cGreen,
         elevation: 0,
         icon: const Icon(Icons.add_rounded, color: Colors.white),
-        label: Text('Добавить', style: manrope(14, FontWeight.w700, color: Colors.white)),
+        label: Text(tr('Добавить', 'Қосу'), style: manrope(14, FontWeight.w700, color: Colors.white)),
       ),
       body: Column(children: [
         Container(
@@ -31,7 +32,7 @@ class AddressesScreen extends StatelessWidget {
                       color: Colors.white, size: 28),
                 ),
                 const SizedBox(width: 10),
-                Text('Адреса доставки',
+                Text(tr('Адреса доставки', 'Жеткізу мекенжайлары'),
                     style: manrope(20, FontWeight.w800, color: Colors.white)),
               ]),
             ),
@@ -51,10 +52,10 @@ class AddressesScreen extends StatelessWidget {
                     Icon(Icons.location_off_outlined,
                         size: 60, color: cInk3.withValues(alpha: 0.35)),
                     const SizedBox(height: 14),
-                    Text('Нет сохранённых адресов',
+                    Text(tr('Нет сохранённых адресов', 'Сақталған мекенжай жоқ'),
                         style: manrope(16, FontWeight.w700, color: cInk2)),
                     const SizedBox(height: 6),
-                    Text('Нажмите «Добавить» чтобы сохранить адрес',
+                    Text(tr('Нажмите «Добавить» чтобы сохранить адрес', 'Мекенжай сақтау үшін «Қосу» басыңыз'),
                         style: manrope(13, FontWeight.w500, color: cInk3)),
                   ]),
                 );
@@ -104,17 +105,17 @@ class AddressesScreen extends StatelessWidget {
                             builder: (_) => AlertDialog(
                               shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(18)),
-                              title: Text('Удалить адрес?',
+                              title: Text(tr('Удалить адрес?', 'Мекенжайды өшіру керек пе?'),
                                   style: manrope(16, FontWeight.w700, color: cInk)),
                               actions: [
                                 TextButton(
                                     onPressed: () => Navigator.pop(context, false),
-                                    child: Text('Отмена',
+                                    child: Text(tr('Отмена', 'Болдырмау'),
                                         style: manrope(14, FontWeight.w600,
                                             color: cInk2))),
                                 TextButton(
                                     onPressed: () => Navigator.pop(context, true),
-                                    child: Text('Удалить',
+                                    child: Text(tr('Удалить', 'Өшіру'),
                                         style: manrope(14, FontWeight.w600,
                                             color: cRed))),
                               ],
@@ -156,21 +157,21 @@ class AddressesScreen extends StatelessWidget {
             borderRadius: BorderRadius.circular(24),
           ),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Text('Новый адрес',
+            Text(tr('Новый адрес', 'Жаңа мекенжай'),
                 style: manrope(17, FontWeight.w800, color: cInk)),
             const SizedBox(height: 16),
             TextField(
               controller: labelCtrl,
-              decoration: const InputDecoration(
-                  hintText: 'Название (Дом, Работа...)',
+              decoration: InputDecoration(
+                  hintText: tr('Название (Дом, Работа...)', 'Атауы (Үй, Жұмыс...)'),
                   prefixIcon: Icon(Icons.label_outline)),
               textCapitalization: TextCapitalization.sentences,
             ),
             const SizedBox(height: 12),
             TextField(
               controller: addrCtrl,
-              decoration: const InputDecoration(
-                  hintText: 'Полный адрес',
+              decoration: InputDecoration(
+                  hintText: tr('Полный адрес', 'Толық мекенжай'),
                   prefixIcon: Icon(Icons.location_on_outlined)),
               textCapitalization: TextCapitalization.sentences,
               maxLines: 2,
@@ -191,7 +192,7 @@ class AddressesScreen extends StatelessWidget {
                   } catch (_) {
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                        content: const Text('Не удалось сохранить адрес'),
+                        content: Text(tr('Не удалось сохранить адрес', 'Мекенжайды сақтау мүмкін болмады')),
                         backgroundColor: cRed,
                         behavior: SnackBarBehavior.floating,
                       ));
@@ -204,7 +205,7 @@ class AddressesScreen extends StatelessWidget {
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14)),
                     elevation: 0),
-                child: Text('Сохранить', style: manrope(15, FontWeight.w700)),
+                child: Text(tr('Сохранить', 'Сақтау'), style: manrope(15, FontWeight.w700)),
               ),
             ),
           ]),

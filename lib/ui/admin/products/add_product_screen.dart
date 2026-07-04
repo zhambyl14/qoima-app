@@ -10,6 +10,7 @@ import '../../../theme/qoima_design.dart';
 import '../../shared/mandatory_warehouse_picker.dart';
 import '../../widgets/image_crop_screen.dart';
 
+import '../../../core/lang.dart';
 class AddProductScreen extends StatefulWidget {
   const AddProductScreen({super.key});
   @override
@@ -88,19 +89,25 @@ class _AddProductScreenState extends State<AddProductScreen> {
   };
   static const List<Map<String, dynamic>> _presets = [
     {
-      'label': 'Үш размерден 1 жұп · содовойдан 2',
-      'desc': 'Барлығы 10–14 жұп (категорияға қарай)',
+      'labelRu': 'По 1 паре с трёх размеров · 2 с ходовых',
+      'labelKk': 'Үш размерден 1 жұп · содовойдан 2',
+      'descRu': 'Всего 10–14 пар (по категории)',
+      'descKk': 'Барлығы 10–14 жұп (категорияға қарай)',
       'kind': 'recommended',
     },
     {
-      'label': '20 жұп · 4 размер тең',
-      'desc': 'Әр размерден 5 жұп',
+      'labelRu': '20 пар · 4 размера поровну',
+      'labelKk': '20 жұп · 4 размер тең',
+      'descRu': 'По 5 пар с размера',
+      'descKk': 'Әр размерден 5 жұп',
       'perSize': 5,
       'count': 4
     },
     {
-      'label': '24 жұп · 4 размер',
-      'desc': 'Әр размерден 6 жұп',
+      'labelRu': '24 пары · 4 размера',
+      'labelKk': '24 жұп · 4 размер',
+      'descRu': 'По 6 пар с размера',
+      'descKk': 'Әр размерден 6 жұп',
       'perSize': 6,
       'count': 4
     },
@@ -214,7 +221,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
   Future<void> _pickFromGallery() async {
     Navigator.pop(context);
     if (_remainingSlots <= 0) {
-      _err('Максимум $_maxImages фото');
+      _err(tr('Максимум $_maxImages фото', 'Ең көбі $_maxImages фото'));
       return;
     }
     final picked = await _imagePicker.pickMultiImage(imageQuality: 90);
@@ -225,7 +232,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
   Future<void> _pickFromCamera() async {
     Navigator.pop(context);
     if (_remainingSlots <= 0) {
-      _err('Максимум $_maxImages фото');
+      _err(tr('Максимум $_maxImages фото', 'Ең көбі $_maxImages фото'));
       return;
     }
     final shot = await _imagePicker.pickImage(
@@ -249,7 +256,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
             raw: raw,
             outputSize: _cropSize,
             title:
-                toAdd.length > 1 ? 'Фото ${i + 1} из ${toAdd.length}' : null,
+                toAdd.length > 1 ? tr('Фото ${i + 1} из ${toAdd.length}', 'Фото ${i + 1} / ${toAdd.length}') : null,
           ),
         ),
       );
@@ -257,7 +264,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
         setState(() => _imageBytes.add(cropped));
       }
     }
-    if (overflow && mounted) _err('Добавлено только $_remainingSlots — лимит $_maxImages фото');
+    if (overflow && mounted) _err(tr('Добавлено только $_remainingSlots — лимит $_maxImages фото', 'Тек $_remainingSlots қосылды — лимит $_maxImages фото'));
   }
 
   void _showImageOptions() {
@@ -284,9 +291,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
                       borderRadius: BorderRadius.circular(8)),
                   child: const Icon(Icons.camera_alt_outlined,
                       color: cGreen)),
-              title: const Text('Сфотографировать',
+              title: Text(tr('Сфотографировать', 'Суретке түсіру'),
                   style: TextStyle(fontWeight: FontWeight.w500)),
-              subtitle: const Text('Камера телефона'),
+              subtitle: Text(tr('Камера телефона', 'Телефон камерасы')),
               onTap: _pickFromCamera),
           ListTile(
               leading: Container(
@@ -296,9 +303,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
                       borderRadius: BorderRadius.circular(8)),
                   child: const Icon(Icons.photo_library_outlined,
                       color: cGreen)),
-              title: const Text('Из галереи',
+              title: Text(tr('Из галереи', 'Галереядан'),
                   style: TextStyle(fontWeight: FontWeight.w500)),
-              subtitle: Text('До $_remainingSlots фото сразу'),
+              subtitle: Text(tr('До $_remainingSlots фото сразу', 'Бірден $_remainingSlots фотоға дейін')),
               onTap: _pickFromGallery),
           const SizedBox(height: 8),
         ]),
@@ -309,49 +316,49 @@ class _AddProductScreenState extends State<AddProductScreen> {
   bool _validateStep() {
     if (_step == 0) {
       if (_categoryKey == null) {
-        _err('Выберите тип товара');
+        _err(tr('Выберите тип товара', 'Тауар түрін таңдаңыз'));
         return false;
       }
       if (_nameCtrl.text.trim().isEmpty) {
-        _err('Введите название товара');
+        _err(tr('Введите название товара', 'Тауар атауын енгізіңіз'));
         return false;
       }
       if (_brandCtrl.text.trim().isEmpty) {
-        _err('Введите бренд');
+        _err(tr('Введите бренд', 'Брендті енгізіңіз'));
         return false;
       }
       if (_currentTypes.isNotEmpty && _type == null) {
-        _err('Выберите тип товара');
+        _err(tr('Выберите тип товара', 'Тауар түрін таңдаңыз'));
         return false;
       }
       if (_targetGroup == null) {
-        _err('Выберите, кому предназначен товар');
+        _err(tr('Выберите, кому предназначен товар', 'Тауар кімге арналғанын таңдаңыз'));
         return false;
       }
       if (_color == null) {
-        _err('Выберите цвет');
+        _err(tr('Выберите цвет', 'Түсті таңдаңыз'));
         return false;
       }
     }
     if (_step == 1) {
       if (_purchaseCtrl.text.isEmpty) {
-        _err('Введите закупочную цену');
+        _err(tr('Введите закупочную цену', 'Сатып алу бағасын енгізіңіз'));
         return false;
       }
       if (_sellingCtrl.text.isEmpty) {
-        _err('Введите цену продажи');
+        _err(tr('Введите цену продажи', 'Сату бағасын енгізіңіз'));
         return false;
       }
     }
     if (_step == 2) {
       if (_totalPairs == 0) {
-        _err('Добавьте хотя бы 1 товар');
+        _err(tr('Добавьте хотя бы 1 товар', 'Кемінде 1 тауар қосыңыз'));
         return false;
       }
     }
     if (_step == 3) {
       if (_imageBytes.isEmpty) {
-        _err('Добавьте хотя бы одно фото товара');
+        _err(tr('Добавьте хотя бы одно фото товара', 'Кемінде бір тауар фотосын қосыңыз'));
         return false;
       }
     }
@@ -401,12 +408,12 @@ class _AddProductScreenState extends State<AddProductScreen> {
         if (mounted) {
           Navigator.pop(context);
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: const Row(children: [
+            content: Row(children: [
               Icon(Icons.add_box_outlined, color: Colors.white),
               SizedBox(width: 8),
               Expanded(
                   child:
-                      Text('Новая партия добавлена к существующему товару!')),
+                      Text(tr('Новая партия добавлена к существующему товару!', 'Жаңа партия бар тауарға қосылды!'))),
             ]),
             backgroundColor: cGreen,
             behavior: SnackBarBehavior.floating,
@@ -436,10 +443,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
         if (mounted) {
           Navigator.pop(context);
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: const Row(children: [
+            content: Row(children: [
               Icon(Icons.check_circle, color: Colors.white),
               SizedBox(width: 8),
-              Text('Товар добавлен на склад!'),
+              Text(tr('Товар добавлен на склад!', 'Тауар қоймаға қосылды!')),
             ]),
             backgroundColor: cGreen,
             behavior: SnackBarBehavior.floating,
@@ -447,7 +454,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
         }
       }
     } catch (e) {
-      _err('Ошибка: $e');
+      _err(tr('Ошибка: $e', 'Қате: $e'));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -461,7 +468,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
   // ── Build ─────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    final steps = ['Товар', 'Цены', 'Размеры', 'Фото'];
+    final steps = [tr('Товар', 'Тауар'), tr('Цены', 'Бағалар'), tr('Размеры', 'Өлшемдер'), 'Фото'];
     return Scaffold(
       backgroundColor: cBg,
       body: SafeArea(
@@ -489,7 +496,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: Text('Новый товар',
+                    child: Text(tr('Новый товар', 'Жаңа тауар'),
                         style: manrope(23, FontWeight.w800,
                             color: Colors.white, letterSpacing: -0.5)),
                   ),
@@ -510,7 +517,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                         }
                       },
                       child: Text(
-                        _step < 3 ? 'Далее →' : 'Сохранить',
+                        _step < 3 ? tr('Далее →', 'Әрі қарай →') : tr('Сохранить', 'Сақтау'),
                         style: manrope(14.5, FontWeight.w700,
                             color: Colors.white),
                       ),
@@ -611,7 +618,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12)),
                           padding: const EdgeInsets.symmetric(vertical: 14)),
-                      child: const Text('Назад',
+                      child: Text(tr('Назад', 'Артқа'),
                           style: TextStyle(color: cInk2)))),
             if (_step > 0) const SizedBox(width: 12),
             Expanded(
@@ -634,7 +641,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                             borderRadius: BorderRadius.circular(12)),
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         elevation: 0),
-                    child: Text(_step == 3 ? 'Сохранить товар' : 'Далее →',
+                    child: Text(_step == 3 ? tr('Сохранить товар', 'Тауарды сақтау') : tr('Далее →', 'Әрі қарай →'),
                         style: const TextStyle(
                             fontWeight: FontWeight.w700, fontSize: 15)))),
           ]),
@@ -663,50 +670,50 @@ class _AddProductScreenState extends State<AddProductScreen> {
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         _StepHeader(
             icon: Icons.label_outline,
-            title: 'Информация о товаре',
-            subtitle: 'Название, бренд и характеристики'),
+            title: tr('Информация о товаре', 'Тауар туралы ақпарат'),
+            subtitle: tr('Название, бренд и характеристики', 'Атауы, бренді және сипаттамалары')),
         const SizedBox(height: 20),
         _Field(
             controller: _nameCtrl,
-            label: 'Название товара',
-            hint: 'Напр: Nike Air Max 270',
+            label: tr('Название товара', 'Тауар атауы'),
+            hint: tr('Напр: Nike Air Max 270', 'Мыс: Nike Air Max 270'),
             icon: Icons.inventory_2_outlined),
         const SizedBox(height: 12),
         _Field(
             controller: _brandCtrl,
             label: 'Бренд',
-            hint: 'Напр: Nike, Adidas, New Balance',
+            hint: tr('Напр: Nike, Adidas, New Balance', 'Мыс: Nike, Adidas, New Balance'),
             icon: Icons.workspace_premium_outlined),
         const SizedBox(height: 16),
-        const _Label('Категория товара *'),
+        _Label(tr('Категория товара *', 'Тауар категориясы *')),
         const SizedBox(height: 8),
         _buildCategoryTypePicker(),
         if (_categoryKey != null && _currentTypes.isNotEmpty) ...[
           const SizedBox(height: 16),
-          const _Label('Тип товара *'),
+          _Label(tr('Тип товара *', 'Тауар түрі *')),
           const SizedBox(height: 8),
           _buildTypeDropdown(),
         ],
         if (_categoryKey != null) ...[
           const SizedBox(height: 16),
-          const _Label('Кому *'),
+          _Label(tr('Кому *', 'Кімге *')),
           const SizedBox(height: 8),
           _buildTargetGroupPicker(),
         ],
         const SizedBox(height: 16),
-        const _Label('Цвет *'),
+        _Label(tr('Цвет *', 'Түсі *')),
         const SizedBox(height: 10),
         _buildColorPicker(),
         if (_categoryKey != null && _currentMaterials.isNotEmpty) ...[
           const SizedBox(height: 16),
-          const _Label('Материал (необязательно)'),
+          _Label(tr('Материал (необязательно)', 'Материал (міндетті емес)')),
           const SizedBox(height: 8),
           Wrap(
               spacing: 8,
               runSpacing: 8,
               children: _currentMaterials
                   .map((m) => _SelectChip(
-                      label: m,
+                      label: trValue(m),
                       selected: _material == m,
                       onTap: () =>
                           setState(() => _material = _material == m ? null : m)))
@@ -759,7 +766,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                 ),
               ),
               const SizedBox(width: 7),
-              Text(name,
+              Text(trValue(name),
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -818,7 +825,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
       decoration: InputDecoration(
         filled: true,
         fillColor: Colors.white,
-        hintText: 'Выберите тип',
+        hintText: tr('Выберите тип', 'Түрін таңдаңыз'),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
         border: OutlineInputBorder(
@@ -832,7 +839,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
             borderSide: const BorderSide(color: cGreen, width: 1.5)),
       ),
       items: types
-          .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+          .map((e) => DropdownMenuItem(value: e, child: Text(trValue(e))))
           .toList(),
       onChanged: (v) => setState(() => _type = v),
     );
@@ -845,7 +852,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
       runSpacing: 8,
       children: _targetGroups
           .map((g) => _SelectChip(
-              label: '${_targetGroupIcons[g] ?? ''} $g',
+              label: '${_targetGroupIcons[g] ?? ''} ${trValue(g)}',
               selected: _targetGroup == g,
               onTap: () => _onTargetGroupChanged(g)))
           .toList(),
@@ -864,8 +871,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       _StepHeader(
           icon: Icons.monetization_on_outlined,
-          title: 'Ценообразование',
-          subtitle: 'Закупочная и продажная цена'),
+          title: tr('Ценообразование', 'Баға белгілеу'),
+          subtitle: tr('Закупочная и продажная цена', 'Сатып алу және сату бағасы')),
       const SizedBox(height: 20),
 
       // Дата поставки
@@ -887,7 +894,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                     color: cGreen, size: 18)),
             const SizedBox(width: 12),
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('Дата поставки',
+              Text(tr('Дата поставки', 'Жеткізілім күні'),
                   style: TextStyle(
                       fontSize: 12,
                       color: cInk2,
@@ -925,15 +932,15 @@ class _AddProductScreenState extends State<AddProductScreen> {
                   child: const Icon(Icons.arrow_downward_rounded,
                       color: cRed, size: 18)),
               const SizedBox(width: 10),
-              const Column(
+              Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Закупочная цена',
+                    Text(tr('Закупочная цена', 'Сатып алу бағасы'),
                         style: TextStyle(
                             fontWeight: FontWeight.w600,
                             fontSize: 14,
                             color: cInk)),
-                    Text('Сколько заплатили за партию',
+                    Text(tr('Сколько заплатили за партию', 'Партияға қанша төледіңіз'),
                         style: TextStyle(
                             fontSize: 11, color: cInk2)),
                   ]),
@@ -986,15 +993,15 @@ class _AddProductScreenState extends State<AddProductScreen> {
                   child: const Icon(Icons.arrow_upward_rounded,
                       color: cGreen, size: 18)),
               const SizedBox(width: 10),
-              const Column(
+              Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Цена продажи',
+                    Text(tr('Цена продажи', 'Сату бағасы'),
                         style: TextStyle(
                             fontWeight: FontWeight.w600,
                             fontSize: 14,
                             color: cInk)),
-                    Text('По какой цене будете продавать',
+                    Text(tr('По какой цене будете продавать', 'Қандай бағамен сатасыз'),
                         style: TextStyle(
                             fontSize: 11, color: cInk2)),
                   ]),
@@ -1049,7 +1056,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                 size: 24),
             const SizedBox(width: 12),
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Маржа с одного товара',
+              Text(tr('Маржа с одного товара', 'Бір тауардан маржа'),
                   style: TextStyle(
                       fontSize: 12,
                       color: profit >= 0 ? cGreen : cRed)),
@@ -1083,7 +1090,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                 margin: const EdgeInsets.only(bottom: 14),
                 decoration: BoxDecoration(
                     color: cLine, borderRadius: BorderRadius.circular(2))),
-            Text('Размер $size',
+            Text(tr('Размер ${trValue(size)}', 'Өлшем ${trValue(size)}'),
                 style: manrope(17, FontWeight.w700, color: cInk)),
             const SizedBox(height: 20),
             Row(mainAxisAlignment: MainAxisAlignment.center, children: [
@@ -1115,10 +1122,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
               ),
             ]),
             const SizedBox(height: 8),
-            Text('шт.', style: manrope(13, FontWeight.w500, color: cInk3)),
+            Text(tr('шт.', 'дана'), style: manrope(13, FontWeight.w500, color: cInk3)),
             const SizedBox(height: 24),
             QPrimaryButton(
-              label: 'Готово',
+              label: tr('Готово', 'Дайын'),
               onPressed: () {
                 setState(() => _sizesQuantity[size] = tempQty);
                 Navigator.pop(ctx);
@@ -1138,12 +1145,12 @@ class _AddProductScreenState extends State<AddProductScreen> {
         const SizedBox(height: 40),
         const Icon(Icons.arrow_back, size: 48, color: cInk3),
         const SizedBox(height: 12),
-        const Text('Вернитесь и выберите тип товара',
+        Text(tr('Вернитесь и выберите тип товара', 'Артқа оралып, тауар түрін таңдаңыз'),
             style: TextStyle(color: cInk2, fontSize: 15)),
         const SizedBox(height: 16),
         ElevatedButton(
             onPressed: () => setState(() => _step = 0),
-            child: const Text('← Шаг 1')),
+            child: Text(tr('← Шаг 1', '← 1-қадам'))),
       ]));
     }
 
@@ -1154,8 +1161,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       _StepHeader(
           icon: Icons.straighten_outlined,
-          title: 'Размеры и количество',
-          subtitle: '$catLabel · ${keys.length} размеров'),
+          title: tr('Размеры и количество', 'Өлшемдер мен саны'),
+          subtitle: tr('$catLabel · ${keys.length} размеров', '$catLabel · ${keys.length} өлшем')),
       const SizedBox(height: 16),
       Container(
           padding: const EdgeInsets.all(14),
@@ -1169,17 +1176,17 @@ class _AddProductScreenState extends State<AddProductScreen> {
             const Icon(Icons.inventory_2_outlined,
                 color: Colors.white70, size: 20),
             const SizedBox(width: 10),
-            const Text('Итого в партии:',
+            Text(tr('Итого в партии:', 'Партияда барлығы:'),
                 style: TextStyle(color: Colors.white70, fontSize: 13)),
             const Spacer(),
-            Text('$_totalPairs шт.',
+            Text(tr('$_totalPairs шт.', '$_totalPairs дана'),
                 style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w800,
                     fontSize: 20)),
           ])),
       const SizedBox(height: 14),
-      const _Label('⚡ Быстрое заполнение'),
+      _Label(tr('⚡ Быстрое заполнение', '⚡ Жылдам толтыру')),
       const SizedBox(height: 8),
       SizedBox(
           height: 80,
@@ -1214,12 +1221,12 @@ class _AddProductScreenState extends State<AddProductScreen> {
                                   decoration: BoxDecoration(
                                       color: cGreen,
                                       borderRadius: BorderRadius.circular(4)),
-                                  child: const Text('ҰСЫНЫЛАДЫ',
+                                  child: Text(tr('РЕКОМЕНДУЕТСЯ', 'ҰСЫНЫЛАДЫ'),
                                       style: TextStyle(
                                           color: Colors.white,
                                           fontSize: 9,
                                           fontWeight: FontWeight.w700))),
-                            Text(p['label'] as String,
+                            Text(tr(p['labelRu'] as String, p['labelKk'] as String),
                                 style: TextStyle(
                                     fontSize: 11,
                                     fontWeight: FontWeight.w700,
@@ -1229,7 +1236,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis),
                             const SizedBox(height: 2),
-                            Text(p['desc'] as String,
+                            Text(tr(p['descRu'] as String, p['descKk'] as String),
                                 style: const TextStyle(
                                     fontSize: 10,
                                     color: cInk2)),
@@ -1238,7 +1245,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
           )),
       const SizedBox(height: 14),
       Row(children: [
-        const _Label('Размеры'),
+        _Label(tr('Размеры', 'Өлшемдер')),
         const Spacer(),
         GestureDetector(
             onTap: () =>
@@ -1249,7 +1256,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                 decoration: BoxDecoration(
                     color: cRedTint,
                     borderRadius: BorderRadius.circular(6)),
-                child: const Text('Сбросить',
+                child: Text(tr('Сбросить', 'Тазарту'),
                     style: TextStyle(
                         fontSize: 11,
                         color: cRed,
@@ -1283,7 +1290,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                 children: [
                   Text(size,
                       style: manrope(15, FontWeight.w800, color: cInk)),
-                  Text('$qty шт.',
+                  Text(tr('$qty шт.', '$qty дана'),
                       style: manrope(11, FontWeight.w700,
                           color: qty > 0 ? cGreen : cInk3)),
                 ],
@@ -1300,8 +1307,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         _StepHeader(
             icon: Icons.photo_library_outlined,
-            title: 'Фотографии товара',
-            subtitle: 'Минимум 1, максимум $_maxImages фото · авто-кадр 1:1'),
+            title: tr('Фотографии товара', 'Тауар фотосуреттері'),
+            subtitle: tr('Минимум 1, максимум $_maxImages фото · авто-кадр 1:1', 'Кемінде 1, ең көбі $_maxImages фото · авто-кадр 1:1')),
         const SizedBox(height: 20),
         if (_remainingSlots > 0)
           GestureDetector(
@@ -1321,18 +1328,18 @@ class _AddProductScreenState extends State<AddProductScreen> {
                       const Icon(Icons.add_a_photo_outlined,
                           size: 32, color: cGreen),
                       const SizedBox(height: 8),
-                      const Text('Добавить фото',
+                      Text(tr('Добавить фото', 'Фото қосу'),
                           style: TextStyle(
                               color: cGreen,
                               fontWeight: FontWeight.w600,
                               fontSize: 14)),
-                      Text('Можно выбрать до $_remainingSlots сразу',
+                      Text(tr('Можно выбрать до $_remainingSlots сразу', 'Бірден $_remainingSlots дейін таңдауға болады'),
                           style: const TextStyle(color: cInk3, fontSize: 11)),
                     ])),
           ),
         if (_remainingSlots > 0) const SizedBox(height: 16),
         if (_imageBytes.isNotEmpty) ...[
-          Text('Добавлено: ${_imageBytes.length} / $_maxImages фото',
+          Text(tr('Добавлено: ${_imageBytes.length} / $_maxImages фото', 'Қосылды: ${_imageBytes.length} / $_maxImages фото'),
               style: const TextStyle(
                   fontWeight: FontWeight.w600, color: cInk)),
           const SizedBox(height: 10),
@@ -1374,7 +1381,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                           decoration: BoxDecoration(
                               color: cGreen,
                               borderRadius: BorderRadius.circular(4)),
-                          child: const Text('Главное',
+                          child: Text(tr('Главное', 'Басты'),
                               style: TextStyle(
                                   color: Colors.white,
                                   fontSize: 9,
@@ -1392,14 +1399,14 @@ class _AddProductScreenState extends State<AddProductScreen> {
                 border: Border.all(color: cLine)),
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('Итоговые данные товара',
+              Text(tr('Итоговые данные товара', 'Тауардың қорытынды деректері'),
                   style: TextStyle(
                       fontWeight: FontWeight.w700,
                       fontSize: 14,
                       color: cInk)),
               const SizedBox(height: 12),
               _SummaryRow(
-                  label: 'Название',
+                  label: tr('Название', 'Атауы'),
                   value: _nameCtrl.text.isEmpty ? '—' : _nameCtrl.text),
               _SummaryRow(
                   label: 'Бренд',
@@ -1409,17 +1416,17 @@ class _AddProductScreenState extends State<AddProductScreen> {
                   value: _categoryKey == null
                       ? '—'
                       : categoryByKey(_categoryKey).name),
-              _SummaryRow(label: 'Тип товара', value: _type ?? '—'),
-              _SummaryRow(label: 'Кому', value: _targetGroup ?? '—'),
-              _SummaryRow(label: 'Цвет', value: _color ?? '—'),
+              _SummaryRow(label: tr('Тип товара', 'Тауар түрі'), value: _type == null ? '—' : trValue(_type!)),
+              _SummaryRow(label: tr('Кому', 'Кімге'), value: _targetGroup == null ? '—' : trValue(_targetGroup!)),
+              _SummaryRow(label: tr('Цвет', 'Түсі'), value: _color == null ? '—' : trValue(_color!)),
               _SummaryRow(
-                  label: 'Дата поставки',
+                  label: tr('Дата поставки', 'Жеткізілім күні'),
                   value:
                       '${_dateArrived.day.toString().padLeft(2, '0')}.${_dateArrived.month.toString().padLeft(2, '0')}.${_dateArrived.year}'),
               _SummaryRow(
-                  label: 'Закуп / Продажа',
+                  label: tr('Закуп / Продажа', 'Сатып алу / Сату'),
                   value: '${_purchaseCtrl.text} ₸ / ${_sellingCtrl.text} ₸'),
-              _SummaryRow(label: 'Всего товаров', value: '$_totalPairs шт.'),
+              _SummaryRow(label: tr('Всего товаров', 'Барлық тауар'), value: tr('$_totalPairs шт.', '$_totalPairs дана')),
             ])),
       ]);
 }

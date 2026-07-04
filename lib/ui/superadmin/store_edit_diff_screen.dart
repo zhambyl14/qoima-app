@@ -6,6 +6,7 @@ import '../../theme/qoima_design.dart';
 import '../shared/edit_field_display.dart';
 import 'reject_reason_sheet.dart';
 
+import '../../core/lang.dart';
 const _editRejectReasons = [
   'Данные не соответствуют действительности',
   'Карта не совпадает с владельцем ИИН',
@@ -38,7 +39,7 @@ class _StoreEditDiffScreenState extends State<StoreEditDiffScreen> {
       );
       if (mounted) {
         Navigator.pop(context);
-        _snack('Изменения применены', cGreen);
+        _snack(tr('Изменения применены', 'Өзгерістер қолданылды'), cGreen);
       }
     } catch (e) {
       if (mounted) {
@@ -51,7 +52,7 @@ class _StoreEditDiffScreenState extends State<StoreEditDiffScreen> {
   Future<void> _reject() async {
     final note = await showRejectReasonSheet(
       context,
-      title: 'Вернуть изменения',
+      title: tr('Вернуть изменения', 'Өзгерістерді қайтару'),
       subtitle: req.shopName,
       reasons: _editRejectReasons,
     );
@@ -65,7 +66,7 @@ class _StoreEditDiffScreenState extends State<StoreEditDiffScreen> {
       );
       if (mounted) {
         Navigator.pop(context);
-        _snack('Запрос возвращён владельцу', cInk);
+        _snack(tr('Запрос возвращён владельцу', 'Сұраныс иесіне қайтарылды'), cInk);
       }
     } catch (e) {
       if (mounted) {
@@ -94,7 +95,7 @@ class _StoreEditDiffScreenState extends State<StoreEditDiffScreen> {
       backgroundColor: cBg,
       body: Column(children: [
         QGradientHeader(
-          title: 'Изменение #$idShort',
+          title: tr('Изменение #$idShort', 'Өзгеріс #$idShort'),
           subtitle: '${req.shopName} · ${_fmtDate(req.createdAt)}',
           showBack: true,
         ),
@@ -135,7 +136,7 @@ class _StoreEditDiffScreenState extends State<StoreEditDiffScreen> {
                 ),
 
                 const SizedBox(height: 18),
-                const QSecLabel('Изменения'),
+                QSecLabel(tr('Изменения', 'Өзгерістер')),
                 ...req.changes.map((c) => Padding(
                       padding: const EdgeInsets.only(bottom: 10),
                       child: _DiffCard(
@@ -171,7 +172,7 @@ class _StoreEditDiffScreenState extends State<StoreEditDiffScreen> {
 
                 if (req.ownerComment.isNotEmpty) ...[
                   const SizedBox(height: 18),
-                  const QSecLabel('Комментарий владельца'),
+                  QSecLabel(tr('Комментарий владельца', 'Иесінің пікірі')),
                   QCard(
                     child: Text(req.ownerComment,
                         style: manrope(13.5, FontWeight.w500,
@@ -183,7 +184,7 @@ class _StoreEditDiffScreenState extends State<StoreEditDiffScreen> {
                 const SizedBox(height: 20),
                 if (req.isPending) ...[
                   QPrimaryButton(
-                    label: 'Принять изменения',
+                    label: tr('Принять изменения', 'Өзгерістерді қабылдау'),
                     isLoading: _loading,
                     icon: const Icon(Icons.check_rounded,
                         color: Colors.white, size: 20),
@@ -197,7 +198,7 @@ class _StoreEditDiffScreenState extends State<StoreEditDiffScreen> {
                       onPressed: _loading ? null : _reject,
                       icon: const Icon(Icons.close_rounded,
                           color: cRed, size: 19),
-                      label: Text('Вернуть — запросить причину',
+                      label: Text(tr('Вернуть — запросить причину', 'Қайтару — себеп сұрау'),
                           style: manrope(15, FontWeight.w700, color: cRed)),
                       style: OutlinedButton.styleFrom(
                         side: const BorderSide(color: cRed),
@@ -219,8 +220,8 @@ class _StoreEditDiffScreenState extends State<StoreEditDiffScreen> {
                       children: [
                         Text(
                             req.isApproved
-                                ? 'Изменения приняты'
-                                : 'Запрос возвращён',
+                                ? tr('Изменения приняты', 'Өзгерістер қабылданды')
+                                : tr('Запрос возвращён', 'Сұраныс қайтарылды'),
                             style: manrope(14, FontWeight.w700,
                                 color: req.isApproved
                                     ? cGreenDeep
@@ -244,10 +245,10 @@ class _StoreEditDiffScreenState extends State<StoreEditDiffScreen> {
 }
 
 String _statusLabel(StoreEditRequestModel r) {
-  if (r.isApproved) return 'Одобрено';
-  if (r.isRejected) return 'Отклонено';
-  if (r.isCancelled) return 'Отозвано';
-  return 'Ожидание';
+  if (r.isApproved) return tr('Одобрено', 'Мақұлданды');
+  if (r.isRejected) return tr('Отклонено', 'Қабылданбады');
+  if (r.isCancelled) return tr('Отозвано', 'Кері қайтарылды');
+  return tr('Ожидание', 'Күту');
 }
 
 String _statusTone(StoreEditRequestModel r) {
@@ -307,7 +308,7 @@ class _DiffCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('БЫЛО',
+                      Text(tr('БЫЛО', 'БҰРЫН'),
                           style: manrope(10, FontWeight.w700, color: cInk3)),
                       const SizedBox(height: 5),
                       Text(oldValue,
@@ -323,7 +324,7 @@ class _DiffCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('НОВОЕ',
+                      Text(tr('НОВОЕ', 'ЖАҢА'),
                           style:
                               manrope(10, FontWeight.w700, color: cGreenDeep)),
                       const SizedBox(height: 5),

@@ -3,6 +3,7 @@ import '../../../data/models/warehouse_model.dart';
 import '../../../data/services/firestore_service.dart';
 import '../../../theme/qoima_design.dart';
 
+import '../../../core/lang.dart';
 class SellersScreen extends StatefulWidget {
   const SellersScreen({super.key});
   @override
@@ -50,7 +51,7 @@ class _SellersScreenState extends State<SellersScreen>
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Продавцы',
+                          Text(tr('Продавцы', 'Сатушылар'),
                               style: manrope(23, FontWeight.w800,
                                   color: Colors.white, letterSpacing: -0.5)),
                           StreamBuilder<List<Map<String, dynamic>>>(
@@ -59,7 +60,7 @@ class _SellersScreenState extends State<SellersScreen>
                                 List<Map<String, dynamic>>>(
                               stream: _service.watchPendingRequests(),
                               builder: (_, p) => Text(
-                                '${s.data?.length ?? 0} активных · ${p.data?.length ?? 0} запросов',
+                                tr('${s.data?.length ?? 0} активных · ${p.data?.length ?? 0} запросов', '${s.data?.length ?? 0} белсенді · ${p.data?.length ?? 0} сұраныс'),
                                 style: manrope(13, FontWeight.w500,
                                     color:
                                         Colors.white.withValues(alpha: 0.78)),
@@ -80,7 +81,7 @@ class _SellersScreenState extends State<SellersScreen>
                           color: Colors.white.withValues(alpha: 0.14),
                           borderRadius: BorderRadius.circular(13)),
                       child: Row(
-                        children: ['Активные', 'Запросы']
+                        children: [tr('Активные', 'Белсенді'), tr('Запросы', 'Сұраныстар')]
                             .asMap()
                             .entries
                             .map((e) {
@@ -153,7 +154,7 @@ class _ActiveTab extends StatelessWidget {
             children: [
               Icon(Icons.group_outlined, size: 56, color: Colors.grey.shade300),
               const SizedBox(height: 12),
-              const Text('Белсенді сатушы жоқ',
+              Text(tr('Активных продавцов нет', 'Белсенді сатушы жоқ'),
                   style: TextStyle(
                       fontSize: 15,
                       color: cInk2,
@@ -228,7 +229,7 @@ class _ActiveSellerCard extends StatelessWidget {
               return DropdownButtonHideUnderline(
                 child: DropdownButton<String>(
                   value: warehouses.any((w) => w.id == whId) ? whId : null,
-                  hint: const Text('Қойма таңдаңыз',
+                  hint: Text(tr('Выберите склад', 'Қойма таңдаңыз'),
                       style: TextStyle(fontSize: 12, color: cInk3)),
                   isDense: true,
                   style: const TextStyle(
@@ -270,31 +271,31 @@ class _ActiveSellerCard extends StatelessWidget {
                   builder: (_) => AlertDialog(
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(20)),
-                        title: const Text('Сатушыны жою'),
-                        content: Text('«$name» сатушыны жоямыз ба?'),
+                        title: Text(tr('Удалить продавца', 'Сатушыны жою')),
+                        content: Text(tr('Удалить продавца «$name»?', '«$name» сатушыны жоямыз ба?')),
                         actions: [
                           TextButton(
                               onPressed: () => Navigator.pop(context, false),
-                              child: const Text('Болдырмау')),
+                              child: Text(tr('Отмена', 'Болдырмау'))),
                           ElevatedButton(
                               onPressed: () => Navigator.pop(context, true),
                               style: ElevatedButton.styleFrom(
                                   backgroundColor: cRed,
                                   foregroundColor: Colors.white),
-                              child: const Text('Жою')),
+                              child: Text(tr('Удалить', 'Жою'))),
                         ],
                       ));
               if (ok == true) await service.removeSeller(uid);
             }
           },
           itemBuilder: (_) => [
-            const PopupMenuItem(
+            PopupMenuItem(
                 value: 'remove',
                 child: Row(children: [
                   Icon(Icons.person_remove_outlined,
                       size: 16, color: cRed),
                   SizedBox(width: 8),
-                  Text('Жою', style: TextStyle(color: cRed)),
+                  Text(tr('Удалить', 'Жою'), style: TextStyle(color: cRed)),
                 ])),
           ],
         ),
@@ -325,7 +326,7 @@ class _WarehousePicker extends StatelessWidget {
                     color: Colors.grey.shade300,
                     borderRadius: BorderRadius.circular(2)))),
         const SizedBox(height: 16),
-        const Text('Қойма тағайындау',
+        Text(tr('Назначить склад', 'Қойма тағайындау'),
             style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
@@ -370,7 +371,7 @@ class _PendingTab extends StatelessWidget {
               Icon(Icons.hourglass_empty_rounded,
                   size: 56, color: Colors.grey.shade300),
               const SizedBox(height: 12),
-              const Text('Күтуде өтінім жоқ',
+              Text(tr('Ожидающих заявок нет', 'Күтуде өтінім жоқ'),
                   style: TextStyle(
                       fontSize: 15,
                       color: cInk2,
@@ -405,7 +406,7 @@ class _PendingCard extends StatelessWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content:
-              Text('Қате: ${e.toString().replaceFirst('Exception: ', '')}'),
+              Text(tr('Ошибка: ${e.toString().replaceFirst('Exception: ', '')}', 'Қате: ${e.toString().replaceFirst('Exception: ', '')}')),
           backgroundColor: const Color(0xFFEF4444),
           behavior: SnackBarBehavior.floating,
         ));
@@ -467,8 +468,8 @@ class _PendingCard extends StatelessWidget {
               final warehouses = await service.getWarehouses();
               if (!context.mounted) return;
               if (warehouses.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                  content: Text('Алдымен қойма жасаңыз'),
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text(tr('Сначала создайте склад', 'Алдымен қойма жасаңыз')),
                   behavior: SnackBarBehavior.floating,
                 ));
                 return;
@@ -495,7 +496,7 @@ class _PendingCard extends StatelessWidget {
                 decoration: BoxDecoration(
                     color: cGreen,
                     borderRadius: BorderRadius.circular(8)),
-                child: const Text('Қабылдау',
+                child: Text(tr('Принять', 'Қабылдау'),
                     style: TextStyle(
                         color: Colors.white,
                         fontSize: 12,
@@ -515,7 +516,7 @@ class _PendingCard extends StatelessWidget {
                 decoration: BoxDecoration(
                     color: cRedTint,
                     borderRadius: BorderRadius.circular(8)),
-                child: const Text('Бас тарту',
+                child: Text(tr('Отклонить', 'Бас тарту'),
                     style: TextStyle(
                         color: cRed,
                         fontSize: 12,

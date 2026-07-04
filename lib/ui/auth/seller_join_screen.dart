@@ -8,6 +8,7 @@ import '../../data/services/firestore_service.dart';
 import '../../theme/qoima_design.dart';
 import '../main_shell.dart';
 
+import '../../core/lang.dart';
 class SellerJoinScreen extends StatefulWidget {
   const SellerJoinScreen({super.key});
   @override
@@ -114,8 +115,8 @@ class _SellerJoinScreenState extends State<SellerJoinScreen> {
   Widget _buildNone() {
     return Column(children: [
       QGradientHeader(
-        title: 'Привязка к складу',
-        subtitle: 'Шаг подключения',
+        title: tr('Привязка к складу', 'Қоймаға байлану'),
+        subtitle: tr('Шаг подключения', 'Қосылу қадамы'),
       ),
       Expanded(
         child: SingleChildScrollView(
@@ -134,12 +135,12 @@ class _SellerJoinScreenState extends State<SellerJoinScreen> {
                   color: cGreen, size: 40),
             ),
             const SizedBox(height: 16),
-            Text('Привяжитесь к складу',
+            Text(tr('Привяжитесь к складу', 'Қоймаға байланыңыз'),
                 style: manrope(20, FontWeight.w800, color: cInk),
                 textAlign: TextAlign.center),
             const SizedBox(height: 6),
             Text(
-              'Введите код склада или отправьте запрос владельцу',
+              tr('Введите код склада или отправьте запрос владельцу', 'Қойма кодын енгізіңіз немесе иесіне сұраныс жіберіңіз'),
               style: manrope(13.5, FontWeight.w500, color: cInk2),
               textAlign: TextAlign.center,
             ),
@@ -197,7 +198,7 @@ class _SellerJoinScreenState extends State<SellerJoinScreen> {
             ),
             const SizedBox(height: 12),
             Text(
-              'Владелец увидит запрос и подтвердит привязку',
+              tr('Владелец увидит запрос и подтвердит привязку', 'Иесі сұранысты көріп, байлануды растайды'),
               style: manrope(12.5, FontWeight.w500, color: cInk3),
               textAlign: TextAlign.center,
             ),
@@ -217,8 +218,8 @@ class _SellerJoinScreenState extends State<SellerJoinScreen> {
   Widget _buildPending() {
     return Column(children: [
       QGradientHeader(
-        title: 'Привязка к складу',
-        subtitle: 'Ожидание',
+        title: tr('Привязка к складу', 'Қоймаға байлану'),
+        subtitle: tr('Ожидание', 'Күту'),
       ),
       Expanded(
         child: Center(
@@ -237,12 +238,12 @@ class _SellerJoinScreenState extends State<SellerJoinScreen> {
                       color: cAmber, size: 46),
                 ),
                 const SizedBox(height: 20),
-                Text('Запрос отправлен',
+                Text(tr('Запрос отправлен', 'Сұраныс жіберілді'),
                     style: manrope(20, FontWeight.w800, color: cInk),
                     textAlign: TextAlign.center),
                 const SizedBox(height: 8),
                 Text(
-                  'Ожидаем подтверждения владельца склада',
+                  tr('Ожидаем подтверждения владельца склада', 'Қойма иесінің растауын күтеміз'),
                   style: manrope(13.5, FontWeight.w500, color: cInk2),
                   textAlign: TextAlign.center,
                 ),
@@ -260,10 +261,10 @@ class _SellerJoinScreenState extends State<SellerJoinScreen> {
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: Text('Ожидание ответа',
+                      child: Text(tr('Ожидание ответа', 'Жауап күтілуде'),
                           style: manrope(14, FontWeight.w600, color: cInk)),
                     ),
-                    QPill('На рассмотрении',
+                    QPill(tr('На рассмотрении', 'Қаралуда'),
                         tone: 'amber',
                         icon: const Icon(Icons.access_time_rounded,
                             size: 13, color: Color(0xFF9A6A06))),

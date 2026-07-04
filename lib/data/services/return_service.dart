@@ -5,6 +5,7 @@ import '../models/sale_model.dart';
 import '../models/order_model.dart';
 import '../../core/app_user.dart';
 
+import '../../core/lang.dart';
 /// Қайтару (возврат) сервисі (Supabase).
 class ReturnService {
   final SupabaseClient _sb = Supabase.instance.client;
@@ -125,8 +126,8 @@ class ReturnService {
           .maybeSingle();
       if (row == null) return;
       if (row['status'] != ReturnStatus.requested.name) {
-        throw const ReturnException(
-            'Тек "Сұраныс жіберілді" күйінде болдырмауға болады.');
+        throw ReturnException(
+            tr('Отменить можно только в статусе «Заявка отправлена».', 'Тек "Сұраныс жіберілді" күйінде болдырмауға болады.'));
       }
       await _sb.from('returns').delete().eq('id', returnId);
     } catch (e) {
@@ -188,7 +189,7 @@ class ReturnService {
           .select()
           .eq('id', returnId)
           .maybeSingle();
-      if (rRow == null) throw const ReturnException('Возврат не найден.');
+      if (rRow == null) throw ReturnException(tr('Возврат не найден.', 'Қайтару табылмады.'));
       if (rRow['status'] == ReturnStatus.refunded.name) return; // идемпотентті
       final model = ReturnModel.fromRow(rRow);
 
@@ -364,8 +365,8 @@ class ReturnService {
       final alreadyReturned = existing
           .any((d) => d['status'] != ReturnStatus.rejected.name);
       if (alreadyReturned) {
-        throw const ReturnException(
-            'Бұл сатылым бойынша қайтару бұрын жасалған.');
+        throw ReturnException(
+            tr('По этой продаже возврат уже был оформлен.', 'Бұл сатылым бойынша қайтару бұрын жасалған.'));
       }
 
       final returnId = await _nextReturnId(adminUid);

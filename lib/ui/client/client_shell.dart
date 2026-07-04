@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../core/lang.dart';
 import '../../theme/qoima_design.dart';
 import '../../data/models/cart_item_model.dart';
 import 'client_home_screen.dart';
@@ -201,7 +202,7 @@ class ClientShellState extends State<ClientShell> {
                         ),
                         const SizedBox(height: 3),
                         Text(
-                          _tabs[i].label,
+                          trValue(_tabs[i].label),
                           style: manrope(
                             10.5,
                             active ? FontWeight.w700 : FontWeight.w600,

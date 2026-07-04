@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../l10n/app_localizations.dart';
+import 'lang.dart';
 
 extension MoneyFmt on num {
   String get money =>
@@ -16,33 +17,33 @@ extension L10nContext on BuildContext {
   String date(DateTime d) => DateFormat('dd.MM.yyyy').format(d);
 
   List<String> get monthAbbreviations => [
-        'Янв',
-        'Фев',
-        'Мар',
-        'Апр',
-        'Май',
-        'Июн',
-        'Июл',
-        'Авг',
-        'Сен',
-        'Окт',
-        'Ноя',
-        'Дек'
+        tr('Янв', 'Қаң'),
+        tr('Фев', 'Ақп'),
+        tr('Мар', 'Нау'),
+        tr('Апр', 'Сәу'),
+        tr('Май', 'Мам'),
+        tr('Июн', 'Мау'),
+        tr('Июл', 'Шіл'),
+        tr('Авг', 'Там'),
+        tr('Сен', 'Қыр'),
+        tr('Окт', 'Қаз'),
+        tr('Ноя', 'Қар'),
+        tr('Дек', 'Жел')
       ];
 
   List<String> get monthNames => [
-        'Январь',
-        'Февраль',
-        'Март',
-        'Апрель',
-        'Май',
-        'Июнь',
-        'Июль',
-        'Август',
-        'Сентябрь',
-        'Октябрь',
-        'Ноябрь',
-        'Декабрь'
+        tr('Январь', 'Қаңтар'),
+        tr('Февраль', 'Ақпан'),
+        tr('Март', 'Наурыз'),
+        tr('Апрель', 'Сәуір'),
+        tr('Май', 'Мамыр'),
+        tr('Июнь', 'Маусым'),
+        tr('Июль', 'Шілде'),
+        tr('Август', 'Тамыз'),
+        tr('Сентябрь', 'Қыркүйек'),
+        tr('Октябрь', 'Қазан'),
+        tr('Ноябрь', 'Қараша'),
+        tr('Декабрь', 'Желтоқсан')
       ];
 
   String monthShort(DateTime d) =>
@@ -50,5 +51,6 @@ extension L10nContext on BuildContext {
 
   String monthLong(DateTime d) => '${monthNames[d.month - 1]} ${d.year}';
 
-  String forMonth(DateTime d) => 'За ${monthNames[d.month - 1]}';
+  String forMonth(DateTime d) =>
+      tr('За ${monthNames[d.month - 1]}', '${monthNames[d.month - 1]} үшін');
 }

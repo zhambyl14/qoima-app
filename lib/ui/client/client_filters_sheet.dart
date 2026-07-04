@@ -6,6 +6,7 @@ import '../../data/models/category_data.dart';
 import '../../theme/qoima_design.dart';
 import 'client_home_screen.dart';
 
+import '../../core/lang.dart';
 class ClientFiltersSheet extends StatefulWidget {
   final List<({ProductModel product, List<BatchModel> batches})> pairs;
   final List<StoreModel> stores;
@@ -119,7 +120,7 @@ class _ClientFiltersSheetState extends State<ClientFiltersSheet> {
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
             child: Row(children: [
-              const Text('Фильтры',
+              Text(tr('Фильтры', 'Сүзгілер'),
                   style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w800,
@@ -128,7 +129,7 @@ class _ClientFiltersSheetState extends State<ClientFiltersSheet> {
               if (_f.activeCount > 0)
                 TextButton(
                   onPressed: () => setState(() => _f = const ClientFilters()),
-                  child: const Text('Сбросить',
+                  child: Text(tr('Сбросить', 'Тазарту'),
                       style: TextStyle(color: cRed, fontSize: 13)),
                 ),
             ]),
@@ -141,7 +142,7 @@ class _ClientFiltersSheetState extends State<ClientFiltersSheet> {
               children: [
                 // Тип товара (8 категорий)
                 if (_allCategoryKeys.length > 1) ...[
-                  _SectionTitle('Тип товара'),
+                  _SectionTitle(tr('Тип товара', 'Тауар түрі')),
                   const SizedBox(height: 8),
                   Wrap(
                       spacing: 8,
@@ -185,11 +186,11 @@ class _ClientFiltersSheetState extends State<ClientFiltersSheet> {
 
                 // Store selector (multiple stores)
                 if (widget.stores.length > 1) ...[
-                  _SectionTitle('Магазин'),
+                  _SectionTitle(tr('Магазин', 'Дүкен')),
                   const SizedBox(height: 8),
                   Wrap(spacing: 8, runSpacing: 8, children: [
                     _OptionChip(
-                      label: 'Все магазины',
+                      label: tr('Все магазины', 'Барлық дүкендер'),
                       selected: _f.storeId == null,
                       onTap: () =>
                           setState(() => _f = _f.copyWith(storeId: null)),
@@ -206,14 +207,14 @@ class _ClientFiltersSheetState extends State<ClientFiltersSheet> {
 
                 // Types
                 if (_allTypes.isNotEmpty) ...[
-                  _SectionTitle('Тип'),
+                  _SectionTitle(tr('Тип', 'Түрі')),
                   const SizedBox(height: 8),
                   Wrap(
                       spacing: 8,
                       runSpacing: 8,
                       children: _sortedList(_allTypes)
                           .map((v) => _OptionChip(
-                                label: v,
+                                label: trValue(v),
                                 selected: _f.types.contains(v),
                                 onTap: () => setState(() {
                                   final s = Set<String>.from(_f.types);
@@ -248,14 +249,14 @@ class _ClientFiltersSheetState extends State<ClientFiltersSheet> {
 
                 // Sizes — grid style
                 if (_allSizes.isNotEmpty) ...[
-                  _SectionTitle('Размер'),
+                  _SectionTitle(tr('Размер', 'Өлшем')),
                   const SizedBox(height: 8),
                   Wrap(
                       spacing: 8,
                       runSpacing: 8,
                       children: _sortedSizes(_allSizes)
                           .map((v) => _SizeChip(
-                                label: v,
+                                label: trValue(v),
                                 selected: _f.sizes.contains(v),
                                 onTap: () => setState(() {
                                   final s = Set<String>.from(_f.sizes);
@@ -269,14 +270,14 @@ class _ClientFiltersSheetState extends State<ClientFiltersSheet> {
 
                 // Colors
                 if (_allColors.isNotEmpty) ...[
-                  _SectionTitle('Цвет'),
+                  _SectionTitle(tr('Цвет', 'Түсі')),
                   const SizedBox(height: 8),
                   Wrap(
                       spacing: 8,
                       runSpacing: 8,
                       children: _sortedList(_allColors)
                           .map((v) => _OptionChip(
-                                label: v,
+                                label: trValue(v),
                                 selected: _f.colors.contains(v),
                                 onTap: () => setState(() {
                                   final s = Set<String>.from(_f.colors);
@@ -290,14 +291,14 @@ class _ClientFiltersSheetState extends State<ClientFiltersSheet> {
 
                 // Целевая группа / пол
                 if (_allCategories.isNotEmpty) ...[
-                  _SectionTitle('Кому'),
+                  _SectionTitle(tr('Кому', 'Кімге')),
                   const SizedBox(height: 8),
                   Wrap(
                       spacing: 8,
                       runSpacing: 8,
                       children: _sortedList(_allCategories)
                           .map((v) => _OptionChip(
-                                label: v,
+                                label: trValue(v),
                                 selected: _f.categories.contains(v),
                                 onTap: () => setState(() {
                                   final s = Set<String>.from(_f.categories);
@@ -310,12 +311,12 @@ class _ClientFiltersSheetState extends State<ClientFiltersSheet> {
                 ],
 
                 // Price range
-                _SectionTitle('Цена (₸)'),
+                _SectionTitle(tr('Цена (₸)', 'Бағасы (₸)')),
                 const SizedBox(height: 12),
                 Row(children: [
                   Expanded(
                       child: _PriceField(
-                    hint: 'От',
+                    hint: tr('От', 'Бастап'),
                     initial: _f.minPrice,
                     onChanged: (v) =>
                         setState(() => _f = _f.copyWith(minPrice: v)),
@@ -323,7 +324,7 @@ class _ClientFiltersSheetState extends State<ClientFiltersSheet> {
                   const SizedBox(width: 12),
                   Expanded(
                       child: _PriceField(
-                    hint: 'До',
+                    hint: tr('До', 'Дейін'),
                     initial: _f.maxPrice,
                     onChanged: (v) =>
                         setState(() => _f = _f.copyWith(maxPrice: v)),
@@ -358,7 +359,7 @@ class _ClientFiltersSheetState extends State<ClientFiltersSheet> {
                   elevation: 0,
                 ),
                 child: Text(
-                  count > 0 ? 'Показать $count товаров' : 'Нет результатов',
+                  count > 0 ? tr('Показать $count товаров', '$count тауарды көрсету') : tr('Нет результатов', 'Нәтиже жоқ'),
                   style: const TextStyle(
                       fontSize: 16, fontWeight: FontWeight.w700),
                 ),

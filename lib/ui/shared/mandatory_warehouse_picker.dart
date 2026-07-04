@@ -5,6 +5,7 @@ import '../../core/warehouse_context.dart';
 import '../../data/models/warehouse_model.dart';
 import '../../theme/app_theme.dart';
 
+import '../../core/lang.dart';
 /// Returns false if admin has no current warehouse and user dismissed without picking.
 /// Call before any warehouse-dependent action. Resolves immediately if warehouse is already set.
 Future<bool> ensureWarehouseSelected(BuildContext context) async {
@@ -53,13 +54,13 @@ class _MandatoryWarehousePicker extends StatelessWidget {
         const SizedBox(height: 16),
         const Icon(Icons.warehouse_rounded, color: AppTheme.primary, size: 36),
         const SizedBox(height: 12),
-        const Text('Қойманы таңдаңыз',
+        Text(tr('Выберите склад', 'Қойманы таңдаңыз'),
             style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
                 color: AppTheme.textPrimary)),
         const SizedBox(height: 4),
-        const Text('Жалғастыру үшін қойма таңдаңыз',
+        Text(tr('Выберите склад, чтобы продолжить', 'Жалғастыру үшін қойма таңдаңыз'),
             style: TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
         const SizedBox(height: 16),
         ...warehouses.map((wh) => ListTile(
@@ -87,7 +88,7 @@ class _MandatoryWarehousePicker extends StatelessWidget {
                       decoration: BoxDecoration(
                           color: AppTheme.primary,
                           borderRadius: BorderRadius.circular(4)),
-                      child: const Text('НЕГ.',
+                      child: Text(tr('ОСН.', 'НЕГ.'),
                           style: TextStyle(
                               color: Colors.white,
                               fontSize: 9,

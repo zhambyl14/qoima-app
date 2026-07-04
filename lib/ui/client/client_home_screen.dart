@@ -15,6 +15,7 @@ import 'client_product_card.dart';
 import 'client_product_detail.dart';
 import 'client_shell.dart';
 
+import '../../core/lang.dart';
 // ── Filters state ──────────────────────────────────────────────────────────────
 class ClientFilters {
   final String search;
@@ -244,8 +245,8 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                       children: [
                         Text(
                           firstName.isEmpty
-                              ? 'Сәлем 👋'
-                              : 'Сәлем, $firstName 👋',
+                              ? tr('Привет 👋', 'Сәлем 👋')
+                              : tr('Привет, $firstName 👋', 'Сәлем, $firstName 👋'),
                           style: manrope(13.5, FontWeight.w600,
                               color: Colors.white.withValues(alpha: 0.85)),
                         ),
@@ -257,8 +258,8 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                   ),
                   QHeaderBtn(Icons.notifications_none_rounded,
                       onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Хабарламалар — жақында'),
+                            SnackBar(
+                              content: Text(tr('Уведомления — скоро', 'Хабарламалар — жақында')),
                               behavior: SnackBarBehavior.floating,
                               duration: Duration(seconds: 2),
                             ),
@@ -288,7 +289,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                         }),
                         style: manrope(14.5, FontWeight.w600, color: cInk),
                         decoration: InputDecoration(
-                          hintText: 'Тауарларды іздеу...',
+                          hintText: tr('Поиск товаров...', 'Тауарларды іздеу...'),
                           hintStyle:
                               manrope(14.5, FontWeight.w500, color: cInk3),
                           filled: false,
@@ -329,8 +330,8 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                         ? ClientEmptyState(
                             icon: Icons.storefront_outlined,
                             message: context.read<AppUser>().city.isNotEmpty
-                                ? 'Қалаңызда әзірге дүкендер жоқ'
-                                : 'Белсенді дүкендер жоқ')
+                                ? tr('В вашем городе пока нет магазинов', 'Қалаңызда әзірге дүкендер жоқ')
+                                : tr('Активных магазинов нет', 'Белсенді дүкендер жоқ'))
                         : (_loadingProducts && _pairs.isEmpty)
                             ? const CatalogGridSkeleton()
                             : CustomScrollView(
@@ -342,7 +343,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                                     child: Padding(
                                       padding: const EdgeInsets.fromLTRB(
                                           16, 16, 16, 8),
-                                      child: Text('Ұсынылады сізге',
+                                      child: Text(tr('Рекомендуем вам', 'Ұсынылады сізге'),
                                           style: manrope(17, FontWeight.w800,
                                               color: cInk)),
                                     ),
@@ -355,8 +356,8 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                                         child: ClientEmptyState(
                                           icon: Icons.search_off_rounded,
                                           message: _searchQuery.isEmpty
-                                              ? 'Тауарлар жоқ'
-                                              : '«$_searchQuery» табылмады',
+                                              ? tr('Товаров нет', 'Тауарлар жоқ')
+                                              : tr('«$_searchQuery» не найдено', '«$_searchQuery» табылмады'),
                                         ),
                                       ),
                                     )

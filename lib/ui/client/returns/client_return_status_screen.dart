@@ -4,6 +4,7 @@ import '../../../data/models/return_model.dart';
 import '../../../data/services/return_service.dart';
 import '../../../theme/qoima_design.dart';
 
+import '../../../core/lang.dart';
 class ClientReturnStatusScreen extends StatelessWidget {
   final ReturnModel ret;
   const ClientReturnStatusScreen({super.key, required this.ret});
@@ -145,13 +146,13 @@ class _StatusBodyState extends State<_StatusBody> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _Row('Тип', r.type.label(context)),
+                    _Row(tr('Тип', 'Түрі'), r.type.label(context)),
                     _Row(context.l10n.returnPickupLabel,
                         r.pickup.label(context)),
                     _Row(context.l10n.returnRefundMethodLabel,
                         r.refundMethod.label(context)),
                     if (r.orderId != null && r.orderId!.isNotEmpty)
-                      _Row('Заказ ID', r.orderId!),
+                      _Row(tr('Заказ ID', 'Тапсырыс ID'), r.orderId!),
                   ],
                 ),
               ),
@@ -191,7 +192,7 @@ class _StatusBodyState extends State<_StatusBody> {
                                     color: cInk),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis),
-                            Text('Р.${item.size}  ×${item.quantity}',
+                            Text(tr('Р.${item.size}  ×${item.quantity}', 'Ө.${item.size}  ×${item.quantity}'),
                                 style: manrope(12, FontWeight.w500,
                                     color: cInk3)),
                           ],

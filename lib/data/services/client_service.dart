@@ -10,6 +10,7 @@ import '../models/cart_item_model.dart';
 import '../models/promo_model.dart';
 import '../../core/search_helper.dart';
 
+import '../../core/lang.dart';
 /// Группа товаров-вариантов: одно и то же имя+бренд+тип, разные цвета.
 class ProductGroup {
   final List<ProductModel> variants;
@@ -274,7 +275,7 @@ class ClientService {
     required String clientUid,
   }) async {
     final norm = code.trim().toUpperCase();
-    if (norm.isEmpty) return const PromoResult.fail('Введите промокод');
+    if (norm.isEmpty) return PromoResult.fail(tr('Введите промокод', 'Промокод енгізіңіз'));
 
     final row = await _sb
         .from('promos')
@@ -283,18 +284,18 @@ class ClientService {
         .eq('code', norm)
         .limit(1)
         .maybeSingle();
-    if (row == null) return const PromoResult.fail('Промокод не найден');
+    if (row == null) return PromoResult.fail(tr('Промокод не найден', 'Промокод табылмады'));
     final promo = PromoModel.fromRow(row);
 
-    if (!promo.active) return const PromoResult.fail('Промокод отключён');
+    if (!promo.active) return PromoResult.fail(tr('Промокод отключён', 'Промокод өшірілген'));
     if (!promo.isStarted) {
-      return const PromoResult.fail('Промокод ещё не активен');
+      return PromoResult.fail(tr('Промокод ещё не активен', 'Промокод әлі белсенді емес'));
     }
     if (promo.isExpired) {
-      return const PromoResult.fail('Срок действия промокода истёк');
+      return PromoResult.fail(tr('Срок действия промокода истёк', 'Промокодтың мерзімі өткен'));
     }
     if (promo.isExhausted) {
-      return const PromoResult.fail('Лимит использований исчерпан');
+      return PromoResult.fail(tr('Лимит использований исчерпан', 'Қолдану лимиті таусылған'));
     }
 
     if (promo.perUserLimit != null && clientUid.isNotEmpty) {
@@ -307,7 +308,7 @@ class ClientService {
             .maybeSingle();
         final used = (red?['count'] as num?)?.toInt() ?? 0;
         if (used >= promo.perUserLimit!) {
-          return const PromoResult.fail('Вы уже использовали этот промокод');
+          return PromoResult.fail(tr('Вы уже использовали этот промокод', 'Сіз бұл промокодты бұрын қолдандыңыз'));
         }
       } catch (_) {}
     }
@@ -316,13 +317,13 @@ class ClientService {
         ? items.where((i) => promo.productIds.contains(i.productId)).toList()
         : items;
     if (applicable.isEmpty) {
-      return const PromoResult.fail('Промокод не применим к этим товарам');
+      return PromoResult.fail(tr('Промокод не применим к этим товарам', 'Промокод бұл тауарларға қолданылмайды'));
     }
     final base = applicable.fold<double>(0, (s, i) => s + i.subtotal);
 
     if (base < promo.minOrder) {
       return PromoResult.fail(
-          'Минимальная сумма заказа ${promo.minOrder.toStringAsFixed(0)} ₸');
+          tr('Минимальная сумма заказа ${promo.minOrder.toStringAsFixed(0)} ₸', 'Тапсырыстың ең аз сомасы ${promo.minOrder.toStringAsFixed(0)} ₸'));
     }
 
     return PromoResult.ok(promo, promo.discountFor(base));
@@ -397,7 +398,7 @@ class ClientService {
         final maxU = (p['max_uses'] as num?)?.toInt();
         final used = (p['used_count'] as num?)?.toInt() ?? 0;
         if (maxU != null && used >= maxU) {
-          throw Exception('Лимит использований промокода исчерпан');
+          throw Exception(tr('Лимит использований промокода исчерпан', 'Промокодты қолдану лимиті таусылған'));
         }
       }
     }
@@ -416,7 +417,7 @@ class ClientService {
         if (e.message.contains('insufficient_stock') ||
             e.message.contains('batch_not_found')) {
           throw Exception(
-              '«${item.productName}» ${item.size} өлшемінде жеткілікті қор жоқ');
+              tr('Недостаточно остатка «${item.productName}» в размере ${item.size}', '«${item.productName}» ${item.size} өлшемінде жеткілікті қор жоқ'));
         }
         rethrow;
       }

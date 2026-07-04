@@ -4,6 +4,7 @@ import '../../data/models/banner_model.dart';
 import '../../data/repositories/banner_repository.dart';
 import '../../theme/qoima_design.dart';
 
+import '../../core/lang.dart';
 /// Superadmin — управление промо-баннерами клиентской главной.
 /// Список с переключателем active, добавление/редактирование/удаление.
 class BannersScreen extends StatelessWidget {
@@ -24,8 +25,8 @@ class BannersScreen extends StatelessWidget {
       ),
       body: Column(children: [
         QGradientHeader(
-          title: 'Баннерлер',
-          subtitle: 'Басты беттегі промо',
+          title: tr('Баннеры', 'Баннерлер'),
+          subtitle: tr('Промо на главной', 'Басты беттегі промо'),
           showBack: true,
           compact: true,
         ),
@@ -68,10 +69,10 @@ class BannersScreen extends StatelessWidget {
                 color: cGreen, size: 34),
           ),
           const SizedBox(height: 14),
-          Text('Баннерлер жоқ',
+          Text(tr('Баннеров нет', 'Баннерлер жоқ'),
               style: manrope(16, FontWeight.w700, color: cInk)),
           const SizedBox(height: 4),
-          Text('«Баннер» батырмасымен қосыңыз',
+          Text(tr('Добавьте кнопкой «Баннер»', '«Баннер» батырмасымен қосыңыз'),
               style: manrope(13, FontWeight.w500, color: cInk3)),
         ]),
       );
@@ -135,7 +136,7 @@ class _BannerRow extends StatelessWidget {
                   Row(children: [
                     Expanded(
                       child: Text(
-                          banner.title.isEmpty ? '(атаусыз)' : banner.title,
+                          banner.title.isEmpty ? tr('(без названия)', '(атаусыз)') : banner.title,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style:
@@ -214,7 +215,7 @@ class _BannerEditSheetState extends State<_BannerEditSheet> {
 
   Future<void> _save() async {
     if (_title.text.trim().isEmpty) {
-      _snack('Тақырып бос болмауы керек', cRed);
+      _snack(tr('Заголовок не должен быть пустым', 'Тақырып бос болмауы керек'), cRed);
       return;
     }
     setState(() => _saving = true);
@@ -250,19 +251,19 @@ class _BannerEditSheetState extends State<_BannerEditSheet> {
       builder: (ctx) => AlertDialog(
         backgroundColor: cSurface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: Text('Баннерді жою',
+        title: Text(tr('Удалить баннер', 'Баннерді жою'),
             style: manrope(16, FontWeight.w800, color: cInk)),
-        content: Text('«${b.title}» баннерін жоясыз ба?',
+        content: Text(tr('Удалить баннер «${b.title}»?', '«${b.title}» баннерін жоясыз ба?'),
             style: manrope(14, FontWeight.w500, color: cInk2)),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
               child:
-                  Text('Жоқ', style: manrope(14, FontWeight.w600, color: cInk2))),
+                  Text(tr('Нет', 'Жоқ'), style: manrope(14, FontWeight.w600, color: cInk2))),
           TextButton(
               onPressed: () => Navigator.pop(ctx, true),
               child:
-                  Text('Жою', style: manrope(14, FontWeight.w700, color: cRed))),
+                  Text(tr('Удалить', 'Жою'), style: manrope(14, FontWeight.w700, color: cRed))),
         ],
       ),
     );
@@ -315,7 +316,7 @@ class _BannerEditSheetState extends State<_BannerEditSheet> {
                 ),
               ),
               const SizedBox(height: 16),
-              Text(_isNew ? 'Жаңа баннер' : 'Баннерді өңдеу',
+              Text(_isNew ? tr('Новый баннер', 'Жаңа баннер') : tr('Редактировать баннер', 'Баннерді өңдеу'),
                   style: manrope(18, FontWeight.w800, color: cInk)),
               const SizedBox(height: 16),
 
@@ -351,7 +352,7 @@ class _BannerEditSheetState extends State<_BannerEditSheet> {
                       const SizedBox(height: 6),
                     Text(
                         _title.text.trim().isEmpty
-                            ? 'Тақырып'
+                            ? tr('Заголовок', 'Тақырып')
                             : _title.text.trim(),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -368,13 +369,13 @@ class _BannerEditSheetState extends State<_BannerEditSheet> {
               ),
               const SizedBox(height: 18),
 
-              _field('Тақырып', _title, hint: 'Мега Жеңілдік!'),
-              _field('Сипаттама', _subtitle,
-                  hint: 'Барлық тауарларға 30% дейін'),
-              _field('Белгі (badge)', _badge, hint: '🔥 11.11'),
-              _hexField('Градиент басы', _start, startColor),
-              _hexField('Градиент соңы', _end, endColor),
-              _field('Реті (order)', _order,
+              _field(tr('Заголовок', 'Тақырып'), _title, hint: tr('Мега Скидка!', 'Мега Жеңілдік!')),
+              _field(tr('Описание', 'Сипаттама'), _subtitle,
+                  hint: tr('До 30% на все товары', 'Барлық тауарларға 30% дейін')),
+              _field(tr('Метка (badge)', 'Белгі (badge)'), _badge, hint: '🔥 11.11'),
+              _hexField(tr('Начало градиента', 'Градиент басы'), _start, startColor),
+              _hexField(tr('Конец градиента', 'Градиент соңы'), _end, endColor),
+              _field(tr('Порядок (order)', 'Реті (order)'), _order,
                   hint: '0', keyboardType: TextInputType.number),
               const SizedBox(height: 6),
 
@@ -387,7 +388,7 @@ class _BannerEditSheetState extends State<_BannerEditSheet> {
                 ),
                 child: Row(children: [
                   Expanded(
-                    child: Text('Белсенді (көрсету)',
+                    child: Text(tr('Активен (показывать)', 'Белсенді (көрсету)'),
                         style: manrope(14, FontWeight.w700, color: cInk)),
                   ),
                   Switch(
@@ -401,7 +402,7 @@ class _BannerEditSheetState extends State<_BannerEditSheet> {
               const SizedBox(height: 20),
 
               QPrimaryButton(
-                label: 'Сақтау',
+                label: tr('Сохранить', 'Сақтау'),
                 isLoading: _saving,
                 onPressed: _save,
               ),
@@ -418,7 +419,7 @@ class _BannerEditSheetState extends State<_BannerEditSheet> {
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14)),
                     ),
-                    child: Text('Баннерді жою',
+                    child: Text(tr('Удалить баннер', 'Баннерді жою'),
                         style: manrope(14, FontWeight.w700, color: cRed)),
                   ),
                 ),
@@ -582,7 +583,7 @@ class _ColorPickerSheet extends StatelessWidget {
           decoration:
               BoxDecoration(color: cLine, borderRadius: BorderRadius.circular(2)),
         ),
-        Text('Түс таңдау', style: manrope(17, FontWeight.w800, color: cInk)),
+        Text(tr('Выбор цвета', 'Түс таңдау'), style: manrope(17, FontWeight.w800, color: cInk)),
         const SizedBox(height: 16),
         GridView.builder(
           shrinkWrap: true,

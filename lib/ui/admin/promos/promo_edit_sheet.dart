@@ -5,6 +5,7 @@ import '../../../data/models/product_model.dart';
 import '../../../data/services/firestore_service.dart';
 import '../../../theme/qoima_design.dart';
 
+import '../../../core/lang.dart';
 /// Открывает лист создания/редактирования промокода.
 Future<void> showPromoEditSheet(BuildContext context,
     {PromoModel? existing}) async {
@@ -122,13 +123,13 @@ class _PromoEditSheetState extends State<_PromoEditSheet> {
   Future<void> _save() async {
     final code = _codeCtrl.text.trim().toUpperCase();
     final value = double.tryParse(_valueCtrl.text.trim()) ?? 0;
-    if (code.isEmpty) return _err('Введите код промокода');
-    if (value <= 0) return _err('Введите размер скидки');
+    if (code.isEmpty) return _err(tr('Введите код промокода', 'Промокод кодын енгізіңіз'));
+    if (value <= 0) return _err(tr('Введите размер скидки', 'Жеңілдік мөлшерін енгізіңіз'));
     if (_type == 'percent' && value > 100) {
-      return _err('Процент не может быть больше 100');
+      return _err(tr('Процент не может быть больше 100', 'Пайыз 100-ден аспауы керек'));
     }
     if (_scope == 'products' && _productIds.isEmpty) {
-      return _err('Выберите хотя бы один товар');
+      return _err(tr('Выберите хотя бы один товар', 'Кемінде бір тауар таңдаңыз'));
     }
 
     setState(() => _saving = true);
@@ -188,7 +189,7 @@ class _PromoEditSheetState extends State<_PromoEditSheet> {
                   ),
                 ),
                 const SizedBox(height: 14),
-                Text(_isEdit ? 'Редактировать промокод' : 'Новый промокод',
+                Text(_isEdit ? tr('Редактировать промокод', 'Промокодты өңдеу') : tr('Новый промокод', 'Жаңа промокод'),
                     style: manrope(18, FontWeight.w800, color: cInk)),
                 const SizedBox(height: 18),
 
@@ -238,16 +239,16 @@ class _PromoEditSheetState extends State<_PromoEditSheet> {
                 const SizedBox(height: 14),
 
                 // Type + value
-                Text('Тип и размер скидки', style: _lbl),
+                Text(tr('Тип и размер скидки', 'Жеңілдік түрі мен мөлшері'), style: _lbl),
                 const SizedBox(height: 8),
                 Row(children: [
                   _TypeBtn(
-                      label: '% Процент',
+                      label: tr('% Процент', '% Пайыз'),
                       selected: _type == 'percent',
                       onTap: () => setState(() => _type = 'percent')),
                   const SizedBox(width: 10),
                   _TypeBtn(
-                      label: '₸ Сумма',
+                      label: tr('₸ Сумма', '₸ Сома'),
                       selected: _type == 'amount',
                       onTap: () => setState(() => _type = 'amount')),
                 ]),
@@ -264,16 +265,16 @@ class _PromoEditSheetState extends State<_PromoEditSheet> {
                 const SizedBox(height: 14),
 
                 // Scope
-                Text('На какие товары', style: _lbl),
+                Text(tr('На какие товары', 'Қай тауарларға'), style: _lbl),
                 const SizedBox(height: 8),
                 Row(children: [
                   _TypeBtn(
-                      label: 'На всё',
+                      label: tr('На всё', 'Барлығына'),
                       selected: _scope == 'all',
                       onTap: () => setState(() => _scope = 'all')),
                   const SizedBox(width: 10),
                   _TypeBtn(
-                      label: 'Выбранные',
+                      label: tr('Выбранные', 'Таңдалғандар'),
                       selected: _scope == 'products',
                       onTap: () => setState(() => _scope = 'products')),
                 ]),
@@ -294,8 +295,8 @@ class _PromoEditSheetState extends State<_PromoEditSheet> {
                     TextField(
                       onChanged: (v) =>
                           setState(() => _productQuery = v.trim().toLowerCase()),
-                      decoration: const InputDecoration(
-                        hintText: 'Тауар іздеу (атауы, бренд, артикул)',
+                      decoration: InputDecoration(
+                        hintText: tr('Поиск товара (название, бренд, артикул)', 'Тауар іздеу (атауы, бренд, артикул)'),
                         prefixIcon: Icon(Icons.search_rounded, color: cInk3),
                       ),
                     ),
@@ -303,7 +304,7 @@ class _PromoEditSheetState extends State<_PromoEditSheet> {
                     if (_productIds.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 6),
-                        child: Text('Таңдалды: ${_productIds.length}',
+                        child: Text(tr('Выбрано: ${_productIds.length}', 'Таңдалды: ${_productIds.length}'),
                             style: manrope(12, FontWeight.w600, color: cGreen)),
                       ),
                     const SizedBox(height: 8),
@@ -319,7 +320,7 @@ class _PromoEditSheetState extends State<_PromoEditSheet> {
                       if (filtered.isEmpty) {
                         return Padding(
                           padding: const EdgeInsets.symmetric(vertical: 8),
-                          child: Text('Тауар табылмады',
+                          child: Text(tr('Товары не найдены', 'Тауар табылмады'),
                               style: manrope(13, FontWeight.w500, color: cInk3)),
                         );
                       }
@@ -358,27 +359,27 @@ class _PromoEditSheetState extends State<_PromoEditSheet> {
                 const SizedBox(height: 16),
 
                 // Limits
-                Text('Лимиты', style: _lbl),
+                Text(tr('Лимиты', 'Лимиттер'), style: _lbl),
                 const SizedBox(height: 8),
                 Row(children: [
                   Expanded(
                     child: _NumField(
                         controller: _maxUsesCtrl,
-                        label: 'Всего',
+                        label: tr('Всего', 'Барлығы'),
                         hint: '∞'),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: _NumField(
                         controller: _perUserCtrl,
-                        label: 'На клиента',
+                        label: tr('На клиента', 'Клиентке'),
                         hint: '∞'),
                   ),
                 ]),
                 const SizedBox(height: 10),
                 _NumField(
                     controller: _minOrderCtrl,
-                    label: 'Мин. сумма заказа (₸)',
+                    label: tr('Мин. сумма заказа (₸)', 'Мин. тапсырыс сомасы (₸)'),
                     hint: '0'),
                 const SizedBox(height: 16),
 
@@ -390,7 +391,7 @@ class _PromoEditSheetState extends State<_PromoEditSheet> {
                     onChanged: (v) => setState(() => _hasDateRange = v),
                   ),
                   const SizedBox(width: 8),
-                  Text('Ограничить по времени',
+                  Text(tr('Ограничить по времени', 'Уақыт бойынша шектеу'),
                       style: manrope(13.5, FontWeight.w600, color: cInk)),
                 ]),
                 if (_hasDateRange) ...[
@@ -398,20 +399,20 @@ class _PromoEditSheetState extends State<_PromoEditSheet> {
                   Row(children: [
                     Expanded(
                         child: _DateBtn(
-                            label: 'С',
+                            label: tr('С', 'Бастап'),
                             date: _startsAt,
                             onTap: () => _pickDate(isStart: true))),
                     const SizedBox(width: 10),
                     Expanded(
                         child: _DateBtn(
-                            label: 'По',
+                            label: tr('По', 'Дейін'),
                             date: _endsAt,
                             onTap: () => _pickDate(isStart: false))),
                   ]),
                 ],
                 const SizedBox(height: 22),
                 QPrimaryButton(
-                  label: _isEdit ? 'Сохранить' : 'Создать промокод',
+                  label: _isEdit ? tr('Сохранить', 'Сақтау') : tr('Создать промокод', 'Промокод жасау'),
                   isLoading: _saving,
                   onPressed: _saving ? null : _save,
                   height: 52,

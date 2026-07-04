@@ -12,6 +12,7 @@ import 'client_product_card.dart';
 import 'client_product_detail.dart';
 import 'client_shell.dart';
 
+import '../../core/lang.dart';
 /// Универсальный fashion-каталог, 3 уровня выбора (как маркетплейс):
 /// L1 — категория (Обувь / Одежда / …) → L2 — кому → L3 — тип товара → товары.
 /// Уровни управляются ЛОКАЛЬНЫМ состоянием (Navigator.push ЕМЕС).
@@ -226,10 +227,10 @@ class _ClientCatalogScreenState extends State<ClientCatalogScreen> {
     final title = isL1
         ? 'Каталог'
         : isL2
-            ? _cat!.label
+            ? trValue(_cat!.label)
             : isL3
                 ? _audLabel(_aud!)
-                : (_type!.isEmpty ? 'Другое' : _type!);
+                : (_type!.isEmpty ? tr('Другое', 'Басқа') : trValue(_type!));
 
     return Scaffold(
       backgroundColor: cBg,
@@ -290,8 +291,11 @@ class _ClientCatalogScreenState extends State<ClientCatalogScreen> {
     );
   }
 
-  String _audLabel(String value) =>
-      _audiences.firstWhere((a) => a.value == value).label;
+  // ru режимде канондық мәні (value), kk режимде — қазақша label.
+  String _audLabel(String value) {
+    final a = _audiences.firstWhere((a) => a.value == value);
+    return tr(a.value, a.label);
+  }
 
   // ── LEVEL 1: категория grid ─────────────────────────────────────────────
   Widget _buildCategoryGrid() {
@@ -309,8 +313,8 @@ class _ClientCatalogScreenState extends State<ClientCatalogScreen> {
         final count = _catCount(c);
         return _GradientTile(
           emoji: c.emoji,
-          label: c.label,
-          subtitle: _loadingProducts && count == 0 ? '...' : '$count тауар',
+          label: trValue(c.label),
+          subtitle: _loadingProducts && count == 0 ? '...' : tr('$count товаров', '$count тауар'),
           g1: c.g1,
           g2: c.g2,
           onTap: () => setState(() => _cat = c),
@@ -339,8 +343,8 @@ class _ClientCatalogScreenState extends State<ClientCatalogScreen> {
           opacity: enabled ? 1 : 0.4,
           child: _GradientTile(
             emoji: a.emoji,
-            label: a.label,
-            subtitle: _loadingProducts && count == 0 ? '...' : '$count тауар',
+            label: tr(a.value, a.label),
+            subtitle: _loadingProducts && count == 0 ? '...' : tr('$count товаров', '$count тауар'),
             g1: a.g1,
             g2: a.g2,
             onTap: enabled ? () => setState(() => _aud = a.value) : null,
@@ -357,8 +361,8 @@ class _ClientCatalogScreenState extends State<ClientCatalogScreen> {
     final types = _typesFor(cat, aud);
 
     if (types.isEmpty) {
-      return const ClientEmptyState(
-          icon: Icons.search_off_rounded, message: 'Тауарлар табылмады');
+      return ClientEmptyState(
+          icon: Icons.search_off_rounded, message: tr('Товары не найдены', 'Тауарлар табылмады'));
     }
 
     return ListView.separated(
@@ -394,10 +398,10 @@ class _ClientCatalogScreenState extends State<ClientCatalogScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(t.isEmpty ? 'Другое' : t,
+                    Text(t.isEmpty ? tr('Другое', 'Басқа') : trValue(t),
                         style: manrope(15, FontWeight.w600, color: cInk)),
                     const SizedBox(height: 2),
-                    Text('$count тауар',
+                    Text(tr('$count товаров', '$count тауар'),
                         style: manrope(12.5, FontWeight.w500, color: cInk3)),
                   ],
                 ),
@@ -438,7 +442,7 @@ class _ClientCatalogScreenState extends State<ClientCatalogScreen> {
           child: ClientEmptyState(
             icon: Icons.search_off_rounded,
             message:
-                _query.isEmpty ? 'Тауарлар табылмады' : '«$_query» табылмады',
+                _query.isEmpty ? tr('Товары не найдены', 'Тауарлар табылмады') : tr('«$_query» не найдено', '«$_query» табылмады'),
           ),
         )
       else ...[
@@ -446,7 +450,7 @@ class _ClientCatalogScreenState extends State<ClientCatalogScreen> {
           alignment: Alignment.centerLeft,
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-            child: Text('${cards.length} тауар',
+            child: Text(tr('${cards.length} товаров', '${cards.length} тауар'),
                 style: manrope(13.5, FontWeight.w700, color: cInk2)),
           ),
         ),
@@ -497,7 +501,7 @@ class _ClientCatalogScreenState extends State<ClientCatalogScreen> {
               onChanged: (q) => setState(() => _query = q.trim()),
               style: manrope(14.5, FontWeight.w600, color: cInk),
               decoration: InputDecoration(
-                hintText: 'Осы бөлімнен іздеу...',
+                hintText: tr('Поиск в этом разделе...', 'Осы бөлімнен іздеу...'),
                 hintStyle: manrope(14.5, FontWeight.w500, color: cInk3),
                 filled: false,
                 border: InputBorder.none,

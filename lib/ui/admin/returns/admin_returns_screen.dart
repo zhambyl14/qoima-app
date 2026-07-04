@@ -8,6 +8,7 @@ import 'admin_return_detail_screen.dart';
 import 'admin_return_analytics_screen.dart';
 import 'make_offline_return_screen.dart';
 
+import '../../../core/lang.dart';
 class AdminReturnsScreen extends StatefulWidget {
   const AdminReturnsScreen({super.key});
 
@@ -42,7 +43,7 @@ class _AdminReturnsScreenState extends State<AdminReturnsScreen>
         backgroundColor: cGreen,
         elevation: 0,
         icon: const Icon(Icons.add_rounded, color: Colors.white, size: 22),
-        label: Text('Офлайн возврат',
+        label: Text(tr('Офлайн возврат', 'Офлайн қайтару'),
             style: manrope(14.5, FontWeight.w700, color: Colors.white)),
       ),
       body: Column(children: [

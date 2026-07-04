@@ -8,6 +8,7 @@ import '../../data/models/courier_delivery_model.dart';
 import '../../data/services/firestore_service.dart';
 import '../../theme/qoima_design.dart';
 
+import '../../core/lang.dart';
 class CourierDeliveriesScreen extends StatefulWidget {
   const CourierDeliveriesScreen({super.key});
 
@@ -76,10 +77,10 @@ class _CourierDeliveriesScreenState extends State<CourierDeliveriesScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Доставки',
+                        Text(tr('Доставки', 'Жеткізулер'),
                             style: manrope(23, FontWeight.w800,
                                 color: Colors.white, letterSpacing: -0.5)),
-                        Text('Курьер · ${name.isNotEmpty ? name : "Владелец"}',
+                        Text('Курьер · ${name.isNotEmpty ? name : tr('Владелец', 'Иесі')}',
                             style: manrope(13, FontWeight.w500,
                                 color: Colors.white.withValues(alpha: 0.78))),
                       ],
@@ -129,14 +130,14 @@ class _CourierDeliveriesScreenState extends State<CourierDeliveriesScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('Бүгін жеткізілді',
+                              Text(tr('Доставлено сегодня', 'Бүгін жеткізілді'),
                                   style: manrope(11, FontWeight.w600,
                                       color: Colors.white.withValues(alpha: 0.72))),
                               Text('${todayDone.length}',
                                   style: manrope(24, FontWeight.w800,
                                       color: Colors.white)),
                               Text(
-                                todayEarned > 0 ? money(todayEarned) : 'Тегін',
+                                todayEarned > 0 ? money(todayEarned) : tr('Бесплатно', 'Тегін'),
                                 style: manrope(13, FontWeight.w700,
                                     color: Colors.white.withValues(alpha: 0.9)),
                               ),
@@ -149,14 +150,14 @@ class _CourierDeliveriesScreenState extends State<CourierDeliveriesScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('Апта бойы',
+                              Text(tr('За неделю', 'Апта бойы'),
                                   style: manrope(11, FontWeight.w600,
                                       color: Colors.white.withValues(alpha: 0.72))),
                               Text('${weekDone.length}',
                                   style: manrope(24, FontWeight.w800,
                                       color: Colors.white)),
                               Text(
-                                weekEarned > 0 ? money(weekEarned) : 'Тегін',
+                                weekEarned > 0 ? money(weekEarned) : tr('Бесплатно', 'Тегін'),
                                 style: manrope(13, FontWeight.w700,
                                     color: Colors.white.withValues(alpha: 0.9)),
                               ),
@@ -175,19 +176,19 @@ class _CourierDeliveriesScreenState extends State<CourierDeliveriesScreen> {
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                 child: Row(children: [
                   _FilterChip(
-                      label: 'Новые',
+                      label: tr('Новые', 'Жаңа'),
                       value: 'new',
                       current: _filter,
                       onTap: (v) => setState(() => _filter = v)),
                   const SizedBox(width: 8),
                   _FilterChip(
-                      label: 'В работе',
+                      label: tr('В работе', 'Жұмыста'),
                       value: 'active',
                       current: _filter,
                       onTap: (v) => setState(() => _filter = v)),
                   const SizedBox(width: 8),
                   _FilterChip(
-                      label: 'Доставлено',
+                      label: tr('Доставлено', 'Жеткізілді'),
                       value: 'done',
                       current: _filter,
                       onTap: (v) => setState(() => _filter = v)),
@@ -223,10 +224,10 @@ class _CourierDeliveriesScreenState extends State<CourierDeliveriesScreen> {
                         const SizedBox(height: 12),
                         Text(
                           _filter == 'new'
-                              ? 'Нет новых доставок'
+                              ? tr('Нет новых доставок', 'Жаңа жеткізу жоқ')
                               : _filter == 'active'
-                                  ? 'Нет активных доставок'
-                                  : 'Нет завершённых',
+                                  ? tr('Нет активных доставок', 'Белсенді жеткізу жоқ')
+                                  : tr('Нет завершённых', 'Аяқталғаны жоқ'),
                           style: manrope(15, FontWeight.w500, color: cInk2),
                         ),
                       ]),
@@ -283,15 +284,15 @@ class _DeliveryCardState extends State<_DeliveryCard> {
   String get _statusLabel {
     switch (d.status) {
       case CourierDeliveryModel.statusNew:
-        return 'Новая';
+        return tr('Новая', 'Жаңа');
       case CourierDeliveryModel.statusAssigned:
-        return 'Принято';
+        return tr('Принято', 'Қабылданды');
       case CourierDeliveryModel.statusPicked:
-        return 'Забрал';
+        return tr('Забрал', 'Алды');
       case CourierDeliveryModel.statusDelivered:
-        return 'Доставлено';
+        return tr('Доставлено', 'Жеткізілді');
       case CourierDeliveryModel.statusCancelled:
-        return 'Отменено';
+        return tr('Отменено', 'Бас тартылды');
       default:
         return d.status;
     }
@@ -313,11 +314,11 @@ class _DeliveryCardState extends State<_DeliveryCard> {
   String? get _nextLabel {
     switch (d.status) {
       case CourierDeliveryModel.statusNew:
-        return 'Принять';
+        return tr('Принять', 'Қабылдау');
       case CourierDeliveryModel.statusAssigned:
-        return 'Забрал товар';
+        return tr('Забрал товар', 'Тауарды алдым');
       case CourierDeliveryModel.statusPicked:
-        return 'Доставлено';
+        return tr('Доставлено', 'Жеткізілді');
       default:
         return null;
     }
@@ -339,17 +340,17 @@ class _DeliveryCardState extends State<_DeliveryCard> {
       context: context,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Болдырмау'),
-        content: const Text('Бұл жеткізуді болдырмайсыз ба?'),
+        title: Text(tr('Отмена', 'Болдырмау')),
+        content: Text(tr('Отменить эту доставку?', 'Бұл жеткізуді болдырмайсыз ба?')),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('Жоқ')),
+              child: Text(tr('Нет', 'Жоқ'))),
           ElevatedButton(
               onPressed: () => Navigator.pop(context, true),
               style: ElevatedButton.styleFrom(
                   backgroundColor: cRed, foregroundColor: Colors.white),
-              child: const Text('Иә, болдырмау')),
+              child: Text(tr('Да, отменить', 'Иә, болдырмау'))),
         ],
       ),
     );
@@ -380,8 +381,8 @@ class _DeliveryCardState extends State<_DeliveryCard> {
 
   void _copyAddress() {
     Clipboard.setData(ClipboardData(text: d.address));
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-      content: Text('Мекенжай көшірілді'),
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(tr('Адрес скопирован', 'Мекенжай көшірілді')),
       behavior: SnackBarBehavior.floating,
       duration: Duration(seconds: 1),
     ));
@@ -472,7 +473,7 @@ class _DeliveryCardState extends State<_DeliveryCard> {
                         size: 14, color: cInk3),
                     const SizedBox(width: 6),
                     Expanded(
-                        child: Text('Забрать: $a',
+                        child: Text(tr('Забрать: $a', 'Алу: $a'),
                             style: manrope(12, FontWeight.w500, color: cInk3))),
                   ]),
                 )),
@@ -487,7 +488,7 @@ class _DeliveryCardState extends State<_DeliveryCard> {
                   ? money(d.amount)
                   : AppConfig.deliveryFee > 0
                       ? money(AppConfig.deliveryFee)
-                      : 'Тегін',
+                      : tr('Бесплатно', 'Тегін'),
               style: manrope(18, FontWeight.w800, color: cInk),
             ),
             const Spacer(),

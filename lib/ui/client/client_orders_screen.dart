@@ -13,6 +13,7 @@ import 'reservation_timer_widget.dart';
 import 'returns/client_return_form_screen.dart';
 import 'returns/client_returns_history_screen.dart';
 
+import '../../core/lang.dart';
 class ClientOrdersScreen extends StatefulWidget {
   final VoidCallback? onBack;
   const ClientOrdersScreen({super.key, this.onBack});
@@ -40,8 +41,8 @@ class _ClientOrdersScreenState extends State<ClientOrdersScreen> {
       backgroundColor: cBg,
       body: Column(children: [
         QGradientHeader(
-          title: 'Тапсырыстарым',
-          subtitle: 'Сатып алу тарихы',
+          title: tr('Мои заказы', 'Тапсырыстарым'),
+          subtitle: tr('История покупок', 'Сатып алу тарихы'),
           compact: true,
           showBack: true,
           onBack: widget.onBack,
@@ -49,7 +50,7 @@ class _ClientOrdersScreenState extends State<ClientOrdersScreen> {
         Expanded(
           child: uid.isEmpty
               ? Center(
-                  child: Text('Кіру қажет',
+                  child: Text(tr('Требуется вход', 'Кіру қажет'),
                       style: manrope(15, FontWeight.w500, color: cInk2)))
               : StreamBuilder<List<ReturnModel>>(
                   stream: _returnsStream,
@@ -110,7 +111,7 @@ class _ClientOrdersScreenState extends State<ClientOrdersScreen> {
                               scrollDirection: Axis.horizontal,
                               child: Row(children: [
                                 _TabChip(
-                                  label: 'Белсенді',
+                                  label: tr('Активные', 'Белсенді'),
                                   count: active.length,
                                   active: _tabIndex == 0,
                                   onTap: () =>
@@ -118,7 +119,7 @@ class _ClientOrdersScreenState extends State<ClientOrdersScreen> {
                                 ),
                                 const SizedBox(width: 8),
                                 _TabChip(
-                                  label: 'Аяқталған',
+                                  label: tr('Завершённые', 'Аяқталған'),
                                   count: completed.length,
                                   active: _tabIndex == 1,
                                   onTap: () =>
@@ -126,7 +127,7 @@ class _ClientOrdersScreenState extends State<ClientOrdersScreen> {
                                 ),
                                 const SizedBox(width: 8),
                                 _TabChip(
-                                  label: 'Қайтарулар',
+                                  label: tr('Возвраты', 'Қайтарулар'),
                                   count: retSnap.data?.length ?? 0,
                                   active: _tabIndex == 2,
                                   onTap: () =>
@@ -166,7 +167,7 @@ class _ClientOrdersScreenState extends State<ClientOrdersScreen> {
             const Icon(Icons.receipt_long_outlined,
                 size: 56, color: cInk3),
             const SizedBox(height: 12),
-            Text('Тапсырыс жоқ',
+            Text(tr('Заказов нет', 'Тапсырыс жоқ'),
                 style: manrope(16, FontWeight.w500, color: cInk2)),
           ]));
     }
@@ -305,7 +306,7 @@ class _OrderCardState extends State<_OrderCard> {
       case OrderModel.typeSmartReservation:
         return 'Смарт-Бронь';
       case OrderModel.typeDelivery:
-        return 'Доставка';
+        return tr('Доставка', 'Жеткізу');
       default:
         return o.orderType;
     }
@@ -338,18 +339,18 @@ class _OrderCardState extends State<_OrderCard> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: Text('Отменить заказ',
+        title: Text(tr('Отменить заказ', 'Тапсырысты болдырмау'),
             style: manrope(17, FontWeight.w700, color: cInk)),
-        content: Text('Отменить этот заказ?',
+        content: Text(tr('Отменить этот заказ?', 'Осы тапсырысты болдырмау керек пе?'),
             style: manrope(14, FontWeight.w500, color: cInk2)),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: Text('Нет',
+              child: Text(tr('Нет', 'Жоқ'),
                   style: manrope(14, FontWeight.w600, color: cInk2))),
           TextButton(
               onPressed: () => Navigator.pop(context, true),
-              child: Text('Да',
+              child: Text(tr('Да', 'Иә'),
                   style: manrope(14, FontWeight.w600, color: cRed))),
         ],
       ),
@@ -406,10 +407,10 @@ class _OrderCardState extends State<_OrderCard> {
             ),
           ),
           const SizedBox(height: 16),
-          Text('Способ оплаты',
+          Text(tr('Способ оплаты', 'Төлем тәсілі'),
               style: manrope(18, FontWeight.w800, color: cInk)),
           const SizedBox(height: 4),
-          Text('Выберите банк для перевода',
+          Text(tr('Выберите банк для перевода', 'Аударым үшін банк таңдаңыз'),
               style: manrope(13, FontWeight.w500, color: cInk2)),
           const SizedBox(height: 20),
           _PayMethodBtn(
@@ -577,7 +578,7 @@ class _OrderCardState extends State<_OrderCard> {
             Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Доплата в магазине',
+                  Text(tr('Доплата в магазине', 'Дүкенде доплата'),
                       style: manrope(12, FontWeight.w500, color: cInk2)),
                   Text('${o.remainingAmount.toStringAsFixed(0)} ₸',
                       style: manrope(12, FontWeight.w700, color: cAmber)),
@@ -601,7 +602,7 @@ class _OrderCardState extends State<_OrderCard> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Причина отклонения: ${o.rejectionReason}',
+                        tr('Причина отклонения: ${o.rejectionReason}', 'Қабылданбау себебі: ${o.rejectionReason}'),
                         style: manrope(12, FontWeight.w500, color: cRed),
                       ),
                     ),
@@ -623,7 +624,7 @@ class _OrderCardState extends State<_OrderCard> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Оплатите заказ через Kaspi или Halyk Bank',
+                    tr('Оплатите заказ через Kaspi или Halyk Bank', 'Тапсырысты Kaspi немесе Halyk Bank арқылы төлеңіз'),
                     style: manrope(12, FontWeight.w500,
                         color: const Color(0xFF92400E)),
                   ),
@@ -660,7 +661,7 @@ class _OrderCardState extends State<_OrderCard> {
                 const Icon(Icons.phone_outlined, color: cGreen, size: 14),
                 const SizedBox(width: 4),
                 Expanded(
-                    child: Text('Магазин: ${o.storePhone}',
+                    child: Text(tr('Магазин: ${o.storePhone}', 'Дүкен: ${o.storePhone}'),
                         style: manrope(12, FontWeight.w500, color: cGreen,
                             letterSpacing: -0.2),
                         maxLines: 1,
@@ -713,7 +714,7 @@ class _OrderCardState extends State<_OrderCard> {
             ),
             const SizedBox(height: 4),
             Center(
-              child: Text('Покажите продавцу этот QR код',
+              child: Text(tr('Покажите продавцу этот QR код', 'Сатушыға осы QR кодты көрсетіңіз'),
                   style: manrope(12, FontWeight.w500, color: cInk2)),
             ),
           ],
@@ -722,7 +723,7 @@ class _OrderCardState extends State<_OrderCard> {
 
           if (_showQrBtn)
             QSoftButton(
-              label: _showQr ? 'Скрыть QR-код' : 'Показать QR-код',
+              label: _showQr ? tr('Скрыть QR-код', 'QR-кодты жасыру') : tr('Показать QR-код', 'QR-кодты көрсету'),
               height: 44,
               icon: Icon(
                 _showQr
@@ -754,7 +755,7 @@ class _OrderCardState extends State<_OrderCard> {
                         height: 18,
                         child: CircularProgressIndicator(
                             color: Colors.white, strokeWidth: 2))
-                    : Text('Төлеу',
+                    : Text(tr('Оплатить', 'Төлеу'),
                         style: manrope(14, FontWeight.w700)),
               ),
             ),
@@ -779,7 +780,7 @@ class _OrderCardState extends State<_OrderCard> {
                         height: 18,
                         child: CircularProgressIndicator(
                             color: cRed, strokeWidth: 2))
-                    : Text('Отменить заказ',
+                    : Text(tr('Отменить заказ', 'Тапсырысты болдырмау'),
                         style: manrope(13, FontWeight.w700, color: cRed)),
               ),
             ),
@@ -791,13 +792,13 @@ class _OrderCardState extends State<_OrderCard> {
             if (widget.hasActiveReturn)
               widget.returnDone
                   ? QPill(
-                      'Қайтарылды',
+                      tr('Возвращён', 'Қайтарылды'),
                       tone: 'green',
                       icon: const Icon(Icons.check_circle_outline_rounded,
                           size: 12, color: cGreenDeep),
                     )
                   : QPill(
-                      'Өңдеуде',
+                      tr('В обработке', 'Өңдеуде'),
                       tone: 'amber',
                       icon: const Icon(Icons.loop_rounded,
                           size: 12, color: Color(0xFF92400E)),
@@ -816,7 +817,7 @@ class _OrderCardState extends State<_OrderCard> {
                   ),
                   icon: const Icon(Icons.assignment_return_outlined,
                       size: 16, color: cGreen),
-                  label: Text('Қайтару жасау',
+                  label: Text(tr('Оформить возврат', 'Қайтару жасау'),
                       style: manrope(13, FontWeight.w700, color: cGreen)),
                 ),
               ),

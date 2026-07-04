@@ -4,6 +4,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:printing/printing.dart';
 import '../../theme/qoima_design.dart';
 
+import '../../core/lang.dart';
 /// Партнёрге арналған шарт (оферта). `assets/documents/shart.pdf`-ты қосымша
 /// ішінде ашады. Owner дүкен ашу заявкасында осымен танысып, галочка қояды.
 class ContractScreen extends StatelessWidget {
@@ -19,9 +20,9 @@ class ContractScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: cBg,
       body: Column(children: [
-        const QGradientHeader(
-          title: 'Договор оферты',
-          subtitle: 'Условия для партнёров маркетплейса',
+        QGradientHeader(
+          title: tr('Договор оферты', 'Оферта шарты'),
+          subtitle: tr('Условия для партнёров маркетплейса', 'Маркетплейс серіктестеріне арналған шарттар'),
           showBack: true,
         ),
         Expanded(

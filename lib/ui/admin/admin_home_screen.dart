@@ -10,6 +10,7 @@ import 'settings/warehouses_screen.dart';
 import 'online_orders_screen.dart';
 import 'returns/admin_returns_screen.dart';
 
+import '../../core/lang.dart';
 class AdminHomeScreen extends StatefulWidget {
   const AdminHomeScreen({super.key});
 
@@ -69,7 +70,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   @override
   Widget build(BuildContext context) {
     final appUser = context.watch<AppUser>();
-    final name = appUser.name.isNotEmpty ? appUser.name : 'Добрый день';
+    final name = appUser.name.isNotEmpty ? appUser.name : tr('Добрый день', 'Қайырлы күн');
 
     return Scaffold(
       backgroundColor: cBg,
@@ -97,7 +98,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                                   style: manrope(23, FontWeight.w800,
                                       color: Colors.white, letterSpacing: -0.5)),
                               if (storeName.isNotEmpty)
-                                Text('Магазин «$storeName»',
+                                Text(tr('Магазин «$storeName»', '«$storeName» дүкені'),
                                     style: manrope(13, FontWeight.w500,
                                         color: Colors.white.withValues(alpha: 0.78))),
                             ],
@@ -160,7 +161,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                                   style: manrope(20, FontWeight.w800,
                                       color: cInk, letterSpacing: -0.5)),
                               const SizedBox(height: 2),
-                              Text('Выручка за месяц',
+                              Text(tr('Выручка за месяц', 'Айлық түсім'),
                                   style: manrope(12, FontWeight.w600,
                                       color: cInk3)),
                             ],
@@ -191,7 +192,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                                   style: manrope(22, FontWeight.w800,
                                       color: cInk, letterSpacing: -0.5)),
                               const SizedBox(height: 2),
-                              Text('Товаров на складах',
+                              Text(tr('Товаров на складах', 'Қоймалардағы тауарлар'),
                                   style: manrope(12, FontWeight.w600,
                                       color: cInk3)),
                             ],
@@ -234,13 +235,13 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('Онлайн-заказы',
+                                Text(tr('Онлайн-заказы', 'Онлайн тапсырыстар'),
                                     style: manrope(14.5, FontWeight.w700,
                                         color: cInk)),
                                 Text(
                                   count == 0
-                                      ? 'Нет новых заказов'
-                                      : '$count новых ждут подтверждения',
+                                      ? tr('Нет новых заказов', 'Жаңа тапсырыс жоқ')
+                                      : tr('$count новых ждут подтверждения', '$count жаңасы растауды күтуде'),
                                   style: manrope(12.5, FontWeight.w500,
                                       color: cInk3),
                                 ),
@@ -306,13 +307,13 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('Возвраты',
+                                Text(tr('Возвраты', 'Қайтарулар'),
                                     style: manrope(14.5, FontWeight.w700,
                                         color: cInk)),
                                 Text(
                                   newCount == 0
-                                      ? 'Нет новых запросов'
-                                      : '$newCount новых запросов',
+                                      ? tr('Нет новых запросов', 'Жаңа сұраныс жоқ')
+                                      : tr('$newCount новых запросов', '$newCount жаңа сұраныс'),
                                   style: manrope(12.5, FontWeight.w500,
                                       color: cInk3),
                                 ),
@@ -346,7 +347,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                 const SizedBox(height: 12),
 
                 // Quick actions
-                const QSecLabel('Быстрые действия'),
+                QSecLabel(tr('Быстрые действия', 'Жылдам әрекеттер')),
 
                 // Sellers
                 StreamBuilder<List<Map<String, dynamic>>>(
@@ -360,8 +361,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                         return _QMenuItem(
                           icon: Icons.group_outlined,
                           tone: 'green',
-                          title: 'Продавцы',
-                          sub: '$active активных · $pending запросов',
+                          title: tr('Продавцы', 'Сатушылар'),
+                          sub: tr('$active активных · $pending запросов', '$active белсенді · $pending сұраныс'),
                           badge: pending > 0 ? '$pending' : null,
                           onTap: () => Navigator.push(
                               context,
@@ -387,8 +388,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                         return _QMenuItem(
                           icon: Icons.storefront_outlined,
                           tone: 'blue',
-                          title: 'Склады',
-                          sub: '${whs.length} складов · $total шт.',
+                          title: tr('Склады', 'Қоймалар'),
+                          sub: tr('${whs.length} складов · $total шт.', '${whs.length} қойма · $total дана'),
                           onTap: () => Navigator.push(
                               context,
                               MaterialPageRoute(

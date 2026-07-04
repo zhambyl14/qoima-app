@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../data/services/auth_service.dart';
 import '../../theme/qoima_design.dart';
 
+import '../../core/lang.dart';
 /// Құпиясөзді қалпына келтіру: email → reset сілтемесі.
 /// Аккаунттың бар-жоғын ЕШҚАШАН ашпаймыз — әрқашан бейтарап хабар.
 class ForgotPasswordScreen extends StatefulWidget {
@@ -27,7 +28,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   Future<void> _submit() async {
     final email = _emailCtrl.text.trim();
     if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
-      setState(() => _error = 'Email форматы қате');
+      setState(() => _error = tr('Неверный формат email', 'Email форматы қате'));
       return;
     }
     setState(() {
@@ -51,7 +52,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       backgroundColor: cBg,
       body: Column(children: [
         QGradientHeader(
-          title: 'Құпиясөзді қалпына келтіру',
+          title: tr('Восстановление пароля', 'Құпиясөзді қалпына келтіру'),
           showBack: true,
           onBack: () => Navigator.pop(context),
         ),
@@ -74,11 +75,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                             color: cGreen, size: 38),
                       ),
                       const SizedBox(height: 20),
-                      Text('Поштаңызды енгізіңіз',
+                      Text(tr('Введите вашу почту', 'Поштаңызды енгізіңіз'),
                           style: manrope(19, FontWeight.w800, color: cInk)),
                       const SizedBox(height: 6),
                       Text(
-                        'Құпиясөзді қалпына келтіру сілтемесін жібереміз.',
+                        tr('Мы отправим ссылку для восстановления пароля.', 'Құпиясөзді қалпына келтіру сілтемесін жібереміз.'),
                         style: manrope(13.5, FontWeight.w500, color: cInk2,
                             height: 1.5),
                       ),
@@ -146,7 +147,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       ],
                       const SizedBox(height: 22),
                       QPrimaryButton(
-                        label: 'Сілтеме жіберу',
+                        label: tr('Отправить ссылку', 'Сілтеме жіберу'),
                         isLoading: _isLoading,
                         onPressed: _submit,
                       ),
@@ -173,18 +174,18 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 color: cGreen, size: 40),
           ),
           const SizedBox(height: 22),
-          Text('Тексеріңіз',
+          Text(tr('Проверьте почту', 'Тексеріңіз'),
               style: manrope(20, FontWeight.w800, color: cInk),
               textAlign: TextAlign.center),
           const SizedBox(height: 10),
           Text(
-            'Егер аккаунт болса, $email адресіне нұсқаулық жіберілді.',
+            tr('Если аккаунт существует, инструкция отправлена на $email.', 'Егер аккаунт болса, $email адресіне нұсқаулық жіберілді.'),
             style: manrope(14.5, FontWeight.w500, color: cInk2, height: 1.5),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 30),
           QPrimaryButton(
-            label: 'Кіруге оралу',
+            label: tr('Вернуться ко входу', 'Кіруге оралу'),
             onPressed: () => Navigator.pop(context),
           ),
         ],

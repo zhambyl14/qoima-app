@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../data/services/auth_service.dart';
 import '../../theme/qoima_design.dart';
 
+import '../../core/lang.dart';
 /// «Google арқылы жалғастыру» батырмасы + «немесе» бөлгіші.
 /// Кіру де, тіркелу де бір ағын: Google сессиясы ашылады → профилі жоқ болса
 /// gate CompleteProfileScreen көрсетеді (рөл + телефон/қала), бар болса —
@@ -37,8 +38,8 @@ class _GoogleSignInButtonState extends State<GoogleSignInButton> {
       ));
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Google арқылы кіру сәтсіз болды'),
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(tr('Не удалось войти через Google', 'Google арқылы кіру сәтсіз болды')),
         backgroundColor: cRed,
         behavior: SnackBarBehavior.floating,
       ));
@@ -56,7 +57,7 @@ class _GoogleSignInButtonState extends State<GoogleSignInButton> {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12),
           child:
-              Text('немесе', style: manrope(12.5, FontWeight.w500, color: cInk3)),
+              Text(tr('или', 'немесе'), style: manrope(12.5, FontWeight.w500, color: cInk3)),
         ),
         Expanded(child: Container(height: 1, color: cLine)),
       ]),
@@ -85,7 +86,7 @@ class _GoogleSignInButtonState extends State<GoogleSignInButton> {
                   children: [
                     const _GoogleLogo(),
                     const SizedBox(width: 10),
-                    Text('Google арқылы жалғастыру',
+                    Text(tr('Продолжить через Google', 'Google арқылы жалғастыру'),
                         style: manrope(14.5, FontWeight.w700, color: cInk)),
                   ],
                 ),

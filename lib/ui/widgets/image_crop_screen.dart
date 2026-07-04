@@ -4,6 +4,7 @@ import 'package:image/image.dart' as img;
 
 import '../../theme/qoima_design.dart';
 
+import '../../core/lang.dart';
 /// Шаршы (1:1) кадрды ҚОЛМЕН таңдау экраны: суретті саусақпен жылжытып,
 /// екі саусақпен масштабтауға болады — шеттерін не төбесін кесіп, керек
 /// бөлігін қалдырады. Нәтиже: [outputSize]×[outputSize] JPG bytes
@@ -93,8 +94,8 @@ class _ImageCropScreenState extends State<ImageCropScreen> {
     } catch (_) {
       if (mounted) {
         setState(() => _busy = false);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Не удалось обрезать фото'),
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(tr('Не удалось обрезать фото', 'Фотоны қиып алу мүмкін болмады')),
           backgroundColor: cRed,
           behavior: SnackBarBehavior.floating,
         ));
@@ -119,7 +120,7 @@ class _ImageCropScreenState extends State<ImageCropScreen> {
                     color: Colors.white, size: 26),
               ),
               Expanded(
-                child: Text(widget.title ?? 'Кадрирование',
+                child: Text(widget.title ?? tr('Кадрирование', 'Кадрлау'),
                     textAlign: TextAlign.center,
                     style:
                         manrope(16, FontWeight.w700, color: Colors.white)),
@@ -175,7 +176,7 @@ class _ImageCropScreenState extends State<ImageCropScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 18),
             child: Column(children: [
-              Text('Двигайте и масштабируйте фото — квадрат 1:1',
+              Text(tr('Двигайте и масштабируйте фото — квадрат 1:1', 'Фотоны жылжытып, масштабтаңыз — 1:1 шаршы'),
                   style: manrope(12.5, FontWeight.w500,
                       color: Colors.white.withValues(alpha: 0.7))),
               const SizedBox(height: 14),
@@ -193,7 +194,7 @@ class _ImageCropScreenState extends State<ImageCropScreen> {
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14)),
                       ),
-                      child: Text('Отмена',
+                      child: Text(tr('Отмена', 'Болдырмау'),
                           style: manrope(14.5, FontWeight.w700,
                               color: Colors.white)),
                     ),
@@ -218,7 +219,7 @@ class _ImageCropScreenState extends State<ImageCropScreen> {
                               height: 20,
                               child: CircularProgressIndicator(
                                   color: Colors.white, strokeWidth: 2))
-                          : Text('Готово',
+                          : Text(tr('Готово', 'Дайын'),
                               style: manrope(14.5, FontWeight.w700,
                                   color: Colors.white)),
                     ),

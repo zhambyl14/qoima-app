@@ -11,6 +11,7 @@ import '../models/courier_delivery_model.dart';
 import '../models/promo_model.dart';
 import '../../core/app_user.dart';
 
+import '../../core/lang.dart';
 /// Деректер сервисі (Supabase). Firestore иерархиясы `users/{adminUid}/...`
 /// Postgres-те owner_uid/admin_uid сыртқы кілттеріне айналды. Атомдық қойма
 /// операциялары RPC арқылы (adjust_batch_sizes, recompute_product_status, ...).
@@ -26,7 +27,7 @@ class FirestoreService {
     final uid = AppUser.current.ownerUid.isNotEmpty
         ? AppUser.current.ownerUid
         : (_sb.auth.currentUser?.id ?? '');
-    if (uid.isEmpty) throw Exception('Пользователь не авторизован.');
+    if (uid.isEmpty) throw Exception(tr('Пользователь не авторизован.', 'Пайдаланушы авторизацияланбаған.'));
     return uid;
   }
 
@@ -296,9 +297,9 @@ class FirestoreService {
 
   Future<String> createPromo(PromoModel promo) async {
     final code = promo.code.trim().toUpperCase();
-    if (code.isEmpty) throw const SaleException('Введите код промокода');
+    if (code.isEmpty) throw SaleException(tr('Введите код промокода', 'Промокод кодын енгізіңіз'));
     if (!await isPromoCodeUnique(code)) {
-      throw const SaleException('Такой промокод уже существует');
+      throw SaleException(tr('Такой промокод уже существует', 'Мұндай промокод бұрыннан бар'));
     }
     final row = await _sb
         .from('promos')
@@ -321,7 +322,7 @@ class FirestoreService {
   Future<void> updatePromo(PromoModel promo) async {
     final code = promo.code.trim().toUpperCase();
     if (!await isPromoCodeUnique(code, exceptId: promo.id)) {
-      throw const SaleException('Такой промокод уже существует');
+      throw SaleException(tr('Такой промокод уже существует', 'Мұндай промокод бұрыннан бар'));
     }
     await _sb
         .from('promos')
@@ -366,7 +367,7 @@ class FirestoreService {
       await _sb
           .rpc('recompute_product_status', params: {'p_product': productId});
       throw SaleException(
-          'По этой партии есть продажи. Партия не удалена, а перемещена в архив — аналитика сохранена.');
+          tr('По этой партии есть продажи. Партия не удалена, а перемещена в архив — аналитика сохранена.', 'Бұл партия бойынша сатылымдар бар. Партия өшірілмеді, архивке жылжытылды — аналитика сақталды.'));
     }
     await _sb.from('batches').delete().eq('id', batchId);
     await _sb.rpc('recompute_product_status', params: {'p_product': productId});
@@ -424,7 +425,7 @@ class FirestoreService {
       });
     } on PostgrestException catch (e) {
       if (e.message.contains('insufficient_stock')) {
-        throw const SaleException('Недостаточно остатка на складе.');
+        throw SaleException(tr('Недостаточно остатка на складе.', 'Қоймада қалдық жеткіліксіз.'));
       }
       rethrow;
     }
@@ -720,7 +721,7 @@ class FirestoreService {
 
   Future<void> sendJoinRequest(String businessCode) async {
     final sellerUid = _sb.auth.currentUser?.id;
-    if (sellerUid == null) throw 'Авторизацияланбаған';
+    if (sellerUid == null) throw tr('Не авторизован', 'Авторизацияланбаған');
 
     final codeDoc = await _sb
         .from('business_codes')
@@ -728,11 +729,11 @@ class FirestoreService {
         .eq('code', businessCode.trim().toUpperCase())
         .maybeSingle();
     if (codeDoc == null) {
-      throw 'Бизнес-код табылмады. Дұрыс кодты енгізіңіз.';
+      throw tr('Бизнес-код не найден. Введите корректный код.', 'Бизнес-код табылмады. Дұрыс кодты енгізіңіз.');
     }
     final adminUid = codeDoc['admin_uid'] as String?;
     if (adminUid == null || adminUid.isEmpty) {
-      throw 'Код жарамсыз. Дүкен иесіне хабарлаңыз.';
+      throw tr('Код недействителен. Обратитесь к владельцу магазина.', 'Код жарамсыз. Дүкен иесіне хабарлаңыз.');
     }
 
     // (seller_uid, admin_uid) бойынша unique — қайта жіберу жаңа жол қоспай,
@@ -865,7 +866,7 @@ class FirestoreService {
         .eq('product_id', productId)
         .eq('warehouse_id', fromWarehouseId)
         .order('date_arrived', ascending: true);
-    if (srcRows.isEmpty) throw const SaleException('Недостаточно остатка');
+    if (srcRows.isEmpty) throw SaleException(tr('Недостаточно остатка', 'Қалдық жеткіліксіз'));
 
     final double transferCost =
         await resolveBatchCost(owner, srcRows.first['id'] as String);
@@ -895,7 +896,7 @@ class FirestoreService {
       if (remaining.values.every((v) => v == 0)) break;
     }
     if (remaining.values.any((v) => v > 0)) {
-      throw const SaleException('Недостаточно остатка');
+      throw SaleException(tr('Недостаточно остатка', 'Қалдық жеткіліксіз'));
     }
 
     final sellingPrice =
@@ -1115,7 +1116,7 @@ class FirestoreService {
 
   Future<void> handOverWithDoplate(OrderModel order, String doplaMethod) async {
     if (order.status != OrderModel.statusReserved) {
-      throw Exception('Заказ не в статусе брони');
+      throw Exception(tr('Заказ не в статусе брони', 'Тапсырыс бронь күйінде емес'));
     }
     await _sb
         .from('orders')
@@ -1137,7 +1138,7 @@ class FirestoreService {
   Future<void> _completeOrder(OrderModel order,
       {required bool fromHandover}) async {
     if (fromHandover && order.status != OrderModel.statusConfirmed) {
-      throw Exception('Оплата ещё не подтверждена администратором');
+      throw Exception(tr('Оплата ещё не подтверждена администратором', 'Төлемді әкімші әлі растамаған'));
     }
     final seller = AppUser.current;
     final receipt = await nextReceiptNumber();

@@ -6,6 +6,7 @@ import '../../../data/services/firestore_service.dart';
 import '../../../theme/qoima_design.dart';
 import 'ms_widgets.dart';
 
+import '../../../core/lang.dart';
 /// «Витрина қоймалары» — клиентке интернет-дүкенде қай қоймалардан тауар
 /// көрсетілетінін баптайды (StoreModel.visibleWarehouseIds).
 class AdminStoreVisibilityScreen extends StatefulWidget {
@@ -72,8 +73,8 @@ class _AdminStoreVisibilityScreenState
       ));
       if (mounted) {
         setState(() => _dirty = false);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Сақталды'),
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(tr('Сохранено', 'Сақталды')),
           backgroundColor: cGreen,
           behavior: SnackBarBehavior.floating,
         ));
@@ -99,13 +100,13 @@ class _AdminStoreVisibilityScreenState
       backgroundColor: cBg,
       body: Column(children: [
         QGradientHeader(
-          title: 'Витрина қоймалары',
-          subtitle: 'Клиентке қай қоймалар көрінеді',
+          title: tr('Склады витрины', 'Витрина қоймалары'),
+          subtitle: tr('Какие склады видит клиент', 'Клиентке қай қоймалар көрінеді'),
           showBack: true,
           action: _dirty
               ? TextButton(
                   onPressed: _saving ? null : _save,
-                  child: Text('Сақтау',
+                  child: Text(tr('Сохранить', 'Сақтау'),
                       style: manrope(14.5, FontWeight.w700, color: Colors.white)),
                 )
               : null,
@@ -117,7 +118,7 @@ class _AdminStoreVisibilityScreenState
                   padding: const EdgeInsets.all(18),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text(
-                        'Қосулы қоймалардағы тауарлар ғана интернет-дүкенде сатып алушыларға көрсетіледі.',
+                        tr('Покупателям в интернет-магазине показываются только товары со включённых складов.', 'Қосулы қоймалардағы тауарлар ғана интернет-дүкенде сатып алушыларға көрсетіледі.'),
                         style: manrope(13, FontWeight.w500, color: cInk2)),
                     const SizedBox(height: 14),
                     if (warehouses.isEmpty)
@@ -125,7 +126,7 @@ class _AdminStoreVisibilityScreenState
                         child: Row(children: [
                           const Icon(Icons.warehouse_outlined, color: cInk3, size: 20),
                           const SizedBox(width: 10),
-                          Expanded(child: Text('Қойма жоқ',
+                          Expanded(child: Text(tr('Складов нет', 'Қойма жоқ'),
                               style: manrope(13.5, FontWeight.w600, color: cInk2))),
                         ]),
                       )
@@ -151,7 +152,7 @@ class _AdminStoreVisibilityScreenState
                             Expanded(
                               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                 Text(wh.name, style: manrope(14.5, FontWeight.w700, color: cInk)),
-                                Text('${_pairsByWh[wh.id] ?? 0} дана · ${_productsByWh[wh.id] ?? 0} тауар',
+                                Text(tr('${_pairsByWh[wh.id] ?? 0} шт · ${_productsByWh[wh.id] ?? 0} товаров', '${_pairsByWh[wh.id] ?? 0} дана · ${_productsByWh[wh.id] ?? 0} тауар'),
                                     style: manrope(12, FontWeight.w500, color: cInk3)),
                               ]),
                             ),
@@ -171,7 +172,7 @@ class _AdminStoreVisibilityScreenState
                       }),
                     const SizedBox(height: 24),
                     if (_dirty)
-                      QPrimaryButton(label: 'Сақтау', isLoading: _saving, onPressed: _saving ? null : _save),
+                      QPrimaryButton(label: tr('Сохранить', 'Сақтау'), isLoading: _saving, onPressed: _saving ? null : _save),
                   ]),
                 ),
         ),
