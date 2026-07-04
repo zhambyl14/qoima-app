@@ -23,10 +23,15 @@ class _SellerReturnReceiveScreenState
     extends State<SellerReturnReceiveScreen> {
   bool _receiving = false;
   bool _refunding = false;
+  // markReceived сәтті өткеннен кейін «қабылданды» күйін жергілікті ұстаймыз —
+  // widget.ret.status ескі болғандықтан (қайта жүктелмейді), батырма қайта
+  // көрінбеуі әрі возврат аяқталғанша қайта басылмауы үшін.
+  bool _received = false;
 
   ReturnModel get r => widget.ret;
 
   Future<void> _markReceived() async {
+    if (_receiving || _refunding || _received) return;
     setState(() => _receiving = true);
     try {
       // Тауар әрқашан жарамды деп қабылданады әрі қоймаға қайтарылады.
@@ -37,6 +42,7 @@ class _SellerReturnReceiveScreenState
         conditionPhotos: const [],
       );
       if (mounted) {
+        setState(() => _received = true);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(context.l10n.returnReceiveSuccess),
           backgroundColor: cGreen,
@@ -180,8 +186,9 @@ class _SellerReturnReceiveScreenState
 
   @override
   Widget build(BuildContext context) {
-    // If already received, skip straight to refund button
-    final alreadyReceived = r.status == ReturnStatus.received;
+    // If already received, skip straight to refund button.
+    // _received — осы экранда markReceived сәтті өткенін ескереді (стрим ескі болса да).
+    final alreadyReceived = r.status == ReturnStatus.received || _received;
 
     return Scaffold(
       backgroundColor: cBg,
@@ -304,7 +311,8 @@ class _SellerReturnReceiveScreenState
                   width: double.infinity,
                   height: 52,
                   child: ElevatedButton(
-                    onPressed: _receiving ? null : _markReceived,
+                    onPressed:
+                        (_receiving || _refunding) ? null : _markReceived,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: cGreen,
                       foregroundColor: Colors.white,

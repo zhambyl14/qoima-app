@@ -180,7 +180,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final p = widget.product;
-    final inStock = p.status == ProductModel.statusInStock;
     final isAdmin = context.read<AppUser>().isAdmin;
 
     return Scaffold(
@@ -206,6 +205,15 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
               .toList()
             ..sort((a, b) =>
                 (int.tryParse(a.key) ?? 0).compareTo(int.tryParse(b.key) ?? 0));
+
+          // Статус белгісін тірі қоймадан аламыз (сатылым/қайтарудан кейін
+          // p.status ескіріп қалуы мүмкін). Дерек әлі жүктелмесе — p.status.
+          final inStock = batchSnap.hasData
+              ? batches.any((b) => b.totalAvailable > 0)
+              : p.status == ProductModel.statusInStock;
+          final statusLabel = inStock
+              ? tr('В наличии', 'Қолда бар')
+              : tr('Продано', 'Сатылды');
 
           return CustomScrollView(slivers: [
             // ── Фото ──────────────────────────────────────────────────
@@ -326,7 +334,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                           color: inStock ? cGreen : Colors.grey,
                           borderRadius: BorderRadius.circular(20),
                         ),
-                        child: Text(p.status,
+                        child: Text(statusLabel,
                             style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 11,

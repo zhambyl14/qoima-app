@@ -284,6 +284,25 @@ class _OverviewTabState extends State<_OverviewTab> {
                     Text(sSnap.error.toString(),
                         textAlign: TextAlign.center,
                         style: manrope(12, FontWeight.w500, color: cInk2)),
+                    const SizedBox(height: 16),
+                    // Realtime уақыт бойынша үзілуі мүмкін (timedOut) — қайта
+                    // құру арқылы жазылымды жаңартамыз.
+                    ElevatedButton.icon(
+                      onPressed: () => setState(() {}),
+                      icon: const Icon(Icons.refresh_rounded, size: 18),
+                      label: Text(tr('Повторить', 'Қайталау'),
+                          style: manrope(14, FontWeight.w700,
+                              color: Colors.white)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: cGreen,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 12),
+                      ),
+                    ),
                   ]),
                 ),
               );
