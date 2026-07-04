@@ -641,7 +641,7 @@ class _SpecSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final rows = <_SpecRow>[
       if (product.category.isNotEmpty) _SpecRow(tr('Для кого', 'Кімге'), trValue(product.category)),
-      if (product.material.isNotEmpty) _SpecRow('Материал', product.material),
+      if (product.material.isNotEmpty) _SpecRow('Материал', trValue(product.material)),
       if (product.brand.isNotEmpty)    _SpecRow('Бренд', product.brand),
       if (product.color.isNotEmpty)    _SpecRow(tr('Цвет', 'Түсі'), trValue(product.color)),
       if (product.type.isNotEmpty)     _SpecRow(tr('Тип', 'Түрі'), trValue(product.type)),

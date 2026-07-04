@@ -683,6 +683,7 @@ class _ProductCard extends StatelessWidget {
                         child: Text(
                             [product.type, product.category]
                                 .where((s) => s.isNotEmpty)
+                                .map(trValue)
                                 .join(' · '),
                             style: const TextStyle(fontSize: 12, color: cInk2),
                             maxLines: 1,

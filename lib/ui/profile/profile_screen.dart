@@ -224,6 +224,7 @@ class ProfileScreen extends StatelessWidget {
                           s.saleDate.month == now.month &&
                           s.saleDate.year == now.year)
                       .toList();
+                  final salesCount = mySales.where((s) => !s.isReturn).length;
                   final total =
                       mySales.fold<double>(0, (a, b) => a + b.totalPrice);
                   return Column(
@@ -237,7 +238,7 @@ class ProfileScreen extends StatelessWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('${mySales.length}',
+                                Text('$salesCount',
                                     style: manrope(22, FontWeight.w800,
                                         color: cInk)),
                                 Text(tr('Продаж за месяц', 'Айдағы сатылым'),
@@ -306,11 +307,21 @@ class ProfileScreen extends StatelessWidget {
                 tone: 'ink',
                 title: l.about,
                 subtitle: l.appVersion,
-                onTap: () => showAboutDialog(
+                onTap: () => showDialog(
                   context: context,
-                  applicationName: 'Qoima',
-                  applicationVersion: '2.3',
-                  applicationLegalese: '© 2024 Qoima',
+                  builder: (ctx) => AlertDialog(
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20)),
+                    title: const Text('Qoima',
+                        style: TextStyle(fontWeight: FontWeight.w700)),
+                    content: Text(tr(
+                        'Версия 2.3\n© 2024 Qoima', 'Нұсқа 2.3\n© 2024 Qoima')),
+                    actions: [
+                      TextButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          child: const Text('OK')),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 8),

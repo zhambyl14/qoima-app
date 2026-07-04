@@ -904,6 +904,7 @@ class _Step1State extends State<_Step1> {
                                   child: Text(
                                       [p.type, p.category]
                                           .where((s) => s.isNotEmpty)
+                                          .map(trValue)
                                           .join(' · '),
                                       style: const TextStyle(
                                           fontSize: 11, color: cInk2),

@@ -51,6 +51,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
   };
 
   Map<String, int> _sizesQuantity = {};
+  final Set<String> _customSizes = {}; // пайдаланушы қолмен қосқан размерлер
 
   // Тип товара (вид/модель) для каждой категории — источник истины для дропдауна.
   static const Map<String, List<String>> _typesByCategory = {
@@ -133,6 +134,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
   void _recomputeSizes() {
     final sizes = _sizesForSelection();
     final old = _sizesQuantity;
+    _customSizes.clear();
     _sizesQuantity = {for (final s in sizes) s: old[s] ?? 0};
   }
 
@@ -1075,6 +1077,51 @@ class _AddProductScreenState extends State<AddProductScreen> {
     ]);
   }
 
+  void _addCustomSize() {
+    final ctrl = TextEditingController();
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(tr('Свой размер', 'Өз өлшемі'),
+            style: const TextStyle(fontWeight: FontWeight.w700)),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          decoration: InputDecoration(
+            hintText: tr('Например: 42', 'Мысалы: 42'),
+            border:
+                OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(tr('Отмена', 'Бас тарту'))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+                backgroundColor: cGreen, foregroundColor: Colors.white),
+            onPressed: () {
+              final size = ctrl.text.trim();
+              Navigator.pop(ctx);
+              if (size.isEmpty) return;
+              if (_sizesQuantity.containsKey(size)) {
+                _showSizeInputSheet(size, _sizesQuantity[size] ?? 0);
+                return;
+              }
+              setState(() {
+                _customSizes.add(size);
+                _sizesQuantity = {..._sizesQuantity, size: 0};
+              });
+              _showSizeInputSheet(size, 0);
+            },
+            child: Text(tr('Добавить', 'Қосу')),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showSizeInputSheet(String size, int currentQty) {
     int tempQty = currentQty;
     showModalBottomSheet<void>(
@@ -1248,6 +1295,20 @@ class _AddProductScreenState extends State<AddProductScreen> {
         _Label(tr('Размеры', 'Өлшемдер')),
         const Spacer(),
         GestureDetector(
+            onTap: _addCustomSize,
+            child: Container(
+                margin: const EdgeInsets.only(right: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                    color: cGreenTint,
+                    borderRadius: BorderRadius.circular(6)),
+                child: Text(tr('+ Свой размер', '+ Өз өлшемі'),
+                    style: TextStyle(
+                        fontSize: 11,
+                        color: cGreen,
+                        fontWeight: FontWeight.w600)))),
+        GestureDetector(
             onTap: () =>
                 setState(() => _sizesQuantity = {for (final k in keys) k: 0}),
             child: Container(
@@ -1275,28 +1336,51 @@ class _AddProductScreenState extends State<AddProductScreen> {
         itemBuilder: (_, i) {
           final size = keys[i];
           final qty = _sizesQuantity[size] ?? 0;
-          return GestureDetector(
-            onTap: () => _showSizeInputSheet(size, qty),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              decoration: BoxDecoration(
-                  color: qty > 0 ? cGreenTint : cSurface,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                      color: qty > 0 ? cGreen : cLine,
-                      width: 1.5)),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(size,
-                      style: manrope(15, FontWeight.w800, color: cInk)),
-                  Text(tr('$qty шт.', '$qty дана'),
-                      style: manrope(11, FontWeight.w700,
-                          color: qty > 0 ? cGreen : cInk3)),
-                ],
+          final isCustom = _customSizes.contains(size);
+          return Stack(clipBehavior: Clip.none, children: [
+            GestureDetector(
+              onTap: () => _showSizeInputSheet(size, qty),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                width: double.infinity,
+                height: double.infinity,
+                decoration: BoxDecoration(
+                    color: qty > 0 ? cGreenTint : cSurface,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                        color: qty > 0 ? cGreen : cLine,
+                        width: 1.5)),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(size,
+                        style: manrope(15, FontWeight.w800, color: cInk)),
+                    Text(tr('$qty шт.', '$qty дана'),
+                        style: manrope(11, FontWeight.w700,
+                            color: qty > 0 ? cGreen : cInk3)),
+                  ],
+                ),
               ),
             ),
-          );
+            if (isCustom)
+              Positioned(
+                top: -6,
+                right: -6,
+                child: GestureDetector(
+                  onTap: () => setState(() {
+                    _sizesQuantity.remove(size);
+                    _customSizes.remove(size);
+                  }),
+                  child: Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: const BoxDecoration(
+                        color: cRed, shape: BoxShape.circle),
+                    child: const Icon(Icons.close,
+                        color: Colors.white, size: 11),
+                  ),
+                ),
+              ),
+          ]);
         },
       ),
     ]);

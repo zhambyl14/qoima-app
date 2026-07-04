@@ -409,12 +409,12 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   const SizedBox(height: 8),
                   // Теги
                   Wrap(spacing: 8, children: [
-                    _Tag(label: p.type, icon: Icons.category_outlined),
-                    _Tag(label: p.category, icon: Icons.people_outline),
+                    _Tag(label: trValue(p.type), icon: Icons.category_outlined),
+                    _Tag(label: trValue(p.category), icon: Icons.people_outline),
                     if (p.color.isNotEmpty)
-                      _Tag(label: p.color, icon: Icons.palette_outlined),
+                      _Tag(label: trValue(p.color), icon: Icons.palette_outlined),
                     if (p.material.isNotEmpty)
-                      _Tag(label: p.material, icon: Icons.texture_outlined),
+                      _Tag(label: trValue(p.material), icon: Icons.texture_outlined),
                   ]),
                   const SizedBox(height: 12),
 

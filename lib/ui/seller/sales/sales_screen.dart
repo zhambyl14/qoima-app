@@ -755,7 +755,7 @@ class _SaleCard extends StatelessWidget {
                               fontWeight: FontWeight.w700,
                               fontSize: 16,
                               color: cInk)),
-                      Text('${product.brand} · ${product.type}',
+                      Text('${product.brand} · ${trValue(product.type)}',
                           style: const TextStyle(
                               color: cInk2, fontSize: 12)),
                     ])),
