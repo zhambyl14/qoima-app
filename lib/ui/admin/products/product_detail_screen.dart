@@ -26,6 +26,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   // (widget.product.images өзгермейді). Деталь экраны осыны көрсетеді.
   late List<String> _images = List.of(widget.product.images);
 
+  // Тауар да жергілікті state-те — атауын/түсін өңдегеннен кейін экран
+  // бірден жаңа деректерді көрсетеді (widget.product иммутабельді).
+  late ProductModel _product = widget.product;
+
   Future<void> _deleteBatch(BatchModel batch) async {
     final ok = await showDialog<bool>(
       context: context,
@@ -156,6 +160,278 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     );
   }
 
+  // ── Тауар карточкасын өңдеу (атауы, бренд, түрі, кімге, түсі, материал) ──
+  Future<void> _editProductInfo() async {
+    final p = _product;
+    final catKey = p.effectiveCategoryKey;
+    final nameCtrl = TextEditingController(text: p.name);
+    final brandCtrl = TextEditingController(text: p.brand);
+
+    // Канондық тізімдер + ескі товардағы тізімнен тыс мән жоғалмасын
+    final baseTypes = kTypesByCategory[catKey] ?? const <String>[];
+    final types = [
+      ...baseTypes,
+      if (p.type.isNotEmpty && !baseTypes.contains(p.type)) p.type,
+    ];
+    final groups = [
+      ...kProductTargetGroups,
+      if (p.category.isNotEmpty && !kProductTargetGroups.contains(p.category))
+        p.category,
+    ];
+    final baseMaterials = kMaterialsByCategory[catKey] ?? const <String>[];
+    final materials = [
+      ...baseMaterials,
+      if (p.material.isNotEmpty && !baseMaterials.contains(p.material))
+        p.material,
+    ];
+
+    String type = p.type;
+    String group = p.category;
+    String color = p.color;
+    String material = p.material;
+
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) {
+          Widget label(String text) => Padding(
+                padding: const EdgeInsets.only(top: 14, bottom: 8),
+                child: Text(text,
+                    style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: cInk2)),
+              );
+          Widget chip(String text, bool sel, VoidCallback onTap) =>
+              GestureDetector(
+                onTap: onTap,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: sel ? cGreen : Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                        color: sel ? cGreen : cLine, width: sel ? 1.5 : 1),
+                  ),
+                  child: Text(text,
+                      style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: sel ? Colors.white : cInk2)),
+                ),
+              );
+          InputDecoration deco(String labelText) => InputDecoration(
+                labelText: labelText,
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: cLine)),
+                enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: cLine)),
+                focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: cGreen, width: 1.5)),
+              );
+
+          return Container(
+            decoration: const BoxDecoration(
+              color: cSurface,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+            ),
+            padding: EdgeInsets.fromLTRB(
+                20,
+                14,
+                20,
+                MediaQuery.of(ctx).viewInsets.bottom +
+                    MediaQuery.of(ctx).padding.bottom +
+                    24),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                        width: 36,
+                        height: 4,
+                        decoration: BoxDecoration(
+                            color: cLine,
+                            borderRadius: BorderRadius.circular(2))),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(tr('Редактировать товар', 'Тауарды өңдеу'),
+                      style: const TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                          color: cInk)),
+                  const SizedBox(height: 16),
+                  TextField(
+                      controller: nameCtrl,
+                      decoration: deco(tr('Название товара', 'Тауар атауы'))),
+                  const SizedBox(height: 12),
+                  TextField(
+                      controller: brandCtrl, decoration: deco('Бренд')),
+                  if (types.isNotEmpty) ...[
+                    label(tr('Тип товара', 'Тауар түрі')),
+                    DropdownButtonFormField<String>(
+                      initialValue: types.contains(type) ? type : null,
+                      isExpanded: true,
+                      decoration: deco(tr('Тип', 'Түрі')),
+                      items: types
+                          .map((e) => DropdownMenuItem(
+                              value: e, child: Text(trValue(e))))
+                          .toList(),
+                      onChanged: (v) => setS(() => type = v ?? type),
+                    ),
+                  ],
+                  label(tr('Кому', 'Кімге')),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: groups
+                        .map((g) => chip(trValue(g), group == g,
+                            () => setS(() => group = g)))
+                        .toList(),
+                  ),
+                  label(tr('Цвет', 'Түсі')),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: ProductModel.colorOptions.map((opt) {
+                      final name = opt['name'] as String;
+                      final c = Color(opt['hex'] as int);
+                      final sel = color == name;
+                      final isLight = c.computeLuminance() > 0.7;
+                      return GestureDetector(
+                        onTap: () => setS(() => color = name),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: sel ? c : Colors.white,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                                color: sel ? c : cLine, width: sel ? 2 : 1),
+                          ),
+                          child: Row(mainAxisSize: MainAxisSize.min, children: [
+                            Container(
+                              width: 14,
+                              height: 14,
+                              decoration: BoxDecoration(
+                                color: c,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                    color: isLight
+                                        ? Colors.grey.shade300
+                                        : Colors.transparent,
+                                    width: 1),
+                              ),
+                            ),
+                            const SizedBox(width: 7),
+                            Text(trValue(name),
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: sel
+                                      ? (isLight ? cInk : Colors.white)
+                                      : cInk2,
+                                )),
+                          ]),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  if (materials.isNotEmpty) ...[
+                    label(tr('Материал (необязательно)', 'Материал (міндетті емес)')),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: materials
+                          .map((m) => chip(
+                              trValue(m),
+                              material == m,
+                              () => setS(
+                                  () => material = material == m ? '' : m)))
+                          .toList(),
+                    ),
+                  ],
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        if (nameCtrl.text.trim().isEmpty) {
+                          ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+                            content: Text(tr('Введите название товара', 'Тауар атауын енгізіңіз')),
+                            backgroundColor: cRed,
+                            behavior: SnackBarBehavior.floating,
+                          ));
+                          return;
+                        }
+                        Navigator.pop(ctx, true);
+                      },
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: cGreen,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          elevation: 0),
+                      child: Text(tr('Сохранить', 'Сақтау'),
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w700, fontSize: 15)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+
+    if (saved != true) return;
+    final newName = nameCtrl.text.trim();
+    final newBrand = brandCtrl.text.trim();
+    try {
+      await _service.updateProductInfo(
+        p.id,
+        name: newName,
+        brand: newBrand,
+        type: type,
+        material: material,
+        category: group,
+        color: color,
+      );
+      if (!mounted) return;
+      setState(() => _product = _product.copyWith(
+            name: newName,
+            brand: newBrand,
+            type: type,
+            material: material,
+            category: group,
+            color: color,
+          ));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(tr('Товар обновлён', 'Тауар жаңартылды')),
+        backgroundColor: cGreen,
+        behavior: SnackBarBehavior.floating,
+      ));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(tr('Не удалось сохранить: $e', 'Сақтау мүмкін болмады: $e')),
+        backgroundColor: cRed,
+        behavior: SnackBarBehavior.floating,
+      ));
+    }
+  }
+
   void _openPhotoManager() {
     showModalBottomSheet(
       context: context,
@@ -179,7 +455,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final p = widget.product;
+    final p = _product;
     final isAdmin = context.read<AppUser>().isAdmin;
 
     return Scaffold(
@@ -390,6 +666,16 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                     letterSpacing: -0.5)),
                           ]),
                     ),
+                    // Тауар карточкасын өңдеу — ТЕК АДМИН (партия
+                    // карандашынан бөлек: атауы/түсі/кімге т.б.)
+                    if (isAdmin)
+                      IconButton(
+                        onPressed: _editProductInfo,
+                        icon: const Icon(Icons.edit_outlined, size: 20),
+                        color: cGreen,
+                        visualDensity: VisualDensity.compact,
+                        tooltip: tr('Редактировать товар', 'Тауарды өңдеу'),
+                      ),
                     Column(children: [
                       Container(
                           padding: const EdgeInsets.all(10),

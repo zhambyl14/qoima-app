@@ -53,41 +53,18 @@ class _AddProductScreenState extends State<AddProductScreen> {
   Map<String, int> _sizesQuantity = {};
   final Set<String> _customSizes = {}; // пайдаланушы қолмен қосқан размерлер
 
-  // Тип товара (вид/модель) для каждой категории — источник истины для дропдауна.
-  static const Map<String, List<String>> _typesByCategory = {
-    'shoes': ['Туфли', 'Кеды', 'Кроссовки', 'Ботинки', 'Сланцы', 'Босоножки'],
-    'tshirt': ['Футболка', 'Оверсайз', 'Поло', 'Базовая', 'С принтом'],
-    'outer': ['Куртка', 'Пуховик', 'Ветровка', 'Пальто', 'Худи'],
-    'caps': ['Кепка', 'Шапка', 'Панама', 'Бини'],
-    'pants': ['Джинсы', 'Карго', 'Шорты', 'Спортивные'],
-    'dress': ['Платье', 'Юбка', 'Сарафан'],
-    'acc': ['Ремень', 'Сумка', 'Очки', 'Кошелек'],
-    'sport': ['Спортивный костюм', 'Леггинсы', 'Топ', 'Шорты'],
-  };
-
-  // Кому — единый список для всех категорий.
-  static const List<String> _targetGroups = [
-    'Мужские',
-    'Женские',
-    'Унисекс',
-    'Детские',
-  ];
+  // Тип/материал по категориям и список «Кому» — общие константы каталога
+  // (см. category_data.dart), используются и в редактировании товара.
+  static const Map<String, List<String>> _typesByCategory = kTypesByCategory;
+  static const List<String> _targetGroups = kProductTargetGroups;
   static const Map<String, String> _targetGroupIcons = {
     'Мужские': '👨',
     'Женские': '👩',
     'Унисекс': '👫',
     'Детские': '🧸',
   };
-  static const Map<String, List<String>> _materialsByCategory = {
-    'shoes':  ['Кожа', 'Экокожа', 'Замша', 'Текстиль', 'Резина', 'Синтетика'],
-    'tshirt': ['Хлопок', 'Полиэстер', 'Трикотаж', 'Вискоза', 'Лён', 'Синтетика'],
-    'outer':  ['Нейлон', 'Полиэстер', 'Пух', 'Шерсть', 'Мембрана', 'Синтетика'],
-    'caps':   ['Шерсть', 'Хлопок', 'Акрил', 'Вязка', 'Фетр'],
-    'pants':  ['Хлопок', 'Деним', 'Полиэстер', 'Лён', 'Велюр', 'Синтетика'],
-    'dress':  ['Хлопок', 'Шёлк', 'Трикотаж', 'Атлас', 'Вискоза', 'Синтетика'],
-    'acc':    ['Кожа', 'Экокожа', 'Текстиль', 'Металл', 'Пластик'],
-    'sport':  ['Полиэстер', 'Спандекс', 'Сетка', 'Нейлон', 'Синтетика'],
-  };
+  static const Map<String, List<String>> _materialsByCategory =
+      kMaterialsByCategory;
   static const List<Map<String, dynamic>> _presets = [
     {
       'labelRu': 'По 1 паре с трёх размеров · 2 с ходовых',

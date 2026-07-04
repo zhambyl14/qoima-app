@@ -178,6 +178,26 @@ class FirestoreService {
   Future<void> updateProductImages(String productId, List<String> imageUrls) =>
       _sb.from('products').update({'images': imageUrls}).eq('id', productId);
 
+  /// Тауар карточкасын өңдеу: атауы, бренд, түрі, кімге, түсі, материалы.
+  /// Категория (category_key) өзгермейді — размерлер соған байланған.
+  Future<void> updateProductInfo(
+    String productId, {
+    required String name,
+    required String brand,
+    required String type,
+    required String material,
+    required String category,
+    required String color,
+  }) =>
+      _sb.from('products').update({
+        'name': name.trim(),
+        'brand': brand.trim(),
+        'type': type,
+        'material': material,
+        'category': category,
+        'color': color,
+      }).eq('id', productId);
+
   // ── Batches ───────────────────────────────────────────────────────────────────
 
   Future<List<BatchModel>> getBatches(String productId) async {
