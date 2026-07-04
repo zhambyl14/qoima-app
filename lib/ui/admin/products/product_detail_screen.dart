@@ -5,6 +5,7 @@ import '../../../data/models/models.dart';
 import '../../../data/services/firestore_service.dart';
 import '../../../data/services/cloudinary_service.dart';
 import '../../../theme/qoima_design.dart';
+import '../../shared/prompt_text_dialog.dart';
 import '../../widgets/image_crop_screen.dart';
 import 'dart:typed_data';
 import 'package:image_picker/image_picker.dart';
@@ -166,6 +167,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     final catKey = p.effectiveCategoryKey;
     final nameCtrl = TextEditingController(text: p.name);
     final brandCtrl = TextEditingController(text: p.brand);
+    final descCtrl = TextEditingController(text: p.description);
+    final countryCtrl = TextEditingController(text: p.country);
 
     // Канондық тізімдер + ескі товардағы тізімнен тыс мән жоғалмасын
     final baseTypes = kTypesByCategory[catKey] ?? const <String>[];
@@ -189,6 +192,11 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     String group = p.category;
     String color = p.color;
     String material = p.material;
+    String season = p.season;
+    // Дропдаун ішкі state-і «Свой вариант…» пунктінде қалып қоймауы үшін
+    // key арқылы қайта құрылады.
+    int typeNonce = 0;
+    const customTypeOption = '__custom__';
 
     final saved = await showModalBottomSheet<bool>(
       context: context,
@@ -276,19 +284,47 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   const SizedBox(height: 12),
                   TextField(
                       controller: brandCtrl, decoration: deco('Бренд')),
-                  if (types.isNotEmpty) ...[
-                    label(tr('Тип товара', 'Тауар түрі')),
-                    DropdownButtonFormField<String>(
-                      initialValue: types.contains(type) ? type : null,
-                      isExpanded: true,
-                      decoration: deco(tr('Тип', 'Түрі')),
-                      items: types
-                          .map((e) => DropdownMenuItem(
-                              value: e, child: Text(trValue(e))))
-                          .toList(),
-                      onChanged: (v) => setS(() => type = v ?? type),
-                    ),
-                  ],
+                  label(tr('Тип товара', 'Тауар түрі')),
+                  DropdownButtonFormField<String>(
+                    key: ValueKey('etype-$typeNonce-$type'),
+                    initialValue: types.contains(type) ? type : null,
+                    isExpanded: true,
+                    decoration: deco(tr('Тип', 'Түрі')),
+                    items: [
+                      ...types.map((e) => DropdownMenuItem(
+                          value: e, child: Text(trValue(e)))),
+                      DropdownMenuItem(
+                        value: customTypeOption,
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          const Icon(Icons.edit_outlined,
+                              size: 16, color: cGreen),
+                          const SizedBox(width: 6),
+                          Text(tr('Свой вариант…', 'Өз нұсқасы…'),
+                              style: const TextStyle(
+                                  color: cGreen,
+                                  fontWeight: FontWeight.w600)),
+                        ]),
+                      ),
+                    ],
+                    onChanged: (v) async {
+                      if (v != customTypeOption) {
+                        setS(() => type = v ?? type);
+                        return;
+                      }
+                      final value = await promptTextDialog(
+                        ctx,
+                        title: tr('Свой тип товара', 'Өз тауар түрі'),
+                        hint: tr('Например: Мокасины', 'Мысалы: Мокасиндер'),
+                      );
+                      setS(() {
+                        typeNonce++;
+                        if (value != null) {
+                          if (!types.contains(value)) types.add(value);
+                          type = value;
+                        }
+                      });
+                    },
+                  ),
                   label(tr('Кому', 'Кімге')),
                   Wrap(
                     spacing: 8,
@@ -346,20 +382,54 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       );
                     }).toList(),
                   ),
-                  if (materials.isNotEmpty) ...[
-                    label(tr('Материал (необязательно)', 'Материал (міндетті емес)')),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: materials
-                          .map((m) => chip(
-                              trValue(m),
-                              material == m,
-                              () => setS(
-                                  () => material = material == m ? '' : m)))
-                          .toList(),
-                    ),
-                  ],
+                  label(tr('Материал (необязательно)', 'Материал (міндетті емес)')),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      ...materials.map((m) => chip(
+                          trValue(m),
+                          material == m,
+                          () =>
+                              setS(() => material = material == m ? '' : m))),
+                      chip(tr('✏️ Свой', '✏️ Өз нұсқасы'), false, () async {
+                        final value = await promptTextDialog(
+                          ctx,
+                          title: tr('Свой материал', 'Өз материалы'),
+                          hint: tr('Например: Нубук', 'Мысалы: Нубук'),
+                        );
+                        if (value == null) return;
+                        setS(() {
+                          if (!materials.contains(value)) {
+                            materials.add(value);
+                          }
+                          material = value;
+                        });
+                      }),
+                    ],
+                  ),
+                  label(tr('Сезон (необязательно)', 'Сезон (міндетті емес)')),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: kSeasons
+                        .map((s) => chip(trValue(s), season == s,
+                            () => setS(() => season = season == s ? '' : s)))
+                        .toList(),
+                  ),
+                  const SizedBox(height: 14),
+                  TextField(
+                      controller: countryCtrl,
+                      textCapitalization: TextCapitalization.sentences,
+                      decoration: deco(tr('Страна производства (необязательно)', 'Өндірілген ел (міндетті емес)'))),
+                  const SizedBox(height: 12),
+                  TextField(
+                      controller: descCtrl,
+                      maxLines: 4,
+                      minLines: 3,
+                      textCapitalization: TextCapitalization.sentences,
+                      decoration: deco(tr('Описание (необязательно)', 'Сипаттама (міндетті емес)'))
+                          .copyWith(alignLabelWithHint: true)),
                   const SizedBox(height: 20),
                   SizedBox(
                     width: double.infinity,
@@ -407,6 +477,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         material: material,
         category: group,
         color: color,
+        description: descCtrl.text.trim(),
+        country: countryCtrl.text.trim(),
+        season: season,
       );
       if (!mounted) return;
       setState(() => _product = _product.copyWith(
@@ -416,6 +489,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             material: material,
             category: group,
             color: color,
+            description: descCtrl.text.trim(),
+            country: countryCtrl.text.trim(),
+            season: season,
           ));
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(tr('Товар обновлён', 'Тауар жаңартылды')),
@@ -694,15 +770,38 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   ]),
                   const SizedBox(height: 8),
                   // Теги
-                  Wrap(spacing: 8, children: [
+                  Wrap(spacing: 8, runSpacing: 8, children: [
                     _Tag(label: trValue(p.type), icon: Icons.category_outlined),
                     _Tag(label: trValue(p.category), icon: Icons.people_outline),
                     if (p.color.isNotEmpty)
                       _Tag(label: trValue(p.color), icon: Icons.palette_outlined),
                     if (p.material.isNotEmpty)
                       _Tag(label: trValue(p.material), icon: Icons.texture_outlined),
+                    if (p.season.isNotEmpty)
+                      _Tag(label: trValue(p.season), icon: Icons.wb_sunny_outlined),
+                    if (p.country.isNotEmpty)
+                      _Tag(label: p.country, icon: Icons.public_outlined),
                   ]),
                   const SizedBox(height: 12),
+
+                  // Описание
+                  if (p.description.isNotEmpty) ...[
+                    _SecTitle(tr('Описание', 'Сипаттама')),
+                    const SizedBox(height: 8),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: cLine),
+                      ),
+                      child: Text(p.description,
+                          style: const TextStyle(
+                              fontSize: 13.5, color: cInk2, height: 1.45)),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
 
                   // Скидка қою «Менің дүкенім → Скидки» бөліміне көшті.
                   // (Бұл жерде енді тауарға тікелей скидка қоюшы кнопка жоқ.)

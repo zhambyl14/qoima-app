@@ -13,6 +13,9 @@ class ProductModel {
   final String articul;
   final String status; // "В наличии" | "Продано"
   final List<String> images;
+  final String description; // описание товара (необязательно)
+  final String country; // страна производства (необязательно)
+  final String season; // Лето|Зима|Осень|Весна ('' = не указан)
 
   const ProductModel({
     required this.id,
@@ -26,6 +29,9 @@ class ProductModel {
     required this.articul,
     required this.status,
     required this.images,
+    this.description = '',
+    this.country = '',
+    this.season = '',
   });
 
   /// Ключ категории с учётом обратной совместимости: товары, заведённые до
@@ -92,6 +98,9 @@ class ProductModel {
       articul: json['articul'] as String? ?? '',
       status: json['status'] as String? ?? statusInStock,
       images: List<String>.from(json['images'] as List? ?? []),
+      description: json['description'] as String? ?? '',
+      country: json['country'] as String? ?? '',
+      season: json['season'] as String? ?? '',
     );
   }
 
@@ -108,6 +117,9 @@ class ProductModel {
         articul: m['articul'] as String? ?? '',
         status: m['status'] as String? ?? statusInStock,
         images: (m['images'] as List?)?.map((e) => e.toString()).toList() ?? [],
+        description: m['description'] as String? ?? '',
+        country: m['country'] as String? ?? '',
+        season: m['season'] as String? ?? '',
       );
 
   /// Supabase жазу үшін (snake_case; id/owner_uid сервисте қосылады).
@@ -122,6 +134,9 @@ class ProductModel {
         'articul': articul,
         'status': status,
         'images': images,
+        'description': description,
+        'country': country,
+        'season': season,
       };
 
   Map<String, dynamic> toJson() => {
@@ -136,6 +151,9 @@ class ProductModel {
         'articul': articul,
         'status': status,
         'images': images,
+        'description': description,
+        'country': country,
+        'season': season,
       };
 
   ProductModel copyWith({
@@ -150,6 +168,9 @@ class ProductModel {
     String? articul,
     String? status,
     List<String>? images,
+    String? description,
+    String? country,
+    String? season,
   }) {
     return ProductModel(
       id: id ?? this.id,
@@ -163,6 +184,9 @@ class ProductModel {
       articul: articul ?? this.articul,
       status: status ?? this.status,
       images: images ?? this.images,
+      description: description ?? this.description,
+      country: country ?? this.country,
+      season: season ?? this.season,
     );
   }
 

@@ -181,6 +181,9 @@ const Map<String, List<String>> kTypesByCategory = {
   'sport': ['Спортивный костюм', 'Леггинсы', 'Топ', 'Шорты'],
 };
 
+/// Сезонность товара — канонические значения поля `season` (необязательное).
+const List<String> kSeasons = ['Лето', 'Зима', 'Осень', 'Весна'];
+
 /// Материалы для каждой категории.
 const Map<String, List<String>> kMaterialsByCategory = {
   'shoes':  ['Кожа', 'Экокожа', 'Замша', 'Текстиль', 'Резина', 'Синтетика'],

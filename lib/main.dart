@@ -31,6 +31,12 @@ void main() async {
     statusBarColor: Colors.transparent,
     statusBarIconBrightness: Brightness.light,
   ));
+  // Тек тік (портрет) режим — телефонда автоповорот қосулы болса да
+  // қосымша көлденеңге бұрылмайды (интерфейс тік бағдарға арналған).
+  await SystemChrome.setPreferredOrientations(const [
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+  ]);
   // Supabase инициализациясы. Кілт түрін автоматты анықтаймыз: ескі JWT
   // (eyJ...) → anonKey; жаңа кілт (sb_publishable_...) → publishableKey.
   final supaKey = SupabaseConfig.anonKey;
@@ -116,6 +122,13 @@ class QoimaApp extends StatelessWidget {
                 const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
           ),
         ),
+      ),
+      // Жүйелік «үлкен шрифт» баптауы интерфейсті бұзбауы үшін мәтін
+      // масштабын шектейміз (дизайн тығыз — тым үлкен шрифт таситын еді).
+      // Кішірейтуге рұқсат (min жоқ), тек 1.1-ден асырмаймыз.
+      builder: (context, child) => MediaQuery.withClampedTextScaling(
+        maxScaleFactor: 1.1,
+        child: child!,
       ),
       locale: locale,
       supportedLocales: const [Locale('kk'), Locale('ru')],

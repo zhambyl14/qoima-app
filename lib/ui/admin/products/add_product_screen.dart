@@ -8,6 +8,7 @@ import '../../../data/services/firestore_service.dart';
 import '../../../data/services/cloudinary_service.dart';
 import '../../../theme/qoima_design.dart';
 import '../../shared/mandatory_warehouse_picker.dart';
+import '../../shared/prompt_text_dialog.dart';
 import '../../widgets/image_crop_screen.dart';
 
 import '../../../core/lang.dart';
@@ -26,12 +27,15 @@ class _AddProductScreenState extends State<AddProductScreen> {
   final _brandCtrl = TextEditingController();
   final _purchaseCtrl = TextEditingController();
   final _sellingCtrl = TextEditingController();
+  final _descCtrl = TextEditingController();
+  final _countryCtrl = TextEditingController();
 
   String? _type;
   String? _material;
   String? _targetGroup; // кому: Мужские|Женские|Унисекс|Детские
   String? _categoryKey; // категория товара v2 (shoes|tshirt|...)
   String? _color;
+  String? _season; // Лето|Зима|Осень|Весна (необязательно)
   DateTime _dateArrived = DateTime.now();
 
   bool get _isShoes => _categoryKey == 'shoes';
@@ -97,6 +101,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
     _brandCtrl.dispose();
     _purchaseCtrl.dispose();
     _sellingCtrl.dispose();
+    _descCtrl.dispose();
+    _countryCtrl.dispose();
     super.dispose();
   }
 
@@ -412,6 +418,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
           articul: '',
           status: ProductModel.statusInStock,
           images: imageUrls,
+          description: _descCtrl.text.trim(),
+          country: _countryCtrl.text.trim(),
+          season: _season ?? '',
         );
         await _firestoreService.addNewProduct(
           product: product,
@@ -690,15 +699,84 @@ class _AddProductScreenState extends State<AddProductScreen> {
           Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: _currentMaterials
-                  .map((m) => _SelectChip(
-                      label: trValue(m),
-                      selected: _material == m,
-                      onTap: () =>
-                          setState(() => _material = _material == m ? null : m)))
-                  .toList()),
+              children: [
+                // Списка может не хватать — своё значение тоже показываем.
+                ...[
+                  ..._currentMaterials,
+                  if (_material != null &&
+                      !_currentMaterials.contains(_material))
+                    _material!,
+                ].map((m) => _SelectChip(
+                    label: trValue(m),
+                    selected: _material == m,
+                    onTap: () =>
+                        setState(() => _material = _material == m ? null : m))),
+                _SelectChip(
+                    label: tr('✏️ Свой', '✏️ Өз нұсқасы'),
+                    selected: false,
+                    onTap: _promptCustomMaterial),
+              ]),
         ],
+        const SizedBox(height: 16),
+        _Label(tr('Сезон (необязательно)', 'Сезон (міндетті емес)')),
+        const SizedBox(height: 8),
+        Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: kSeasons
+                .map((s) => _SelectChip(
+                    label: '${_seasonIcons[s] ?? ''} ${trValue(s)}',
+                    selected: _season == s,
+                    onTap: () =>
+                        setState(() => _season = _season == s ? null : s)))
+                .toList()),
+        const SizedBox(height: 16),
+        _Field(
+            controller: _countryCtrl,
+            label: tr('Страна производства (необязательно)', 'Өндірілген ел (міндетті емес)'),
+            hint: tr('Напр: Вьетнам, Китай, Турция', 'Мыс: Вьетнам, Қытай, Түркия'),
+            icon: Icons.public_outlined),
+        const SizedBox(height: 12),
+        TextFormField(
+            controller: _descCtrl,
+            maxLines: 4,
+            minLines: 3,
+            textCapitalization: TextCapitalization.sentences,
+            style: const TextStyle(fontSize: 15, color: cInk),
+            decoration: InputDecoration(
+                labelText: tr('Описание (необязательно)', 'Сипаттама (міндетті емес)'),
+                alignLabelWithHint: true,
+                hintText: tr('Расскажите о товаре: посадка, особенности, с чем носить…', 'Тауар туралы айтыңыз: пішімі, ерекшеліктері, немен киюге болады…'),
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: cLine)),
+                enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: cLine)),
+                focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide:
+                        const BorderSide(color: cGreen, width: 1.5)))),
       ]);
+
+  static const Map<String, String> _seasonIcons = {
+    'Лето': '☀️',
+    'Зима': '❄️',
+    'Осень': '🍂',
+    'Весна': '🌱',
+  };
+
+  Future<void> _promptCustomMaterial() async {
+    final value = await promptTextDialog(
+      context,
+      title: tr('Свой материал', 'Өз материалы'),
+      hint: tr('Например: Нубук', 'Мысалы: Нубук'),
+      initial: _currentMaterials.contains(_material) ? '' : (_material ?? ''),
+    );
+    if (value != null && mounted) setState(() => _material = value);
+  }
 
   Widget _buildColorPicker() {
     return Wrap(
@@ -795,10 +873,36 @@ class _AddProductScreenState extends State<AddProductScreen> {
     );
   }
 
+  // Сентинель пункта «Свой вариант» в дропдауне типа.
+  static const String _customTypeOption = '__custom__';
+  // Дропдаун ішкі state-ін жаңарту үшін (сентинель таңдалғаннан кейін
+  // initialValue қайта қолданылсын деп key өзгертіледі).
+  int _typeFieldNonce = 0;
+
+  Future<void> _promptCustomType() async {
+    final value = await promptTextDialog(
+      context,
+      title: tr('Свой тип товара', 'Өз тауар түрі'),
+      hint: tr('Например: Мокасины', 'Мысалы: Мокасиндер'),
+      initial: _currentTypes.contains(_type) ? '' : (_type ?? ''),
+    );
+    if (!mounted) return;
+    setState(() {
+      _typeFieldNonce++;
+      if (value != null) _type = value;
+    });
+  }
+
   // Тип товара (вид/модель) — зависит от выбранной категории.
+  // Списка может не хватать — пункт «Свой вариант» позволяет вписать своё.
   Widget _buildTypeDropdown() {
-    final types = _currentTypes;
+    final types = [
+      ..._currentTypes,
+      if (_type != null && _type!.isNotEmpty && !_currentTypes.contains(_type))
+        _type!,
+    ];
     return DropdownButtonFormField<String>(
+      key: ValueKey('type-$_typeFieldNonce-$_type'),
       initialValue: types.contains(_type) ? _type : null,
       isExpanded: true,
       decoration: InputDecoration(
@@ -817,10 +921,27 @@ class _AddProductScreenState extends State<AddProductScreen> {
             borderRadius: BorderRadius.circular(12),
             borderSide: const BorderSide(color: cGreen, width: 1.5)),
       ),
-      items: types
-          .map((e) => DropdownMenuItem(value: e, child: Text(trValue(e))))
-          .toList(),
-      onChanged: (v) => setState(() => _type = v),
+      items: [
+        ...types.map(
+            (e) => DropdownMenuItem(value: e, child: Text(trValue(e)))),
+        DropdownMenuItem(
+          value: _customTypeOption,
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(Icons.edit_outlined, size: 16, color: cGreen),
+            const SizedBox(width: 6),
+            Text(tr('Свой вариант…', 'Өз нұсқасы…'),
+                style: const TextStyle(
+                    color: cGreen, fontWeight: FontWeight.w600)),
+          ]),
+        ),
+      ],
+      onChanged: (v) {
+        if (v == _customTypeOption) {
+          _promptCustomType();
+        } else {
+          setState(() => _type = v);
+        }
+      },
     );
   }
 

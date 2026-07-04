@@ -479,6 +479,10 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
                         ),
                       ],
 
+                      // ── Описание (маркетплейс-стиль, жайылмалы) ─────
+                      if (_currentProduct.description.isNotEmpty)
+                        _DescriptionSection(text: _currentProduct.description),
+
                       // ── Характеристики ──────────────────────────────
                       _SpecSection(product: _currentProduct),
 
@@ -632,6 +636,82 @@ class _SpecRow {
   const _SpecRow(this.label, this.value);
 }
 
+// ── Описание секциясы (ұзын мәтін жиналып тұрады — «Читать далее») ───────────
+class _DescriptionSection extends StatefulWidget {
+  final String text;
+  const _DescriptionSection({required this.text});
+
+  @override
+  State<_DescriptionSection> createState() => _DescriptionSectionState();
+}
+
+class _DescriptionSectionState extends State<_DescriptionSection> {
+  static const int _collapsedLines = 5;
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final style =
+        manrope(13.5, FontWeight.w500, color: cInk2).copyWith(height: 1.5);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 20),
+        QSecLabel(tr('Описание', 'Сипаттама')),
+        LayoutBuilder(builder: (ctx, constraints) {
+          // Мәтін 5 жолдан асатынын өлшеп, «Читать далее» керек пе — соны
+          // анықтаймыз (қысқа сипаттамаға артық батырма көрсетпейміз).
+          final painter = TextPainter(
+            text: TextSpan(text: widget.text, style: style),
+            maxLines: _collapsedLines,
+            textDirection: TextDirection.ltr,
+          )..layout(maxWidth: constraints.maxWidth);
+          final needsToggle = painter.didExceedMaxLines;
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AnimatedSize(
+                duration: const Duration(milliseconds: 200),
+                alignment: Alignment.topCenter,
+                child: Text(
+                  widget.text,
+                  style: style,
+                  maxLines: _expanded ? null : _collapsedLines,
+                  overflow: _expanded
+                      ? TextOverflow.visible
+                      : TextOverflow.ellipsis,
+                ),
+              ),
+              if (needsToggle)
+                GestureDetector(
+                  onTap: () => setState(() => _expanded = !_expanded),
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Text(
+                          _expanded
+                              ? tr('Свернуть', 'Жасыру')
+                              : tr('Читать далее', 'Толығырақ оқу'),
+                          style: manrope(13.5, FontWeight.w700,
+                              color: cGreenDeep)),
+                      Icon(
+                          _expanded
+                              ? Icons.keyboard_arrow_up_rounded
+                              : Icons.keyboard_arrow_down_rounded,
+                          size: 18,
+                          color: cGreenDeep),
+                    ]),
+                  ),
+                ),
+            ],
+          );
+        }),
+      ],
+    );
+  }
+}
+
 // ── Характеристики секциясы ───────────────────────────────────────────────────
 class _SpecSection extends StatelessWidget {
   final ProductModel product;
@@ -645,6 +725,8 @@ class _SpecSection extends StatelessWidget {
       if (product.brand.isNotEmpty)    _SpecRow('Бренд', product.brand),
       if (product.color.isNotEmpty)    _SpecRow(tr('Цвет', 'Түсі'), trValue(product.color)),
       if (product.type.isNotEmpty)     _SpecRow(tr('Тип', 'Түрі'), trValue(product.type)),
+      if (product.season.isNotEmpty)   _SpecRow(tr('Сезон', 'Маусым'), trValue(product.season)),
+      if (product.country.isNotEmpty)  _SpecRow(tr('Страна', 'Өндірілген ел'), product.country),
       if (product.articul.isNotEmpty)  _SpecRow('Артикул', product.articul),
     ];
     if (rows.isEmpty) return const SizedBox.shrink();
