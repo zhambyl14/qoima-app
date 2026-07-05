@@ -31,4 +31,18 @@ class SupabaseConfig {
   // ════════════════════════════════════════════════════════════════════════
   static const String googleWebClientId =
       '536773855283-f6ledrtslna1ke0i5tjui45lf54o7k8a.apps.googleusercontent.com';
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  Тауарды бөлісу бетінің базалық URL-і (Deno Deploy).
+  //  ⚠️ Supabase-тің тегін домені HTML-ді рендерлемейді, сол себепті share-бет
+  //  Deno Deploy-да тұрады (тегін *.deno.dev). deno-deploy/main.ts деплой етіп,
+  //  алынған URL-ді осында қойыңыз (соңында '/' БОЛМАСЫН). Мысалы:
+  //    'https://qoima-product.deno.dev'
+  //  Бос болса — бөлісу батырмасы ескерту көрсетеді.
+  // ════════════════════════════════════════════════════════════════════════
+  static const String shareBaseUrl = 'https://qoima.zhambyl14.deno.net';
+
+  /// Тауар сілтемесін құрастырады: `shareBaseUrl/?id=productId`.
+  static String productShareUrl(String productId) =>
+      shareBaseUrl.isEmpty ? '' : '$shareBaseUrl/?id=$productId';
 }

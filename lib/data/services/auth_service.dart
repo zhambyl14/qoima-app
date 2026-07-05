@@ -378,6 +378,21 @@ class AuthService {
     await _sb.from('clients').update({'city': city}).eq('id', uid);
   }
 
+  /// Пайдаланушының есімін өзгертеді. Рөлге тәуелсіз — екі кестені де жаңартады
+  /// (тек бар жол өзгереді: admin/seller → users, client → clients).
+  Future<void> updateDisplayName(String name) async {
+    final uid = currentUid;
+    if (uid == null) {
+      throw AuthFailure(tr('Войдите заново', 'Қайта кіріңіз'), code: 'no-user');
+    }
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) {
+      throw AuthFailure(tr('Введите имя', 'Есімді енгізіңіз'), code: 'empty-name');
+    }
+    await _sb.from('users').update({'name': trimmed}).eq('id', uid);
+    await _sb.from('clients').update({'name': trimmed}).eq('id', uid);
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
   //  ЖАЛПЫ БЛОК (superadmin қояды)
   // ═══════════════════════════════════════════════════════════════════════════

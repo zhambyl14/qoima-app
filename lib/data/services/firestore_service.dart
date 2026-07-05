@@ -379,7 +379,12 @@ class FirestoreService {
     await _sb.rpc('recompute_product_status', params: {'p_product': productId});
   }
 
-  Future<void> deleteBatch(String productId, String batchId) async {
+  /// Партияны өшіреді. Егер партиядан сатылым болса — өшірмей архивтейді (қате
+  /// лақтырады). Партия өшкен соң товарда БАСҚА партия ДА, ЕШҚАНДАЙ сатылым ДА
+  /// қалмаса — товар «жетім» деп есептеліп, жолы толық өшіріледі (share-сілтемесі
+  /// бірден жабылады). Сол кезде товардың сурет URL-дері қайтарылады — шақырушы
+  /// оларды Cloudinary-ден тазалайды. Әйтпесе бос тізім қайтады.
+  Future<List<String>> deleteBatch(String productId, String batchId) async {
     final sales = await _sb
         .from('sales_history')
         .select('id')
@@ -397,7 +402,38 @@ class FirestoreService {
           tr('По этой партии есть продажи. Партия не удалена, а перемещена в архив — аналитика сохранена.', 'Бұл партия бойынша сатылымдар бар. Партия өшірілмеді, архивке жылжытылды — аналитика сақталды.'));
     }
     await _sb.from('batches').delete().eq('id', batchId);
+
+    // Партия қалмады ма?
+    final remaining = await _sb
+        .from('batches')
+        .select('id')
+        .eq('product_id', productId)
+        .limit(1);
+    if (remaining.isEmpty) {
+      // Товар бойынша ешқандай сатылым да жоқ па? (архивтелген партиялар да жоқ)
+      final anySales = await _sb
+          .from('sales_history')
+          .select('id')
+          .eq('product_id', productId)
+          .limit(1);
+      if (anySales.isEmpty) {
+        // Жетім товар — жолды толық өшіреміз, суреттерін қайтарамыз.
+        final prow = await _sb
+            .from('products')
+            .select('images')
+            .eq('id', productId)
+            .maybeSingle();
+        final imgs = (prow?['images'] as List?)
+                ?.map((e) => e.toString())
+                .where((u) => u.isNotEmpty)
+                .toList() ??
+            <String>[];
+        await _sb.from('products').delete().eq('id', productId);
+        return imgs;
+      }
+    }
     await _sb.rpc('recompute_product_status', params: {'p_product': productId});
+    return <String>[];
   }
 
   // ── Sales ─────────────────────────────────────────────────────────────────────

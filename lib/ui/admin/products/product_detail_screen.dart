@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../../core/app_user.dart';
+import '../../../core/supabase_config.dart';
 import '../../../data/models/models.dart';
 import '../../../data/services/firestore_service.dart';
 import '../../../data/services/cloudinary_service.dart';
@@ -52,7 +54,25 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       ),
     );
     if (ok != true) return;
-    await _service.deleteBatch(widget.product.id, batch.id);
+    try {
+      final removedImages =
+          await _service.deleteBatch(widget.product.id, batch.id);
+      if (removedImages.isNotEmpty) {
+        // Товар толық өшті (партия/сатылым жоқ) — суреттерін Cloudinary-ден
+        // тазалап, экраннан шығамыз (көрсететін тауар қалмады).
+        await CloudinaryService().deleteMany(removedImages);
+        if (mounted) Navigator.pop(context);
+      }
+    } catch (e) {
+      // Архивке көшірілген жағдай (сатылымы бар партия) — хабарлама көрсетеміз.
+      if (!mounted) return;
+      final msg = e is SaleException ? e.message : e.toString();
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(msg),
+        backgroundColor: cInk2,
+        behavior: SnackBarBehavior.floating,
+      ));
+    }
   }
 
   Future<void> _editBatch(BatchModel batch) async {
@@ -508,6 +528,35 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     }
   }
 
+  // ── Тауарды бөлісу (публичный веб-сілтеме → WhatsApp/Telegram/копия) ──────
+  // Сілтемені кез келген адам браузерде аша алады (қосымша қажет емес).
+  // Дүкен публичный болмаса, бет «қолжетімсіз» деп көрсетеді (Edge Function).
+  Future<void> _shareProduct() async {
+    final p = _product;
+    final url = SupabaseConfig.productShareUrl(p.id);
+    if (url.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(tr('Ссылки для обмена ещё не настроены',
+            'Бөлісу сілтемесі әлі бапталмаған')),
+        backgroundColor: cRed,
+        behavior: SnackBarBehavior.floating,
+      ));
+      return;
+    }
+    final text = p.name.isNotEmpty ? '${p.name}\n$url' : url;
+    try {
+      await Share.share(text, subject: p.name);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(tr('Не удалось поделиться: $e', 'Бөлісу мүмкін болмады: $e')),
+        backgroundColor: cRed,
+        behavior: SnackBarBehavior.floating,
+      ));
+    }
+  }
+
   void _openPhotoManager() {
     showModalBottomSheet(
       context: context,
@@ -619,39 +668,35 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                 color: Colors.white, size: 18)),
                       ),
                     ),
-                    // Суреттерді өңдеу батырмасы — ТЕК АДМИН (суреті жоқ
-                    // өнімге де қосуға болады)
-                    if (isAdmin)
-                      Positioned(
-                        top: MediaQuery.of(context).padding.top + 8,
-                        right: 12,
-                        child: GestureDetector(
-                          onTap: _openPhotoManager,
-                          child: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                  color: Colors.black.withValues(alpha: 0.4),
-                                  borderRadius: BorderRadius.circular(10)),
-                              child: const Icon(Icons.add_a_photo_outlined,
-                                  color: Colors.white, size: 18)),
+                    // Оң жақ төбедегі әрекеттер: бөлісу · толық экран · сурет
+                    // (сурет өңдеу — тек админ).
+                    Positioned(
+                      top: MediaQuery.of(context).padding.top + 8,
+                      right: 12,
+                      child: Row(children: [
+                        _GlassIconBtn(
+                          icon: Icons.ios_share,
+                          onTap: _shareProduct,
                         ),
-                      ),
-                    if (_images.isNotEmpty)
-                      Positioned(
-                        top: MediaQuery.of(context).padding.top + 8,
-                        right: isAdmin ? 54 : 12,
-                        child: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                                color: Colors.black.withValues(alpha: 0.4),
-                                borderRadius: BorderRadius.circular(10)),
-                            child: Icon(
-                                _photoExpanded
-                                    ? Icons.fullscreen_exit
-                                    : Icons.fullscreen,
-                                color: Colors.white,
-                                size: 18)),
-                      ),
+                        if (_images.isNotEmpty) ...[
+                          const SizedBox(width: 8),
+                          _GlassIconBtn(
+                            icon: _photoExpanded
+                                ? Icons.fullscreen_exit
+                                : Icons.fullscreen,
+                            onTap: () => setState(
+                                () => _photoExpanded = !_photoExpanded),
+                          ),
+                        ],
+                        if (isAdmin) ...[
+                          const SizedBox(width: 8),
+                          _GlassIconBtn(
+                            icon: Icons.add_a_photo_outlined,
+                            onTap: _openPhotoManager,
+                          ),
+                        ],
+                      ]),
+                    ),
                     if (_images.length > 1)
                       Positioned(
                         bottom: 16,
@@ -1241,6 +1286,24 @@ class _Tag extends StatelessWidget {
                 color: cInk2,
                 fontWeight: FontWeight.w500)),
       ]));
+}
+
+// Сурет үстіндегі күңгірт-шыны батырма (артқа/бөлісу/толық экран/сурет).
+class _GlassIconBtn extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  const _GlassIconBtn({required this.icon, required this.onTap});
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.4),
+              borderRadius: BorderRadius.circular(10)),
+          child: Icon(icon, color: Colors.white, size: 18),
+        ),
+      );
 }
 
 class _SecTitle extends StatelessWidget {

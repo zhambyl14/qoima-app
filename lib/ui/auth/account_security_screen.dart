@@ -31,6 +31,14 @@ class AccountSecurityScreen extends StatelessWidget {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 18, 16, 32),
             children: [
+              QMenuItem(
+                icon: Icons.badge_outlined,
+                tone: 'green',
+                title: tr('Имя', 'Есім'),
+                subtitle: tr('Изменить отображаемое имя', 'Көрсетілетін есімді өзгерту'),
+                onTap: () => _openSheet(context, const _ChangeNameSheet()),
+              ),
+              const SizedBox(height: 10),
               if (showPhone) ...[
                 QMenuItem(
                   icon: Icons.phone_outlined,
@@ -210,6 +218,76 @@ void _toast(BuildContext context, String msg, {bool ok = true}) {
     behavior: SnackBarBehavior.floating,
     backgroundColor: ok ? cGreen : cRed,
   ));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Есім өзгерту (сезімтал емес — reauth қажет емес)
+// ─────────────────────────────────────────────────────────────────────────────
+class _ChangeNameSheet extends StatefulWidget {
+  const _ChangeNameSheet();
+  @override
+  State<_ChangeNameSheet> createState() => _ChangeNameSheetState();
+}
+
+class _ChangeNameSheetState extends State<_ChangeNameSheet> {
+  final _auth = AuthService();
+  late final _nameCtrl =
+      TextEditingController(text: context.read<AppUser>().name);
+  bool _loading = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final name = _nameCtrl.text.trim();
+    if (name.isEmpty) {
+      setState(() => _error = tr('Введите имя', 'Есімді енгізіңіз'));
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      await _auth.updateDisplayName(name);
+      if (!mounted) return;
+      context.read<AppUser>().updateName(name);
+      Navigator.pop(context);
+      _toast(context, tr('Имя изменено', 'Есім өзгертілді'));
+    } on AuthFailure catch (e) {
+      setState(() => _error = e.message);
+    } catch (e) {
+      setState(() => _error = tr('Не удалось сохранить', 'Сақтау мүмкін болмады'));
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _SheetShell(
+      title: tr('Изменение имени', 'Есімді өзгерту'),
+      children: [
+        _SecurityField(
+          controller: _nameCtrl,
+          label: tr('Имя', 'Есім'),
+          hint: tr('Ваше имя', 'Есіміңіз'),
+          icon: Icons.badge_outlined,
+          keyboard: TextInputType.name,
+        ),
+        if (_error != null) _SheetError(_error!),
+        QPrimaryButton(
+          label: tr('Сохранить', 'Сақтау'),
+          isLoading: _loading,
+          onPressed: _submit,
+        ),
+      ],
+    );
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

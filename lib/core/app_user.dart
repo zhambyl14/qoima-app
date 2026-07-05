@@ -135,6 +135,12 @@ class AppUser extends ChangeNotifier {
     notifyListeners();
   }
 
+  void updateName(String name) {
+    if (_name == name) return;
+    _name = name;
+    notifyListeners();
+  }
+
   void updateCity(String city) {
     if (_city == city) return;
     _city = city;

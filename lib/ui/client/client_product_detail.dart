@@ -403,7 +403,7 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
                                       const SizedBox(width: 7),
                                       Text(
                                           v.color.isNotEmpty
-                                              ? v.color
+                                              ? trValue(v.color)
                                               : tr('Цвет ${i + 1}', 'Түс ${i + 1}'),
                                           style: manrope(13, FontWeight.w700,
                                               color: selected

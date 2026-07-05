@@ -24,6 +24,7 @@ dependencies:
   provider: ^6.1.2
   shared_preferences: ^2.3.2
   url_launcher: ^6.3.1
+  share_plus: ^10.1.4 # тауар сілтемесін бөлісу (WhatsApp/Telegram/копия)
   qr_flutter: ^4.1.0
   shimmer: ^3.0.0
   confetti: ^0.7.0
