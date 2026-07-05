@@ -482,19 +482,8 @@ class _OverviewTabState extends State<_OverviewTab> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(tr('Продажи по дням', 'Күндер бойынша сатылым'),
-                                style: manrope(14, FontWeight.w700,
-                                    color: cInk)),
-                            QPill(tr('$totalPairs шт', '$totalPairs дана'),
-                                tone: 'green',
-                                icon: const Icon(Icons.trending_up_rounded,
-                                    size: 11,
-                                    color: Color(0xFF00713F))),
-                          ],
-                        ),
+                        Text(tr('Продажи по дням', 'Күндер бойынша сатылым'),
+                            style: manrope(14, FontWeight.w700, color: cInk)),
                         const SizedBox(height: 4),
                         _MobileDailyChart(
                           // Онлайн да sales_history жазбаларынан — жоғарыдағы
@@ -612,21 +601,23 @@ class _SellersTab extends StatelessWidget {
         final Map<String, _SellerStat> bySeller = {};
         for (final s in sales) {
           if (s.sellerId.isEmpty || s.isOnline) continue;
-          // ТӘРТІПТЕН ТӘУЕЛСІЗ: сатушы есебі әрқашан алдымен жасалады, сосын
-          // дельта қосылады. Бұрын возврат жазбасы (жаңарақ → тізімде бұрын
-          // тұрады) сатылымнан бұрын өңделсе stat==null болып, шегерілмей
-          // қалатын → возврат жасалса да «1 сат · 1 шт» болып көрінетін.
           final stat = bySeller.putIfAbsent(s.sellerId,
               () => _SellerStat(id: s.sellerId, name: s.sellerName));
           if (stat.name.isEmpty && s.sellerName.isNotEmpty) {
             stat.name = s.sellerName;
           }
+          // count ешбір жерде «0-ден төмен түспейді» деп шектелмейді — шектеу
+          // қойылса, ай ішінде возврат жазбасы (кему уақыты бойынша СОҢЫРАҚ,
+          // demek DESC сұрыпталған ағында БҰРЫН келеді) өз сатылымынан бұрын
+          // өңделіп, сол кему read read read жоғалып кетеді: pairs дұрыс
+          // -1-ге түссе де, count 0-де қалып қояды → «сатылым» саны 1-ге
+          // артық көрінеді (drilldown экраны нақ осы кезекпен есептемейді,
+          // сондықтан ол жерде дұрыс шығатын). Соңында ғана 0-ге дейін
+          // қысқартамыз (кросс-айлық жалғыз возврат сияқты жол-сыртары үшін).
           if (s.isReturn) {
-            // Қайтару: revenue теріс (total_price < 0) → шегереді; дана мен
-            // сатылым саны да кері есептеледі.
             stat.revenue += s.totalPrice;
             stat.pairs -= s.quantity;
-            if (stat.count > 0) stat.count--;
+            stat.count--;
           } else {
             stat.revenue += s.totalPrice;
             stat.pairs += s.quantity;
@@ -726,7 +717,10 @@ class _SellersTab extends StatelessWidget {
                         Text(stat.name,
                             style: const TextStyle(
                                 fontSize: 14, fontWeight: FontWeight.w700)),
-                        Text(tr('${stat.count} прод · ${stat.pairs} шт', '${stat.count} сат · ${stat.pairs} дана'),
+                        Text(
+                            tr(
+                                '${stat.count < 0 ? 0 : stat.count} прод · ${stat.pairs} шт',
+                                '${stat.count < 0 ? 0 : stat.count} сат · ${stat.pairs} дана'),
                             style: const TextStyle(
                                 fontSize: 11, color: cInk2)),
                       ],
@@ -844,6 +838,8 @@ class _WarehouseAnalyticsCard extends StatelessWidget {
       qtyByName[name] =
           (qtyByName[name] ?? 0) + (s.isReturn ? -s.quantity : s.quantity);
     }
+    // Складтың айлық нетто саны (возврат шегеріледі) — атау қасында көрсету.
+    final totalQty = qtyByName.values.fold<int>(0, (s, v) => s + v);
     final top3 = (revByName.entries
           .where((e) => e.value > 0 && (qtyByName[e.key] ?? 0) > 0)
           .toList()
@@ -882,11 +878,21 @@ class _WarehouseAnalyticsCard extends StatelessWidget {
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
                           color: cGreen))),
-              Text('${_fmt(revenue)} ₸',
-                  style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w900,
-                      color: cGreen)),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text('${_fmt(revenue)} ₸',
+                      style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                          color: cGreen)),
+                  Text('$totalQty ${tr('шт', 'дана')}',
+                      style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: cGreen.withValues(alpha: 0.75))),
+                ],
+              ),
             ]),
           ),
           Padding(
@@ -1321,15 +1327,22 @@ class _MobileDailyChartState extends State<_MobileDailyChart> {
     final daysInMonth =
         DateUtils.getDaysInMonth(widget.month.year, widget.month.month);
     final byDay = List<double>.filled(daysInMonth, 0.0);
+    // Күнделікті дана саны (нетто — возврат шегеріледі), таңдалған күн
+    // бойынша «шт» көрсету үшін.
+    final qtyByDay = List<int>.filled(daysInMonth, 0);
 
     for (final s in widget.offlineSales) {
       if (s.saleDate.month == widget.month.month) {
         byDay[s.saleDate.day - 1] += s.totalPrice;
+        qtyByDay[s.saleDate.day - 1] +=
+            s.isReturn ? -s.quantity : s.quantity;
       }
     }
     for (final o in widget.onlineOrders) {
       if (o.createdAt.month == widget.month.month) {
         byDay[o.createdAt.day - 1] += o.totalWithDelivery;
+        qtyByDay[o.createdAt.day - 1] +=
+            o.items.fold(0, (a, i) => a + i.qty);
       }
     }
 
@@ -1376,6 +1389,10 @@ class _MobileDailyChartState extends State<_MobileDailyChart> {
                             style: manrope(12, FontWeight.w500, color: cGreenDeep),
                           ),
                           Text(
+                            '${qtyByDay[_tapped!]} ${tr('шт', 'дана')} · ',
+                            style: manrope(12.5, FontWeight.w800, color: cGreenDeep),
+                          ),
+                          Text(
                             '${_fmtRev(byDay[_tapped!])} ₸',
                             style: manrope(13, FontWeight.w800, color: cGreenDeep),
                           ),
@@ -1389,6 +1406,10 @@ class _MobileDailyChartState extends State<_MobileDailyChart> {
                       Text(
                         tr('Итого: ', 'Жалпы: '),
                         style: manrope(12.5, FontWeight.w500, color: cInk3),
+                      ),
+                      Text(
+                        '${qtyByDay.fold(0, (s, v) => s + v)} ${tr('шт', 'дана')} · ',
+                        style: manrope(13, FontWeight.w700, color: cGreen),
                       ),
                       Text(
                         '${_fmtRev(byDay.fold(0.0, (s, v) => s + v))} ₸',

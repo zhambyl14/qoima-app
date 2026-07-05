@@ -72,18 +72,12 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Container(
-                      width: 92,
-                      height: 92,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.16),
-                        borderRadius: BorderRadius.circular(26),
-                        border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.28),
-                            width: 1.5),
-                      ),
+                    // Логотиптің өз фоны бар (толық шаршы) — қосымша түсті
+                    // контейнер қажет емес, тек бұрыштарын дөңгелетеміз.
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(26),
                       child: Image.asset('assets/images/logo.png',
-                          width: 52, height: 52),
+                          width: 92, height: 92, fit: BoxFit.cover),
                     ),
                     const SizedBox(height: 22),
                     Text('Qoima',

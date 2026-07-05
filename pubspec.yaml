@@ -44,12 +44,22 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/logo.png
+    - assets/images/app_icon.png
     - assets/documents/
 
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/images/logo.png"
+  web:
+    generate: true
+    image_path: "assets/images/app_icon.png"
+    background_color: "#156945"
+    theme_color: "#156945"
+  # logo.png мөлдір (тек ак сурет-контур); iOS/веб толық ашық (opaque)
+  # квадратты талап етеді, сондықтан оларға дайын app_icon.png (лого + біркелкі
+  # #156945 фон) қолданылады. Android adaptive icon-да фон/лого БӨЛЕК қабат —
+  # OS өзі маска/параллакс жасайды, сол себепті лого мөлдір күйінде беріледі.
+  image_path: "assets/images/app_icon.png"
   remove_alpha_ios: true
-  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_background: "#156945"
   adaptive_icon_foreground: "assets/images/logo.png"

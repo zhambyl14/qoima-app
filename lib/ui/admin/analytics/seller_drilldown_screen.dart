@@ -422,8 +422,11 @@ class _DailyChartState extends State<_DailyChart> {
     final daysInMonth =
         DateUtils.getDaysInMonth(widget.month.year, widget.month.month);
     final byDay = List<double>.filled(daysInMonth, 0.0);
+    // Күнделікті дана саны (нетто — возврат шегеріледі).
+    final qtyByDay = List<int>.filled(daysInMonth, 0);
     for (final s in widget.sales) {
       byDay[s.saleDate.day - 1] += s.totalPrice;
+      qtyByDay[s.saleDate.day - 1] += s.isReturn ? -s.quantity : s.quantity;
     }
     final maxVal = byDay.reduce((a, b) => a > b ? a : b);
     final effectiveMax = maxVal < 1 ? 1.0 : maxVal;
@@ -455,6 +458,11 @@ class _DailyChartState extends State<_DailyChart> {
                         fontWeight: FontWeight.w600,
                         color: cInk2)),
                 const Spacer(),
+                Text('${qtyByDay[_tapped!]} ${tr('шт', 'дана')} · ',
+                    style: const TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w800,
+                        color: cGreen)),
                 Text(_fmtRevenue(byDay[_tapped!]),
                     style: const TextStyle(
                         fontSize: 14,
@@ -464,6 +472,12 @@ class _DailyChartState extends State<_DailyChart> {
                 Text(tr('Итого', 'Барлығы'),
                     style: TextStyle(fontSize: 12, color: cInk3)),
                 const Spacer(),
+                Text(
+                    '${qtyByDay.fold(0, (s, v) => s + v)} ${tr('шт', 'дана')} · ',
+                    style: const TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: cGreen)),
                 Text(
                   _fmtRevenue(
                       widget.sales.fold(0.0, (s, e) => s + e.totalPrice)),
