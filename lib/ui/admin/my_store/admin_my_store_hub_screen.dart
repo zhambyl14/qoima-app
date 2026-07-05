@@ -1,4 +1,5 @@
 ﻿import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../../core/warehouse_context.dart';
 import '../../../data/models/store_discount_model.dart';
@@ -72,49 +73,7 @@ class AdminMyStoreHubScreen extends StatelessWidget {
                     const SizedBox(height: 16),
 
                     // Online toggle → StoreModel.isPublished
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 13),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.13),
-                        borderRadius: BorderRadius.circular(15),
-                      ),
-                      child: Row(children: [
-                        AnimatedContainer(
-                          duration: const Duration(milliseconds: 300),
-                          width: 10, height: 10,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: isOnline
-                                ? const Color(0xFF4AFF98)
-                                : Colors.white.withValues(alpha: 0.35),
-                            boxShadow: isOnline
-                                ? [BoxShadow(
-                                    color: const Color(0xFF4AFF98)
-                                        .withValues(alpha: 0.4),
-                                    blurRadius: 8)]
-                                : [],
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            isOnline
-                                ? tr('Онлайн-витрина включена', 'Онлайн-витрина қосулы')
-                                : tr('Онлайн-витрина выключена', 'Онлайн-витрина өшірулі'),
-                            style: manrope(14, FontWeight.w700,
-                                color: Colors.white),
-                          ),
-                        ),
-                        MSToggle(
-                          on: isOnline,
-                          onTap: store == null
-                              ? null
-                              : () => service.saveStore(
-                                  store.copyWith(isPublished: !isOnline)),
-                        ),
-                      ]),
-                    ),
+                    _OnlineToggleRow(store: store),
                   ]),
                 ),
               ),
@@ -257,5 +216,99 @@ class _HubStat extends StatelessWidget {
           ]),
         ),
       );
+}
+
+// ── Online toggle — optimistic (realtime растауын күтпей бірден басады) ──────
+class _OnlineToggleRow extends StatefulWidget {
+  final StoreModel? store;
+  const _OnlineToggleRow({required this.store});
+
+  @override
+  State<_OnlineToggleRow> createState() => _OnlineToggleRowState();
+}
+
+class _OnlineToggleRowState extends State<_OnlineToggleRow> {
+  // null — сервер мәнін көрсетеміз; сақтау кезінде осы жерге тез арада
+  // «болжамды» мәнді жазамыз, realtime растаса (didUpdateWidget) тазаланады.
+  bool? _optimistic;
+  bool _saving = false;
+
+  @override
+  void didUpdateWidget(_OnlineToggleRow old) {
+    super.didUpdateWidget(old);
+    if (widget.store?.isPublished != old.store?.isPublished) {
+      _optimistic = null;
+    }
+  }
+
+  Future<void> _toggle() async {
+    final store = widget.store;
+    if (store == null || _saving) return;
+    final next = !(_optimistic ?? store.isPublished);
+    HapticFeedback.selectionClick();
+    setState(() {
+      _optimistic = next;
+      _saving = true;
+    });
+    try {
+      await FirestoreService().saveStore(store.copyWith(isPublished: next));
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _optimistic = !next); // сәтсіз — артқа қайтарамыз
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(tr(
+            'Не удалось изменить статус витрины. Проверьте интернет.',
+            'Витрина күйін өзгерту сәтсіз аяқталды. Интернетті тексеріңіз.')),
+        backgroundColor: cRed,
+      ));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isOnline = _optimistic ?? (widget.store?.isPublished ?? false);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.13),
+        borderRadius: BorderRadius.circular(15),
+      ),
+      child: Row(children: [
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          width: 10, height: 10,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: isOnline
+                ? const Color(0xFF4AFF98)
+                : Colors.white.withValues(alpha: 0.35),
+            boxShadow: isOnline
+                ? [BoxShadow(
+                    color: const Color(0xFF4AFF98).withValues(alpha: 0.4),
+                    blurRadius: 8)]
+                : [],
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            isOnline
+                ? tr('Онлайн-витрина включена', 'Онлайн-витрина қосулы')
+                : tr('Онлайн-витрина выключена', 'Онлайн-витрина өшірулі'),
+            style: manrope(14, FontWeight.w700, color: Colors.white),
+          ),
+        ),
+        Opacity(
+          opacity: _saving ? 0.5 : 1,
+          child: MSToggle(
+            on: isOnline,
+            onTap: widget.store == null ? null : _toggle,
+          ),
+        ),
+      ]),
+    );
+  }
 }
 

@@ -66,7 +66,21 @@ class _SellerReturnsTabState extends State<SellerReturnsTab> {
                 _Chip(
                   label: context.l10n.returnFilterAll,
                   active: _filter == 'all',
+                  count: all.length,
                   onTap: () => setState(() => _filter = 'all'),
+                ),
+                const SizedBox(width: 8),
+                // «Завершено» — «Все»-ден кейін бірден (соңғы емес): ең жиі
+                // қаралатын фильтр, аяғына дейін скролл жасатпау үшін.
+                _Chip(
+                  label: context.l10n.returnFilterCompleted,
+                  active: _filter == 'done',
+                  count: all
+                      .where((r) =>
+                          r.status == ReturnStatus.refunded ||
+                          r.status == ReturnStatus.rejected)
+                      .length,
+                  onTap: () => setState(() => _filter = 'done'),
                 ),
                 const SizedBox(width: 8),
                 _Chip(
@@ -87,17 +101,6 @@ class _SellerReturnsTabState extends State<SellerReturnsTab> {
                           r.status == ReturnStatus.received)
                       .length,
                   onTap: () => setState(() => _filter = 'approved'),
-                ),
-                const SizedBox(width: 8),
-                _Chip(
-                  label: context.l10n.returnFilterCompleted,
-                  active: _filter == 'done',
-                  count: all
-                      .where((r) =>
-                          r.status == ReturnStatus.refunded ||
-                          r.status == ReturnStatus.rejected)
-                      .length,
-                  onTap: () => setState(() => _filter = 'done'),
                 ),
               ],
             ),

@@ -378,8 +378,21 @@ class _OverviewTabState extends State<_OverviewTab> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(tr('Общая выручка', 'Жалпы түсім'),
-                            style: manrope(13, FontWeight.w600, color: cInk3)),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(tr('Общая выручка', 'Жалпы түсім'),
+                                style: manrope(13, FontWeight.w600,
+                                    color: cInk3)),
+                            // Таза сан (нетто): возвраттар шегеріледі —
+                            // totalPairs осы төменде диаграмма бейджінде де
+                            // қолданылатын сол мән.
+                            QPill(
+                                tr('$totalPairs продано',
+                                    '$totalPairs сатылды'),
+                                tone: 'green'),
+                          ],
+                        ),
                         const SizedBox(height: 2),
                         Text('${_fmt(totalRevenue)} ₸',
                             style: manrope(34, FontWeight.w800, color: cInk,
@@ -1099,15 +1112,30 @@ class _OnlineTab extends StatelessWidget {
     return StreamBuilder<List<SaleModel>>(
       stream: FirestoreService().watchSalesForMonth(month),
       builder: (_, sSnap) {
+        final onlineSales =
+            (sSnap.data ?? []).where((s) => s.isOnline).toList();
         // Возврат жазбасы (isReturn) себестоимостьты кері шегереді → балансталады.
-        final onlineCost = (sSnap.data ?? [])
-            .where((s) => s.isOnline)
-            .fold<double>(
-                0,
-                (a, s) => a +
-                    (s.isReturn
-                        ? -(s.purchasePrice * s.quantity)
-                        : s.purchasePrice * s.quantity));
+        final onlineCost = onlineSales.fold<double>(
+            0,
+            (a, s) => a +
+                (s.isReturn
+                    ? -(s.purchasePrice * s.quantity)
+                    : s.purchasePrice * s.quantity));
+
+        // Ең көп сатылатын тауарлар (онлайн, дана бойынша) — возврат данасы
+        // шегеріледі, тек НАҚТЫ сатылған (нетто) сан көрінеді.
+        final Map<String, int> onlineQtyByName = {};
+        for (final s in onlineSales) {
+          final n = s.productName.isNotEmpty ? s.productName : s.productId;
+          onlineQtyByName[n] =
+              (onlineQtyByName[n] ?? 0) + (s.isReturn ? -s.quantity : s.quantity);
+        }
+        final onlineTopProducts = (onlineQtyByName.entries
+              .where((e) => e.value > 0)
+              .toList()
+              ..sort((a, b) => b.value.compareTo(a.value)))
+            .take(5)
+            .toList();
 
         return StreamBuilder<List<OrderModel>>(
           stream: FirestoreService().watchOnlineOrders(),
@@ -1215,6 +1243,53 @@ class _OnlineTab extends StatelessWidget {
                   onlineOrders: completed,
                   month: month,
                 ),
+                if (onlineTopProducts.isNotEmpty) ...[
+                  const SizedBox(height: 20),
+                  Text(
+                      tr('Самые продаваемые товары (онлайн)',
+                          'Ең көп сатылатын тауарлар (онлайн)'),
+                      style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: cInk)),
+                  const SizedBox(height: 10),
+                  ...() {
+                    final maxQty = onlineTopProducts.first.value;
+                    return onlineTopProducts.map((e) => Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(children: [
+                                Expanded(
+                                    child: Text(e.key,
+                                        style: const TextStyle(
+                                            fontSize: 12.5, color: cInk),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis)),
+                                Text(tr('${e.value} шт', '${e.value} дана'),
+                                    style: const TextStyle(
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w700,
+                                        color: cGreen)),
+                              ]),
+                              const SizedBox(height: 4),
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(3),
+                                child: LinearProgressIndicator(
+                                  value: maxQty > 0 ? e.value / maxQty : 0,
+                                  minHeight: 5,
+                                  backgroundColor: cLine,
+                                  valueColor:
+                                      const AlwaysStoppedAnimation<Color>(
+                                          cGreen),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ));
+                  }(),
+                ],
               ],
             );
           },
@@ -1469,7 +1544,13 @@ class _StatCard extends StatelessWidget {
               child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: manrope(12, FontWeight.w600, color: cInk3)),
+              // Тар (жартылай енді) карточкаларда «Себестоимость» сөзі бір
+              // жолға сыймай, соңғы «ь» әрпі жалғыз екінші жолға шығып
+              // кетеді — бір жолмен шектеп, сыймаса көп нүктемен қысқартамыз.
+              Text(label,
+                  style: manrope(12, FontWeight.w600, color: cInk3),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis),
               Text(value,
                   style: manrope(20, FontWeight.w800, color: color)),
             ],
