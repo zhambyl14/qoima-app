@@ -60,7 +60,11 @@ class _AdminShellState extends State<AdminShell> {
               color: Colors.white.withValues(alpha: 0.92),
               border: const Border(top: BorderSide(color: cLine, width: 1)),
             ),
-            padding: EdgeInsets.fromLTRB(12, 9, 12, 26 + bottomPad),
+            // Edge-to-edge (Android 15+) режимде bottomPad жүйелік навбардың
+            // өз биіктігін береді — оған тұрақты 26 қоспаймыз, әйтпесе екі
+            // навбар арасында үлкен бос орын пайда болады.
+            padding: EdgeInsets.fromLTRB(
+                12, 9, 12, bottomPad > 0 ? bottomPad + 8 : 20),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: List.generate(_tabs.length, (i) {
@@ -87,12 +91,18 @@ class _AdminShellState extends State<AdminShell> {
                           ),
                         ]),
                         const SizedBox(height: 3),
-                        Text(
-                          trValue(_tabs[i].label),
-                          style: manrope(
-                            10.5,
-                            active ? FontWeight.w700 : FontWeight.w600,
-                            color: active ? cGreen : cInk3,
+                        // FittedBox — үлкен жүйелік шрифтте лейбл екі жолға
+                        // бөлінбей, таб еніне сыйып кішірейеді.
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            trValue(_tabs[i].label),
+                            maxLines: 1,
+                            style: manrope(
+                              10.5,
+                              active ? FontWeight.w700 : FontWeight.w600,
+                              color: active ? cGreen : cInk3,
+                            ),
                           ),
                         ),
                       ],

@@ -64,13 +64,23 @@ class _MakeSaleScreenState extends State<MakeSaleScreen> {
       ctx.read<WarehouseContext>().current?.id ??
       ctx.read<AppUser>().assignedWarehouseId;
 
+  // Стримдер мемоизацияланады — build() әр setState сайын шақырылады, ал әр
+  // жаңа стрим realtime арнасын ашып-жауып, channelError тудырады.
+  String? _cachedWhId;
+  Stream<List<ProductModel>>? _cachedProductStream;
+  late final Stream<List<ReservationModel>> _reservationsStream =
+      _service.watchActiveReservations();
+
   Stream<List<ProductModel>> _productStream(String whId) {
-    if (whId.isNotEmpty) {
-      return _service
-          .watchProductsInWarehouse(whId)
-          .map((list) => list.map((e) => e.product).toList());
+    if (_cachedProductStream == null || _cachedWhId != whId) {
+      _cachedWhId = whId;
+      _cachedProductStream = whId.isNotEmpty
+          ? _service
+              .watchProductsInWarehouse(whId)
+              .map((list) => list.map((e) => e.product).toList())
+          : _service.watchProducts();
     }
-    return _service.watchProducts();
+    return _cachedProductStream!;
   }
 
   // ── Қадам 1 → 2 ───────────────────────────────────────────────────────────
@@ -443,7 +453,7 @@ class _MakeSaleScreenState extends State<MakeSaleScreen> {
                   }),
                 )
               : StreamBuilder<List<ReservationModel>>(
-                  stream: _service.watchActiveReservations(),
+                  stream: _reservationsStream,
                   builder: (_, rSnap) {
                     _latestReservations = rSnap.data ?? const [];
                     return _Step2(

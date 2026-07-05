@@ -2,6 +2,8 @@
 //
 // Екі режим:
 //   { urls: [...] }   → берілген суреттерді ЛЕЗДЕ өшіреді (клиент: фото ауыстыру/жою).
+//                       Сәтсіз болғандар cloudinary_delete_queue кезегіне түседі
+//                       (кілт қате/уақытша болса да жоғалмайды — кейін drain тазалайды).
 //   { mode: 'drain' } → sweep_sold_out_images() шақырып, кезектегі барлық ескі
 //                       суретті Cloudinary-ден өшіреді (админ қосымша ашқанда).
 //
@@ -25,6 +27,27 @@ function json(body: unknown, status = 200): Response {
     status,
     headers: { ...CORS, 'Content-Type': 'application/json' },
   });
+}
+
+function admin() {
+  return createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+  );
+}
+
+// Сәтсіз өшірілген URL-дерді кезекке қосу (service_role — RLS айналып өтеді).
+// Осылай кілт УАҚЫТША қате болса да сурет жоғалмайды: кілт түзелген соң келесі
+// drain оларды өшіреді.
+async function enqueue(urls: string[]): Promise<void> {
+  if (!urls.length) return;
+  try {
+    await admin()
+        .from('cloudinary_delete_queue')
+        .insert(urls.map((u) => ({ url: u })));
+  } catch (_) {
+    // best-effort — жетім сурет қалуы мүмкін, бірақ UX бұзылмайды
+  }
 }
 
 // secure_url → public_id ('.../upload/v123/qoima_products/abc.jpg' → 'qoima_products/abc')
@@ -70,10 +93,6 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   if (req.method !== 'POST') return json({ error: 'method_not_allowed' }, 405);
 
-  if (!API_KEY || !API_SECRET) {
-    return json({ error: 'cloudinary_secrets_missing' }, 500);
-  }
-
   let payload: { urls?: string[]; mode?: string } = {};
   try {
     payload = await req.json();
@@ -81,30 +100,45 @@ Deno.serve(async (req) => {
     payload = {};
   }
 
+  const secretsOk = !!API_KEY && !!API_SECRET;
+
   // ── Лездік режим: берілген URL-дерді өшіру ────────────────────────────────
   if (Array.isArray(payload.urls)) {
-    let deleted = 0;
-    for (const u of payload.urls) {
-      if (typeof u === 'string' && u && (await destroy(u))) deleted++;
+    const urls =
+        payload.urls.filter((u) => typeof u === 'string' && u) as string[];
+    // Кілт жоқ болса — өшірмей, бәрін кезекке сақтап қоямыз (жоғалмасын).
+    if (!secretsOk) {
+      await enqueue(urls);
+      return json(
+          { deleted: 0, requested: urls.length, queued: urls.length, secrets: false });
     }
-    return json({ deleted, requested: payload.urls.length });
+    let deleted = 0;
+    const failed: string[] = [];
+    for (const u of urls) {
+      if (await destroy(u)) {
+        deleted++;
+      } else {
+        failed.push(u); // кілт қате/желі болса осында түседі → кезекке
+      }
+    }
+    await enqueue(failed);
+    return json({ deleted, requested: urls.length, queued: failed.length });
   }
 
   // ── Drain режимі: sweep + кезекті тазалау (service_role) ──────────────────
   if (payload.mode === 'drain') {
-    const admin = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
-    );
+    if (!secretsOk) return json({ error: 'cloudinary_secrets_missing' }, 500);
+    const a = admin();
 
     // 1) 14+ күн сатулы тұрғандардың фотосын кезекке қосамыз.
-    await admin.rpc('sweep_sold_out_images', { p_days: 14 });
+    await a.rpc('sweep_sold_out_images', { p_days: 14 });
 
-    // 2) Кезекті партиялап Cloudinary-ден өшіреміз.
+    // 2) Кезекті партиялап Cloudinary-ден өшіреміз. Сәтсіздер кезекте ҚАЛАДЫ
+    //    (кілт түзелген соң келесі drain тазалайды).
     let deleted = 0;
     let processed = 0;
     for (;;) {
-      const { data: rows, error } = await admin
+      const { data: rows, error } = await a
         .from('cloudinary_delete_queue')
         .select('id,url')
         .limit(100);
@@ -112,11 +146,16 @@ Deno.serve(async (req) => {
       const doneIds: number[] = [];
       for (const row of rows) {
         processed++;
-        if (await destroy(row.url)) deleted++;
-        doneIds.push(row.id);
+        if (await destroy(row.url)) {
+          deleted++;
+          doneIds.push(row.id); // тек СӘТТІ өшкенді кезектен аламыз
+        }
       }
-      await admin.from('cloudinary_delete_queue').delete().in('id', doneIds);
-      if (rows.length < 100) break;
+      if (doneIds.length) {
+        await a.from('cloudinary_delete_queue').delete().in('id', doneIds);
+      }
+      // Осы партияда ешнәрсе өшпесе (бәрі сәтсіз) — шексіз циклден шығамыз.
+      if (doneIds.length === 0 || rows.length < 100) break;
     }
     return json({ mode: 'drain', processed, deleted });
   }

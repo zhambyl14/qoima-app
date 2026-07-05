@@ -10,6 +10,7 @@ import '../models/order_model.dart';
 import '../models/courier_delivery_model.dart';
 import '../models/promo_model.dart';
 import '../../core/app_user.dart';
+import '../../core/stream_retry.dart';
 
 import '../../core/lang.dart';
 /// Деректер сервисі (Supabase). Firestore иерархиясы `users/{adminUid}/...`
@@ -156,7 +157,7 @@ class FirestoreService {
     return null;
   }
 
-  Stream<List<ProductModel>> watchProducts() => _sb
+  Stream<List<ProductModel>> watchProducts() => retryStream(() => _sb
       .from('products')
       .stream(primaryKey: ['id'])
       .eq('owner_uid', _ownerUid)
@@ -165,7 +166,7 @@ class FirestoreService {
         final list = rows.map(ProductModel.fromMap).toList();
         _ProductsCache.set(list);
         return list;
-      });
+      }));
 
   List<ProductModel>? get cachedProducts => _ProductsCache.get();
 
@@ -533,11 +534,11 @@ class FirestoreService {
     await _sb.rpc('recompute_product_status', params: {'p_product': productId});
   }
 
-  Stream<List<SaleModel>> watchSalesHistory() => _sb
+  Stream<List<SaleModel>> watchSalesHistory() => retryStream(() => _sb
       .from('sales_history')
       .stream(primaryKey: ['id'])
       .order('sale_date', ascending: false)
-      .map((rows) => rows.map(SaleModel.fromMap).toList());
+      .map((rows) => rows.map(SaleModel.fromMap).toList()));
 
   /// Тек берілген айдың сатулары (клиент жағында сүзіледі — RLS бизнес-скоуп).
   Stream<List<SaleModel>> watchSalesForMonth(DateTime month) {
@@ -697,7 +698,7 @@ class FirestoreService {
 
   /// Товарлар + ӨЗ batch-тарымен. [warehouseId] берілсе — сол қойма бойынша сүзіледі.
   Stream<List<({ProductModel product, List<BatchModel> batches})>>
-      watchProductsWithBatches({String warehouseId = ''}) => _sb
+      watchProductsWithBatches({String warehouseId = ''}) => retryStream(() => _sb
           .from('products')
           .stream(primaryKey: ['id'])
           .eq('owner_uid', _ownerUid)
@@ -722,7 +723,7 @@ class FirestoreService {
               out.add((product: p, batches: batches));
             }
             return out;
-          });
+          }));
 
   Stream<List<ProductWithStock>> watchProductsInWarehouse(String warehouseId) =>
       watchProductsWithBatches(warehouseId: warehouseId).map((list) => list
@@ -1021,16 +1022,17 @@ class FirestoreService {
       .update({'status': ReservationModel.statusExpired}).eq(
           'id', reservationId);
 
-  Stream<List<ReservationModel>> watchActiveReservations() => _sb
-      .from('reservations')
-      .stream(primaryKey: ['id'])
-      .eq('admin_uid', _adminUid)
-      .map((rows) => rows
-          .map(ReservationModel.fromMap)
-          .where((r) =>
-              r.status == ReservationModel.statusActive &&
-              r.expiresAt.isAfter(DateTime.now()))
-          .toList());
+  Stream<List<ReservationModel>> watchActiveReservations() =>
+      retryStream(() => _sb
+          .from('reservations')
+          .stream(primaryKey: ['id'])
+          .eq('admin_uid', _adminUid)
+          .map((rows) => rows
+              .map(ReservationModel.fromMap)
+              .where((r) =>
+                  r.status == ReservationModel.statusActive &&
+                  r.expiresAt.isAfter(DateTime.now()))
+              .toList()));
 
   Future<void> cleanupExpiredReservations() async {
     await _sb
@@ -1067,12 +1069,12 @@ class FirestoreService {
               o.status == OrderModel.statusConfirmed)
           .length);
 
-  Stream<List<OrderModel>> watchOnlineOrders() => _sb
+  Stream<List<OrderModel>> watchOnlineOrders() => retryStream(() => _sb
       .from('orders')
       .stream(primaryKey: ['id'])
       .eq('admin_uid', _adminUid)
       .order('created_at', ascending: false)
-      .map((rows) => rows.map(OrderModel.fromMap).toList());
+      .map((rows) => rows.map(OrderModel.fromMap).toList()));
 
   Future<OrderModel?> lookupOnlineOrder(String code) async {
     final num = int.tryParse(code.replaceAll('#', '').trim());

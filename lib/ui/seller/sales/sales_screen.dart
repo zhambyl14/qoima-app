@@ -20,6 +20,10 @@ class SalesScreen extends StatefulWidget {
 class _SalesScreenState extends State<SalesScreen>
     with SingleTickerProviderStateMixin {
   final _service = FirestoreService();
+  // Стримдер build()-те емес, бір рет жасалады — әр rebuild сайын realtime
+  // арна ашылып-жабылса, channelError (RealtimeSubscribeException) туады.
+  late Stream<List<SaleModel>> _salesStream = _service.watchSalesHistory();
+  late Stream<List<ProductModel>> _productsStream = _service.watchProducts();
   DateTime _month = DateTime.now();
   String _sellerPeriod = 'today'; // 'today'|'week'|'month'
 
@@ -134,26 +138,36 @@ class _SalesScreenState extends State<SalesScreen>
         },
       ),
       body: StreamBuilder<List<SaleModel>>(
-        stream: _service.watchSalesHistory(),
+        stream: _salesStream,
         builder: (_, salesSnap) {
           if (salesSnap.hasError) {
             return Center(
               child: Padding(
                 padding: const EdgeInsets.all(24),
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  const Icon(Icons.error_outline_rounded,
-                      color: cRed, size: 40),
+                  const Icon(Icons.wifi_off_rounded, color: cRed, size: 40),
                   const SizedBox(height: 12),
-                  Text(salesSnap.error.toString(),
+                  Text(
+                      tr('Не удалось загрузить продажи. Проверьте интернет и повторите.',
+                          'Сатылымдар жүктелмеді. Интернетті тексеріп, қайталаңыз.'),
                       textAlign: TextAlign.center,
                       style: const TextStyle(color: cInk2, fontSize: 13)),
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: () => setState(() {
+                      _salesStream = _service.watchSalesHistory();
+                      _productsStream = _service.watchProducts();
+                    }),
+                    icon: const Icon(Icons.refresh_rounded, size: 18),
+                    label: Text(tr('Повторить', 'Қайталау')),
+                  ),
                 ]),
               ),
             );
           }
           final allSales = salesSnap.data ?? [];
           return StreamBuilder<List<ProductModel>>(
-            stream: _service.watchProducts(),
+            stream: _productsStream,
             builder: (_, prodSnap) {
               final products = prodSnap.data ?? [];
               final sellerSales = _filterSeller(allSales, appUser);

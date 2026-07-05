@@ -291,12 +291,15 @@ ${heroImg ? `<meta name="twitter:image" content="${esc(heroImg)}">` : ""}
     font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
     -webkit-font-smoothing:antialiased}
   .wrap{max-width:480px;margin:0 auto;background:#fff;min-height:100vh}
-  .hero-wrap{position:relative}
-  .topbar{position:absolute;top:0;left:0;right:0;z-index:2;padding:14px 16px 26px;
-    color:rgba(255,255,255,.92);font-size:13px;font-weight:600;letter-spacing:.2px;
-    background:linear-gradient(to bottom,rgba(0,0,0,.34),transparent);pointer-events:none}
-  .topbar b{font-weight:800}
+  .hero-wrap{position:relative;overflow:hidden}
   .hero{width:100%;aspect-ratio:1/1;background:#E4F7EE;display:block;object-fit:cover}
+  /* Үлкен мөлдір диагональ бренд-watermark — фото ортасында, скриншотта да
+     Qoima сақталады (Krisha-стиль). */
+  .wm{position:absolute;inset:0;z-index:2;display:flex;align-items:center;
+    justify-content:center;pointer-events:none}
+  .wm span{font-weight:800;font-size:clamp(72px,24vw,120px);letter-spacing:2px;
+    color:#00A862;opacity:.08;transform:rotate(-30deg);white-space:nowrap;
+    user-select:none;-webkit-user-select:none}
   .hero-ph{width:100%;aspect-ratio:1/1;background:linear-gradient(135deg,#E4F7EE,#C8EEDB);
     display:flex;align-items:center;justify-content:center;color:#8fb9a6;font-size:15px}
   .thumbs{display:flex;gap:8px;padding:12px 16px 0;overflow-x:auto}
@@ -338,17 +341,15 @@ ${heroImg ? `<meta name="twitter:image" content="${esc(heroImg)}">` : ""}
   .store .ic{width:22px;height:22px;flex:0 0 auto}
   .store .nm{font-weight:700;font-size:14px;color:#00713F}
   .store .ct{font-size:12px;color:#3d8a68}
-  .foot{text-align:center;color:#B4BEB9;font-size:12px;padding:26px 0 6px}
-  .foot b{color:#00A862;font-weight:800}
 </style></head><body>
 <div class="wrap">
   <div class="hero-wrap">
-    <div class="topbar">Витрина <b>Qoima</b></div>
     ${
       heroImg
         ? `<img class="hero" id="hero" src="${esc(heroImg)}" alt="${esc(product.name)}">`
         : `<div class="hero-ph">Нет фото</div>`
     }
+    <div class="wm"><span>QOIMA</span></div>
   </div>
   ${thumbsHtml}
   <div class="body">
