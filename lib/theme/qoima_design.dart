@@ -262,7 +262,8 @@ class QShoeImage extends StatelessWidget {
                 errorBuilder: (_, __, ___) => Center(
                   child: Icon(Icons.image_not_supported_outlined,
                       color: cInk.withValues(alpha: 0.22),
-                      size: height * 0.28),
+                      // height=infinity (Expanded ішінде) болса — тұрақты өлшем.
+                      size: height.isFinite ? height * 0.28 : 34),
                 ),
               ),
             ],
@@ -281,7 +282,9 @@ class QShoeImage extends StatelessWidget {
         ),
         child: Center(
           child: Icon(Icons.inventory_2_outlined,
-              color: cInk.withValues(alpha: 0.22), size: height * 0.35),
+              color: cInk.withValues(alpha: 0.22),
+              // height=infinity (Expanded ішінде) болса — тұрақты өлшем.
+              size: height.isFinite ? height * 0.35 : 42),
         ),
       );
 }

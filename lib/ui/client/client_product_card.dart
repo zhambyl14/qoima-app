@@ -112,12 +112,16 @@ class _ProductGroupCardState extends State<ProductGroupCard> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.max,
           children: [
-            // Image area — category tag, discount badge, favorite, variant count
-            Stack(children: [
+            // Image area — category tag, discount badge, favorite, variant count.
+            // Expanded: атау 2 жол + цвет-нүктелер + сызылған баға қосылғанда
+            // мәтін блогы ұзарса, сурет өзі кішірейеді — баға карточкадан
+            // ШЫҚПАЙДЫ (бұрын height:130 бекітулі болып, контент тасып кететін).
+            Expanded(
+              child: Stack(children: [
               QShoeImage(
                 imageUrl:
                     _product.images.isNotEmpty ? _product.images.first : null,
-                height: 130,
+                height: double.infinity,
                 tone: widget.tone,
               ),
               Positioned(
@@ -175,7 +179,8 @@ class _ProductGroupCardState extends State<ProductGroupCard> {
                             manrope(10, FontWeight.w800, color: Colors.white)),
                   ),
                 ),
-            ]),
+              ]),
+            ),
             const SizedBox(height: 8),
             // Product name
             Text(_product.name,
@@ -197,7 +202,8 @@ class _ProductGroupCardState extends State<ProductGroupCard> {
                 }),
               ),
             ],
-            const Spacer(),
+            // Spacer ЕМЕС: бос орынды түгел жоғарыдағы Expanded (сурет) алады.
+            const SizedBox(height: 8),
             // Price + add button
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
