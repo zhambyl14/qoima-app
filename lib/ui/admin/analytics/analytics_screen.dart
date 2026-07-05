@@ -256,14 +256,23 @@ class _OverviewTab extends StatefulWidget {
 }
 
 class _OverviewTabState extends State<_OverviewTab> {
+  // Стрим build()-те ЕМЕС, бір рет жасалады — әр rebuild сайын realtime арна
+  // ашылып-жабылса channelError туады (қараңыз: stream_retry.dart).
+  late Stream<List<SaleModel>> _salesStream =
+      widget.service.watchSalesForMonth(widget.month);
+
+  @override
+  void didUpdateWidget(_OverviewTab old) {
+    super.didUpdateWidget(old);
+    if (old.month != widget.month) {
+      _salesStream = widget.service.watchSalesForMonth(widget.month);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<List<OrderModel>>(
-      stream: widget.service.watchOnlineOrders(),
-      builder: (_, oSnap) {
-        return StreamBuilder<List<SaleModel>>(
-          // Сервер айды сүзеді — клиент жағында фильтр жоқ
-          stream: widget.service.watchSalesForMonth(widget.month),
+    return StreamBuilder<List<SaleModel>>(
+          stream: _salesStream,
           builder: (_, sSnap) {
             if (sSnap.connectionState == ConnectionState.waiting &&
                 sSnap.data == null) {
@@ -271,26 +280,38 @@ class _OverviewTabState extends State<_OverviewTab> {
                   child: CircularProgressIndicator(color: cGreen));
             }
             if (sSnap.hasError) {
+              // Техникалық exception мәтінін КӨРСЕТПЕЙМІЗ — бизнес иесіне
+              // түсінікті, брендке сай жұмсақ хабар + қайталау батырмасы.
               return Center(
                 child: Padding(
                   padding: const EdgeInsets.all(24),
                   child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    const Icon(Icons.error_outline_rounded,
-                        color: cRed, size: 40),
-                    const SizedBox(height: 12),
-                    Text(tr('Ошибка загрузки данных', 'Деректерді жүктеу қатесі'),
-                        style: manrope(15, FontWeight.w700, color: cInk)),
-                    const SizedBox(height: 6),
-                    Text(sSnap.error.toString(),
-                        textAlign: TextAlign.center,
-                        style: manrope(12, FontWeight.w500, color: cInk2)),
+                    Container(
+                      width: 72,
+                      height: 72,
+                      decoration: const BoxDecoration(
+                          color: cGreenTint, shape: BoxShape.circle),
+                      child: const Icon(Icons.wifi_off_rounded,
+                          color: cGreen, size: 32),
+                    ),
                     const SizedBox(height: 16),
-                    // Realtime уақыт бойынша үзілуі мүмкін (timedOut) — қайта
-                    // құру арқылы жазылымды жаңартамыз.
+                    Text(tr('Нет соединения', 'Байланыс жоқ'),
+                        style: manrope(17, FontWeight.w800, color: cInk)),
+                    const SizedBox(height: 6),
+                    Text(
+                        tr('Не удалось обновить данные. Проверьте интернет и попробуйте ещё раз — ваши продажи в безопасности.',
+                            'Деректер жаңармады. Интернетті тексеріп, қайта көріңіз — сатылымдарыңыз сақтаулы.'),
+                        textAlign: TextAlign.center,
+                        style: manrope(13, FontWeight.w500, color: cInk2)),
+                    const SizedBox(height: 18),
                     ElevatedButton.icon(
-                      onPressed: () => setState(() {}),
+                      // Жаңа стрим — realtime жазылымды нөлден құрады.
+                      onPressed: () => setState(() {
+                        _salesStream =
+                            widget.service.watchSalesForMonth(widget.month);
+                      }),
                       icon: const Icon(Icons.refresh_rounded, size: 18),
-                      label: Text(tr('Повторить', 'Қайталау'),
+                      label: Text(tr('Обновить', 'Жаңарту'),
                           style: manrope(14, FontWeight.w700,
                               color: Colors.white)),
                       style: ElevatedButton.styleFrom(
@@ -300,7 +321,7 @@ class _OverviewTabState extends State<_OverviewTab> {
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12)),
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 20, vertical: 12),
+                            horizontal: 24, vertical: 12),
                       ),
                     ),
                   ]),
@@ -309,29 +330,24 @@ class _OverviewTabState extends State<_OverviewTab> {
             }
 
             final mSales = sSnap.data ?? [];
-            // pureSales — барлық офлайн жазбалар (қайтарулар да кіреді,
-            // теріс total_price → таза түсім автоматты балансталады).
+            // МАҢЫЗДЫ: аяқталған онлайн-тапсырыс sales_history-ге ДЕ жазылады
+            // (is_online=true). Бұрын онлайн түсім orders-тен алынатын
+            // (totalWithDelivery — жеткізу құнымен, айы created_at бойынша,
+            // онлайн қайтарусыз) → Главнаядағы «Выручка за месяц»-пен
+            // сәйкеспейтін. Енді бәрі БІР дереккөзден — sales_history
+            // (қайтарулар теріс total_price → өзі балансталады).
             final pureSales = mSales.where((s) => !s.isOnline).toList();
-
-            final onlineOrders = (oSnap.data ?? [])
-                .where((o) =>
-                    o.status == OrderModel.statusCompleted &&
-                    o.createdAt.month == widget.month.month &&
-                    o.createdAt.year == widget.month.year)
-                .toList();
+            final onlineSales = mSales.where((s) => s.isOnline).toList();
 
             final offlineRevenue =
                 pureSales.fold<double>(0, (s, e) => s + e.totalPrice);
             final onlineRevenue =
-                onlineOrders.fold<double>(0, (s, o) => s + o.totalWithDelivery);
+                onlineSales.fold<double>(0, (s, e) => s + e.totalPrice);
             final totalRevenue = offlineRevenue + onlineRevenue;
 
             // Таза сан: қайтарылған дана шегеріледі (isReturn → -quantity).
-            final offlinePairs = pureSales.fold<int>(
+            final totalPairs = mSales.fold<int>(
                 0, (acc, e) => acc + (e.isReturn ? -e.quantity : e.quantity));
-            final onlinePairs = onlineOrders.fold<int>(
-                0, (s, o) => s + o.items.fold(0, (a, i) => a + i.qty));
-            final totalPairs = offlinePairs + onlinePairs;
 
             // Өзіндік құн — қайтарылған тауардың шығыны шегеріледі.
             final totalCost = mSales.fold<double>(
@@ -340,7 +356,7 @@ class _OverviewTabState extends State<_OverviewTab> {
                     :   e.purchasePrice * e.quantity));
             final margin = totalRevenue - totalCost;
 
-            if (mSales.isEmpty && onlineOrders.isEmpty) {
+            if (mSales.isEmpty) {
               return Center(
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
                   Icon(Icons.bar_chart_rounded,
@@ -468,8 +484,10 @@ class _OverviewTabState extends State<_OverviewTab> {
                         ),
                         const SizedBox(height: 4),
                         _MobileDailyChart(
-                          offlineSales: pureSales,
-                          onlineOrders: onlineOrders,
+                          // Онлайн да sales_history жазбаларынан — жоғарыдағы
+                          // жалпы түсіммен бір дереккөз.
+                          offlineSales: mSales,
+                          onlineOrders: const [],
                           month: widget.month,
                         ),
                       ],
@@ -478,8 +496,8 @@ class _OverviewTabState extends State<_OverviewTab> {
                   const SizedBox(height: 12),
                   // ── Топ продаж ────────────────────────────────────────
                   ...() {
-                    final top =
-                        _buildTopSalesWidgets(pureSales, onlineOrders);
+                    // Онлайн сатылымдар да sales_history жазбаларында бар.
+                    final top = _buildTopSalesWidgets(mSales, const []);
                     if (top.isEmpty) return <Widget>[];
                     return [QSecLabel(tr('Топ продаж', 'Топ сатылым')), ...top];
                   }(),
@@ -488,8 +506,6 @@ class _OverviewTabState extends State<_OverviewTab> {
             );
           },
         );
-      },
-    );
   }
 
   static List<Widget> _buildTopSalesWidgets(
@@ -975,6 +991,63 @@ class _WarehouseAnalyticsCard extends StatelessWidget {
                     );
                   },
                 ),
+                // ── Ең көп сатылатын тауарлар (дана бойынша) ──────────────
+                // qtyByName — ТАЗА сан: возврат жазбасы (isReturn) данасын
+                // шегеріп қойған, яғни тек нақты сатылғандар есептеледі.
+                ...() {
+                  final best = (qtyByName.entries
+                        .where((e) => e.value > 0)
+                        .toList()
+                        ..sort((a, b) => b.value.compareTo(a.value)))
+                      .take(5)
+                      .toList();
+                  if (best.isEmpty) return const <Widget>[];
+                  final maxQty = best.first.value;
+                  return <Widget>[
+                    const SizedBox(height: 14),
+                    Text(
+                        tr('Самые продаваемые товары',
+                            'Ең көп сатылатын тауарлар'),
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: cInk2)),
+                    const SizedBox(height: 8),
+                    ...best.map((e) => Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(children: [
+                                Expanded(
+                                    child: Text(e.key,
+                                        style: const TextStyle(
+                                            fontSize: 12, color: cInk),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis)),
+                                Text(tr('${e.value} шт', '${e.value} дана'),
+                                    style: const TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w700,
+                                        color: cGreen)),
+                              ]),
+                              const SizedBox(height: 4),
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(3),
+                                child: LinearProgressIndicator(
+                                  value: maxQty > 0 ? e.value / maxQty : 0,
+                                  minHeight: 5,
+                                  backgroundColor: cLine,
+                                  valueColor:
+                                      const AlwaysStoppedAnimation<Color>(
+                                          cGreen),
+                                ),
+                              ),
+                            ],
+                          ),
+                        )),
+                  ];
+                }(),
               ],
             ),
           ),

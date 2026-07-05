@@ -519,6 +519,35 @@ class ReturnService {
         }
       }
 
+      // Кілттер — UID; UI-да адам аты көрінуі үшін users-тен атқа айналдырамыз
+      // (returns кестесінде seller_name сақталмайды).
+      if (perSellerClosed.isNotEmpty) {
+        final names = <String, String>{};
+        try {
+          final nameRows = await _sb
+              .from('users')
+              .select('id,name')
+              .inFilter('id', perSellerClosed.keys.toList());
+          for (final row in nameRows) {
+            names[row['id'] as String] =
+                ((row['name'] as String?) ?? '').trim();
+          }
+        } catch (_) {} // ат табылмаса — төмендегі fallback қолданылады
+        final byName = <String, int>{};
+        perSellerClosed.forEach((uid, cnt) {
+          final n = names[uid] ?? '';
+          final label = n.isNotEmpty
+              ? n
+              : (uid == adminUid
+                  ? tr('Владелец', 'Иесі')
+                  : tr('Продавец', 'Сатушы'));
+          byName[label] = (byName[label] ?? 0) + cnt;
+        });
+        perSellerClosed
+          ..clear()
+          ..addAll(byName);
+      }
+
       final topProducts = productCounts.values.toList()
         ..sort((a, b) => b.count.compareTo(a.count));
       final returnRate =

@@ -544,7 +544,7 @@ class FirestoreService {
   Stream<List<SaleModel>> watchSalesForMonth(DateTime month) {
     final from = DateTime(month.year, month.month, 1);
     final to = DateTime(month.year, month.month + 1, 1);
-    return _sb
+    return retryStream(() => _sb
         .from('sales_history')
         .stream(primaryKey: ['id'])
         .order('sale_date', ascending: false)
@@ -552,7 +552,7 @@ class FirestoreService {
             .map(SaleModel.fromMap)
             .where((s) =>
                 !s.saleDate.isBefore(from) && s.saleDate.isBefore(to))
-            .toList());
+            .toList()));
   }
 
   Future<(Map<String, List<BatchModel>>, Map<String, String>)>
