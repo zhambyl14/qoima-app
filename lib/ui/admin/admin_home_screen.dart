@@ -9,6 +9,7 @@ import 'settings/sellers_screen.dart';
 import 'settings/warehouses_screen.dart';
 import 'online_orders_screen.dart';
 import 'returns/admin_returns_screen.dart';
+import 'revision/revision_screen.dart';
 
 import '../../core/lang.dart';
 class AdminHomeScreen extends StatefulWidget {
@@ -34,6 +35,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       _service.watchWarehouses();
   late final Stream<List<ReturnModel>> _returnsStream =
       ReturnService().watchAllReturns(AppUser.current.uid);
+  late final Stream<int> _openRevisionsStream =
+      _service.watchOpenRevisionsCount();
 
   late Future<int> _stockFuture;
 
@@ -333,6 +336,75 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                                   borderRadius: BorderRadius.circular(12)),
                               child: Center(
                                 child: Text('$newCount',
+                                    style: manrope(12.5, FontWeight.w800,
+                                        color: Colors.white)),
+                              ),
+                            )
+                          else
+                            const Icon(Icons.chevron_right_rounded,
+                                color: cInk3, size: 20),
+                        ]),
+                      ),
+                    );
+                  },
+                ),
+
+                const SizedBox(height: 12),
+
+                // Revision block (недостачи + списание)
+                StreamBuilder<int>(
+                  stream: _openRevisionsStream,
+                  builder: (_, s) {
+                    final openCount = s.data ?? 0;
+                    return GestureDetector(
+                      onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const RevisionScreen())),
+                      child: Container(
+                        padding: const EdgeInsets.all(15),
+                        decoration: BoxDecoration(
+                          color: cSurface,
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                              color: cGreen.withValues(alpha: 0.2), width: 1.5),
+                          boxShadow: kShadowSm,
+                        ),
+                        child: Row(children: [
+                          QIconTile(
+                            icon: const Icon(Icons.rule_rounded,
+                                color: cGreen, size: 20),
+                            tone: 'green',
+                          ),
+                          const SizedBox(width: 13),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(tr('Ревизия', 'Түгендеу'),
+                                    style: manrope(14.5, FontWeight.w700,
+                                        color: cInk)),
+                                Text(
+                                  openCount == 0
+                                      ? tr('Недостачи и списание товара', 'Жетіспеушілік және тауар списаниесі')
+                                      : tr('$openCount недостач ждут списания', '$openCount жетіспеушілік списаниені күтуде'),
+                                  style: manrope(12.5, FontWeight.w500,
+                                      color: cInk3),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (openCount > 0)
+                            Container(
+                              constraints: const BoxConstraints(
+                                  minWidth: 24, minHeight: 24),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 7, vertical: 3),
+                              decoration: BoxDecoration(
+                                  color: cRed,
+                                  borderRadius: BorderRadius.circular(12)),
+                              child: Center(
+                                child: Text('$openCount',
                                     style: manrope(12.5, FontWeight.w800,
                                         color: Colors.white)),
                               ),

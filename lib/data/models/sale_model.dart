@@ -21,7 +21,7 @@ class SaleModel {
   final String paymentMethod;
   final String depositPaymentMethod;
   final String receiptNumber;
-  final String saleType; // 'sale' | 'return'
+  final String saleType; // 'sale' | 'return' | 'writeoff'
 
   const SaleModel({
     required this.id,
@@ -50,6 +50,7 @@ class SaleModel {
   });
 
   bool get isReturn => saleType == 'return';
+  bool get isWriteOff => saleType == 'writeoff';
   bool get hasDiscount => basePrice > totalPrice + 0.5;
 
   double get effectiveDiscountPercent {

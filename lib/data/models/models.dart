@@ -14,3 +14,4 @@ export 'courier_delivery_model.dart';
 export 'shop_request_model.dart';
 export 'store_discount_model.dart';
 export 'banner_model.dart';
+export 'revision_model.dart';

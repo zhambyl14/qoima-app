@@ -329,6 +329,8 @@ class _OverviewTabState extends State<_OverviewTab> {
               );
             }
 
+            // Списание (writeoff) — иенің атына жазылған сомамен түсімге кіреді
+            // (пайда), возвраттар теріс total_price → өзі балансталады.
             final mSales = sSnap.data ?? [];
             // МАҢЫЗДЫ: аяқталған онлайн-тапсырыс sales_history-ге ДЕ жазылады
             // (is_online=true). Бұрын онлайн түсім orders-тен алынатын
@@ -596,6 +598,8 @@ class _SellersTab extends StatelessWidget {
               child: CircularProgressIndicator(color: cGreen));
         }
 
+        // Списание сомасы иенің seller_id-імен жазылады → иенің атына пайда
+        // болып осы рейтингте көрінеді.
         final sales = snap.data ?? [];
 
         final Map<String, _SellerStat> bySeller = {};
@@ -1346,6 +1350,18 @@ class _MobileDailyChartState extends State<_MobileDailyChart> {
       }
     }
 
+    // Күндік таза пайда = түсім − өзіндік құн (возврат теріс total_price +
+    // теріс себестоимостьпен өзі балансталады). Онлайн-тапсырыс (OrderModel)
+    // өзіндік құны болмағандықтан, пайда тек sales_history көзінде көрсетіледі.
+    final profitByDay = List<double>.filled(daysInMonth, 0.0);
+    for (final s in widget.offlineSales) {
+      if (s.saleDate.month == widget.month.month) {
+        final cost = (s.isReturn ? -1 : 1) * s.purchasePrice * s.quantity;
+        profitByDay[s.saleDate.day - 1] += s.totalPrice - cost;
+      }
+    }
+    final showProfit = widget.offlineSales.isNotEmpty;
+
     final maxVal = byDay.reduce((a, b) => a > b ? a : b);
     final effectiveMax = maxVal < 1 ? 1.0 : maxVal;
 
@@ -1373,8 +1389,10 @@ class _MobileDailyChartState extends State<_MobileDailyChart> {
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 160),
             child: _tapped != null
-                ? Row(
+                ? Column(
                     key: ValueKey(_tapped),
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Container(
                         padding: const EdgeInsets.symmetric(
@@ -1398,23 +1416,32 @@ class _MobileDailyChartState extends State<_MobileDailyChart> {
                           ),
                         ]),
                       ),
+                      if (showProfit)
+                        _ProfitLine(value: profitByDay[_tapped!]),
                     ],
                   )
-                : Row(
+                : Column(
                     key: const ValueKey('total'),
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        tr('Итого: ', 'Жалпы: '),
-                        style: manrope(12.5, FontWeight.w500, color: cInk3),
-                      ),
-                      Text(
-                        '${qtyByDay.fold(0, (s, v) => s + v)} ${tr('шт', 'дана')} · ',
-                        style: manrope(13, FontWeight.w700, color: cGreen),
-                      ),
-                      Text(
-                        '${_fmtRev(byDay.fold(0.0, (s, v) => s + v))} ₸',
-                        style: manrope(13, FontWeight.w700, color: cGreen),
-                      ),
+                      Row(mainAxisSize: MainAxisSize.min, children: [
+                        Text(
+                          tr('Итого: ', 'Жалпы: '),
+                          style: manrope(12.5, FontWeight.w500, color: cInk3),
+                        ),
+                        Text(
+                          '${qtyByDay.fold(0, (s, v) => s + v)} ${tr('шт', 'дана')} · ',
+                          style: manrope(13, FontWeight.w700, color: cGreen),
+                        ),
+                        Text(
+                          '${_fmtRev(byDay.fold(0.0, (s, v) => s + v))} ₸',
+                          style: manrope(13, FontWeight.w700, color: cGreen),
+                        ),
+                      ]),
+                      if (showProfit)
+                        _ProfitLine(
+                            value: profitByDay.fold(0.0, (s, v) => s + v)),
                     ],
                   ),
           ),
@@ -1619,5 +1646,32 @@ String _fmt(double v) {
     buf.write(s[i]);
   }
   return buf.toString();
+}
+
+// ── Күндік белсенділіктегі «Таза пайда» жолы ────────────────────────────────
+class _ProfitLine extends StatelessWidget {
+  final double value;
+  const _ProfitLine({required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    final positive = value >= 0;
+    final c = positive ? cGreen : cRed;
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(
+            positive
+                ? Icons.trending_up_rounded
+                : Icons.trending_down_rounded,
+            size: 13,
+            color: c),
+        const SizedBox(width: 4),
+        Text(tr('Чистая прибыль: ', 'Таза пайда: '),
+            style: manrope(11.5, FontWeight.w500, color: cInk3)),
+        Text('${_fmt(value)} ₸', style: manrope(12, FontWeight.w800, color: c)),
+      ]),
+    );
+  }
 }
 

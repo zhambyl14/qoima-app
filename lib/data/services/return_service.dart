@@ -323,6 +323,7 @@ class ReturnService {
           .map(SaleModel.fromMap)
           .where((s) =>
               !s.isReturn &&
+              !s.isWriteOff && // списание возвратқа жатпайды
               !s.isOnline &&
               s.saleDate.isAfter(cutoff) &&
               !returnedSaleIds.contains(s.id))
@@ -495,6 +496,7 @@ class ReturnService {
         final raw = d['sale_date'];
         final date = raw is String ? DateTime.tryParse(raw) : null;
         return d['type'] != 'return' &&
+            d['type'] != 'writeoff' &&
             date != null &&
             date.isAfter(range.from) &&
             date.isBefore(range.to);

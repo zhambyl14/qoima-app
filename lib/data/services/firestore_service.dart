@@ -9,6 +9,7 @@ import '../models/reservation_model.dart';
 import '../models/order_model.dart';
 import '../models/courier_delivery_model.dart';
 import '../models/promo_model.dart';
+import '../models/revision_model.dart';
 import '../../core/app_user.dart';
 import '../../core/stream_retry.dart';
 
@@ -553,6 +554,144 @@ class FirestoreService {
             .where((s) =>
                 !s.saleDate.isBefore(from) && s.saleDate.isBefore(to))
             .toList()));
+  }
+
+  // ── Revisions (ревизия: недостача + списание) ────────────────────────────────
+
+  Stream<List<RevisionModel>> watchRevisions() => retryStream(() => _sb
+      .from('revisions')
+      .stream(primaryKey: ['id'])
+      .eq('owner_uid', _ownerUid)
+      .order('created_at', ascending: false)
+      .map((rows) => rows.map(RevisionModel.fromMap).toList()));
+
+  /// Ашық (әлі списание жасалмаған) недостачалар саны — Главная badge.
+  Stream<int> watchOpenRevisionsCount() =>
+      watchRevisions().map((list) => list.where((r) => r.isOpen).length);
+
+  /// Недостача жазбасын жасайды (қойма ӘЛІ азаймайды — тек «Списать» кезінде).
+  Future<void> createRevision({
+    required String productId,
+    required String productName,
+    required String warehouseId,
+    required Map<String, int> sizesMissing,
+    String note = '',
+  }) async {
+    final missing = Map<String, int>.fromEntries(
+        sizesMissing.entries.where((e) => e.value > 0));
+    if (missing.isEmpty) {
+      throw SaleException(tr('Укажите количество недостачи', 'Жетіспеушілік санын көрсетіңіз'));
+    }
+    await _sb.from('revisions').insert({
+      'owner_uid': _ownerUid,
+      'product_id': productId,
+      'product_name': productName,
+      'warehouse_id': warehouseId.isEmpty ? null : warehouseId,
+      'sizes_missing': missing,
+      'quantity': missing.values.fold(0, (a, b) => a + b),
+      'note': note.trim(),
+      'status': RevisionModel.statusOpen,
+      'created_by': AppUser.current.uid.isEmpty
+          ? _sb.auth.currentUser?.id
+          : AppUser.current.uid,
+      'created_by_name': AppUser.current.name,
+    });
+  }
+
+  Future<void> deleteRevision(String revisionId) => _sb
+      .from('revisions')
+      .delete()
+      .eq('id', revisionId)
+      .eq('status', RevisionModel.statusOpen);
+
+  /// Недостачаны списание жасайды: қойманы FIFO бойынша азайтады да,
+  /// sales_history-ге type='writeoff' жазба түсіреді. [amount] — дүкен иесі
+  /// белгілеген списание сомасы (₸): түсім ретінде ИЕНІҢ атына жазылады
+  /// (seller_id = owner), сондықтан «Продавцы» бөлімі мен аналитикаға пайда
+  /// болып кіреді. Возвратқа жатпайды.
+  Future<void> writeOffRevision(RevisionModel rev,
+      {required double amount}) async {
+    final owner = _ownerUid;
+    if (!rev.isOpen) return; // идемпотентті — қайта басу қауіпсіз
+
+    // Ескі→жаңа партиялар (FIFO), недостача қоймасы бойынша.
+    var bq = _sb.from('batches').select().eq('product_id', rev.productId);
+    if (rev.warehouseId.isNotEmpty) {
+      bq = bq.eq('warehouse_id', rev.warehouseId);
+    }
+    final srcRows = await bq.order('date_arrived', ascending: true);
+    if (srcRows.isEmpty) {
+      throw SaleException(tr('Недостаточно остатка для списания', 'Списаниеге қалдық жеткіліксіз'));
+    }
+    final cost = await resolveBatchCost(owner, srcRows.first['id'] as String);
+
+    final remaining = Map<String, int>.from(rev.sizesMissing)
+      ..removeWhere((_, v) => v <= 0);
+    String firstBatchId = srcRows.first['id'] as String;
+    for (final b in srcRows) {
+      final bid = b['id'] as String;
+      final bSizes = Map<String, int>.from(((b['sizes_quantity'] as Map?) ?? {})
+          .map((k, v) => MapEntry(k.toString(), (v as num).toInt())));
+      final deltas = <String, int>{};
+      for (final size in remaining.keys.toList()) {
+        final needed = remaining[size]!;
+        if (needed <= 0) continue;
+        final have = bSizes[size] ?? 0;
+        if (have <= 0) continue;
+        final take = needed > have ? have : needed;
+        deltas[size] = -take;
+        remaining[size] = needed - take;
+      }
+      if (deltas.isNotEmpty) {
+        await _sb.rpc('adjust_batch_sizes', params: {
+          'p_batch': bid,
+          'p_deltas': deltas,
+          'p_field': 'sizes_quantity',
+          'p_guard': true,
+        });
+        firstBatchId = bid;
+      }
+      if (remaining.values.every((v) => v == 0)) break;
+    }
+    if (remaining.values.any((v) => v > 0)) {
+      throw SaleException(tr('Недостаточно остатка для списания', 'Списаниеге қалдық жеткіліксіз'));
+    }
+
+    final qty = rev.sizesMissing.values.fold(0, (a, b) => a + b);
+    final firstSize =
+        rev.sizesMissing.keys.isNotEmpty ? rev.sizesMissing.keys.first : '';
+    // Списание сомасы ИЕНІҢ атына жазылады (пайда). Иенің uid = owner_uid.
+    await _sb.from('sales_history').insert({
+      'owner_uid': owner,
+      'product_id': rev.productId,
+      'batch_id': firstBatchId,
+      'product_name': rev.productName,
+      'sale_date': DateTime.now().toIso8601String(),
+      'sizes_sold': rev.sizesMissing,
+      'selected_size': firstSize,
+      'quantity': qty,
+      'base_price': amount,
+      'total_price': amount,
+      'discount_percent': 0.0,
+      'discount_amount': 0.0,
+      'purchase_price': cost,
+      'seller_id': owner,
+      'seller_name': AppUser.current.name,
+      'warehouse_id': rev.warehouseId.isEmpty ? null : rev.warehouseId,
+      'payment_method': '',
+      'receipt_number': '',
+      'type': 'writeoff',
+    });
+
+    if (rev.warehouseId.isNotEmpty) {
+      await _sb.rpc('increment_warehouse_totals',
+          params: {'p_wh': rev.warehouseId, 'p_pairs': -qty, 'p_products': 0});
+    }
+    await _sb.from('revisions').update({
+      'status': RevisionModel.statusWrittenOff,
+      'written_off_at': DateTime.now().toIso8601String(),
+    }).eq('id', rev.id);
+    await _sb.rpc('recompute_product_status', params: {'p_product': rev.productId});
   }
 
   Future<(Map<String, List<BatchModel>>, Map<String, String>)>

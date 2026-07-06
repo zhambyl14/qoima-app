@@ -214,7 +214,7 @@ class _SalesScreenState extends State<SalesScreen>
                                     Text(
                                       appUser.isAdmin
                                           ? context.l10n.overviewSub
-                                          : tr('Сегодня · ${monthSales.where((s) { final n = DateTime.now(); return !s.isReturn && s.saleDate.year == n.year && s.saleDate.month == n.month && s.saleDate.day == n.day; }).length} продаж', 'Бүгін · ${monthSales.where((s) { final n = DateTime.now(); return !s.isReturn && s.saleDate.year == n.year && s.saleDate.month == n.month && s.saleDate.day == n.day; }).length} сатылым'),
+                                          : tr('Сегодня · ${monthSales.where((s) { final n = DateTime.now(); return !s.isReturn && !s.isWriteOff && s.saleDate.year == n.year && s.saleDate.month == n.month && s.saleDate.day == n.day; }).length} продаж', 'Бүгін · ${monthSales.where((s) { final n = DateTime.now(); return !s.isReturn && !s.isWriteOff && s.saleDate.year == n.year && s.saleDate.month == n.month && s.saleDate.day == n.day; }).length} сатылым'),
                                       style: manrope(13, FontWeight.w500,
                                           color: Colors.white
                                               .withValues(alpha: 0.78)),
@@ -508,12 +508,12 @@ class _SalesBody extends StatelessWidget {
               Text('${_fmtNum(total)} ₸',
                   style: manrope(20, FontWeight.w800, color: cInk)),
               Text(
-                  '${sales.where((s) => !s.isReturn).length} ${context.l10n.salesSuffix}',
+                  '${sales.where((s) => !s.isReturn && !s.isWriteOff).length} ${context.l10n.salesSuffix}',
                   style: manrope(12, FontWeight.w500, color: cInk3)),
             ])
           else
             Text(
-                tr('Сегодня: ${sales.where((s) => !s.isReturn && _isToday(s.saleDate)).length} прод.', 'Бүгін: ${sales.where((s) => !s.isReturn && _isToday(s.saleDate)).length} сат.'),
+                tr('Сегодня: ${sales.where((s) => !s.isReturn && !s.isWriteOff && _isToday(s.saleDate)).length} прод.', 'Бүгін: ${sales.where((s) => !s.isReturn && !s.isWriteOff && _isToday(s.saleDate)).length} сат.'),
                 style: manrope(13, FontWeight.w600, color: cInk2)),
         ]),
       ),
@@ -665,7 +665,10 @@ class _SaleCard extends StatelessWidget {
         decoration: BoxDecoration(
             color: cSurface,
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: cLine),
+            // Списание — қызыл рамкамен ерекшеленеді (возвратқа жатпайды).
+            border: Border.all(
+                color: sale.isWriteOff ? cRed.withValues(alpha: 0.55) : cLine,
+                width: sale.isWriteOff ? 1.5 : 1),
             boxShadow: kShadowSm),
         child: Padding(
           padding: const EdgeInsets.all(13),
@@ -674,7 +677,10 @@ class _SaleCard extends StatelessWidget {
               icon: sale.isReturn
                   ? const Icon(Icons.assignment_return_rounded,
                       color: cRed, size: 19)
-                  : product.images.isNotEmpty
+                  : sale.isWriteOff
+                      ? const Icon(Icons.remove_shopping_cart_outlined,
+                          color: cRed, size: 19)
+                      : product.images.isNotEmpty
                       ? ClipRRect(
                           borderRadius: BorderRadius.circular(10),
                           child: Image.network(product.images.first,
@@ -682,7 +688,7 @@ class _SaleCard extends StatelessWidget {
                               errorBuilder: (_, __, ___) => const Icon(
                                   Icons.check_rounded, color: cGreen, size: 19)))
                       : const Icon(Icons.check_rounded, color: cGreen, size: 19),
-              tone: sale.isReturn ? 'red' : 'green',
+              tone: (sale.isReturn || sale.isWriteOff) ? 'red' : 'green',
               size: 40,
             ),
             const SizedBox(width: 12),
@@ -698,9 +704,13 @@ class _SaleCard extends StatelessWidget {
                   Text(
                       sale.isReturn
                           ? tr('Возврат · $timeStr', 'Қайтару · $timeStr')
-                          : '${sale.receiptNumber.isNotEmpty ? '${sale.receiptNumber}  ·  ' : ''}${tr('Р', 'Ө')}: ${sale.sizesSold.entries.where((e) => e.value > 0).map((e) => e.key).join(', ')}  ·  $timeStr',
+                          : sale.isWriteOff
+                              ? tr('Списание · ${sale.quantity} шт. · $timeStr', 'Списание · ${sale.quantity} дана · $timeStr')
+                              : '${sale.receiptNumber.isNotEmpty ? '${sale.receiptNumber}  ·  ' : ''}${tr('Р', 'Ө')}: ${sale.sizesSold.entries.where((e) => e.value > 0).map((e) => e.key).join(', ')}  ·  $timeStr',
                       style: manrope(12, FontWeight.w500,
-                          color: sale.isReturn ? cRed : cInk3),
+                          color: (sale.isReturn || sale.isWriteOff)
+                              ? cRed
+                              : cInk3),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis),
                   if (warehouseName.isNotEmpty) ...[
@@ -710,18 +720,32 @@ class _SaleCard extends StatelessWidget {
                   ],
                 ])),
             Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              if (sale.hasDiscount)
+              if (sale.hasDiscount && !sale.isWriteOff)
                 Text('${sale.basePrice.toStringAsFixed(0)} ₸',
                     style: manrope(11, FontWeight.w500, color: cInk3)
                         .copyWith(decoration: TextDecoration.lineThrough)),
               Text('${sale.totalPrice.toStringAsFixed(0)} ₸',
                   style: manrope(14.5, FontWeight.w800,
-                      color: (sale.hasDiscount || sale.isReturn) ? cRed : cInk)),
-              if (sale.hasDiscount)
+                      color: (sale.hasDiscount || sale.isReturn)
+                          ? cRed
+                          : cInk)),
+              if (sale.hasDiscount && !sale.isWriteOff)
                 Text('-${sale.effectiveDiscountPercent.toStringAsFixed(0)}%',
                     style: manrope(11, FontWeight.w700, color: cAmber)),
               const SizedBox(height: 2),
-              _PaymentBadge(method: _resolveMethod(sale)),
+              if (sale.isWriteOff)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: cRedTint,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(tr('📉 Списание', '📉 Списание'),
+                      style: manrope(10, FontWeight.w700, color: cRed)),
+                )
+              else
+                _PaymentBadge(method: _resolveMethod(sale)),
             ]),
           ]),
         ),
@@ -777,17 +801,26 @@ class _SaleCard extends StatelessWidget {
               const SizedBox(height: 16),
               const Divider(),
               const SizedBox(height: 10),
+              if (sale.isWriteOff)
+                _InfoRow(
+                    label: tr('Операция', 'Әрекет'),
+                    value: tr('Списание (недостача)', 'Списание (жетіспеушілік)')),
               if (sale.receiptNumber.isNotEmpty)
                 _InfoRow(label: tr('Номер чека', 'Чек нөмірі'), value: sale.receiptNumber),
-              _InfoRow(label: tr('Дата продажи', 'Сату күні'), value: '$dateStr · $timeStr'),
               _InfoRow(
-                label: tr('Продавец', 'Сатушы'),
+                  label: sale.isWriteOff
+                      ? tr('Дата списания', 'Списание күні')
+                      : tr('Дата продажи', 'Сату күні'),
+                  value: '$dateStr · $timeStr'),
+              _InfoRow(
+                label: sale.isWriteOff ? tr('Оформил', 'Рәсімдеген') : tr('Продавец', 'Сатушы'),
                 value: sale.isOnline ? 'Онлайн 🛒' : sale.sellerName,
               ),
-              _InfoRow(
-                label: tr('Тип оплаты', 'Төлем түрі'),
-                value: _paymentLabel(_resolveMethod(sale)),
-              ),
+              if (!sale.isWriteOff)
+                _InfoRow(
+                  label: tr('Тип оплаты', 'Төлем түрі'),
+                  value: _paymentLabel(_resolveMethod(sale)),
+                ),
               if (sale.isOnline && sale.depositPaymentMethod.isNotEmpty)
                 _InfoRow(
                   label: 'Депозит (10%)',
@@ -808,7 +841,10 @@ class _SaleCard extends StatelessWidget {
                         '(−${(sale.basePrice - sale.totalPrice).toStringAsFixed(0)} ₸)'),
               ],
               const SizedBox(height: 10),
-              Text(tr('Проданные размеры:', 'Сатылған өлшемдер:'),
+              Text(
+                  sale.isWriteOff
+                      ? tr('Списанные размеры:', 'Списание өлшемдері:')
+                      : tr('Проданные размеры:', 'Сатылған өлшемдер:'),
                   style: TextStyle(
                       fontWeight: FontWeight.w600,
                       fontSize: 13,
@@ -823,12 +859,12 @@ class _SaleCard extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(
-                            color: cGreenTint,
+                            color: sale.isWriteOff ? cRedTint : cGreenTint,
                             borderRadius: BorderRadius.circular(8)),
                         child: Text(tr('Р.${e.key} × ${e.value} шт.', 'Ө.${e.key} × ${e.value} дана'),
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontWeight: FontWeight.w600,
-                                color: cGreen,
+                                color: sale.isWriteOff ? cRed : cGreen,
                                 fontSize: 13))))
                     .toList(),
               ),
@@ -836,20 +872,23 @@ class _SaleCard extends StatelessWidget {
               const Divider(),
               const SizedBox(height: 8),
               Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                Text(tr('Итого:', 'Барлығы:'),
+                Text(
+                    sale.isWriteOff
+                        ? tr('Списано:', 'Списание:')
+                        : tr('Итого:', 'Барлығы:'),
                     style: TextStyle(fontSize: 15, color: cInk2)),
                 Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                  if (sale.hasDiscount) ...[
+                  if (sale.hasDiscount && !sale.isWriteOff) ...[
                     Text('${sale.basePrice.toStringAsFixed(0)} ₸',
                         style: manrope(13, FontWeight.w500, color: cInk3)
                             .copyWith(decoration: TextDecoration.lineThrough)),
                     const SizedBox(width: 8),
                   ],
                   Text('${sale.totalPrice.toStringAsFixed(0)} ₸',
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.w800,
-                          color: cGreen)),
+                          color: sale.isWriteOff ? cRed : cGreen)),
                 ]),
               ]),
             ]),

@@ -424,9 +424,13 @@ class _DailyChartState extends State<_DailyChart> {
     final byDay = List<double>.filled(daysInMonth, 0.0);
     // Күнделікті дана саны (нетто — возврат шегеріледі).
     final qtyByDay = List<int>.filled(daysInMonth, 0);
+    // Күндік таза пайда = түсім − өзіндік құн (возврат өзі балансталады).
+    final profitByDay = List<double>.filled(daysInMonth, 0.0);
     for (final s in widget.sales) {
       byDay[s.saleDate.day - 1] += s.totalPrice;
       qtyByDay[s.saleDate.day - 1] += s.isReturn ? -s.quantity : s.quantity;
+      final cost = (s.isReturn ? -1 : 1) * s.purchasePrice * s.quantity;
+      profitByDay[s.saleDate.day - 1] += s.totalPrice - cost;
     }
     final maxVal = byDay.reduce((a, b) => a > b ? a : b);
     final effectiveMax = maxVal < 1 ? 1.0 : maxVal;
@@ -489,6 +493,28 @@ class _DailyChartState extends State<_DailyChart> {
               ],
             ]),
           ),
+          // Таза пайда (нетто себестоимость шегерілген) — түсімнің қасында.
+          () {
+            final profit = _tapped != null
+                ? profitByDay[_tapped!]
+                : profitByDay.fold(0.0, (s, v) => s + v);
+            final c = profit >= 0 ? cGreen : cRed;
+            return Row(children: [
+              Icon(
+                  profit >= 0
+                      ? Icons.trending_up_rounded
+                      : Icons.trending_down_rounded,
+                  size: 13,
+                  color: c),
+              const SizedBox(width: 4),
+              Text(tr('Чистая прибыль', 'Таза пайда'),
+                  style: TextStyle(fontSize: 11.5, color: cInk3)),
+              const Spacer(),
+              Text(_fmtRevenue(profit),
+                  style: TextStyle(
+                      fontSize: 12.5, fontWeight: FontWeight.w800, color: c)),
+            ]);
+          }(),
           const SizedBox(height: 6),
           // Bars
           SizedBox(

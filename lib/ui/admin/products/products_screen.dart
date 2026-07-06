@@ -26,6 +26,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
   late int _tab;
   String _q = '';
   String _categoryKey = ''; // '' = все категории
+  String _type = ''; // '' = все типы (категория таңдалғанда ғана қолданылады)
   _SortType _sort = _SortType.nameAz;
   final _searchCtrl = TextEditingController();
 
@@ -64,6 +65,9 @@ class _ProductsScreenState extends State<ProductsScreen> {
     if (_categoryKey.isNotEmpty) {
       list =
           list.where((p) => p.effectiveCategoryKey == _categoryKey).toList();
+      if (_type.isNotEmpty) {
+        list = list.where((p) => p.type == _type).toList();
+      }
     }
     if (_tab == 1) {
       list = list.where((p) => p.status == ProductModel.statusInStock).toList();
@@ -198,6 +202,23 @@ class _ProductsScreenState extends State<ProductsScreen> {
               .where((k) =>
                   allProducts.any((p) => p.effectiveCategoryKey == k))
               .toList();
+          // Категория бойынша дана саны (бос қалдық) — чиптегі көрсеткіш.
+          final Map<String, int> qtyByCat = {};
+          for (final p in allProducts) {
+            qtyByCat[p.effectiveCategoryKey] =
+                (qtyByCat[p.effectiveCategoryKey] ?? 0) +
+                    _totalQtyForProduct(p.id);
+          }
+          // Таңдалған категория ішіндегі тип (вид) бойынша дана саны.
+          final Map<String, int> qtyByType = {};
+          if (_categoryKey.isNotEmpty) {
+            for (final p in allProducts
+                .where((p) => p.effectiveCategoryKey == _categoryKey)) {
+              if (p.type.isEmpty) continue;
+              qtyByType[p.type] =
+                  (qtyByType[p.type] ?? 0) + _totalQtyForProduct(p.id);
+            }
+          }
           final filtered = _filter(allProducts);
 
           return RefreshIndicator(
@@ -417,9 +438,15 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                     final active = _categoryKey == key;
                                     final cat =
                                         key.isEmpty ? null : categoryByKey(key);
+                                    // Категориядағы дана саны — чипте көрінеді.
+                                    final qty = key.isEmpty
+                                        ? _cachedTotalPairs
+                                        : (qtyByCat[key] ?? 0);
                                     return GestureDetector(
-                                      onTap: () =>
-                                          setState(() => _categoryKey = key),
+                                      onTap: () => setState(() {
+                                        _categoryKey = key;
+                                        _type = ''; // тип сүзгісі жаңа категорияға көшпейді
+                                      }),
                                       child: AnimatedContainer(
                                         duration:
                                             const Duration(milliseconds: 150),
@@ -451,7 +478,85 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                                       color: active
                                                           ? cGreenDeep
                                                           : Colors.white)),
+                                              const SizedBox(width: 5),
+                                              Container(
+                                                padding: const EdgeInsets
+                                                    .symmetric(
+                                                    horizontal: 6,
+                                                    vertical: 1),
+                                                decoration: BoxDecoration(
+                                                  color: active
+                                                      ? cGreenDeep.withValues(
+                                                          alpha: 0.12)
+                                                      : Colors.white
+                                                          .withValues(
+                                                              alpha: 0.22),
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                ),
+                                                child: Text('$qty',
+                                                    style: manrope(11,
+                                                        FontWeight.w800,
+                                                        color: active
+                                                            ? cGreenDeep
+                                                            : Colors.white)),
+                                              ),
                                             ]),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ],
+                            // Категория ішіндегі тип (вид) бойынша сан + сүзгі.
+                            if (_categoryKey.isNotEmpty &&
+                                qtyByType.isNotEmpty) ...[
+                              const SizedBox(height: 8),
+                              SizedBox(
+                                height: 30,
+                                child: ListView.separated(
+                                  scrollDirection: Axis.horizontal,
+                                  itemCount: qtyByType.length + 1,
+                                  separatorBuilder: (_, __) =>
+                                      const SizedBox(width: 8),
+                                  itemBuilder: (_, i) {
+                                    final types = qtyByType.keys.toList()
+                                      ..sort((a, b) => (qtyByType[b] ?? 0)
+                                          .compareTo(qtyByType[a] ?? 0));
+                                    final t = i == 0 ? '' : types[i - 1];
+                                    final active = _type == t;
+                                    final label = t.isEmpty
+                                        ? tr('Все типы', 'Барлық түрі')
+                                        : '${trValue(t)} · ${qtyByType[t]}';
+                                    return GestureDetector(
+                                      onTap: () =>
+                                          setState(() => _type = t),
+                                      child: AnimatedContainer(
+                                        duration: const Duration(
+                                            milliseconds: 150),
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 11, vertical: 5),
+                                        decoration: BoxDecoration(
+                                          color: active
+                                              ? Colors.white
+                                              : Colors.white
+                                                  .withValues(alpha: 0.12),
+                                          borderRadius:
+                                              BorderRadius.circular(9),
+                                          border: Border.all(
+                                              color: active
+                                                  ? Colors.white
+                                                  : Colors.white.withValues(
+                                                      alpha: 0.3)),
+                                        ),
+                                        child: Center(
+                                          child: Text(label,
+                                              style: manrope(
+                                                  11.5, FontWeight.w700,
+                                                  color: active
+                                                      ? cGreenDeep
+                                                      : Colors.white)),
+                                        ),
                                       ),
                                     );
                                   },
