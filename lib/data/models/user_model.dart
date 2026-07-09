@@ -18,6 +18,11 @@ class UserModel {
   // Жалпы блок (superadmin қояды): true болса иесі де, сатушылары да кіре алмайды.
   final bool blocked;
   final String blockReason;
+  // Жазылым (подписка) — модератор мониторингі. null = берілмеген.
+  final DateTime? subscriptionUntil;
+  final DateTime? subscriptionStartedAt;
+  final String subscriptionPlan; // '1 ай' | '3 ай' | ... (ақпараттық)
+  final String subscriptionNote;
 
   const UserModel({
     required this.uid,
@@ -36,7 +41,34 @@ class UserModel {
     this.shopStatus = 'approved',
     this.blocked = false,
     this.blockReason = '',
+    this.subscriptionUntil,
+    this.subscriptionStartedAt,
+    this.subscriptionPlan = '',
+    this.subscriptionNote = '',
   });
+
+  // ── Жазылым статусы (клиент жағында есептеледі) ──────────────────────────────
+  bool get hasSubscription => subscriptionUntil != null;
+
+  /// subscriptionUntil-ге дейінгі толық күндер (өткен болса теріс).
+  int? get daysLeft {
+    final until = subscriptionUntil;
+    if (until == null) return null;
+    final now = DateTime.now();
+    return until.difference(DateTime(now.year, now.month, now.day)).inDays;
+  }
+
+  /// Мерзімі өтіп кеткен (асып кеткен).
+  bool get isExpired {
+    final d = daysLeft;
+    return d != null && d < 0;
+  }
+
+  /// Мерзімі жақындаған (0..7 күн қалды) — «бітейін деп тұр».
+  bool get isExpiringSoon {
+    final d = daysLeft;
+    return d != null && d >= 0 && d <= 7;
+  }
 
   bool get isAdmin => role == 'admin';
   bool get isSeller => role == 'seller';
@@ -66,6 +98,10 @@ class UserModel {
         shopStatus: m['shop_status'] as String? ?? 'approved',
         blocked: m['blocked'] as bool? ?? false,
         blockReason: m['block_reason'] as String? ?? '',
+        subscriptionUntil: _date(m['subscription_until']),
+        subscriptionStartedAt: _date(m['subscription_started_at']),
+        subscriptionPlan: m['subscription_plan'] as String? ?? '',
+        subscriptionNote: m['subscription_note'] as String? ?? '',
       );
 
   /// Supabase жазу үшін (snake_case; бос uuid → null).

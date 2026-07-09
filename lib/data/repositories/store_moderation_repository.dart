@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../models/product_model.dart';
 import '../models/store_model.dart';
 import '../models/user_model.dart';
 
@@ -74,4 +75,58 @@ class StoreModerationRepository {
     }).eq('id', ownerUid);
     await unblockStore(ownerUid);
   }
+
+  // ── Жазылым (подписка) — төлем аппликациядан тыс, база тек мерзімді сақтайды ──
+
+  /// Жазылымды [months] айға ұзарту. Әлі белсенді болса — мерзім соңынан
+  /// жалғасады (жинақталады); өтіп кеткен/жоқ болса — бүгіннен басталады.
+  Future<void> grantSubscription({
+    required String ownerUid,
+    required int months,
+    DateTime? currentUntil,
+  }) async {
+    final now = DateTime.now();
+    final base = (currentUntil != null && currentUntil.isAfter(now))
+        ? currentUntil
+        : now;
+    // Ай қосу (күн тасымалын DateTime өзі реттейді).
+    final until = DateTime(base.year, base.month + months, base.day,
+        base.hour, base.minute, base.second);
+    await _sb.from('users').update({
+      'subscription_until': until.toIso8601String(),
+      if (currentUntil == null || !currentUntil.isAfter(now))
+        'subscription_started_at': now.toIso8601String(),
+      'subscription_plan': '$months ай',
+    }).eq('id', ownerUid);
+  }
+
+  /// Нақты күнді қолмен қою (модератор күнтізбеден таңдайды).
+  Future<void> setSubscriptionUntil({
+    required String ownerUid,
+    required DateTime until,
+    String note = '',
+  }) =>
+      _sb.from('users').update({
+        'subscription_until': until.toIso8601String(),
+        'subscription_started_at': DateTime.now().toIso8601String(),
+        'subscription_note': note,
+      }).eq('id', ownerUid);
+
+  /// Жазылымды тазалау (мерзім берілмеген күйге қайтару).
+  Future<void> clearSubscription(String ownerUid) => _sb.from('users').update({
+        'subscription_until': null,
+        'subscription_started_at': null,
+        'subscription_plan': '',
+        'subscription_note': '',
+      }).eq('id', ownerUid);
+
+  // ── Дүкен товарлары (модератор заңсыз тауарды тексереді) ─────────────────────
+
+  /// Иенің барлық товарлары (products.select саясаты — барлығына оқуға ашық).
+  Stream<List<ProductModel>> watchOwnerProducts(String ownerUid) => _sb
+      .from('products')
+      .stream(primaryKey: ['id'])
+      .eq('owner_uid', ownerUid)
+      .order('created_at')
+      .map((rows) => rows.map(ProductModel.fromMap).toList());
 }

@@ -2,8 +2,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 import '../../data/models/shop_request_model.dart';
 import '../../data/models/store_edit_request_model.dart';
+import '../../data/models/user_model.dart';
 import '../../data/repositories/shop_request_repository.dart';
 import '../../data/repositories/store_edit_repository.dart';
+import '../../data/repositories/store_moderation_repository.dart';
 import '../../data/services/auth_service.dart';
 import '../../theme/qoima_design.dart';
 import 'banners_screen.dart';
@@ -12,6 +14,7 @@ import 'reject_reason_sheet.dart';
 import 'shop_owners_screen.dart';
 import 'shop_request_detail_screen.dart';
 import 'store_edit_requests_screen.dart';
+import 'subscriptions_screen.dart';
 
 import '../../core/lang.dart';
 /// Superadmin (маркетплейс модераторы) басты экраны — дүкен заявкалары.
@@ -29,6 +32,9 @@ class _ShopRequestsScreenState extends State<ShopRequestsScreen> {
   // жазылмауы үшін бір рет құрылады.
   late final Stream<List<StoreEditRequestModel>> _editPending =
       StoreEditRepository().watchPending();
+  // Жазылым badge-і — бітейін деп тұрған + асып кеткен иелер саны.
+  late final Stream<List<UserModel>> _owners =
+      StoreModerationRepository().watchOwners();
   int _tab = 0; // 0 Все · 1 Новые · 2 Одобренные · 3 Отклонённые
 
   String get _uid => Supabase.instance.client.auth.currentUser!.id;
@@ -123,6 +129,7 @@ class _ShopRequestsScreenState extends State<ShopRequestsScreen> {
               compact: true,
               action: _HeaderActions(
                 editPending: _editPending,
+                owners: _owners,
                 onSignOut: _signOut,
               ),
               bottom: [
@@ -208,12 +215,34 @@ class _ShopRequestsScreenState extends State<ShopRequestsScreen> {
 // ── Header actions (маркетплейс + өзгерту запростары + баннер + шығу) ─────────────
 class _HeaderActions extends StatelessWidget {
   final Stream<List<StoreEditRequestModel>> editPending;
+  final Stream<List<UserModel>> owners;
   final VoidCallback onSignOut;
-  const _HeaderActions({required this.editPending, required this.onSignOut});
+  const _HeaderActions(
+      {required this.editPending,
+      required this.owners,
+      required this.onSignOut});
 
   @override
   Widget build(BuildContext context) {
     return Row(mainAxisSize: MainAxisSize.min, children: [
+      StreamBuilder<List<UserModel>>(
+        stream: owners,
+        builder: (context, snap) {
+          final list = snap.data ?? [];
+          // Назар аударуды талап ететіндер: мерзімі жақын + асып кеткен.
+          final urgent = list
+              .where((o) => o.isExpiringSoon || o.isExpired)
+              .length;
+          return QHeaderBtn(Icons.card_membership_outlined,
+              badge: urgent,
+              onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const SubscriptionsScreen()),
+                  ));
+        },
+      ),
+      const SizedBox(width: 8),
       QHeaderBtn(Icons.manage_accounts_outlined,
           onTap: () => Navigator.push(
                 context,
