@@ -495,14 +495,17 @@ class _OwnerSubRow extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            _ActionBtn(
-              label: blocked ? tr('Разблок', 'Блоктан алу') : tr('Блок', 'Блок'),
-              bg: blocked ? cGreenTint : cRedTint,
-              fg: blocked ? cGreenDeep : cRed,
-              icon: blocked
-                  ? Icons.lock_open_rounded
-                  : Icons.lock_outline_rounded,
-              onTap: blocked ? onUnblock : onBlock,
+            Expanded(
+              child: _ActionBtn(
+                label:
+                    blocked ? tr('Разблок', 'Блоктан алу') : tr('Блок', 'Блок'),
+                bg: blocked ? cGreenTint : cRedTint,
+                fg: blocked ? cGreenDeep : cRed,
+                icon: blocked
+                    ? Icons.lock_open_rounded
+                    : Icons.lock_outline_rounded,
+                onTap: blocked ? onUnblock : onBlock,
+              ),
             ),
             if (owner.hasSubscription) ...[
               const SizedBox(width: 8),
