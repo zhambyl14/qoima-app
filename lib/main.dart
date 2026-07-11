@@ -8,7 +8,6 @@ import 'package:provider/provider.dart';
 import 'core/supabase_config.dart';
 import 'theme/app_theme.dart';
 import 'ui/auth/blocked_screen.dart';
-import 'ui/auth/complete_profile_screen.dart';
 import 'ui/auth/seller_join_screen.dart';
 import 'ui/superadmin/shop_requests_screen.dart';
 import 'ui/guest/guest_shell.dart';
@@ -173,12 +172,8 @@ class QoimaApp extends StatelessWidget {
               if (futureSnap.connectionState == ConnectionState.waiting) {
                 return const _Splash();
               }
-              // Сессия бар, профиль жоқ — Google-мен алғаш кірген: тіркелуді
-              // аяқтау экраны (рөл + телефон/қала).
-              if (futureSnap.data == _SessState.noProfile) {
-                return const CompleteProfileScreen();
-              }
-              // Желі/басқа қате — қауіпсіз шығарамыз.
+              // Сессия бар, бірақ профиль жоқ (орфан) немесе желі қатесі —
+              // қауіпсіз шығарамыз да, реактивті gate кіру экранына қайтарады.
               return const _AuthFallback();
             },
           );
@@ -189,9 +184,9 @@ class QoimaApp extends StatelessWidget {
 }
 
 /// Сессия жүктеу нәтижесі: loaded — профиль табылды (AppUser орнады);
-/// noProfile — Auth сессиясы бар, бірақ users/clients жолы жоқ (Google-мен
-/// алғаш кірген — профильді аяқтау керек); error — желі/басқа қате.
-enum _SessState { loaded, noProfile, error }
+/// orphan — Auth сессиясы бар, бірақ users/clients жолы жоқ (қауіпсіз шығару);
+/// error — желі/басқа қате.
+enum _SessState { loaded, orphan, error }
 
 Future<_SessState> _loadSession(String uid, BuildContext context) async {
   final wCtx = context.read<WarehouseContext>();
@@ -199,12 +194,6 @@ Future<_SessState> _loadSession(String uid, BuildContext context) async {
   try {
     final authService = AuthService();
     final sb = Supabase.instance.client;
-
-    // Auth email өзгерген болса (verifyBeforeUpdateEmail сілтемесі басылған),
-    // индекстер мен профильді сәйкестендіреміз (best-effort).
-    try {
-      await authService.syncEmailIfChanged();
-    } catch (_) {}
 
     // Try admin/seller doc first. МАҢЫЗДЫ: қатені жұтпайтын тікелей сұрау —
     // желі қатесі «профиль жоқ» (noProfile) болып қате танылмауы үшін.
@@ -259,8 +248,8 @@ Future<_SessState> _loadSession(String uid, BuildContext context) async {
       return _SessState.loaded;
     }
 
-    // Екі сұрау да сәтті өтіп, екеуі де бос — Google-мен алғаш кірген.
-    return _SessState.noProfile;
+    // Екі сұрау да сәтті өтіп, екеуі де бос — профилі жоқ орфан сессия.
+    return _SessState.orphan;
   } catch (_) {
     return _SessState.error;
   }

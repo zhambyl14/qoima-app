@@ -23,14 +23,16 @@ class SupabaseConfig {
       anonKey.isNotEmpty && !anonKey.startsWith('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVqcGNkZmd3eGRob2xzZXBpb2ppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI4MDYxMzcsImV4cCI6MjA5ODM4MjEzN30.E2AIz2quumSuU0K3lzONM8alw26NLzje3zvWWFUMk7o');
 
   // ════════════════════════════════════════════════════════════════════════
-  //  Google-мен кіру: WEB application түріндегі OAuth client-тің ID-і.
-  //  ⚠️ МІНДЕТТІ ТЕКСЕРУ: Google Cloud Console → Credentials тізімінде
-  //  Type бағаны «Web application» болып тұрған client-тің ID-і осында тұруы
-  //  керек (Android/iOS ID ЕМЕС!). Қате болса Google кіру «токен алынбады»
-  //  қатесін береді.
+  //  Telegram растау боты: тіркелуде/парольді қалпына келтіруде телефон нөмірі
+  //  осы бот арқылы (SMS-сіз, тегін) расталады. Тек username (@-сыз).
+  //  Бот токені осында ЕМЕС — ол тек Edge Function secret-інде (TELEGRAM_BOT_
+  //  TOKEN) тұрады. Мұнда деректо-сілтеме құрастыру үшін username жеткілікті.
   // ════════════════════════════════════════════════════════════════════════
-  static const String googleWebClientId =
-      '536773855283-f6ledrtslna1ke0i5tjui45lf54o7k8a.apps.googleusercontent.com';
+  static const String telegramBot = 'qoimashybot';
+
+  /// Растау сессиясының терең сілтемесі: `t.me/<bot>?start=<token>`.
+  static String telegramStartUrl(String token) =>
+      'https://t.me/$telegramBot?start=$token';
 
   // ════════════════════════════════════════════════════════════════════════
   //  Тауарды бөлісу бетінің базалық URL-і (Deno Deploy).

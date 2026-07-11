@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import '../../core/phone_input.dart';
 import '../../data/services/auth_service.dart';
 import '../../theme/qoima_design.dart';
-import 'google_sign_in_button.dart';
 import 'login_screen.dart';
 import 'client_register_screen.dart';
 import 'forgot_password_screen.dart';
@@ -175,9 +174,6 @@ class _ClientLoginScreenState extends State<ClientLoginScreen> {
                 isLoading: _isLoading,
                 onPressed: _signIn,
               ),
-
-              const SizedBox(height: 14),
-              GoogleSignInButton(afterLogin: widget.afterLogin),
 
               const SizedBox(height: 14),
               Row(mainAxisAlignment: MainAxisAlignment.center, children: [

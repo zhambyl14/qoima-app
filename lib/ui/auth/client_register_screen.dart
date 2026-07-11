@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../../core/kz_cities.dart';
-import '../../core/phone_input.dart';
 import '../../data/services/auth_service.dart';
 import '../../theme/qoima_design.dart';
-import 'google_sign_in_button.dart';
+import 'telegram_verify_button.dart';
 
 import '../../core/lang.dart';
-/// Клиентті тіркеу: телефон + email + құпиясөз + аты + қаласы.
+/// Клиентті тіркеу: Telegram-мен расталған телефон + құпиясөз + аты + қаласы.
 class ClientRegisterScreen extends StatefulWidget {
   const ClientRegisterScreen({super.key});
 
@@ -17,12 +15,11 @@ class ClientRegisterScreen extends StatefulWidget {
 
 class _ClientRegisterScreenState extends State<ClientRegisterScreen> {
   final _authService = AuthService();
-  final _phoneCtrl = TextEditingController();
-  final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   final _confirmCtrl = TextEditingController();
   final _nameCtrl = TextEditingController();
   String? _selectedCity;
+  String? _verifiedPhone; // Telegram-мен расталған нөмір (E.164)
 
   bool _isLoading = false;
   bool _obscurePass = true;
@@ -31,8 +28,6 @@ class _ClientRegisterScreenState extends State<ClientRegisterScreen> {
 
   @override
   void dispose() {
-    _phoneCtrl.dispose();
-    _emailCtrl.dispose();
     _passwordCtrl.dispose();
     _confirmCtrl.dispose();
     _nameCtrl.dispose();
@@ -43,13 +38,8 @@ class _ClientRegisterScreenState extends State<ClientRegisterScreen> {
 
   Future<void> _register() async {
     // ── Валидация ────────────────────────────────────────────────────────────
-    if (!isValidKzPhone(_phoneCtrl.text)) {
-      _setErr(tr('Введите номер телефона полностью', 'Телефон нөмірін толық енгізіңіз'));
-      return;
-    }
-    final email = _emailCtrl.text.trim();
-    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
-      _setErr(tr('Неверный формат email', 'Email форматы қате'));
+    if (_verifiedPhone == null) {
+      _setErr(tr('Подтвердите номер через Telegram', 'Нөмірді Telegram арқылы растаңыз'));
       return;
     }
     if (_passwordCtrl.text.length < 6) {
@@ -76,8 +66,7 @@ class _ClientRegisterScreenState extends State<ClientRegisterScreen> {
     final password = _passwordCtrl.text;
     try {
       await _authService.registerClient(
-        email: email,
-        phoneNumber: kzPhoneToE164(_phoneCtrl.text),
+        phoneNumber: _verifiedPhone!,
         password: password,
         name: _nameCtrl.text.trim(),
         city: _selectedCity!,
@@ -114,24 +103,13 @@ class _ClientRegisterScreenState extends State<ClientRegisterScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Телефон
-                _Field(
-                  controller: _phoneCtrl,
-                  label: tr('Номер телефона', 'Телефон нөмірі'),
-                  hint: '+7 (700) 000-00-00',
-                  icon: Icons.phone_outlined,
-                  keyboard: TextInputType.phone,
-                  inputFormatters: [KzPhoneInputFormatter()],
-                ),
-                const SizedBox(height: 14),
-
-                // Email
-                _Field(
-                  controller: _emailCtrl,
-                  label: 'Email',
-                  hint: 'example@mail.com',
-                  icon: Icons.email_outlined,
-                  keyboard: TextInputType.emailAddress,
+                // Телефон — Telegram арқылы расталады (қолмен жазылмайды)
+                Text(tr('Номер телефона', 'Телефон нөмірі'),
+                    style: manrope(12.5, FontWeight.w700, color: cInk2)),
+                const SizedBox(height: 6),
+                TelegramVerifyButton(
+                  onVerified: (phone, _) =>
+                      setState(() => _verifiedPhone = phone),
                 ),
                 const SizedBox(height: 14),
 
@@ -225,8 +203,6 @@ class _ClientRegisterScreenState extends State<ClientRegisterScreen> {
                   onPressed: _register,
                 ),
                 const SizedBox(height: 14),
-                const GoogleSignInButton(),
-                const SizedBox(height: 14),
                 Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                   Text(tr('Уже есть аккаунт?', 'Аккаунтыңыз бар ма?'),
                       style: manrope(13.5, FontWeight.w500, color: cInk2)),
@@ -252,10 +228,8 @@ class _Field extends StatelessWidget {
   final String label;
   final String hint;
   final IconData icon;
-  final TextInputType? keyboard;
   final bool obscure;
   final Widget? suffix;
-  final List<TextInputFormatter>? inputFormatters;
   final TextCapitalization capitalization;
 
   const _Field({
@@ -263,10 +237,8 @@ class _Field extends StatelessWidget {
     required this.label,
     required this.hint,
     required this.icon,
-    this.keyboard,
     this.obscure = false,
     this.suffix,
-    this.inputFormatters,
     this.capitalization = TextCapitalization.none,
   });
 
@@ -291,9 +263,7 @@ class _Field extends StatelessWidget {
             Expanded(
               child: TextField(
                 controller: controller,
-                keyboardType: keyboard,
                 obscureText: obscure,
-                inputFormatters: inputFormatters,
                 textCapitalization: capitalization,
                 style: manrope(15, FontWeight.w600, color: cInk),
                 cursorColor: cGreen,

@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../core/l10n_ext.dart';
+import '../../core/lang.dart';
 import '../../data/services/auth_service.dart';
 import '../../theme/qoima_design.dart';
-import 'google_sign_in_button.dart';
+import 'telegram_verify_button.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -12,12 +13,12 @@ class RegisterScreen extends StatefulWidget {
 
 class _RegisterScreenState extends State<RegisterScreen> {
   final _nameCtrl = TextEditingController();
-  final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   final _confirmCtrl = TextEditingController();
   final _authService = AuthService();
 
   String _role = 'admin'; // 'admin' | 'seller'
+  String? _verifiedPhone; // Telegram-мен расталған нөмір (E.164)
   bool _isLoading = false;
   bool _obscurePass = true;
   bool _obscureConfirm = true;
@@ -26,7 +27,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   void dispose() {
     _nameCtrl.dispose();
-    _emailCtrl.dispose();
     _passwordCtrl.dispose();
     _confirmCtrl.dispose();
     super.dispose();
@@ -38,12 +38,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
       _setErr(l.validationNameRequired);
       return;
     }
-    if (_emailCtrl.text.trim().isEmpty) {
-      _setErr(l.validationEmailRequired);
-      return;
-    }
-    if (!_emailCtrl.text.contains('@')) {
-      _setErr(l.validationEmail);
+    if (_verifiedPhone == null) {
+      _setErr(tr('Подтвердите номер через Telegram', 'Нөмірді Telegram арқылы растаңыз'));
       return;
     }
     if (_passwordCtrl.text.length < 6) {
@@ -62,7 +58,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     try {
       await _authService.register(
         name: _nameCtrl.text.trim(),
-        email: _emailCtrl.text.trim(),
+        phoneNumber: _verifiedPhone!,
         password: _passwordCtrl.text,
         role: _role,
       );
@@ -183,12 +179,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   hint: context.l10n.namePlaceholder,
                   icon: Icons.person_outline_rounded),
               const SizedBox(height: 14),
-              _buildField(
-                  controller: _emailCtrl,
-                  label: context.l10n.email,
-                  hint: context.l10n.emailPlaceholder,
-                  icon: Icons.email_outlined,
-                  keyboard: TextInputType.emailAddress),
+              // Телефон — Telegram арқылы расталады (қолмен жазылмайды)
+              Text(tr('Номер телефона', 'Телефон нөмірі'),
+                  style: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w700, color: cInk)),
+              const SizedBox(height: 8),
+              TelegramVerifyButton(
+                onVerified: (phone, _) =>
+                    setState(() => _verifiedPhone = phone),
+              ),
               const SizedBox(height: 14),
               _buildField(
                   controller: _passwordCtrl,
@@ -265,8 +264,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               style: const TextStyle(
                                   fontSize: 16, fontWeight: FontWeight.w700)))),
               const SizedBox(height: 16),
-              const GoogleSignInButton(),
-              const SizedBox(height: 16),
 
               Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                 Text(context.l10n.haveAccount,
@@ -290,13 +287,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
     required String label,
     required String hint,
     required IconData icon,
-    TextInputType? keyboard,
     bool obscure = false,
     Widget? suffixIcon,
   }) {
     return TextField(
       controller: controller,
-      keyboardType: keyboard,
       obscureText: obscure,
       style: const TextStyle(fontSize: 15, color: cInk),
       decoration: InputDecoration(

@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import '../../data/services/auth_service.dart';
 import '../../theme/qoima_design.dart';
+import 'telegram_verify_button.dart';
 
 import '../../core/lang.dart';
-/// Құпиясөзді қалпына келтіру: email → reset сілтемесі.
-/// Аккаунттың бар-жоғын ЕШҚАШАН ашпаймыз — әрқашан бейтарап хабар.
+/// Құпиясөзді қалпына келтіру — Telegram арқылы (SMS-сіз).
+///
+/// Ағын: телефонды Telegram-мен растайды (иесі екені дәлелденеді) → жаңа
+/// құпиясөз енгізеді → edge функциясы парольді жаңартады да, сол телефон+жаңа
+/// парольмен КІРЕДІ → реактивті gate дұрыс экранға ауыстырады.
+/// Барлық рөлге ортақ (клиент/сатушы/админ/суперадмин).
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
 
@@ -14,21 +19,33 @@ class ForgotPasswordScreen extends StatefulWidget {
 
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final _authService = AuthService();
-  final _emailCtrl = TextEditingController();
+  final _passCtrl = TextEditingController();
+  final _confirmCtrl = TextEditingController();
+
+  String? _verifiedPhone;
+  String? _verifyToken;
   bool _isLoading = false;
-  bool _sent = false;
+  bool _obscure = true;
   String? _error;
 
   @override
   void dispose() {
-    _emailCtrl.dispose();
+    _passCtrl.dispose();
+    _confirmCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _submit() async {
-    final email = _emailCtrl.text.trim();
-    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
-      setState(() => _error = tr('Неверный формат email', 'Email форматы қате'));
+    if (_verifiedPhone == null || _verifyToken == null) {
+      setState(() => _error = tr('Подтвердите номер через Telegram', 'Нөмірді Telegram арқылы растаңыз'));
+      return;
+    }
+    if (_passCtrl.text.length < 6) {
+      setState(() => _error = tr('Пароль должен быть не короче 6 символов', 'Құпиясөз кем дегенде 6 таңба болуы керек'));
+      return;
+    }
+    if (_passCtrl.text != _confirmCtrl.text) {
+      setState(() => _error = tr('Пароли не совпадают', 'Құпиясөздер сәйкес келмейді'));
       return;
     }
     setState(() {
@@ -36,10 +53,16 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       _error = null;
     });
     try {
-      await _authService.sendPasswordReset(email);
-      if (mounted) setState(() => _sent = true);
+      await _authService.resetPasswordViaTelegram(
+        token: _verifyToken!,
+        newPassword: _passCtrl.text,
+      );
+      // Сәтті — жаңа парольмен кірдік, реактивті gate экранды ауыстырады.
+      if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
     } on AuthFailure catch (e) {
       if (mounted) setState(() => _error = e.message);
+    } catch (_) {
+      if (mounted) setState(() => _error = tr('Не удалось сбросить пароль', 'Парольді қалпына келтіру сәтсіз'));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -47,147 +70,156 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final email = _emailCtrl.text.trim();
+    final verified = _verifiedPhone != null;
     return Scaffold(
       backgroundColor: cBg,
       body: Column(children: [
         QGradientHeader(
           title: tr('Восстановление пароля', 'Құпиясөзді қалпына келтіру'),
           showBack: true,
-          onBack: () => Navigator.pop(context),
+          onBack: _isLoading ? null : () => Navigator.pop(context),
         ),
         Expanded(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(22, 26, 22, 30),
-            child: _sent
-                ? _buildSent(email)
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        width: 80,
-                        height: 80,
-                        decoration: BoxDecoration(
-                          color: cGreenTint,
-                          borderRadius: BorderRadius.circular(24),
-                        ),
-                        child: const Icon(Icons.lock_reset_rounded,
-                            color: cGreen, size: 38),
-                      ),
-                      const SizedBox(height: 20),
-                      Text(tr('Введите вашу почту', 'Поштаңызды енгізіңіз'),
-                          style: manrope(19, FontWeight.w800, color: cInk)),
-                      const SizedBox(height: 6),
-                      Text(
-                        tr('Мы отправим ссылку для восстановления пароля.', 'Құпиясөзді қалпына келтіру сілтемесін жібереміз.'),
-                        style: manrope(13.5, FontWeight.w500, color: cInk2,
-                            height: 1.5),
-                      ),
-                      const SizedBox(height: 22),
-                      Text('Email',
-                          style: manrope(12.5, FontWeight.w700, color: cInk2)),
-                      const SizedBox(height: 6),
-                      Container(
-                        height: 52,
-                        decoration: BoxDecoration(
-                          color: cSurface,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: cLine, width: 1.5),
-                        ),
-                        child: Row(children: [
-                          const SizedBox(width: 14),
-                          const Icon(Icons.email_outlined,
-                              color: cInk3, size: 19),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: TextField(
-                              controller: _emailCtrl,
-                              keyboardType: TextInputType.emailAddress,
-                              onChanged: (_) {
-                                if (_error != null) {
-                                  setState(() => _error = null);
-                                }
-                              },
-                              style: manrope(15, FontWeight.w600, color: cInk),
-                              cursorColor: cGreen,
-                              decoration: InputDecoration(
-                                hintText: 'example@mail.com',
-                                hintStyle:
-                                    manrope(15, FontWeight.w500, color: cInk3),
-                                border: InputBorder.none,
-                                enabledBorder: InputBorder.none,
-                                focusedBorder: InputBorder.none,
-                                contentPadding: EdgeInsets.zero,
-                                isDense: true,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 14),
-                        ]),
-                      ),
-                      if (_error != null) ...[
-                        const SizedBox(height: 12),
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: cRedTint,
-                            borderRadius: BorderRadius.circular(12),
-                            border:
-                                Border.all(color: cRed.withValues(alpha: 0.3)),
-                          ),
-                          child: Row(children: [
-                            const Icon(Icons.error_outline, color: cRed, size: 18),
-                            const SizedBox(width: 8),
-                            Expanded(
-                                child: Text(_error!,
-                                    style: manrope(13, FontWeight.w500,
-                                        color: cRed))),
-                          ]),
-                        ),
-                      ],
-                      const SizedBox(height: 22),
-                      QPrimaryButton(
-                        label: tr('Отправить ссылку', 'Сілтеме жіберу'),
-                        isLoading: _isLoading,
-                        onPressed: _submit,
-                      ),
-                    ],
+            padding: EdgeInsets.fromLTRB(
+                22, 26, 22, MediaQuery.of(context).viewInsets.bottom + MediaQuery.of(context).padding.bottom + 30),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    color: cGreenTint,
+                    borderRadius: BorderRadius.circular(24),
                   ),
+                  child: const Icon(Icons.lock_reset_rounded,
+                      color: cGreen, size: 38),
+                ),
+                const SizedBox(height: 20),
+                Text(tr('Подтвердите свой номер', 'Нөміріңізді растаңыз'),
+                    style: manrope(19, FontWeight.w800, color: cInk)),
+                const SizedBox(height: 6),
+                Text(
+                  tr('Подтвердите номер через Telegram, затем задайте новый пароль.',
+                      'Нөмірді Telegram арқылы растап, жаңа құпиясөз қойыңыз.'),
+                  style: manrope(13.5, FontWeight.w500, color: cInk2, height: 1.5),
+                ),
+                const SizedBox(height: 22),
+
+                // 1) Telegram растау
+                TelegramVerifyButton(
+                  onVerified: (phone, token) => setState(() {
+                    _verifiedPhone = phone;
+                    _verifyToken = token;
+                    _error = null;
+                  }),
+                ),
+
+                // 2) Жаңа құпиясөз (растаудан кейін)
+                if (verified) ...[
+                  const SizedBox(height: 20),
+                  Text(tr('Новый пароль', 'Жаңа құпиясөз'),
+                      style: manrope(12.5, FontWeight.w700, color: cInk2)),
+                  const SizedBox(height: 6),
+                  _passwordBox(
+                    controller: _passCtrl,
+                    hint: tr('Минимум 6 символов', 'Кемінде 6 таңба'),
+                    obscure: _obscure,
+                    onToggle: () => setState(() => _obscure = !_obscure),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(tr('Повторите пароль', 'Құпиясөзді қайталаңыз'),
+                      style: manrope(12.5, FontWeight.w700, color: cInk2)),
+                  const SizedBox(height: 6),
+                  _passwordBox(
+                    controller: _confirmCtrl,
+                    hint: tr('Повторите пароль', 'Құпиясөзді қайталаңыз'),
+                    obscure: _obscure,
+                    onToggle: () => setState(() => _obscure = !_obscure),
+                  ),
+                ],
+
+                if (_error != null) ...[
+                  const SizedBox(height: 14),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: cRedTint,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: cRed.withValues(alpha: 0.3)),
+                    ),
+                    child: Row(children: [
+                      const Icon(Icons.error_outline, color: cRed, size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(
+                          child: Text(_error!,
+                              style: manrope(13, FontWeight.w500, color: cRed))),
+                    ]),
+                  ),
+                ],
+
+                if (verified) ...[
+                  const SizedBox(height: 22),
+                  QPrimaryButton(
+                    label: tr('Сохранить пароль', 'Құпиясөзді сақтау'),
+                    isLoading: _isLoading,
+                    onPressed: _submit,
+                  ),
+                ],
+              ],
+            ),
           ),
         ),
       ]),
     );
   }
 
-  Widget _buildSent(String email) => Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          const SizedBox(height: 12),
-          Container(
-            width: 84,
-            height: 84,
-            decoration: BoxDecoration(
-              color: cGreenTint,
-              borderRadius: BorderRadius.circular(26),
+  Widget _passwordBox({
+    required TextEditingController controller,
+    required String hint,
+    required bool obscure,
+    required VoidCallback onToggle,
+  }) {
+    return Container(
+      height: 52,
+      decoration: BoxDecoration(
+        color: cSurface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: cLine, width: 1.5),
+      ),
+      child: Row(children: [
+        const SizedBox(width: 14),
+        const Icon(Icons.lock_outline_rounded, color: cInk3, size: 19),
+        const SizedBox(width: 10),
+        Expanded(
+          child: TextField(
+            controller: controller,
+            obscureText: obscure,
+            style: manrope(15, FontWeight.w600, color: cInk),
+            cursorColor: cGreen,
+            decoration: InputDecoration(
+              hintText: hint,
+              hintStyle: manrope(15, FontWeight.w500, color: cInk3),
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              contentPadding: EdgeInsets.zero,
+              isDense: true,
             ),
-            child: const Icon(Icons.mark_email_read_outlined,
-                color: cGreen, size: 40),
           ),
-          const SizedBox(height: 22),
-          Text(tr('Проверьте почту', 'Тексеріңіз'),
-              style: manrope(20, FontWeight.w800, color: cInk),
-              textAlign: TextAlign.center),
-          const SizedBox(height: 10),
-          Text(
-            tr('Если аккаунт существует, инструкция отправлена на $email.', 'Егер аккаунт болса, $email адресіне нұсқаулық жіберілді.'),
-            style: manrope(14.5, FontWeight.w500, color: cInk2, height: 1.5),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 30),
-          QPrimaryButton(
-            label: tr('Вернуться ко входу', 'Кіруге оралу'),
-            onPressed: () => Navigator.pop(context),
-          ),
-        ],
-      );
+        ),
+        GestureDetector(
+          onTap: onToggle,
+          child: Icon(
+              obscure
+                  ? Icons.visibility_outlined
+                  : Icons.visibility_off_outlined,
+              color: cInk3,
+              size: 20),
+        ),
+        const SizedBox(width: 14),
+      ]),
+    );
+  }
 }

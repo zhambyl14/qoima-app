@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../core/l10n_ext.dart';
+import '../../core/phone_input.dart';
 import '../../data/services/auth_service.dart';
 import '../../theme/qoima_design.dart';
-import 'google_sign_in_button.dart';
 import 'register_screen.dart';
 import 'client_login_screen.dart';
 import 'forgot_password_screen.dart';
@@ -20,7 +21,7 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _emailCtrl = TextEditingController();
+  final _phoneCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   final _authService = AuthService();
 
@@ -30,7 +31,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
-    _emailCtrl.dispose();
+    _phoneCtrl.dispose();
     _passwordCtrl.dispose();
     super.dispose();
   }
@@ -42,8 +43,8 @@ class _LoginScreenState extends State<LoginScreen> {
       _errorMessage = null;
     });
     try {
-      await _authService.signIn(
-        email: _emailCtrl.text,
+      await _authService.loginWithPhonePassword(
+        phoneNumber: kzPhoneToE164(_phoneCtrl.text),
         password: _passwordCtrl.text,
       );
       widget.afterLogin?.call();
@@ -112,17 +113,20 @@ class _LoginScreenState extends State<LoginScreen> {
                     style: manrope(21, FontWeight.w800, color: cInk)),
                 const SizedBox(height: 14),
 
-                // Email
+                // Телефон
                 _buildField(
-                  controller: _emailCtrl,
-                  label: context.l10n.email,
-                  icon: Icons.email_outlined,
-                  keyboardType: TextInputType.emailAddress,
+                  controller: _phoneCtrl,
+                  label: tr('Номер телефона', 'Телефон нөмірі'),
+                  icon: Icons.phone_outlined,
+                  keyboardType: TextInputType.phone,
+                  inputFormatters: [KzPhoneInputFormatter()],
                   validator: (v) {
                     if (v == null || v.trim().isEmpty) {
-                      return context.l10n.validationEmailRequired;
+                      return tr('Введите номер телефона', 'Телефон нөмірін енгізіңіз');
                     }
-                    if (!v.contains('@')) return context.l10n.validationEmail;
+                    if (!isValidKzPhone(v)) {
+                      return tr('Введите номер полностью', 'Нөмірді толық енгізіңіз');
+                    }
                     return null;
                   },
                 ),
@@ -194,9 +198,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   onPressed: _signIn,
                 ),
 
-                const SizedBox(height: 14),
-                GoogleSignInButton(afterLogin: widget.afterLogin),
-
                 const SizedBox(height: 16),
                 Container(height: 1, color: cLine),
                 const SizedBox(height: 14),
@@ -251,6 +252,7 @@ class _LoginScreenState extends State<LoginScreen> {
     bool obscureText = false,
     Widget? suffix,
     String? Function(String?)? validator,
+    List<TextInputFormatter>? inputFormatters,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -273,6 +275,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 controller: controller,
                 keyboardType: keyboardType,
                 obscureText: obscureText,
+                inputFormatters: inputFormatters,
                 style: manrope(15, FontWeight.w600, color: cInk),
                 validator: validator,
                 cursorColor: cGreen,

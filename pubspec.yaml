@@ -14,7 +14,6 @@ dependencies:
 
   # ── Supabase (backend) ─────────────────────────────────────────────────────
   supabase_flutter: ^2.8.0
-  google_sign_in: ^6.2.1 # Google-мен кіру (native) → signInWithIdToken
   http: ^1.2.1
   crypto: ^3.0.7 # Cloudinary signed destroy (суретті жою) үшін SHA-1
   image_picker: ^1.1.2

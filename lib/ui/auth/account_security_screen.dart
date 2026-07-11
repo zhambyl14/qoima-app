@@ -39,22 +39,13 @@ class AccountSecurityScreen extends StatelessWidget {
                 onTap: () => _openSheet(context, const _ChangeNameSheet()),
               ),
               const SizedBox(height: 10),
-              if (showPhone) ...[
-                QMenuItem(
-                  icon: Icons.phone_outlined,
-                  tone: 'green',
-                  title: tr('Номер телефона', 'Телефон нөмірі'),
-                  subtitle: tr('Изменить номер входа', 'Кіру нөмірін өзгерту'),
-                  onTap: () => _openSheet(context, const _ChangePhoneSheet()),
-                ),
-                const SizedBox(height: 10),
-              ],
+              // Барлық рөл телефонмен кіреді — нөмір өзгерту әрқашан қолжетімді.
               QMenuItem(
-                icon: Icons.email_outlined,
-                tone: 'blue',
-                title: 'Email',
-                subtitle: tr('Изменить почту', 'Поштаны өзгерту'),
-                onTap: () => _openSheet(context, const _ChangeEmailSheet()),
+                icon: Icons.phone_outlined,
+                tone: 'green',
+                title: tr('Номер телефона', 'Телефон нөмірі'),
+                subtitle: tr('Изменить номер входа', 'Кіру нөмірін өзгерту'),
+                onTap: () => _openSheet(context, const _ChangePhoneSheet()),
               ),
               const SizedBox(height: 10),
               QMenuItem(
@@ -376,98 +367,6 @@ class _ChangePhoneSheetState extends State<_ChangePhoneSheet> {
         if (_error != null) _SheetError(_error!),
         QPrimaryButton(
           label: tr('Сохранить', 'Сақтау'),
-          isLoading: _loading,
-          onPressed: _submit,
-        ),
-      ],
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  Email өзгерту
-// ─────────────────────────────────────────────────────────────────────────────
-class _ChangeEmailSheet extends StatefulWidget {
-  const _ChangeEmailSheet();
-  @override
-  State<_ChangeEmailSheet> createState() => _ChangeEmailSheetState();
-}
-
-class _ChangeEmailSheetState extends State<_ChangeEmailSheet> {
-  final _auth = AuthService();
-  final _passCtrl = TextEditingController();
-  final _emailCtrl = TextEditingController();
-  bool _loading = false;
-  bool _obscure = true;
-  String? _error;
-
-  @override
-  void dispose() {
-    _passCtrl.dispose();
-    _emailCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _submit() async {
-    if (_passCtrl.text.isEmpty) {
-      setState(() => _error = tr('Введите текущий пароль', 'Ағымдағы құпиясөзді енгізіңіз'));
-      return;
-    }
-    final email = _emailCtrl.text.trim();
-    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
-      setState(() => _error = tr('Неверный формат email', 'Email форматы қате'));
-      return;
-    }
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    try {
-      await _auth.changeEmail(
-        currentPassword: _passCtrl.text,
-        newEmail: email,
-      );
-      if (!mounted) return;
-      Navigator.pop(context);
-      _toast(context, tr('Проверьте новую почту. Отправлена ссылка подтверждения.', 'Жаңа поштаңызды тексеріңіз. Растау сілтемесі жіберілді.'));
-    } on AuthFailure catch (e) {
-      setState(() => _error = e.message);
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return _SheetShell(
-      title: tr('Изменение email', 'Email өзгерту'),
-      children: [
-        _SecurityField(
-          controller: _passCtrl,
-          label: tr('Текущий пароль', 'Ағымдағы құпиясөз'),
-          hint: tr('Пароль', 'Құпиясөз'),
-          icon: Icons.lock_outline_rounded,
-          obscure: _obscure,
-          suffix: GestureDetector(
-            onTap: () => setState(() => _obscure = !_obscure),
-            child: Icon(
-                _obscure
-                    ? Icons.visibility_outlined
-                    : Icons.visibility_off_outlined,
-                color: cInk3,
-                size: 20),
-          ),
-        ),
-        _SecurityField(
-          controller: _emailCtrl,
-          label: tr('Новый email', 'Жаңа email'),
-          hint: 'example@mail.com',
-          icon: Icons.email_outlined,
-          keyboard: TextInputType.emailAddress,
-        ),
-        if (_error != null) _SheetError(_error!),
-        QPrimaryButton(
-          label: tr('Отправить ссылку подтверждения', 'Растау сілтемесін жіберу'),
           isLoading: _loading,
           onPressed: _submit,
         ),

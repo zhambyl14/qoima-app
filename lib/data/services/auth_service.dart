@@ -1,12 +1,7 @@
-import 'dart:math';
-
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/user_model.dart';
 import '../models/client_model.dart';
 import '../../core/app_user.dart';
-import '../../core/supabase_config.dart';
 
 import '../../core/lang.dart';
 /// Аутентификация қателерін UI-ге жеткізетін типтелген қате.
@@ -19,47 +14,56 @@ class AuthFailure implements Exception {
   String toString() => message;
 }
 
-/// Supabase Auth + Postgres профильдер (Firebase орнына).
+/// Supabase Auth + Postgres профильдер.
 ///
-/// Клиент: телефон + email + құпиясөз. Кіру — телефон→email RPC арқылы.
+/// БАРЛЫҚ рөл (client/seller/admin/superadmin) — ТЕЛЕФОН + ҚҰПИЯСӨЗБЕН
+/// тіркеледі әрі кіреді. Email қолданушыға көрінбейді: Supabase password
+/// логині идентификатор талап еткендіктен, телефоннан «синтетикалық» email
+/// жасалады (`<цифрлар>@qoima.app`). Кіру: телефон → email_for_phone RPC →
+/// signInWithPassword(email).
+///
+/// Телефон нөмірі тіркелуде Telegram боты арқылы РАСТАЛАДЫ (SMS-сіз, тегін) —
+/// [startTelegramVerification] / [checkTelegramVerification]. Парольді
+/// қалпына келтіру де солай ([resetPasswordViaTelegram]).
+///
 /// Верификация ЖОҚ: signUp бірден сессия ашады (Dashboard-та «Confirm email»
 /// өшірулі + auto_confirm_email триггері). Профиль жолдарын `handle_new_user`
 /// триггері signUp метадеректерінен жасайды.
 class AuthService {
   final SupabaseClient _sb = Supabase.instance.client;
 
-  // Google native кіру клиенті. serverClientId — WEB OAuth client ID
-  // (idToken-ның audience-і Supabase-тегі тізіммен сәйкес болу үшін).
-  static final GoogleSignIn _google = GoogleSignIn(
-    serverClientId: SupabaseConfig.googleWebClientId,
-  );
-
   User? get currentUser => _sb.auth.currentUser;
   String? get currentUid => _sb.auth.currentUser?.id;
   Stream<AuthState> get authStateChanges => _sb.auth.onAuthStateChange;
 
+  /// Телефоннан жасырын (синтетикалық) email: `+77001234567` → `77001234567@qoima.app`.
+  /// Supabase Auth password логині үшін ішкі идентификатор. Қолданушы көрмейді.
+  static String _syntheticEmail(String phone) {
+    final digits = phone.replaceAll(RegExp(r'\D'), '');
+    return '$digits@qoima.app';
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
-  //  CLIENT — телефон + email + құпиясөз (өзін-өзі тіркеу)
+  //  CLIENT — телефон + құпиясөз (өзін-өзі тіркеу)
   // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Жаңа клиентті тіркейді. Профильді триггер метадеректерден жасайды.
-  /// Верификация жоқ — signUp соң сессия БІРДЕН басталады, gate ClientShell-ге өтеді.
+  /// Жаңа клиентті тіркейді. Телефон Telegram-мен РАСТАЛҒАН болуы керек.
+  /// Профильді триггер метадеректерден жасайды. Верификация жоқ — signUp соң
+  /// сессия БІРДЕН басталады, gate ClientShell-ге өтеді.
   Future<void> registerClient({
-    required String email,
-    required String phoneNumber, // E.164: +7XXXXXXXXXX
+    required String phoneNumber, // E.164: +7XXXXXXXXXX (Telegram-мен расталған)
     required String password,
     required String name,
     required String city,
   }) async {
-    final cleanEmail = email.trim().toLowerCase();
-
     // a) Телефон бос па (anon RPC: телефон→email)
     final existing = await emailForPhone(phoneNumber);
     if (existing != null && existing.isNotEmpty) {
       throw AuthFailure(tr('Этот номер телефона уже зарегистрирован', 'Бұл телефон нөмір тіркелген'), code: 'phone-in-use');
     }
 
-    // b) Auth аккаунты + профиль метадеректері (триггер clients жолын жасайды)
+    // b) Auth аккаунты (синтетикалық email) + профиль метадеректері
+    final cleanEmail = _syntheticEmail(phoneNumber);
     try {
       final res = await _sb.auth.signUp(
         email: cleanEmail,
@@ -71,8 +75,6 @@ class AuthService {
           'city': city,
         },
       );
-      // «Confirm email» өшірулі болса сессия осында келеді. Қосулы қалып
-      // қойса да auto_confirm_email триггері растап қояды — кіріп көреміз.
       if (res.session == null) {
         await _sb.auth
             .signInWithPassword(email: cleanEmail, password: password);
@@ -82,14 +84,15 @@ class AuthService {
     }
   }
 
-  /// Телефон → email RPC (кіруден бұрын anon шақырады). phoneIndex орнына.
+  /// Телефон → email RPC (кіруден бұрын anon шақырады). Барлық рөлге ортақ.
   Future<String?> emailForPhone(String phoneNumber) async {
-    final res = await _sb.rpc('client_email_for_phone',
+    final res = await _sb.rpc('email_for_phone',
         params: {'p_phone': phoneNumber});
     return res as String?;
   }
 
-  /// Телефон + құпиясөзбен кіру: RPC телефон→email → signInWithPassword.
+  /// Телефон + құпиясөзбен кіру (барлық рөлге ортақ): RPC телефон→email →
+  /// signInWithPassword.
   Future<void> loginWithPhonePassword({
     required String phoneNumber,
     required String password,
@@ -105,12 +108,57 @@ class AuthService {
     }
   }
 
-  /// Құпиясөзді қалпына келтіру сілтемесін жібереді (бейтарап хабар).
-  Future<void> sendPasswordReset(String email) async {
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  TELEGRAM телефон растау (тіркелу + парольді қалпына келтіру)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Жаңа растау сессиясын бастайды: кездейсоқ токен қайтарады. Қосымша осы
+  /// токенмен `t.me/<bot>?start=<token>` сілтемесін ашады.
+  Future<String> startTelegramVerification() async {
+    final res = await _sb.rpc('tg_start_verification');
+    return res as String;
+  }
+
+  /// Растау статусын сұрайды (polling). Расталса phone (+7XXXXXXXXXX) қайтарады.
+  Future<({bool verified, String? phone})> checkTelegramVerification(
+      String token) async {
+    final res = await _sb.rpc('tg_check_verification', params: {'p_token': token});
+    final m = (res is Map) ? res.cast<String, dynamic>() : <String, dynamic>{};
+    return (verified: m['verified'] == true, phone: m['phone'] as String?);
+  }
+
+  /// Парольді Telegram арқылы қалпына келтіреді: расталған токенмен edge
+  /// функциясы (service_role) парольді жаңартады, содан соң жаңа парольмен
+  /// кіреміз. [token] расталған (verified) болуы шарт.
+  Future<void> resetPasswordViaTelegram({
+    required String token,
+    required String newPassword,
+  }) async {
     try {
-      await _sb.auth.resetPasswordForEmail(email.trim());
-    } on AuthException catch (_) {
-      // Аккаунттың бар-жоғын ашпаймыз — UI бейтарап хабар көрсетеді.
+      final res = await _sb.functions.invoke('tg-reset-password',
+          body: {'token': token, 'newPassword': newPassword});
+      final data = res.data;
+      final phone = (data is Map) ? data['phone'] as String? : null;
+      if (res.status != 200 || phone == null || phone.isEmpty) {
+        throw AuthFailure(tr('Не удалось сбросить пароль', 'Парольді қалпына келтіру сәтсіз'),
+            code: 'reset-failed');
+      }
+      await loginWithPhonePassword(phoneNumber: phone, password: newPassword);
+    } on FunctionException catch (e) {
+      final detail = (e.details is Map) ? (e.details as Map)['error'] : null;
+      switch (detail) {
+        case 'not_verified':
+          throw AuthFailure(tr('Номер не подтверждён', 'Нөмір расталмаған'), code: 'not-verified');
+        case 'no_account':
+          throw AuthFailure(tr('Аккаунт с этим номером не найден', 'Бұл нөмірмен аккаунт табылмады'),
+              code: 'user-not-found');
+        case 'weak_password':
+          throw AuthFailure(tr('Пароль должен быть не короче 6 символов', 'Құпиясөз кем дегенде 6 таңба болуы керек'),
+              code: 'weak-password');
+        default:
+          throw AuthFailure(tr('Не удалось сбросить пароль', 'Парольді қалпына келтіру сәтсіз'),
+              code: 'reset-failed');
+      }
     }
   }
 
@@ -119,7 +167,7 @@ class AuthService {
   // ═══════════════════════════════════════════════════════════════════════════
 
   /// Телефон нөмірін өзгерту: reauth → бостығын тексеру → профильді жаңарту.
-  /// (Телефон Auth идентификаторы емес — тек clients жолында сақталады.)
+  /// Рөлге тәуелсіз екі кестені де жаңартады (тек бар жол өзгереді).
   Future<void> changePhoneNumber({
     required String currentPassword,
     required String newPhone, // E.164
@@ -132,25 +180,8 @@ class AuthService {
       throw AuthFailure(tr('Этот номер привязан к другому аккаунту', 'Бұл нөмір басқа аккаунтта тіркелген'),
           code: 'phone-in-use');
     }
+    await _sb.from('users').update({'phone': newPhone}).eq('id', user.id);
     await _sb.from('clients').update({'phone': newPhone}).eq('id', user.id);
-  }
-
-  /// Email өзгерту: reauth → updateUser(email). Supabase жаңа поштаға растау
-  /// жібереді; расталған соң Auth email жаңарады, [syncEmailIfChanged] профильді
-  /// сәйкестендіреді.
-  Future<void> changeEmail({
-    required String currentPassword,
-    required String newEmail,
-  }) async {
-    final user = _requireUser();
-    await _reauth(user, currentPassword);
-    try {
-      await _sb.auth.updateUser(
-        UserAttributes(email: newEmail.trim().toLowerCase()),
-      );
-    } on AuthException catch (e) {
-      throw _mapAuthError(e);
-    }
   }
 
   /// Құпиясөзді өзгерту: ағымдағымен reauth → updateUser(password).
@@ -167,44 +198,29 @@ class AuthService {
     }
   }
 
-  /// Auth email профильдегіден өзгеше болса (өзгерту расталған) — профиль
-  /// (users/clients) email-ін сәйкестендіреді.
-  Future<void> syncEmailIfChanged() async {
-    final user = _sb.auth.currentUser;
-    final authEmail = user?.email?.toLowerCase();
-    if (user == null || authEmail == null || authEmail.isEmpty) return;
-    // users → clients ретімен тексеріп, сәйкессіздікті түзейміз.
-    final u = await _sb.from('users').select('email').eq('id', user.id).maybeSingle();
-    if (u != null) {
-      if ((u['email'] as String?)?.toLowerCase() != authEmail) {
-        await _sb.from('users').update({'email': authEmail}).eq('id', user.id);
-      }
-      return;
-    }
-    final c = await _sb.from('clients').select('email').eq('id', user.id).maybeSingle();
-    if (c != null && (c['email'] as String?)?.toLowerCase() != authEmail) {
-      await _sb.from('clients').update({'email': authEmail}).eq('id', user.id);
-    }
-  }
-
   // ═══════════════════════════════════════════════════════════════════════════
-  //  SELLER / ADMIN — email + құпиясөз
+  //  SELLER / ADMIN — телефон + құпиясөз
   // ═══════════════════════════════════════════════════════════════════════════
 
-  /// seller/admin тіркеу. Профильді (+admin бизнес коды) триггер жасайды.
-  /// Верификация жоқ — signUp соң сессия бірден басталады, gate рөлге қарай өтеді.
+  /// seller/admin тіркеу. Телефон Telegram-мен РАСТАЛҒАН болуы керек.
+  /// Профильді (+admin бизнес коды) триггер жасайды. Верификация жоқ — signUp
+  /// соң сессия бірден басталады, gate рөлге қарай өтеді.
   Future<void> register({
     required String name,
-    required String email,
+    required String phoneNumber, // E.164 (Telegram-мен расталған)
     required String password,
     required String role, // 'admin' | 'seller'
   }) async {
-    final cleanEmail = email.trim().toLowerCase();
+    final existing = await emailForPhone(phoneNumber);
+    if (existing != null && existing.isNotEmpty) {
+      throw AuthFailure(tr('Этот номер телефона уже зарегистрирован', 'Бұл телефон нөмір тіркелген'), code: 'phone-in-use');
+    }
+    final cleanEmail = _syntheticEmail(phoneNumber);
     try {
       final res = await _sb.auth.signUp(
         email: cleanEmail,
         password: password,
-        data: {'role': role, 'name': name.trim()},
+        data: {'role': role, 'name': name.trim(), 'phone': phoneNumber},
       );
       if (res.session == null) {
         await _sb.auth
@@ -213,139 +229,6 @@ class AuthService {
     } on AuthException catch (e) {
       throw _mapAuthError(e);
     }
-  }
-
-  Future<void> signIn({
-    required String email,
-    required String password,
-  }) async {
-    try {
-      await _sb.auth.signInWithPassword(
-          email: email.trim().toLowerCase(), password: password);
-    } on AuthException catch (e) {
-      throw _mapAuthError(e);
-    }
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  //  GOOGLE-МЕН КІРУ (барлық рөлдер — қосымша кіру/тіркелу жолы)
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  /// Google аккаунтымен кіреді. Телефонда — native SDK (idToken →
-  /// signInWithIdToken); вебте native SDK жоқ, сондықтан Supabase-тің OAuth
-  /// redirect ағыны қолданылады (бет Google-ға өтіп, сессиямен қайта оралады).
-  /// Алғаш кірген қолданушыда профиль болмайды — gate CompleteProfileScreen
-  /// көрсетіп, рөл мен жетіспейтін деректерді (телефон/қала) сұрайды.
-  Future<void> signInWithGoogle() async {
-    if (kIsWeb) {
-      try {
-        await _sb.auth.signInWithOAuth(
-          OAuthProvider.google,
-          redirectTo: Uri.base.origin, // осы бетке қайта ораламыз
-        );
-      } on AuthException catch (e) {
-        throw _mapAuthError(e);
-      }
-      return; // redirect кетеді — сессия бет қайта жүктелгенде келеді
-    }
-
-    GoogleSignInAccount? account;
-    try {
-      // Аккаунт таңдау диалогы әр жолы шығуы үшін алдымен тазалаймыз.
-      try {
-        await _google.signOut();
-      } catch (_) {}
-      account = await _google.signIn();
-    } catch (e) {
-      throw AuthFailure(tr('Google недоступен: $e', 'Google қолжетімсіз: $e'), code: 'google-unavailable');
-    }
-    if (account == null) {
-      throw AuthFailure(tr('Вход отменён', 'Кіру тоқтатылды'), code: 'cancelled');
-    }
-    final auth = await account.authentication;
-    final idToken = auth.idToken;
-    if (idToken == null || idToken.isEmpty) {
-      throw AuthFailure(
-          tr('Не получен токен Google — проверьте настройку Web Client ID', 'Google токені алынбады — Web Client ID баптауын тексеріңіз'),
-          code: 'no-id-token');
-    }
-    try {
-      await _sb.auth.signInWithIdToken(
-        provider: OAuthProvider.google,
-        idToken: idToken,
-        accessToken: auth.accessToken,
-      );
-    } on AuthException catch (e) {
-      throw _mapAuthError(e);
-    }
-  }
-
-  /// Ағымдағы қолданушының Google-ден келген аты (профиль prefill үшін).
-  String get oauthDisplayName {
-    final m = _sb.auth.currentUser?.userMetadata ?? {};
-    return (m['full_name'] as String?) ?? (m['name'] as String?) ?? '';
-  }
-
-  /// Google-мен алғаш кірген қолданушы КЛИЕНТ профилін жасайды
-  /// (тіркеу формасындағы міндетті деректер: телефон + аты + қала).
-  Future<void> completeClientProfile({
-    required String phoneNumber, // E.164
-    required String name,
-    required String city,
-  }) async {
-    final user = _requireUser();
-    final existing = await emailForPhone(phoneNumber);
-    if (existing != null && existing.isNotEmpty) {
-      throw AuthFailure(tr('Этот номер телефона уже зарегистрирован', 'Бұл телефон нөмір тіркелген'), code: 'phone-in-use');
-    }
-    await _sb.from('clients').upsert({
-      'id': user.id,
-      'phone': phoneNumber,
-      'email': (user.email ?? '').toLowerCase(),
-      'name': name.trim(),
-      'city': city,
-      'email_verified': true,
-    }, onConflict: 'id');
-  }
-
-  /// Google-мен алғаш кірген қолданушы БИЗНЕС профилін жасайды
-  /// (role: 'admin' — дүкен иесі, бизнес-кодымен; 'seller' — сатушы).
-  Future<void> completeBusinessProfile({
-    required String name,
-    required String role, // 'admin' | 'seller'
-  }) async {
-    final user = _requireUser();
-    final email = (user.email ?? '').toLowerCase();
-    if (role == 'admin') {
-      final code = _generateBusinessCode();
-      await _sb.from('users').upsert({
-        'id': user.id,
-        'name': name.trim(),
-        'email': email,
-        'role': 'admin',
-        'owner_id': user.id,
-        'business_code': code,
-        'join_status': 'active',
-      }, onConflict: 'id');
-      await _sb
-          .from('business_codes')
-          .upsert({'code': code, 'admin_uid': user.id}, onConflict: 'code');
-    } else {
-      await _sb.from('users').upsert({
-        'id': user.id,
-        'name': name.trim(),
-        'email': email,
-        'role': 'seller',
-        'owner_id': null,
-        'join_status': 'none',
-      }, onConflict: 'id');
-    }
-  }
-
-  /// 6-цифрлы бизнес коды (handle_new_user триггеріндегі логикамен бірдей).
-  static String _generateBusinessCode() {
-    final r = Random();
-    return List.generate(6, (_) => r.nextInt(10)).join();
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -431,13 +314,6 @@ class AuthService {
 
   Future<void> signOut() async {
     AppUser.current.clear();
-    // Google сессиясын да тазалаймыз (келесіде аккаунт таңдау шығуы үшін).
-    // Вебте native плагин жоқ — тек Supabase signOut жеткілікті.
-    if (!kIsWeb) {
-      try {
-        await _google.signOut();
-      } catch (_) {}
-    }
     await _sb.auth.signOut();
   }
 
@@ -470,26 +346,16 @@ class AuthService {
     if (msg.contains('already registered') ||
         msg.contains('already been registered') ||
         msg.contains('user already')) {
-      return AuthFailure(tr('Этот email уже зарегистрирован', 'Бұл email тіркелген'), code: 'email-already-in-use');
+      return AuthFailure(tr('Этот номер уже зарегистрирован', 'Бұл нөмір тіркелген'), code: 'phone-in-use');
     }
     if (msg.contains('invalid login') ||
         msg.contains('invalid credentials') ||
         msg.contains('invalid email or password')) {
-      return AuthFailure(tr('Неверный email или пароль', 'Email немесе құпиясөз қате'), code: 'wrong-password');
-    }
-    if (msg.contains('email not confirmed')) {
-      return AuthFailure(tr('Подтвердите почту', 'Поштаңызды растаңыз'), code: 'email-not-confirmed');
-    }
-    if (msg.contains('token has expired') || msg.contains('invalid token') ||
-        msg.contains('otp')) {
-      return AuthFailure(tr('Неверный код или истёк срок действия', 'Код қате немесе мерзімі өтті'), code: 'invalid-otp');
+      return AuthFailure(tr('Неверный номер или пароль', 'Нөмір немесе құпиясөз қате'), code: 'wrong-password');
     }
     if (msg.contains('password should be') || msg.contains('weak')) {
       return AuthFailure(tr('Пароль должен быть не короче 6 символов', 'Құпиясөз кем дегенде 6 таңба болуы керек'),
           code: 'weak-password');
-    }
-    if (msg.contains('invalid email')) {
-      return AuthFailure(tr('Неверный формат email', 'Email форматы қате'), code: 'invalid-email');
     }
     if (msg.contains('rate') || msg.contains('too many')) {
       return AuthFailure(tr('Слишком много запросов. Повторите позже', 'Тым көп сұраныс. Кейінірек қайталаңыз'),
