@@ -13,20 +13,10 @@
 --
 --  Ағымдағы аккаунттар (0012 қолданылған кездегі):
 --    admin      Magzhan          test1@mail.ru
---    admin      Жамбыл Мағжан     tarazbltt2005@gmail.com
---    admin      samat            test3@mail.ru
---    admin      Асхат            askhat@mail.ru
---    admin      fe               we@we.we
 --    seller     мага             test2@mail.ru
---    seller     Максат           maksat@mail.ru
 --    superadmin Модератор        aergvae@bk.ru
 -- ════════════════════════════════════════════════════════════════════════════
 
 -- update public.users set phone = '+77474005347' where email = 'aergvae@bk.ru';        -- superadmin
--- update public.users set phone = '+77474005349' where email = 'tarazbltt2005@gmail.com';
--- update public.users set phone = '+77474005350' where email = 'test1@mail.ru';
--- update public.users set phone = '+77474005351' where email = 'test3@mail.ru';
--- update public.users set phone = '+77474005352' where email = 'askhat@mail.ru';
--- update public.users set phone = '+77474005353' where email = 'we@we.we';
--- update public.users set phone = '+77474005348' where email = 'test2@mail.ru';
--- update public.users set phone = '+77474005355' where email = 'maksat@mail.ru';
+-- update public.users set phone = '+77474005349' where email = 'test1@mail.ru';
+-- update public.users set phone = '+77474005350' where email = 'test2@mail.ru';

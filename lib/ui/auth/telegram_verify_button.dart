@@ -57,10 +57,16 @@ class _TelegramVerifyButtonState extends State<TelegramVerifyButton> {
       final token = await _auth.startTelegramVerification();
       _token = token;
       final uri = Uri.parse(SupabaseConfig.telegramStartUrl(token));
-      // Telegram қосымшасын (немесе браузерді) ашамыз.
-      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      // Telegram қосымшасын (мобильде) немесе браузер бетін (вебте) ашамыз.
+      // Вебте жаңа бетте ашылады (_blank), мобильде — сыртқы қосымша.
+      final ok = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+        webOnlyWindowName: '_blank',
+      );
       if (!ok) {
-        await launchUrl(uri, mode: LaunchMode.platformDefault);
+        await launchUrl(uri,
+            mode: LaunchMode.platformDefault, webOnlyWindowName: '_blank');
       }
       _beginPolling();
     } catch (_) {

@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../core/app_user.dart';
-import '../../core/phone_input.dart';
 import '../../data/services/auth_service.dart';
 import '../../theme/qoima_design.dart';
+import 'telegram_verify_button.dart';
 
 import '../../core/lang.dart';
 /// Барлық рөлдерге ортақ «Жеке деректер» экраны: телефон/email/құпиясөз өзгерту.
@@ -118,8 +117,6 @@ class _SecurityField extends StatelessWidget {
   final IconData icon;
   final bool obscure;
   final Widget? suffix;
-  final TextInputType? keyboard;
-  final List<TextInputFormatter>? formatters;
 
   const _SecurityField({
     required this.controller,
@@ -128,8 +125,6 @@ class _SecurityField extends StatelessWidget {
     required this.icon,
     this.obscure = false,
     this.suffix,
-    this.keyboard,
-    this.formatters,
   });
 
   @override
@@ -154,8 +149,6 @@ class _SecurityField extends StatelessWidget {
               child: TextField(
                 controller: controller,
                 obscureText: obscure,
-                keyboardType: keyboard,
-                inputFormatters: formatters,
                 style: manrope(15, FontWeight.w600, color: cInk),
                 cursorColor: cGreen,
                 decoration: InputDecoration(
@@ -268,7 +261,6 @@ class _ChangeNameSheetState extends State<_ChangeNameSheet> {
           label: tr('Имя', 'Есім'),
           hint: tr('Ваше имя', 'Есіміңіз'),
           icon: Icons.badge_outlined,
-          keyboard: TextInputType.name,
         ),
         if (_error != null) _SheetError(_error!),
         QPrimaryButton(
@@ -292,38 +284,22 @@ class _ChangePhoneSheet extends StatefulWidget {
 
 class _ChangePhoneSheetState extends State<_ChangePhoneSheet> {
   final _auth = AuthService();
-  final _passCtrl = TextEditingController();
-  final _phoneCtrl = TextEditingController();
+  String? _verifiedPhone; // Telegram-мен расталған жаңа нөмір
   bool _loading = false;
-  bool _obscure = true;
   String? _error;
 
-  @override
-  void dispose() {
-    _passCtrl.dispose();
-    _phoneCtrl.dispose();
-    super.dispose();
-  }
-
   Future<void> _submit() async {
-    if (_passCtrl.text.isEmpty) {
-      setState(() => _error = tr('Введите текущий пароль', 'Ағымдағы құпиясөзді енгізіңіз'));
-      return;
-    }
-    if (!isValidKzPhone(_phoneCtrl.text)) {
-      setState(() => _error = tr('Введите номер телефона полностью', 'Телефон нөмірін толық енгізіңіз'));
+    if (_verifiedPhone == null) {
+      setState(() => _error = tr('Подтвердите новый номер через Telegram', 'Жаңа нөмірді Telegram арқылы растаңыз'));
       return;
     }
     setState(() {
       _loading = true;
       _error = null;
     });
-    final newPhone = kzPhoneToE164(_phoneCtrl.text);
+    final newPhone = _verifiedPhone!;
     try {
-      await _auth.changePhoneNumber(
-        currentPassword: _passCtrl.text,
-        newPhone: newPhone,
-      );
+      await _auth.changePhoneVerified(newPhone: newPhone);
       if (!mounted) return;
       context.read<AppUser>().updatePhone(newPhone);
       Navigator.pop(context);
@@ -340,30 +316,19 @@ class _ChangePhoneSheetState extends State<_ChangePhoneSheet> {
     return _SheetShell(
       title: tr('Изменение номера телефона', 'Телефон нөмірін өзгерту'),
       children: [
-        _SecurityField(
-          controller: _passCtrl,
-          label: tr('Текущий пароль', 'Ағымдағы құпиясөз'),
-          hint: tr('Пароль', 'Құпиясөз'),
-          icon: Icons.lock_outline_rounded,
-          obscure: _obscure,
-          suffix: GestureDetector(
-            onTap: () => setState(() => _obscure = !_obscure),
-            child: Icon(
-                _obscure
-                    ? Icons.visibility_outlined
-                    : Icons.visibility_off_outlined,
-                color: cInk3,
-                size: 20),
-          ),
+        Text(
+          tr('Подтвердите новый номер через Telegram — вход будет по нему.',
+              'Жаңа нөмірді Telegram арқылы растаңыз — кіру сол нөмірмен болады.'),
+          style: manrope(13, FontWeight.w500, color: cInk2, height: 1.4),
         ),
-        _SecurityField(
-          controller: _phoneCtrl,
-          label: tr('Новый номер телефона', 'Жаңа телефон нөмірі'),
-          hint: '+7 (700) 000-00-00',
-          icon: Icons.phone_outlined,
-          keyboard: TextInputType.phone,
-          formatters: [KzPhoneInputFormatter()],
+        const SizedBox(height: 14),
+        TelegramVerifyButton(
+          onVerified: (phone, _) => setState(() {
+            _verifiedPhone = phone;
+            _error = null;
+          }),
         ),
+        const SizedBox(height: 14),
         if (_error != null) _SheetError(_error!),
         QPrimaryButton(
           label: tr('Сохранить', 'Сақтау'),
@@ -386,25 +351,23 @@ class _ChangePasswordSheet extends StatefulWidget {
 
 class _ChangePasswordSheetState extends State<_ChangePasswordSheet> {
   final _auth = AuthService();
-  final _currentCtrl = TextEditingController();
   final _newCtrl = TextEditingController();
   final _confirmCtrl = TextEditingController();
+  bool _verified = false; // Telegram растауы (иелік дәлелі)
   bool _loading = false;
-  bool _obscureCur = true;
   bool _obscureNew = true;
   String? _error;
 
   @override
   void dispose() {
-    _currentCtrl.dispose();
     _newCtrl.dispose();
     _confirmCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _submit() async {
-    if (_currentCtrl.text.isEmpty) {
-      setState(() => _error = tr('Введите текущий пароль', 'Ағымдағы құпиясөзді енгізіңіз'));
+    if (!_verified) {
+      setState(() => _error = tr('Подтвердите номер через Telegram', 'Нөмірді Telegram арқылы растаңыз'));
       return;
     }
     if (_newCtrl.text.length < 6) {
@@ -420,10 +383,9 @@ class _ChangePasswordSheetState extends State<_ChangePasswordSheet> {
       _error = null;
     });
     try {
-      await _auth.changePassword(
-        currentPassword: _currentCtrl.text,
-        newPassword: _newCtrl.text,
-      );
+      // Қолданушы кіріп тұр әрі Telegram нөмір иесі екенін дәлелдеді — ескі
+      // пароль қажет емес.
+      await _auth.changePassword(newPassword: _newCtrl.text);
       if (!mounted) return;
       Navigator.pop(context);
       _toast(context, tr('Пароль успешно изменён', 'Құпиясөз сәтті өзгертілді'));
@@ -439,45 +401,44 @@ class _ChangePasswordSheetState extends State<_ChangePasswordSheet> {
     return _SheetShell(
       title: tr('Изменение пароля', 'Құпиясөзді өзгерту'),
       children: [
-        _SecurityField(
-          controller: _currentCtrl,
-          label: tr('Текущий пароль', 'Ағымдағы құпиясөз'),
-          hint: tr('Пароль', 'Құпиясөз'),
-          icon: Icons.lock_outline_rounded,
-          obscure: _obscureCur,
-          suffix: GestureDetector(
-            onTap: () => setState(() => _obscureCur = !_obscureCur),
-            child: Icon(
-                _obscureCur
-                    ? Icons.visibility_outlined
-                    : Icons.visibility_off_outlined,
-                color: cInk3,
-                size: 20),
+        Text(
+          tr('Подтвердите свой номер через Telegram, затем задайте новый пароль.',
+              'Нөміріңізді Telegram арқылы растап, жаңа құпиясөз қойыңыз.'),
+          style: manrope(13, FontWeight.w500, color: cInk2, height: 1.4),
+        ),
+        const SizedBox(height: 14),
+        TelegramVerifyButton(
+          onVerified: (_, __) => setState(() {
+            _verified = true;
+            _error = null;
+          }),
+        ),
+        const SizedBox(height: 14),
+        if (_verified) ...[
+          _SecurityField(
+            controller: _newCtrl,
+            label: tr('Новый пароль', 'Жаңа құпиясөз'),
+            hint: tr('Минимум 6 символов', 'Кемінде 6 таңба'),
+            icon: Icons.lock_reset_rounded,
+            obscure: _obscureNew,
+            suffix: GestureDetector(
+              onTap: () => setState(() => _obscureNew = !_obscureNew),
+              child: Icon(
+                  _obscureNew
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined,
+                  color: cInk3,
+                  size: 20),
+            ),
           ),
-        ),
-        _SecurityField(
-          controller: _newCtrl,
-          label: tr('Новый пароль', 'Жаңа құпиясөз'),
-          hint: tr('Минимум 6 символов', 'Кемінде 6 таңба'),
-          icon: Icons.lock_reset_rounded,
-          obscure: _obscureNew,
-          suffix: GestureDetector(
-            onTap: () => setState(() => _obscureNew = !_obscureNew),
-            child: Icon(
-                _obscureNew
-                    ? Icons.visibility_outlined
-                    : Icons.visibility_off_outlined,
-                color: cInk3,
-                size: 20),
+          _SecurityField(
+            controller: _confirmCtrl,
+            label: tr('Повторите новый пароль', 'Жаңа құпиясөзді қайталаңыз'),
+            hint: tr('Повторите', 'Қайталаңыз'),
+            icon: Icons.lock_reset_rounded,
+            obscure: _obscureNew,
           ),
-        ),
-        _SecurityField(
-          controller: _confirmCtrl,
-          label: tr('Повторите новый пароль', 'Жаңа құпиясөзді қайталаңыз'),
-          hint: tr('Повторите', 'Қайталаңыз'),
-          icon: Icons.lock_reset_rounded,
-          obscure: _obscureNew,
-        ),
+        ],
         if (_error != null) _SheetError(_error!),
         QPrimaryButton(
           label: tr('Сохранить', 'Сақтау'),

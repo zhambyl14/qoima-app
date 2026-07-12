@@ -124,12 +124,16 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // ── Контакт (нөмір бөлісу) ────────────────────────────────────────────
     const contact = msg.contact;
     if (contact?.phone_number) {
-      // Тек ӨЗ нөмірі: contact.user_id === message.from.id.
-      if (contact.user_id && msg.from?.id && contact.user_id !== msg.from.id) {
+      // ҚАУІПСІЗДІК: тек ӨЗ РАСТАЛҒАН нөмірі қабылданады —
+      // contact.user_id БОЛУЫ ШАРТ әрі жіберушіге тең болуы керек.
+      // «Нөмірімді бөлісу» түймесі әрқашан user_id-мен келеді; ал қолмен
+      // терілген/бөгде контактіде user_id болмайды (не басқа) → қабылданбайды.
+      if (!contact.user_id || contact.user_id !== msg.from?.id) {
         await tg("sendMessage", {
           chat_id: chatId,
           text:
-            "Тек ӨЗ нөміріңізді бөлісіңіз.\nПоделитесь, пожалуйста, СВОИМ номером.",
+            "Тек «📱 Нөмірімді бөлісу» түймесі арқылы ӨЗ нөміріңізді жіберіңіз.\n" +
+            "Отправьте СВОЙ номер только кнопкой «📱 Поделиться номером».",
         });
         return new Response("ok");
       }

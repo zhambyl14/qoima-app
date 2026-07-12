@@ -166,31 +166,27 @@ class AuthService {
   //  АККАУНТ ПАРАМЕТРЛЕРІ — жеке деректерді өзгерту (барлық рөлдер)
   // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Телефон нөмірін өзгерту: reauth → бостығын тексеру → профильді жаңарту.
-  /// Рөлге тәуелсіз екі кестені де жаңартады (тек бар жол өзгереді).
-  Future<void> changePhoneNumber({
-    required String currentPassword,
-    required String newPhone, // E.164
-  }) async {
-    final user = _requireUser();
-    await _reauth(user, currentPassword);
-
+  /// Телефонды Telegram-мен РАСТАЛҒАН жаңа нөмірге өзгертеді. Reauth қажет емес:
+  /// қолданушы кіріп тұр әрі Telegram жаңа нөмір иесі екенін дәлелдеді.
+  Future<void> changePhoneVerified({required String newPhone}) async {
+    final uid = currentUid;
+    if (uid == null) {
+      throw AuthFailure(tr('Войдите заново', 'Қайта кіріңіз'), code: 'no-user');
+    }
     final existing = await emailForPhone(newPhone);
-    if (existing != null && existing.isNotEmpty && existing != user.email) {
+    final myEmail = currentUser?.email;
+    if (existing != null && existing.isNotEmpty && existing != myEmail) {
       throw AuthFailure(tr('Этот номер привязан к другому аккаунту', 'Бұл нөмір басқа аккаунтта тіркелген'),
           code: 'phone-in-use');
     }
-    await _sb.from('users').update({'phone': newPhone}).eq('id', user.id);
-    await _sb.from('clients').update({'phone': newPhone}).eq('id', user.id);
+    await _sb.from('users').update({'phone': newPhone}).eq('id', uid);
+    await _sb.from('clients').update({'phone': newPhone}).eq('id', uid);
   }
 
-  /// Құпиясөзді өзгерту: ағымдағымен reauth → updateUser(password).
-  Future<void> changePassword({
-    required String currentPassword,
-    required String newPassword,
-  }) async {
-    final user = _requireUser();
-    await _reauth(user, currentPassword);
+  /// Кіріп тұрған қолданушының құпиясөзін жаңартады (Telegram растауынан кейін).
+  /// Ескі пароль қажет емес — иелік Telegram-мен дәлелденген.
+  Future<void> changePassword({required String newPassword}) async {
+    _requireUser();
     try {
       await _sb.auth.updateUser(UserAttributes(password: newPassword));
     } on AuthException catch (e) {
@@ -328,16 +324,6 @@ class AuthService {
           code: 'requires-recent-login');
     }
     return user;
-  }
-
-  /// Ағымдағы құпиясөзді растау: қайта кіріп көреміз (Supabase-те reauth жоқ).
-  Future<void> _reauth(User user, String currentPassword) async {
-    try {
-      await _sb.auth.signInWithPassword(
-          email: user.email!, password: currentPassword);
-    } on AuthException catch (_) {
-      throw AuthFailure(tr('Неверный пароль', 'Құпиясөз қате'), code: 'wrong-password');
-    }
   }
 
   /// Supabase Auth қателерін қазақша хабарларға түрлендіру.
