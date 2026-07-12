@@ -1,10 +1,13 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/lang.dart';
 import '../../core/supabase_config.dart';
 import '../../data/services/auth_service.dart';
 import '../../theme/qoima_design.dart';
+import 'telegram_web_opener_stub.dart'
+    if (dart.library.html) 'telegram_web_opener_web.dart';
 
 /// Телефонды Telegram боты арқылы растайтын қайта қолданылатын виджет
 /// (тіркелу + парольді қалпына келтіру). SMS-сіз, тегін.
@@ -53,20 +56,23 @@ class _TelegramVerifyButtonState extends State<TelegramVerifyButton> {
       _state = _VState.waiting;
       _error = null;
     });
+    // iOS/Safari-дегі попап-блокер: window.open тек пайдаланушы басқан
+    // СӘТТЕ (асинхронды RPC-тен БҰРЫН) синхронды шақырылса ғана өтеді —
+    // кейін шақырылса үнсіз бұғатталады. Сондықтан RPC-тен БҰРЫН бос
+    // терезе ашамыз да, токен келгенде оны нақты URL-ге бағыттаймыз.
+    final placeholderWin = kIsWeb ? openBlankWindow() : null;
     try {
       final token = await _auth.startTelegramVerification();
       _token = token;
-      final uri = Uri.parse(SupabaseConfig.telegramStartUrl(token));
-      // Telegram қосымшасын (мобильде) немесе браузер бетін (вебте) ашамыз.
-      // Вебте жаңа бетте ашылады (_blank), мобильде — сыртқы қосымша.
-      final ok = await launchUrl(
-        uri,
-        mode: LaunchMode.externalApplication,
-        webOnlyWindowName: '_blank',
-      );
-      if (!ok) {
-        await launchUrl(uri,
-            mode: LaunchMode.platformDefault, webOnlyWindowName: '_blank');
+      final url = SupabaseConfig.telegramStartUrl(token);
+      if (kIsWeb) {
+        navigateWindowTo(placeholderWin, url);
+      } else {
+        final uri = Uri.parse(url);
+        final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+        if (!ok) {
+          await launchUrl(uri, mode: LaunchMode.platformDefault);
+        }
       }
       _beginPolling();
     } catch (_) {
