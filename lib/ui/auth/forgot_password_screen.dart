@@ -201,9 +201,15 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             decoration: InputDecoration(
               hintText: hint,
               hintStyle: manrope(15, FontWeight.w500, color: cInk3),
+              // Глобалды тема filled:true-ді өшіреміз (дөңгелек бұрыштан
+              // асатын ақ қабат болмауы үшін).
+              filled: false,
               border: InputBorder.none,
               enabledBorder: InputBorder.none,
               focusedBorder: InputBorder.none,
+              errorBorder: InputBorder.none,
+              focusedErrorBorder: InputBorder.none,
+              disabledBorder: InputBorder.none,
               contentPadding: EdgeInsets.zero,
               isDense: true,
             ),

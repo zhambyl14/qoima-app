@@ -154,9 +154,15 @@ class _SecurityField extends StatelessWidget {
                 decoration: InputDecoration(
                   hintText: hint,
                   hintStyle: manrope(15, FontWeight.w500, color: cInk3),
+                  // Глобалды тема filled:true-ді өшіреміз (сұр контейнердің
+                  // үстіне ақ толтыру қабаты түспеуі үшін).
+                  filled: false,
                   border: InputBorder.none,
                   enabledBorder: InputBorder.none,
                   focusedBorder: InputBorder.none,
+                  errorBorder: InputBorder.none,
+                  focusedErrorBorder: InputBorder.none,
+                  disabledBorder: InputBorder.none,
                   contentPadding: EdgeInsets.zero,
                   isDense: true,
                 ),

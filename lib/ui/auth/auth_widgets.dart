@@ -130,9 +130,16 @@ class AuthField extends StatelessWidget {
                 decoration: InputDecoration(
                   hintText: hint,
                   hintStyle: manrope(15, FontWeight.w500, color: cInk3),
+                  // Глобалды тема filled:true — оны өшіреміз, әйтпесе теманың
+                  // тік бұрышты ақ толтыруы контейнердің дөңгелек бұрыштарынан
+                  // асып, сұр фонға «қосымша қабат» болып көрінеді.
+                  filled: false,
                   border: InputBorder.none,
                   enabledBorder: InputBorder.none,
                   focusedBorder: InputBorder.none,
+                  errorBorder: InputBorder.none,
+                  focusedErrorBorder: InputBorder.none,
+                  disabledBorder: InputBorder.none,
                   contentPadding: EdgeInsets.zero,
                   isDense: true,
                 ),

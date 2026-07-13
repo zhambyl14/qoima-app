@@ -264,9 +264,15 @@ class _ClientRegisterScreenState extends State<ClientRegisterScreen> {
                       color: cGreen, size: 20),
                   hintText: tr('Выберите город', 'Қаланы таңдаңыз'),
                   hintStyle: manrope(15, FontWeight.w500, color: cInk3),
+                  // Глобалды тема filled:true-ді өшіреміз (дөңгелек бұрыштан
+                  // асатын ақ қабат болмауы үшін).
+                  filled: false,
                   border: InputBorder.none,
                   enabledBorder: InputBorder.none,
                   focusedBorder: InputBorder.none,
+                  errorBorder: InputBorder.none,
+                  focusedErrorBorder: InputBorder.none,
+                  disabledBorder: InputBorder.none,
                   contentPadding:
                       const EdgeInsets.symmetric(vertical: 15, horizontal: 6),
                   isDense: true,
