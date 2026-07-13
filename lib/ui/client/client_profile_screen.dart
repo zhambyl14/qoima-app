@@ -12,6 +12,7 @@ import '../../theme/qoima_design.dart';
 import 'favorites_screen.dart';
 import 'addresses_screen.dart';
 import '../auth/account_security_screen.dart';
+import '../auth/legal_documents_screen.dart';
 
 import '../../core/lang.dart';
 class ClientProfileScreen extends StatelessWidget {
@@ -148,6 +149,15 @@ class ClientProfileScreen extends StatelessWidget {
                     MaterialPageRoute(
                         builder: (_) =>
                             const AccountSecurityScreen(showPhone: true))),
+              ),
+              const SizedBox(height: 10),
+              _MenuItem(
+                icon: Icons.gavel_outlined,
+                tone: 'gray',
+                title: tr('Правовые документы', 'Заңдық құжаттар'),
+                sub: tr('Соглашение и конфиденциальность', 'Келісім мен құпиялылық'),
+                onTap: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const LegalDocumentsScreen())),
               ),
               const SizedBox(height: 10),
               _MenuItem(

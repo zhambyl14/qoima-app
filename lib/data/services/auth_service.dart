@@ -314,6 +314,36 @@ class AuthService {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
+  //  Аккаунтты өшіру (барлық рөл: client/seller/admin)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Ағымдағы аккаунтты БҮТІНДЕЙ өшіреді (Edge Function `delete-account`,
+  /// service_role). auth.users жолы өшіріледі — байланысты барлық дерек
+  /// (users/clients/products/sales_history/orders/warehouses/stores...) FK
+  /// ON DELETE CASCADE арқылы автоматты жойылады. Қайтарылмайды.
+  Future<void> deleteAccount() async {
+    try {
+      final res = await _sb.functions.invoke('delete-account');
+      final data = res.data;
+      final ok =
+          res.status == 200 && (data is Map ? data['ok'] == true : false);
+      if (!ok) {
+        throw AuthFailure(
+            tr('Не удалось удалить аккаунт. Попробуйте позже',
+                'Аккаунтты өшіру мүмкін болмады. Кейінірек қайталаңыз'),
+            code: 'delete-failed');
+      }
+    } on FunctionException {
+      throw AuthFailure(
+          tr('Не удалось удалить аккаунт. Попробуйте позже',
+              'Аккаунтты өшіру мүмкін болмады. Кейінірек қайталаңыз'),
+          code: 'delete-failed');
+    }
+    AppUser.current.clear();
+    await _sb.auth.signOut();
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
   //  Helpers
   // ═══════════════════════════════════════════════════════════════════════════
 

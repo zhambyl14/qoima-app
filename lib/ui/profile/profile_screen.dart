@@ -16,6 +16,7 @@ import '../../data/repositories/my_store_repository.dart';
 import '../admin/my_store/admin_my_store_hub_screen.dart';
 import '../onboarding/my_store_gate.dart';
 import '../auth/account_security_screen.dart';
+import '../auth/legal_documents_screen.dart';
 
 import '../../core/lang.dart';
 class ProfileScreen extends StatelessWidget {
@@ -293,6 +294,17 @@ class ProfileScreen extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               QMenuItem(
+                icon: Icons.gavel_outlined,
+                tone: 'ink',
+                title: tr('Правовые документы', 'Заңдық құжаттар'),
+                subtitle: tr('Соглашение и конфиденциальность', 'Келісім мен құпиялылық'),
+                onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const LegalDocumentsScreen())),
+              ),
+              const SizedBox(height: 8),
+              QMenuItem(
                 icon: Icons.language_rounded,
                 tone: 'ink',
                 title: l.language,
@@ -431,6 +443,17 @@ class ProfileScreen extends StatelessWidget {
                   context,
                   MaterialPageRoute(
                       builder: (_) => const AccountSecurityScreen())),
+            ),
+            const SizedBox(height: 8),
+            _MenuItem(
+              icon: Icons.gavel_outlined,
+              color: cInk2,
+              title: tr('Правовые документы', 'Заңдық құжаттар'),
+              subtitle: tr('Соглашение и конфиденциальность', 'Келісім мен құпиялылық'),
+              onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const LegalDocumentsScreen())),
             ),
             const SizedBox(height: 8),
             _MenuItem(

@@ -388,7 +388,15 @@ class _AddProductScreenState extends State<AddProductScreen> {
           warehouseId: warehouseId,
         );
         if (imageUrls.isNotEmpty) {
-          await _firestoreService.updateProductImages(existingId, imageUrls);
+          final oldImages = await _firestoreService.updateProductImages(
+              existingId, imageUrls);
+          // Ескі суреттер енді ешбір жерде қолданылмайды (DB жаңасымен
+          // алмастырылды) — Cloudinary-де жетім қалмауы үшін тазалаймыз.
+          final orphaned =
+              oldImages.where((u) => !imageUrls.contains(u)).toList();
+          if (orphaned.isNotEmpty) {
+            await _cloudinaryService.deleteMany(orphaned);
+          }
         }
         if (mounted) {
           Navigator.pop(context);

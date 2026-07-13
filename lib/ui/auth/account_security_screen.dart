@@ -54,6 +54,17 @@ class AccountSecurityScreen extends StatelessWidget {
                 subtitle: tr('Изменение пароля', 'Құпиясөзді өзгерту'),
                 onTap: () => _openSheet(context, const _ChangePasswordSheet()),
               ),
+              const SizedBox(height: 24),
+              Container(height: 1, color: cLine),
+              const SizedBox(height: 16),
+              QMenuItem(
+                icon: Icons.delete_forever_outlined,
+                tone: 'red',
+                title: tr('Удалить аккаунт', 'Аккаунтты өшіру'),
+                subtitle: tr('Безвозвратное удаление всех данных', 'Барлық деректі қайтарылмастай өшіру'),
+                danger: true,
+                onTap: () => _confirmDelete(context),
+              ),
             ],
           ),
         ),
@@ -68,6 +79,58 @@ class AccountSecurityScreen extends StatelessWidget {
       backgroundColor: Colors.transparent,
       builder: (_) => sheet,
     );
+  }
+
+  static Future<void> _confirmDelete(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(tr('Удалить аккаунт?', 'Аккаунтты өшіру керек пе?'),
+            style: manrope(17, FontWeight.w800, color: cInk)),
+        content: Text(
+          tr(
+              'Точно? Это действие необратимо: аккаунт, товары, продажи и весь магазин будут удалены безвозвратно.',
+              'Нақты ма? Бұл әрекет қайтарылмайды: аккаунт, тауарлар, сатылымдар және бүкіл дүкен қайтарылмастай өшіріледі.'),
+          style: manrope(14, FontWeight.w500, color: cInk2, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(tr('Отмена', 'Болдырмау'),
+                  style: manrope(14, FontWeight.w600, color: cInk2))),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: cRed,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10))),
+              child: Text(tr('Удалить', 'Өшіру'))),
+        ],
+      ),
+    );
+    if (ok != true || !context.mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+          child: CircularProgressIndicator(color: cGreen, strokeWidth: 2)),
+    );
+    try {
+      await AuthService().deleteAccount();
+      navigator.popUntil((r) => r.isFirst);
+    } on AuthFailure catch (e) {
+      navigator.pop(); // жүктелу индикаторын жабу
+      messenger.showSnackBar(SnackBar(
+        content: Text(e.message),
+        backgroundColor: cRed,
+        behavior: SnackBarBehavior.floating,
+      ));
+    }
   }
 }
 

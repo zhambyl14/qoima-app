@@ -177,8 +177,24 @@ class FirestoreService {
     return row == null ? null : ProductModel.fromMap(row);
   }
 
-  Future<void> updateProductImages(String productId, List<String> imageUrls) =>
-      _sb.from('products').update({'images': imageUrls}).eq('id', productId);
+  /// Товар суреттерін ауыстырады, ЕСКІ URL-дерді қайтарады (шақырушы оларды
+  /// Cloudinary-ден тазалауы үшін — restock кезінде жаңа фото ескіні DB-дан
+  /// алмастырғанда, ескісі Cloudinary-де жетім қалмауы керек).
+  Future<List<String>> updateProductImages(
+      String productId, List<String> imageUrls) async {
+    final prow = await _sb
+        .from('products')
+        .select('images')
+        .eq('id', productId)
+        .maybeSingle();
+    final oldImgs = (prow?['images'] as List?)
+            ?.map((e) => e.toString())
+            .where((u) => u.isNotEmpty)
+            .toList() ??
+        <String>[];
+    await _sb.from('products').update({'images': imageUrls}).eq('id', productId);
+    return oldImgs;
+  }
 
   /// Тауар карточкасын өңдеу: атауы, бренд, түрі, кімге, түсі, материалы,
   /// сипаттамасы, өндірілген елі, сезоны.
