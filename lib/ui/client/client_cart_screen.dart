@@ -10,7 +10,8 @@ import '../../data/models/promo_model.dart';
 import '../../data/services/client_service.dart';
 import '../../data/services/firestore_service.dart';
 import '../../theme/qoima_design.dart';
-import '../auth/client_login_screen.dart';
+import '../auth/auth_widgets.dart';
+import '../auth/login_screen.dart';
 import 'client_shell.dart';
 
 import '../../core/lang.dart';
@@ -196,7 +197,10 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
     if (Supabase.instance.client.auth.currentUser == null) {
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => const ClientLoginScreen()),
+        MaterialPageRoute(
+          builder: (_) => const LoginScreen(),
+          settings: const RouteSettings(name: kLoginRouteName),
+        ),
       );
       return;
     }

@@ -4,7 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../core/lang.dart';
 import '../../theme/qoima_design.dart';
-import '../auth/client_login_screen.dart';
+import '../auth/auth_widgets.dart';
+import '../auth/login_screen.dart';
 import '../client/client_home_screen.dart';
 import '../client/client_catalog_screen.dart';
 import '../client/client_cart_screen.dart';
@@ -12,7 +13,7 @@ import '../client/client_shell.dart';
 
 /// Авторизацияланбаған пайдаланушы үшін shell — навбар клиенттікіндей:
 /// Басты · Каталог · Себет толық жұмыс істейді (CartProvider SharedPreferences),
-/// «Профиль» — ClientLoginScreen шақырады.
+/// «Профиль» — біріңғай LoginScreen шақырады.
 /// Кіргеннен кейін корневой gate автоматты ClientShell/AdminShell-ге ауысады;
 /// CartProvider-дегі тауарлар сол күйінде қалады (жүктемелік migrate жоқ).
 class GuestShell extends StatefulWidget {
@@ -80,7 +81,9 @@ class GuestShellState extends State<GuestShell> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => const ClientLoginScreen(),
+                            builder: (_) => const LoginScreen(),
+                            settings:
+                                const RouteSettings(name: kLoginRouteName),
                           ),
                         );
                       } else {

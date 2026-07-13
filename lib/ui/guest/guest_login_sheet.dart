@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
-import '../../theme/qoima_design.dart';
-import '../auth/client_login_screen.dart';
-import '../auth/login_screen.dart';
-
 import '../../core/lang.dart';
-/// Guest «Войти и оформить» / «Войти» bottom sheet.
-/// Phone → ClientLoginScreen (клиент: телефон + пароль).
-/// Email → LoginScreen (продавец / владелец / модератор).
+import '../../theme/qoima_design.dart';
+import '../auth/auth_widgets.dart';
+import '../auth/login_screen.dart';
+import '../auth/register_chooser_screen.dart';
+
+/// Гость «Войти и оформить» bottom sheet. Кіру біріңғай (телефон + пароль),
+/// рөлді жүйе анықтайды — сондықтан бір ғана «Войти» әрекеті.
 void showGuestLoginSheet(BuildContext context, {VoidCallback? onLoginSuccess}) {
   showModalBottomSheet<void>(
     context: context,
@@ -22,7 +22,8 @@ class GuestLoginSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bottom = MediaQuery.of(context).viewInsets.bottom + MediaQuery.of(context).padding.bottom;
+    final bottom = MediaQuery.of(context).viewInsets.bottom +
+        MediaQuery.of(context).padding.bottom;
     return Container(
       decoration: const BoxDecoration(
         color: cSurface,
@@ -31,6 +32,7 @@ class GuestLoginSheet extends StatelessWidget {
       padding: EdgeInsets.fromLTRB(22, 6, 22, bottom + 32),
       child: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Center(
             child: Container(
@@ -54,61 +56,78 @@ class GuestLoginSheet extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  tr('Ваша корзина сохранена и будет доступна после входа.', 'Себетіңіз сақталды, кіргеннен кейін қолжетімді болады.'),
-                  style: manrope(13, FontWeight.w500, color: cGreenDeep,
-                      height: 1.4),
+                  tr('Ваша корзина сохранена и будет доступна после входа.',
+                      'Себетіңіз сақталды, кіргеннен кейін қолжетімді болады.'),
+                  style: manrope(13, FontWeight.w500,
+                      color: cGreenDeep, height: 1.4),
                 ),
               ),
             ]),
           ),
           const SizedBox(height: 20),
 
-          Text(tr('Войдите, чтобы оформить заказ', 'Тапсырыс рәсімдеу үшін кіріңіз'),
-              style: manrope(19, FontWeight.w800, color: cInk,
-                  letterSpacing: -0.3)),
+          Text(tr('Войдите, чтобы оформить заказ',
+              'Тапсырыс рәсімдеу үшін кіріңіз'),
+              textAlign: TextAlign.center,
+              style: manrope(19, FontWeight.w800,
+                  color: cInk, letterSpacing: -0.3)),
           const SizedBox(height: 4),
-          Text(tr('Выберите способ входа', 'Кіру тәсілін таңдаңыз'),
+          Text(
+              tr('Единый вход для покупателей и продавцов',
+                  'Сатып алушылар мен сатушыларға біріңғай кіру'),
+              textAlign: TextAlign.center,
               style: manrope(13.5, FontWeight.w500, color: cInk2)),
-          const SizedBox(height: 20),
+          const SizedBox(height: 22),
 
-          // Телефон — клиент
-          _LoginOption(
-            icon: Icons.phone_outlined,
-            title: tr('По номеру телефона', 'Телефон нөмірімен'),
-            sub: tr('Клиент — покупать товары', 'Клиент — тауар сатып алу'),
-            color: cGreen,
-            tint: cGreenTint,
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => ClientLoginScreen(
-                      afterLogin: onLoginSuccess),
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 12),
-
-          // Email — продавец / владелец / суперадмин
-          _LoginOption(
-            icon: Icons.email_outlined,
-            title: tr('По Email', 'Email арқылы'),
-            sub: tr('Продавец, владелец или модератор', 'Сатушы, иесі немесе модератор'),
-            color: cBlue,
-            tint: cBlueTint,
-            onTap: () {
+          AuthPrimaryButton(
+            label: tr('Войти', 'Кіру'),
+            icon: Icons.login_rounded,
+            onPressed: () {
               Navigator.pop(context);
               Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (_) => LoginScreen(afterLogin: onLoginSuccess),
+                  settings: const RouteSettings(name: kLoginRouteName),
                 ),
               );
             },
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
+
+          Center(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(tr('Нет аккаунта?', 'Аккаунтыңыз жоқ па?'),
+                    style: manrope(13.5, FontWeight.w600, color: cInk2)),
+                const SizedBox(width: 5),
+                GestureDetector(
+                  onTap: () {
+                    Navigator.pop(context);
+                    // Логинді астына қоямыз — chooser/wizard-тен «Войти»
+                    // біріңғай логинге дұрыс оралады ([popToLogin]).
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            LoginScreen(afterLogin: onLoginSuccess),
+                        settings: const RouteSettings(name: kLoginRouteName),
+                      ),
+                    );
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const RegisterChooserScreen()),
+                    );
+                  },
+                  child: Text(tr('Регистрация', 'Тіркелу'),
+                      style: manrope(13.5, FontWeight.w800, color: cGreen)),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
 
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -116,60 +135,6 @@ class GuestLoginSheet extends StatelessWidget {
                 style: manrope(14, FontWeight.w600, color: cInk3)),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _LoginOption extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String sub;
-  final Color color;
-  final Color tint;
-  final VoidCallback onTap;
-  const _LoginOption({
-    required this.icon,
-    required this.title,
-    required this.sub,
-    required this.color,
-    required this.tint,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: cSurface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: cLine, width: 1.3),
-        ),
-        child: Row(children: [
-          Container(
-            width: 46,
-            height: 46,
-            decoration: BoxDecoration(
-                color: tint, borderRadius: BorderRadius.circular(13)),
-            child: Icon(icon, color: color, size: 22),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title,
-                    style: manrope(15, FontWeight.w700, color: cInk)),
-                Text(sub,
-                    style: manrope(12.5, FontWeight.w500, color: cInk3)),
-              ],
-            ),
-          ),
-          const Icon(Icons.chevron_right_rounded, color: cInk3, size: 22),
-        ]),
       ),
     );
   }
