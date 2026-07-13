@@ -301,7 +301,8 @@ class ProfileScreen extends StatelessWidget {
                 onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(
-                        builder: (_) => const LegalDocumentsScreen())),
+                        builder: (_) =>
+                            const LegalDocumentsScreen(forSeller: true))),
               ),
               const SizedBox(height: 8),
               QMenuItem(
@@ -453,7 +454,8 @@ class ProfileScreen extends StatelessWidget {
               onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(
-                      builder: (_) => const LegalDocumentsScreen())),
+                      builder: (_) =>
+                          const LegalDocumentsScreen(forSeller: true))),
             ),
             const SizedBox(height: 8),
             _MenuItem(
