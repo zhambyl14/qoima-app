@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../core/lang.dart';
 import '../../core/phone_input.dart';
 import '../../data/services/auth_service.dart';
@@ -155,7 +156,12 @@ class _LoginScreenState extends State<LoginScreen> {
                 hint: '+7 (700) 000-00-00',
                 icon: Icons.call_outlined,
                 keyboardType: TextInputType.phone,
-                inputFormatters: [KzPhoneInputFormatter()],
+                // Макс 10 цифр (+7 елкоды бөлек): толық маска «+7 (700) 000-00-00»
+                // 18 таңба → 11-ші цифр таза бұғатталады (жылжымайды).
+                inputFormatters: [
+                  LengthLimitingTextInputFormatter(18),
+                  KzPhoneInputFormatter(),
+                ],
                 textInputAction: TextInputAction.next,
               ),
               const SizedBox(height: 16),

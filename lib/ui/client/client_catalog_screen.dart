@@ -498,6 +498,7 @@ class _ClientCatalogScreenState extends State<ClientCatalogScreen> {
             child: TextField(
               controller: _searchCtrl,
               cursorColor: cGreen,
+              textAlignVertical: TextAlignVertical.center,
               onChanged: (q) => setState(() => _query = q.trim()),
               style: manrope(14.5, FontWeight.w600, color: cInk),
               decoration: InputDecoration(
