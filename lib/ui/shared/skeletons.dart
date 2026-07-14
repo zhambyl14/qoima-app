@@ -51,21 +51,3 @@ class CatalogGridSkeleton extends StatelessWidget {
         ),
       );
 }
-
-class CardSkeleton extends StatelessWidget {
-  final double height;
-  const CardSkeleton({super.key, this.height = 80});
-
-  @override
-  Widget build(BuildContext context) => Shimmer.fromColors(
-        baseColor: Colors.grey.shade200,
-        highlightColor: Colors.grey.shade50,
-        child: Container(
-          height: height,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(AppTheme.r16),
-          ),
-        ),
-      );
-}

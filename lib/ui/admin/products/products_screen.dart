@@ -886,38 +886,6 @@ class _ProductCard extends StatelessWidget {
 }
 
 // ── Аналитика header — N видов × M шт. ────────────────────────────────────────
-class StockSummaryWidget extends StatelessWidget {
-  final int kinds;
-  final int pairs;
-  const StockSummaryWidget(
-      {super.key, required this.kinds, required this.pairs});
-
-  @override
-  Widget build(BuildContext context) {
-    return RichText(
-      text: TextSpan(
-        style: const TextStyle(fontSize: 13, color: cInk2),
-        children: [
-          TextSpan(
-              text: '$kinds',
-              style: const TextStyle(
-                  fontWeight: FontWeight.w800,
-                  color: cGreen,
-                  fontSize: 15)),
-          TextSpan(text: tr(' вид. товаров  ×  ', ' көр. тауар  ×  ')),
-          TextSpan(
-              text: '$pairs',
-              style: const TextStyle(
-                  fontWeight: FontWeight.w800,
-                  color: cGreen,
-                  fontSize: 15)),
-          TextSpan(text: tr(' шт.', ' дана')),
-        ],
-      ),
-    );
-  }
-}
-
 // ── Warehouse chip (admin only) ───────────────────────────────────────────────
 class _WarehouseChip extends StatelessWidget {
   final FirestoreService service;
