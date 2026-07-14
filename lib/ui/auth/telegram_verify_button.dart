@@ -1,5 +1,6 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart'
+    show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/lang.dart';
@@ -67,10 +68,19 @@ class _TelegramVerifyButtonState extends State<TelegramVerifyButton> {
       final url = SupabaseConfig.telegramStartUrl(token);
       if (kIsWeb) {
         navigateWindowTo(placeholderWin, url);
+        _beginPolling();
       } else {
-        await _openTelegram(token, url);
+        final opened = await _openTelegram(token);
+        // Поллингті бәрібір бастаймыз — пайдаланушы Telegram-ды орнатып
+        // жатып та (немесе басқа құрылғыда) нөмірін растай алады.
+        _beginPolling();
+        if (!opened && mounted) {
+          // tg:// ашылмады → Telegram орнатылмаған сияқты. Бұзылған t.me
+          // сілтемесіне (DNS_PROBE_FINISHED_NXDOMAIN) лақтырмай, орнату
+          // диалогын көрсетеміз.
+          _showInstallTelegramDialog();
+        }
       }
-      _beginPolling();
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -80,25 +90,111 @@ class _TelegramVerifyButtonState extends State<TelegramVerifyButton> {
     }
   }
 
-  /// Мобильде Telegram-ды ашады. Алдымен `tg://` схемасы (Telegram қосымшасын
-  /// ТІКЕЛЕЙ ашады — браузер де, `t.me` DNS-і де қатыспайды, сол себепті
-  /// t.me бөгелген желіде DNS_PROBE_FINISHED_NXDOMAIN болмайды). Қосымша
-  /// орнатылмаған болса ғана `https://t.me/...`-ке (браузер) түсеміз.
-  Future<void> _openTelegram(String token, String webUrl) async {
-    final appUri = Uri.parse(SupabaseConfig.telegramAppUrl(token));
-    final webUri = Uri.parse(webUrl);
-    bool ok = false;
+  /// Мобильде Telegram қосымшасын `tg://` схемасымен ТІКЕЛЕЙ ашады — браузер
+  /// де, `t.me` DNS-і де қатыспайды (сол себепті t.me бөгелген желіде де
+  /// DNS_PROBE_FINISHED_NXDOMAIN болмайды). Сәтті ашылса `true`. Telegram
+  /// орнатылмаса `false` — бұзылған t.me сілтемесіне АВТО лақтырмаймыз,
+  /// оның орнына шақырушы орнату диалогын көрсетеді.
+  Future<bool> _openTelegram(String token) async {
     try {
-      ok = await launchUrl(appUri, mode: LaunchMode.externalApplication);
+      final appUri = Uri.parse(SupabaseConfig.telegramAppUrl(token));
+      return await launchUrl(appUri, mode: LaunchMode.externalApplication);
     } catch (_) {
-      ok = false;
+      return false;
     }
-    if (ok) return;
-    // Telegram қосымшасы жоқ — веб-сілтемеге түсеміз.
-    ok = await launchUrl(webUri, mode: LaunchMode.externalApplication);
-    if (!ok) {
-      await launchUrl(webUri, mode: LaunchMode.platformDefault);
+  }
+
+  /// Telegram-ды қайта ашу (күту панелінен). Мобильде `tg://`, ашылмаса
+  /// орнату диалогы. Веб-те синхронды жаңа терезе ашып, t.me-ге бағыттайды.
+  Future<void> _reopen() async {
+    final token = _token;
+    if (token == null) return;
+    if (kIsWeb) {
+      final win = openBlankWindow();
+      navigateWindowTo(win, SupabaseConfig.telegramStartUrl(token));
+      return;
     }
+    final opened = await _openTelegram(token);
+    if (!opened && mounted) _showInstallTelegramDialog();
+  }
+
+  /// «Браузерде ашу» — DNS жұмыс істейтін желіде t.me беті Telegram орнатуды
+  /// ұсынады. Мобильде ғана мағыналы (веб-те бұл ағын өзі браузерде жүреді).
+  Future<void> _openWebTme() async {
+    final token = _token;
+    if (token == null) return;
+    final uri = Uri.parse(SupabaseConfig.telegramStartUrl(token));
+    try {
+      if (await launchUrl(uri, mode: LaunchMode.externalApplication)) return;
+    } catch (_) {/* төмендегі фолбэкке түсеміз */}
+    try {
+      await launchUrl(uri, mode: LaunchMode.platformDefault);
+    } catch (_) {/* қолмен ашсын */}
+  }
+
+  /// Telegram орнату сілтемесі — дүкендер (Play/App Store) домені t.me емес,
+  /// сол себепті t.me бөгелген желіде де ашылады.
+  String _installUrl() {
+    if (kIsWeb) return 'https://telegram.org/dl';
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.iOS:
+        return 'https://apps.apple.com/app/telegram-messenger/id686449807';
+      case TargetPlatform.android:
+        return 'https://play.google.com/store/apps/details?id=org.telegram.messenger';
+      default:
+        return 'https://telegram.org/dl';
+    }
+  }
+
+  Future<void> _openInstall() async {
+    final uri = Uri.parse(_installUrl());
+    try {
+      if (await launchUrl(uri, mode: LaunchMode.externalApplication)) return;
+    } catch (_) {/* фолбэк */}
+    try {
+      await launchUrl(uri, mode: LaunchMode.platformDefault);
+    } catch (_) {/* қолмен ашсын */}
+  }
+
+  /// Telegram орнатылмаған кезде — бұзылған сілтеменің орнына анық диалог:
+  /// орнату / браузерде ашу нұсқалары.
+  void _showInstallTelegramDialog() {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Text(tr('Требуется Telegram', 'Telegram қажет'),
+            style: manrope(17, FontWeight.w800, color: cInk)),
+        content: Text(
+          tr(
+            'Похоже, Telegram не установлен. Установите его, чтобы подтвердить номер бесплатно, затем вернитесь и нажмите «Открыть снова».',
+            'Telegram орнатылмаған сияқты. Нөмірді тегін растау үшін оны орнатып, содан кейін «Қайта ашу» түймесін басыңыз.',
+          ),
+          style: manrope(13.5, FontWeight.w500, color: cInk2, height: 1.45),
+        ),
+        actionsPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _openWebTme();
+            },
+            child: Text(tr('Открыть в браузере', 'Браузерде ашу'),
+                style: manrope(13.5, FontWeight.w600, color: cInk3)),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _openInstall();
+            },
+            style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF229ED9)),
+            child: Text(tr('Установить Telegram', 'Telegram орнату'),
+                style: manrope(13.5, FontWeight.w700, color: Colors.white)),
+          ),
+        ],
+      ),
+    );
   }
 
   void _beginPolling() {
@@ -152,7 +248,11 @@ class _TelegramVerifyButtonState extends State<TelegramVerifyButton> {
         if (_state == _VState.verified)
           _VerifiedBox(phone: _phone ?? '', onChange: _reset)
         else if (_state == _VState.waiting)
-          _WaitingBox(onCheck: _check, onCancel: _reset)
+          _WaitingBox(
+              onCheck: _check,
+              onCancel: _reset,
+              onReopen: _reopen,
+              onInstall: _openInstall)
         else
           _IdleButton(onTap: _start),
         if (_error != null) ...[
@@ -204,7 +304,14 @@ class _IdleButton extends StatelessWidget {
 class _WaitingBox extends StatelessWidget {
   final VoidCallback onCheck;
   final VoidCallback onCancel;
-  const _WaitingBox({required this.onCheck, required this.onCancel});
+  final VoidCallback onReopen;
+  final VoidCallback onInstall;
+  const _WaitingBox({
+    required this.onCheck,
+    required this.onCancel,
+    required this.onReopen,
+    required this.onInstall,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -247,6 +354,27 @@ class _WaitingBox extends StatelessWidget {
               child: Text(tr('Отмена', 'Болдырмау'),
                   style: manrope(13.5, FontWeight.w600, color: cInk3)),
             ),
+          ),
+        ]),
+        // Telegram ашылмады ма? (t.me бөгелген / қосымша жоқ) — қалпына келтіру
+        const Divider(height: 18),
+        Row(children: [
+          Expanded(
+            child: Text(
+              tr('Telegram не открылся?', 'Telegram ашылмады ма?'),
+              style: manrope(12, FontWeight.w600, color: cInk3),
+            ),
+          ),
+          GestureDetector(
+            onTap: onReopen,
+            child: Text(tr('Открыть снова', 'Қайта ашу'),
+                style: manrope(12.5, FontWeight.w700, color: const Color(0xFF1B7FB0))),
+          ),
+          const SizedBox(width: 14),
+          GestureDetector(
+            onTap: onInstall,
+            child: Text(tr('Установить', 'Орнату'),
+                style: manrope(12.5, FontWeight.w700, color: const Color(0xFF1B7FB0))),
           ),
         ]),
       ]),

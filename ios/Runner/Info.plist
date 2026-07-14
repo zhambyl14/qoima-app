@@ -82,6 +82,8 @@
 		<string>telprompt</string>
 		<string>https</string>
 		<string>whatsapp</string>
+		<!-- Telegram-ды tg:// схемасымен тікелей ашу үшін (t.me DNS-ін айналып өту) -->
+		<string>tg</string>
 	</array>
 </dict>
 </plist>
