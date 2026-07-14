@@ -68,11 +68,7 @@ class _TelegramVerifyButtonState extends State<TelegramVerifyButton> {
       if (kIsWeb) {
         navigateWindowTo(placeholderWin, url);
       } else {
-        final uri = Uri.parse(url);
-        final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-        if (!ok) {
-          await launchUrl(uri, mode: LaunchMode.platformDefault);
-        }
+        await _openTelegram(token, url);
       }
       _beginPolling();
     } catch (_) {
@@ -81,6 +77,27 @@ class _TelegramVerifyButtonState extends State<TelegramVerifyButton> {
         _state = _VState.idle;
         _error = tr('Не удалось открыть Telegram', 'Telegram ашылмады');
       });
+    }
+  }
+
+  /// Мобильде Telegram-ды ашады. Алдымен `tg://` схемасы (Telegram қосымшасын
+  /// ТІКЕЛЕЙ ашады — браузер де, `t.me` DNS-і де қатыспайды, сол себепті
+  /// t.me бөгелген желіде DNS_PROBE_FINISHED_NXDOMAIN болмайды). Қосымша
+  /// орнатылмаған болса ғана `https://t.me/...`-ке (браузер) түсеміз.
+  Future<void> _openTelegram(String token, String webUrl) async {
+    final appUri = Uri.parse(SupabaseConfig.telegramAppUrl(token));
+    final webUri = Uri.parse(webUrl);
+    bool ok = false;
+    try {
+      ok = await launchUrl(appUri, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      ok = false;
+    }
+    if (ok) return;
+    // Telegram қосымшасы жоқ — веб-сілтемеге түсеміз.
+    ok = await launchUrl(webUri, mode: LaunchMode.externalApplication);
+    if (!ok) {
+      await launchUrl(webUri, mode: LaunchMode.platformDefault);
     }
   }
 

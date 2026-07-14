@@ -31,8 +31,17 @@ class SupabaseConfig {
   static const String telegramBot = 'qoimashybot';
 
   /// Растау сессиясының терең сілтемесі: `t.me/<bot>?start=<token>`.
+  /// Веб/қор нұсқасы — браузер немесе App Links арқылы ашылады.
   static String telegramStartUrl(String token) =>
       'https://t.me/$telegramBot?start=$token';
+
+  /// Telegram қосымшасын ТІКЕЛЕЙ ашатын deep link:
+  /// `tg://resolve?domain=<bot>&start=<token>`.
+  /// Браузерді де, `t.me` DNS-ін де мүлде айналып өтеді — сол себепті
+  /// t.me бөгелген/DNS шешілмеген желіде де (DNS_PROBE_FINISHED_NXDOMAIN)
+  /// Telegram орнатылған болса ашыла береді.
+  static String telegramAppUrl(String token) =>
+      'tg://resolve?domain=$telegramBot&start=$token';
 
   // ════════════════════════════════════════════════════════════════════════
   //  Тауарды бөлісу бетінің базалық URL-і (Deno Deploy).
