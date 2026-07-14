@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart'
     show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/lang.dart';
 import '../../core/supabase_config.dart';
@@ -280,11 +281,16 @@ class _TelegramVerifyButtonState extends State<TelegramVerifyButton> {
         if (_state == _VState.verified)
           _VerifiedBox(phone: _phone ?? '', onChange: _reset)
         else if (_state == _VState.waiting)
-          _WaitingBox(
-              onCheck: _check,
-              onCancel: _reset,
-              onReopen: _reopen,
-              onInstall: _openInstall)
+          kIsWeb
+              ? _WebWaitingBox(
+                  token: _token ?? '',
+                  onOpen: _reopen,
+                  onCancel: _reset)
+              : _WaitingBox(
+                  onCheck: _check,
+                  onCancel: _reset,
+                  onReopen: _reopen,
+                  onInstall: _openInstall)
         else
           _IdleButton(onTap: _start),
         if (_error != null) ...[
@@ -409,6 +415,148 @@ class _WaitingBox extends StatelessWidget {
                 style: manrope(12.5, FontWeight.w700, color: const Color(0xFF1B7FB0))),
           ),
         ]),
+      ]),
+    );
+  }
+}
+
+// ── Waiting (ВЕБ): t.me бөгелген желіге арналған қолмен растау фолбэгі ──────────
+// Веб-те браузер `t.me` доменін шеше алмауы мүмкін (DNS_PROBE_FINISHED_NXDOMAIN).
+// Сондықтан «Telegram-ды ашу» түймесімен қатар ботты + `/start <токен>` кодын
+// көрсетеміз: қолданушы Telegram-ды кез келген құрылғыда қолмен ашып, ботты
+// тауып, кодты жіберсе — растау бәрібір өтеді (поллинг байқайды).
+class _WebWaitingBox extends StatelessWidget {
+  final String token;
+  final VoidCallback onOpen;
+  final VoidCallback onCancel;
+  const _WebWaitingBox({
+    required this.token,
+    required this.onOpen,
+    required this.onCancel,
+  });
+
+  String get _botHandle => '@${SupabaseConfig.telegramBot}';
+  String get _startCode => '/start $token';
+
+  @override
+  Widget build(BuildContext context) {
+    const tgBlue = Color(0xFF229ED9);
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: tgBlue.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: tgBlue.withValues(alpha: 0.3)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        // ── Нұсқаулық ──
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Icon(Icons.info_rounded, color: tgBlue, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              tr(
+                'Нажмите в Telegram кнопку «Поделиться номером». Не открылось — нажмите кнопку ниже ещё раз. Ждём подтверждение…',
+                'Telegram-да «Нөмірімді бөлісу» түймесін басыңыз. Ашылмаса — төмендегі түймені қайта басыңыз. Растауды күтудеміз…',
+              ),
+              style: manrope(13, FontWeight.w600, color: cInk2, height: 1.4),
+            ),
+          ),
+        ]),
+        const SizedBox(height: 12),
+        // ── «Telegram-ды ашу» ──
+        SizedBox(
+          height: 54,
+          child: FilledButton.icon(
+            onPressed: onOpen,
+            icon: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
+            label: Text(tr('Открыть Telegram', 'Telegram-ды ашу'),
+                style: manrope(15.5, FontWeight.w800, color: Colors.white)),
+            style: FilledButton.styleFrom(
+              backgroundColor: tgBlue,
+              shape:
+                  RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        // ── Күту статусы ──
+        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          const SizedBox(
+            width: 14,
+            height: 14,
+            child: CircularProgressIndicator(strokeWidth: 2, color: tgBlue),
+          ),
+          const SizedBox(width: 8),
+          Text(tr('Ждём подтверждение…', 'Растауды күтудеміз…'),
+              style: manrope(12.5, FontWeight.w600, color: cInk3)),
+        ]),
+        const Divider(height: 22),
+        // ── Қолмен растау фолбэгі ──
+        Text(
+          tr(
+            'Ссылка не открывается (бывает в сетях, где Telegram заблокирован): откройте приложение Telegram вручную, найдите бота ниже и отправьте код.',
+            'Сілтеме ашылмаса (Telegram веб-те бұғатталған желілерде болады): Telegram қолданбасын қолмен ашып, төмендегі ботты іздеп, кодты жіберіңіз.',
+          ),
+          style: manrope(12, FontWeight.w500, color: cInk3, height: 1.4),
+        ),
+        const SizedBox(height: 10),
+        _CopyField(label: tr('Бот', 'Бот'), value: _botHandle),
+        const SizedBox(height: 8),
+        _CopyField(label: tr('Код', 'Код'), value: _startCode),
+        const SizedBox(height: 4),
+        Center(
+          child: TextButton(
+            onPressed: onCancel,
+            child: Text(tr('Отмена', 'Болдырмау'),
+                style: manrope(13, FontWeight.w600, color: cInk3)),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+// ── Көшірілетін өріс (бот / код) ──────────────────────────────────────────────
+class _CopyField extends StatelessWidget {
+  final String label;
+  final String value;
+  const _CopyField({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
+      decoration: BoxDecoration(
+        color: cSurface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: cLine),
+      ),
+      child: Row(children: [
+        Text('$label: ',
+            style: manrope(13, FontWeight.w700, color: cInk)),
+        Expanded(
+          child: Text(value,
+              style: manrope(12.5, FontWeight.w600, color: cInk2),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis),
+        ),
+        IconButton(
+          visualDensity: VisualDensity.compact,
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+          icon: const Icon(Icons.copy_rounded, size: 18, color: cInk3),
+          tooltip: tr('Копировать', 'Көшіру'),
+          onPressed: () {
+            Clipboard.setData(ClipboardData(text: value));
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text(tr('Скопировано', 'Көшірілді'),
+                  style: manrope(13, FontWeight.w600, color: Colors.white)),
+              duration: const Duration(seconds: 1),
+              behavior: SnackBarBehavior.floating,
+            ));
+          },
+        ),
       ]),
     );
   }
