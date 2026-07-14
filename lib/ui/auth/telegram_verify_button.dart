@@ -118,20 +118,6 @@ class _TelegramVerifyButtonState extends State<TelegramVerifyButton> {
     if (!opened && mounted) _showInstallTelegramDialog();
   }
 
-  /// «Браузерде ашу» — DNS жұмыс істейтін желіде t.me беті Telegram орнатуды
-  /// ұсынады. Мобильде ғана мағыналы (веб-те бұл ағын өзі браузерде жүреді).
-  Future<void> _openWebTme() async {
-    final token = _token;
-    if (token == null) return;
-    final uri = Uri.parse(SupabaseConfig.telegramStartUrl(token));
-    try {
-      if (await launchUrl(uri, mode: LaunchMode.externalApplication)) return;
-    } catch (_) {/* төмендегі фолбэкке түсеміз */}
-    try {
-      await launchUrl(uri, mode: LaunchMode.platformDefault);
-    } catch (_) {/* қолмен ашсын */}
-  }
-
   /// Telegram орнату сілтемесі — дүкендер (Play/App Store) домені t.me емес,
   /// сол себепті t.me бөгелген желіде де ашылады.
   String _installUrl() {
@@ -157,42 +143,88 @@ class _TelegramVerifyButtonState extends State<TelegramVerifyButton> {
   }
 
   /// Telegram орнатылмаған кезде — бұзылған сілтеменің орнына анық диалог:
-  /// орнату / браузерде ашу нұсқалары.
+  /// ескерту баннері + «Telegram орнату» + «Қайта тексеру».
   void _showInstallTelegramDialog() {
+    const tgBlue = Color(0xFF229ED9);
     showDialog<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: Text(tr('Требуется Telegram', 'Telegram қажет'),
-            style: manrope(17, FontWeight.w800, color: cInk)),
-        content: Text(
-          tr(
-            'Похоже, Telegram не установлен. Установите его, чтобы подтвердить номер бесплатно, затем вернитесь и нажмите «Открыть снова».',
-            'Telegram орнатылмаған сияқты. Нөмірді тегін растау үшін оны орнатып, содан кейін «Қайта ашу» түймесін басыңыз.',
+      builder: (ctx) => Dialog(
+        backgroundColor: cSurface,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // ── Ескерту баннері ──
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: tgBlue.withValues(alpha: 0.07),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: tgBlue.withValues(alpha: 0.18)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.info_rounded, color: tgBlue, size: 22),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        tr(
+                          'На устройстве нет Telegram. Подтверждение номера происходит через Telegram (без SMS, бесплатно). Установите Telegram и нажмите «Проверить снова».',
+                          'Құрылғыда Telegram жоқ. Нөмірді растау Telegram арқылы жүреді (SMS-сіз, тегін). Telegram-ды орнатып, «Қайта тексеру» түймесін басыңыз.',
+                        ),
+                        style: manrope(13, FontWeight.w600, color: cInk2, height: 1.45),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              // ── «Telegram орнату» (көк) ──
+              SizedBox(
+                height: 54,
+                child: FilledButton.icon(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    _openInstall();
+                  },
+                  icon: const Icon(Icons.download_rounded,
+                      color: Colors.white, size: 21),
+                  label: Text(tr('Установить Telegram', 'Telegram орнату'),
+                      style: manrope(15, FontWeight.w800, color: Colors.white)),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: tgBlue,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              // ── «Қайта тексеру» (ашық) — Telegram-ды қайта ашады ──
+              SizedBox(
+                height: 52,
+                child: TextButton(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    _reopen();
+                  },
+                  style: TextButton.styleFrom(
+                    backgroundColor: tgBlue.withValues(alpha: 0.08),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15)),
+                  ),
+                  child: Text(tr('Проверить снова', 'Қайта тексеру'),
+                      style: manrope(14.5, FontWeight.w700,
+                          color: const Color(0xFF1B7FB0))),
+                ),
+              ),
+            ],
           ),
-          style: manrope(13.5, FontWeight.w500, color: cInk2, height: 1.45),
         ),
-        actionsPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _openWebTme();
-            },
-            child: Text(tr('Открыть в браузере', 'Браузерде ашу'),
-                style: manrope(13.5, FontWeight.w600, color: cInk3)),
-          ),
-          FilledButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _openInstall();
-            },
-            style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF229ED9)),
-            child: Text(tr('Установить Telegram', 'Telegram орнату'),
-                style: manrope(13.5, FontWeight.w700, color: Colors.white)),
-          ),
-        ],
       ),
     );
   }
