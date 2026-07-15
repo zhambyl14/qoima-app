@@ -8,6 +8,9 @@ import '../../data/models/cart_item_model.dart';
 import '../../data/services/client_service.dart';
 import '../../theme/qoima_design.dart';
 import 'client_shell.dart';
+import 'report_sheet.dart';
+import 'reviews_section.dart';
+import 'store_public_screen.dart';
 
 import '../../core/lang.dart';
 class ClientProductDetail extends StatefulWidget {
@@ -15,11 +18,15 @@ class ClientProductDetail extends StatefulWidget {
   final StoreModel store;
   // Все цветовые варианты группы (для переключателя цвета). По умолчанию — сам товар.
   final List<ProductModel> allVariants;
+  // Дүкен парақшасынан ашылды ма — дүкен карточкасын басқанда жаңа экран
+  // орнына артқа ораламыз (шексіз стек болмауы үшін).
+  final bool openedFromStore;
   const ClientProductDetail({
     super.key,
     required this.product,
     required this.store,
     this.allVariants = const [],
+    this.openedFromStore = false,
   });
 
   @override
@@ -229,6 +236,30 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
     Navigator.pop(context);
   }
 
+  /// Дүкен парақшасын ашу. Дүкеннен келген болсақ — жай артқа ораламыз.
+  /// Дүкен ішінен «Купить сейчас» болса (true) — сигналды әрі қарай жеткіземіз.
+  Future<void> _openStore() async {
+    if (widget.openedFromStore) {
+      Navigator.pop(context);
+      return;
+    }
+    final buyNow = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => StorePublicScreen(store: widget.store)),
+    );
+    if (buyNow == true && mounted) Navigator.pop(context, true);
+  }
+
+  /// Тауарға шағымдану (кез келген қолданушы; guest — логинге бағытталады).
+  void _reportProduct() => showReportSheet(
+        context,
+        targetType: 'product',
+        targetId: _currentProduct.id,
+        targetName: _currentProduct.name,
+        adminUid: widget.store.adminUid,
+        storeName: widget.store.storeName,
+      );
+
   void _buyNow() {
     if (_selectedSize == null) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -324,6 +355,19 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
                         Text(_currentProduct.type,
                             style: manrope(13.5, FontWeight.w500,
                                 color: cInk3)),
+                      if (_currentProduct.ratingCount > 0) ...[
+                        const SizedBox(height: 6),
+                        Row(children: [
+                          RatingStars(
+                              rating: _currentProduct.ratingAvg, size: 15),
+                          const SizedBox(width: 6),
+                          Text(
+                            '${_currentProduct.ratingAvg.toStringAsFixed(1)} · ${_currentProduct.ratingCount} ${tr('отзывов', 'пікір')}',
+                            style: manrope(12.5, FontWeight.w600,
+                                color: cInk3),
+                          ),
+                        ]),
+                      ],
                       const SizedBox(height: 10),
 
                       // Price (со скидкой товара — зачёркнутая старая + новая + бейдж)
@@ -488,34 +532,49 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
 
                       const SizedBox(height: 16),
 
-                      // Store card
-                      Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: cGreenTint,
-                          borderRadius: BorderRadius.circular(18),
-                        ),
-                        child: Row(children: [
-                          const Icon(Icons.storefront_outlined,
-                              color: cGreenDeep, size: 22),
-                          const SizedBox(width: 11),
-                          Expanded(
-                            child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(widget.store.storeName,
-                                      style: manrope(13.5, FontWeight.w700,
-                                          color: cGreenDeep)),
-                                  if (widget.store.address.isNotEmpty)
-                                    Text(widget.store.address,
+                      // Store card — дүкен парақшасына өтеді (тек осы дүкен
+                      // тауарлары). Дүкеннен ашылған болсақ — артқа оралады.
+                      GestureDetector(
+                        onTap: _openStore,
+                        child: Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: cGreenTint,
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                          child: Row(children: [
+                            const Icon(Icons.storefront_outlined,
+                                color: cGreenDeep, size: 22),
+                            const SizedBox(width: 11),
+                            Expanded(
+                              child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(widget.store.storeName,
+                                        style: manrope(13.5, FontWeight.w700,
+                                            color: cGreenDeep)),
+                                    Text(
+                                        widget.store.address.isNotEmpty
+                                            ? widget.store.address
+                                            : tr('Перейти в магазин',
+                                                'Дүкенге өту'),
                                         style: manrope(12, FontWeight.w500,
                                             color: cGreenDeep.withValues(
                                                 alpha: 0.8))),
-                                ]),
-                          ),
-                          const Icon(Icons.chevron_right_rounded,
-                              color: cGreenDeep, size: 18),
-                        ]),
+                                  ]),
+                            ),
+                            const Icon(Icons.chevron_right_rounded,
+                                color: cGreenDeep, size: 18),
+                          ]),
+                        ),
+                      ),
+
+                      // ── Отзывы (тек сатып алғандар жазады) ──────────
+                      // Key: түс нұсқасы ауысқанда секция қайта жүктеледі.
+                      ReviewsSection(
+                        key: ValueKey('reviews_${_currentProduct.id}'),
+                        product: _currentProduct,
+                        store: widget.store,
                       ),
                         ],
                       ),
@@ -535,13 +594,22 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
                           icon: Icons.chevron_left_rounded,
                           onTap: () => Navigator.pop(context),
                         ),
-                        _RoundBtn(
-                          icon: _isFavorite
-                              ? Icons.favorite_rounded
-                              : Icons.favorite_border_rounded,
-                          iconColor: cRed,
-                          onTap: _toggleFavorite,
-                        ),
+                        Row(children: [
+                          // Шағымдану (App Store 1.2 — UGC report)
+                          _RoundBtn(
+                            icon: Icons.flag_outlined,
+                            iconColor: cInk2,
+                            onTap: _reportProduct,
+                          ),
+                          const SizedBox(width: 8),
+                          _RoundBtn(
+                            icon: _isFavorite
+                                ? Icons.favorite_rounded
+                                : Icons.favorite_border_rounded,
+                            iconColor: cRed,
+                            onTap: _toggleFavorite,
+                          ),
+                        ]),
                       ]),
                 ),
               ),

@@ -187,6 +187,19 @@ class _ProductGroupCardState extends State<ProductGroupCard> {
                 style: manrope(13, FontWeight.w700, color: cInk),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis),
+            // Рейтинг (денормализацияланған — N+1 сұраныссыз)
+            if (_product.ratingCount > 0) ...[
+              const SizedBox(height: 3),
+              Row(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.star_rounded,
+                    size: 13, color: Color(0xFFF6A609)),
+                const SizedBox(width: 2),
+                Text(
+                  '${_product.ratingAvg.toStringAsFixed(1)} (${_product.ratingCount})',
+                  style: manrope(11, FontWeight.w700, color: cInk2),
+                ),
+              ]),
+            ],
             // Color variant dots (only when >1 variant)
             if (variantCount > 1) ...[
               const SizedBox(height: 9),

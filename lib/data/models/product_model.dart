@@ -16,6 +16,10 @@ class ProductModel {
   final String description; // описание товара (необязательно)
   final String country; // страна производства (необязательно)
   final String season; // Лето|Зима|Осень|Весна ('' = не указан)
+  // Денормализацияланған рейтинг (product_reviews триггері жаңартады).
+  // toMap-қа ӘДЕЙІ кірмейді — админ тауарды өңдегенде нөлденіп кетпеуі үшін.
+  final double ratingAvg;
+  final int ratingCount;
 
   const ProductModel({
     required this.id,
@@ -32,6 +36,8 @@ class ProductModel {
     this.description = '',
     this.country = '',
     this.season = '',
+    this.ratingAvg = 0,
+    this.ratingCount = 0,
   });
 
   /// Ключ категории с учётом обратной совместимости: товары, заведённые до
@@ -120,9 +126,12 @@ class ProductModel {
         description: m['description'] as String? ?? '',
         country: m['country'] as String? ?? '',
         season: m['season'] as String? ?? '',
+        ratingAvg: (m['rating_avg'] as num?)?.toDouble() ?? 0,
+        ratingCount: (m['rating_count'] as num?)?.toInt() ?? 0,
       );
 
-  /// Supabase жазу үшін (snake_case; id/owner_uid сервисте қосылады).
+  /// Supabase жазу үшін (snake_case; id/owner_uid сервисте қосылады;
+  /// rating_avg/rating_count ӘДЕЙІ ЖОҚ — оларды тек DB триггері жазады).
   Map<String, dynamic> toMap() => {
         'name': name,
         'brand': brand,
@@ -171,6 +180,8 @@ class ProductModel {
     String? description,
     String? country,
     String? season,
+    double? ratingAvg,
+    int? ratingCount,
   }) {
     return ProductModel(
       id: id ?? this.id,
@@ -187,6 +198,8 @@ class ProductModel {
       description: description ?? this.description,
       country: country ?? this.country,
       season: season ?? this.season,
+      ratingAvg: ratingAvg ?? this.ratingAvg,
+      ratingCount: ratingCount ?? this.ratingCount,
     );
   }
 

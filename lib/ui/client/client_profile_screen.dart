@@ -11,6 +11,7 @@ import '../../core/order_helpers.dart';
 import '../../theme/qoima_design.dart';
 import 'favorites_screen.dart';
 import 'addresses_screen.dart';
+import 'hidden_stores_screen.dart';
 import '../auth/account_security_screen.dart';
 import '../auth/legal_documents_screen.dart';
 
@@ -137,6 +138,17 @@ class ClientProfileScreen extends StatelessWidget {
                     ? context.l10n.kazakh
                     : context.l10n.russian,
                 onTap: () => _showLanguageDialog(context),
+              ),
+              const SizedBox(height: 10),
+              _MenuItem(
+                icon: Icons.visibility_off_outlined,
+                tone: 'gray',
+                title: tr('Скрытые магазины', 'Жасырылған дүкендер'),
+                sub: tr('Магазины, которые вы скрыли', 'Сіз жасырған дүкендер'),
+                onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const HiddenStoresScreen())),
               ),
               const SizedBox(height: 10),
               _MenuItem(

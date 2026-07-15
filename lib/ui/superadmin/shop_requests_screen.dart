@@ -1,8 +1,10 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
+import '../../data/models/report_model.dart';
 import '../../data/models/shop_request_model.dart';
 import '../../data/models/store_edit_request_model.dart';
 import '../../data/models/user_model.dart';
+import '../../data/repositories/report_repository.dart';
 import '../../data/repositories/shop_request_repository.dart';
 import '../../data/repositories/store_edit_repository.dart';
 import '../../data/repositories/store_moderation_repository.dart';
@@ -11,6 +13,7 @@ import '../../theme/qoima_design.dart';
 import 'banners_screen.dart';
 import 'marketplace_shops_screen.dart';
 import 'reject_reason_sheet.dart';
+import 'reports_screen.dart';
 import 'shop_owners_screen.dart';
 import 'shop_request_detail_screen.dart';
 import 'store_edit_requests_screen.dart';
@@ -35,6 +38,9 @@ class _ShopRequestsScreenState extends State<ShopRequestsScreen> {
   // Жазылым badge-і — бітейін деп тұрған + асып кеткен иелер саны.
   late final Stream<List<UserModel>> _owners =
       StoreModerationRepository().watchOwners();
+  // Шағымдар badge-і — жаңа шағымдар саны.
+  late final Stream<List<ReportModel>> _reports =
+      ReportRepository().watchReports();
   int _tab = 0; // 0 Все · 1 Новые · 2 Одобренные · 3 Отклонённые
 
   String get _uid => Supabase.instance.client.auth.currentUser!.id;
@@ -130,6 +136,7 @@ class _ShopRequestsScreenState extends State<ShopRequestsScreen> {
               action: _HeaderActions(
                 editPending: _editPending,
                 owners: _owners,
+                reports: _reports,
                 onSignOut: _signOut,
               ),
               bottom: [
@@ -216,15 +223,33 @@ class _ShopRequestsScreenState extends State<ShopRequestsScreen> {
 class _HeaderActions extends StatelessWidget {
   final Stream<List<StoreEditRequestModel>> editPending;
   final Stream<List<UserModel>> owners;
+  final Stream<List<ReportModel>> reports;
   final VoidCallback onSignOut;
   const _HeaderActions(
       {required this.editPending,
       required this.owners,
+      required this.reports,
       required this.onSignOut});
 
   @override
   Widget build(BuildContext context) {
     return Row(mainAxisSize: MainAxisSize.min, children: [
+      // Шағымдар (жаңалар badge-і)
+      StreamBuilder<List<ReportModel>>(
+        stream: reports,
+        builder: (context, snap) {
+          final newCount =
+              (snap.data ?? []).where((r) => r.isNew).length;
+          return QHeaderBtn(Icons.flag_outlined,
+              badge: newCount,
+              onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const ReportsScreen()),
+                  ));
+        },
+      ),
+      const SizedBox(width: 8),
       StreamBuilder<List<UserModel>>(
         stream: owners,
         builder: (context, snap) {

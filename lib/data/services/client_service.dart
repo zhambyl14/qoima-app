@@ -1,10 +1,12 @@
 import 'dart:math';
+import 'package:flutter/foundation.dart' show ValueNotifier;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/store_model.dart';
 import '../models/product_model.dart';
 import '../models/batch_model.dart';
 import '../models/order_model.dart';
 import '../models/courier_delivery_model.dart';
+import '../models/review_model.dart';
 import '../models/warehouse_model.dart';
 import '../models/cart_item_model.dart';
 import '../models/promo_model.dart';
@@ -539,5 +541,139 @@ class ClientService {
   /// Курьерлік жеткізу жазбасын жасайды (себет checkout-та бір рет).
   Future<void> createCourierDelivery(CourierDeliveryModel delivery) async {
     await _sb.from('courier_deliveries').insert(delivery.toMap());
+  }
+
+  // ── Reviews (пікірлер — тек расталған сатып алушы жазады) ───────────────────
+
+  /// Тауар пікірлері (жаңасы бірінші). Оқу публичті — guest те көреді.
+  Future<List<ReviewModel>> getProductReviews(String productId) async {
+    if (productId.isEmpty) return [];
+    final rows = await _sb
+        .from('product_reviews')
+        .select()
+        .eq('product_id', productId)
+        .order('created_at', ascending: false);
+    return rows.map(ReviewModel.fromMap).toList();
+  }
+
+  /// Клиент осы тауарды сатып алған ба (completed тапсырыс бар ма)?
+  /// RPC — RLS insert саясатымен бір логика (бір ақиқат көзі).
+  Future<bool> canReviewProduct(String productId) async {
+    if (_uid.isEmpty || productId.isEmpty) return false;
+    try {
+      final res = await _sb.rpc('client_purchased_product',
+          params: {'p_product': productId});
+      return res == true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Пікір жазу/өзгерту (бір тауарға бір пікір — upsert).
+  Future<void> submitReview({
+    required String productId,
+    required String adminUid,
+    required String clientName,
+    required int rating,
+    required String comment,
+  }) =>
+      _sb.from('product_reviews').upsert({
+        'product_id': productId,
+        'admin_uid': adminUid,
+        'client_uid': _uid,
+        'client_name': clientName,
+        'rating': rating,
+        'comment': comment.trim(),
+        'updated_at': DateTime.now().toIso8601String(),
+      }, onConflict: 'product_id,client_uid');
+
+  /// Өз пікірін өшіру.
+  Future<void> deleteMyReview(String productId) => _sb
+      .from('product_reviews')
+      .delete()
+      .eq('product_id', productId)
+      .eq('client_uid', _uid);
+
+  // ── Reports (шағымдар — кез келген авторизацияланған қолданушы) ─────────────
+
+  /// Тауарға/дүкенге/пікірге шағым. [targetType]: product|store|review.
+  Future<void> submitReport({
+    required String targetType,
+    required String targetId,
+    required String targetName,
+    required String reason,
+    String comment = '',
+    String adminUid = '',
+    String storeName = '',
+    String reporterName = '',
+    String reporterPhone = '',
+  }) =>
+      _sb.from('content_reports').insert({
+        'reporter_uid': _uid,
+        'reporter_name': reporterName,
+        'reporter_phone': reporterPhone,
+        'target_type': targetType,
+        'target_id': targetId,
+        'target_name': targetName,
+        'admin_uid': adminUid.isEmpty ? null : adminUid,
+        'store_name': storeName,
+        'reason': reason,
+        'comment': comment.trim(),
+      });
+
+  // ── Hidden stores (клиент дүкенді өзі үшін жасырады — UGC block) ────────────
+
+  /// Жасыру/ашу оқиғасында артады — home/catalog осыны тыңдап қайта жүктейді.
+  static final ValueNotifier<int> hiddenStoresVersion = ValueNotifier(0);
+
+  /// Клиент жасырған дүкендердің admin_uid жиыны. Guest → бос жиын.
+  Future<Set<String>> getHiddenStoreIds() async {
+    if (_uid.isEmpty) return {};
+    try {
+      final rows = await _sb
+          .from('hidden_stores')
+          .select('admin_uid')
+          .eq('client_uid', _uid);
+      return rows.map((r) => r['admin_uid'] as String).toSet();
+    } catch (_) {
+      return {};
+    }
+  }
+
+  /// Жасырылған дүкендер тізімі (басқару экраны үшін).
+  Future<List<Map<String, dynamic>>> getHiddenStores() async {
+    if (_uid.isEmpty) return [];
+    final rows = await _sb
+        .from('hidden_stores')
+        .select()
+        .eq('client_uid', _uid)
+        .order('created_at', ascending: false);
+    return rows
+        .map((r) => {
+              'adminUid': r['admin_uid'],
+              'storeName': r['store_name'],
+              'createdAt': r['created_at'],
+            })
+        .toList();
+  }
+
+  Future<void> hideStore(String adminUid, String storeName) async {
+    if (_uid.isEmpty || adminUid.isEmpty) return;
+    await _sb.from('hidden_stores').upsert({
+      'client_uid': _uid,
+      'admin_uid': adminUid,
+      'store_name': storeName,
+    }, onConflict: 'client_uid,admin_uid');
+    hiddenStoresVersion.value++;
+  }
+
+  Future<void> unhideStore(String adminUid) async {
+    if (_uid.isEmpty) return;
+    await _sb
+        .from('hidden_stores')
+        .delete()
+        .eq('client_uid', _uid)
+        .eq('admin_uid', adminUid);
+    hiddenStoresVersion.value++;
   }
 }

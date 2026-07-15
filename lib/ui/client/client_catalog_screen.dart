@@ -69,10 +69,17 @@ class _ClientCatalogScreenState extends State<ClientCatalogScreen> {
   void initState() {
     super.initState();
     _loadAll();
+    // Дүкен жасырылса/ашылса — каталогты қайта жүктейміз.
+    ClientService.hiddenStoresVersion.addListener(_onHiddenStoresChanged);
+  }
+
+  void _onHiddenStoresChanged() {
+    if (mounted) _loadAll();
   }
 
   @override
   void dispose() {
+    ClientService.hiddenStoresVersion.removeListener(_onHiddenStoresChanged);
     _searchCtrl.dispose();
     super.dispose();
   }
@@ -84,15 +91,21 @@ class _ClientCatalogScreenState extends State<ClientCatalogScreen> {
       _error = null;
     });
     try {
-      final allStores = await _service.getPublishedStores();
+      // Дүкендер + клиент жасырған дүкендер (параллель).
+      final results = await Future.wait([
+        _service.getPublishedStores(),
+        _service.getHiddenStoreIds(),
+      ]);
       if (!mounted) return;
+      final allStores = results[0] as List<StoreModel>;
+      final hiddenIds = results[1] as Set<String>;
 
       final clientCity = context.read<AppUser>().city;
-      final stores = clientCity.isEmpty
-          ? allStores
-          : allStores
-              .where((s) => s.city.isEmpty || s.city == clientCity)
-              .toList();
+      final stores = allStores
+          .where((s) => !hiddenIds.contains(s.adminUid))
+          .where((s) =>
+              clientCity.isEmpty || s.city.isEmpty || s.city == clientCity)
+          .toList();
 
       final storesWithProducts =
           stores.where((s) => s.visibleWarehouseIds.isNotEmpty).toList();

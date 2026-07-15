@@ -14,6 +14,7 @@ import '../shared/skeletons.dart';
 import 'client_product_card.dart';
 import 'client_product_detail.dart';
 import 'client_shell.dart';
+import 'home_filters_sheet.dart';
 
 import '../../core/lang.dart';
 // ── Filters state ──────────────────────────────────────────────────────────────
@@ -25,10 +26,11 @@ class ClientFilters {
   final Set<String> brands;
   final Set<String> sizes;
   final Set<String> colors;
-  final Set<String> categories;
+  final Set<String> categories; // кому: Мужские|Женские|Унисекс|Детские
   final double? minPrice;
   final double? maxPrice;
   final bool onSale; // only show products with active discount
+  final String sort; // default|price_asc|price_desc|rating
 
   const ClientFilters({
     this.search = '',
@@ -42,6 +44,7 @@ class ClientFilters {
     this.minPrice,
     this.maxPrice,
     this.onSale = false,
+    this.sort = 'default',
   });
 
   int get activeCount {
@@ -58,6 +61,8 @@ class ClientFilters {
     return c;
   }
 
+  bool get hasAny => activeCount > 0 || sort != 'default';
+
   ClientFilters copyWith({
     String? search,
     Object? storeId = _sentinel,
@@ -70,6 +75,7 @@ class ClientFilters {
     Object? minPrice = _sentinel,
     Object? maxPrice = _sentinel,
     bool? onSale,
+    String? sort,
   }) =>
       ClientFilters(
         search: search ?? this.search,
@@ -83,6 +89,7 @@ class ClientFilters {
         minPrice: minPrice == _sentinel ? this.minPrice : minPrice as double?,
         maxPrice: maxPrice == _sentinel ? this.maxPrice : maxPrice as double?,
         onSale: onSale ?? this.onSale,
+        sort: sort ?? this.sort,
       );
 }
 
@@ -109,33 +116,114 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
   String? _errorMessage;
   int _displayCount = 20;
   String _searchQuery = '';
+  ClientFilters _filters = const ClientFilters();
+  // Соңғы build-тегі сүзілген топ саны — _hasMore үшін (қайта есептемей).
+  int _filteredCount = 0;
 
   // Все группы — цветовые варианты (same name+brand+type) схлопнуты в одну.
   List<ProductGroup> get _allGroups =>
       groupProducts(_pairs.map((e) => e.product).toList());
 
-  // Группы к показу: без запроса — пагинация; с запросом — smart-фильтр + сорт.
-  List<ProductGroup> get _shownGroups {
-    final groups = _allGroups;
-    if (_searchQuery.isEmpty) return groups.take(_displayCount).toList();
-    final q = _searchQuery;
-    return groups.where((g) => productGroupMatches(g, q)).toList()
-      ..sort((a, b) =>
-          productGroupScore(b, q).compareTo(productGroupScore(a, q)));
+  /// Фильтр + сорт қолданылған ТОЛЫҚ тізім (пагинациясыз).
+  List<ProductGroup> _filteredSortedGroups() {
+    var groups = _allGroups;
+    final f = _filters;
+
+    if (f.activeCount > 0) {
+      final batchesById = {
+        for (final pr in _pairs) pr.product.id: pr.batches
+      };
+      bool priceOk(ProductModel v) {
+        final bs = batchesById[v.id] ?? const <BatchModel>[];
+        if (bs.isEmpty) return false;
+        final price = effectivePrice(bs.first);
+        if (f.minPrice != null && price < f.minPrice!) return false;
+        if (f.maxPrice != null && price > f.maxPrice!) return false;
+        if (f.onSale && !hasActiveDiscount(bs.first)) return false;
+        return true;
+      }
+
+      groups = groups.where((g) {
+        if (f.categoryKeys.isNotEmpty &&
+            !f.categoryKeys.contains(g.main.effectiveCategoryKey)) {
+          return false;
+        }
+        if (f.categories.isNotEmpty &&
+            !f.categories.any((aud) => aud == 'Детские'
+                ? g.main.category.startsWith('Детские')
+                : g.main.category == aud)) {
+          return false;
+        }
+        if (f.storeId != null &&
+            _productStoreMap[g.main.id]?.adminUid != f.storeId) {
+          return false;
+        }
+        if ((f.minPrice != null || f.maxPrice != null || f.onSale) &&
+            !g.variants.any(priceOk)) {
+          return false;
+        }
+        return true;
+      }).toList();
+    }
+
+    if (_searchQuery.isNotEmpty) {
+      final q = _searchQuery;
+      groups = groups.where((g) => productGroupMatches(g, q)).toList()
+        ..sort((a, b) =>
+            productGroupScore(b, q).compareTo(productGroupScore(a, q)));
+      // Іздеуде relevance-сорт басым; таңдалған сорт болса — қайта сорттаймыз.
+    }
+
+    if (f.sort != 'default') {
+      final batchesById = {
+        for (final pr in _pairs) pr.product.id: pr.batches
+      };
+      double priceOf(ProductGroup g) {
+        double best = double.infinity;
+        for (final v in g.variants) {
+          final bs = batchesById[v.id] ?? const <BatchModel>[];
+          if (bs.isEmpty) continue;
+          final p = effectivePrice(bs.first);
+          if (p < best) best = p;
+        }
+        return best;
+      }
+
+      switch (f.sort) {
+        case 'price_asc':
+          groups.sort((a, b) => priceOf(a).compareTo(priceOf(b)));
+        case 'price_desc':
+          groups.sort((a, b) => priceOf(b).compareTo(priceOf(a)));
+        case 'rating':
+          groups.sort((a, b) {
+            final c = b.main.ratingAvg.compareTo(a.main.ratingAvg);
+            return c != 0
+                ? c
+                : b.main.ratingCount.compareTo(a.main.ratingCount);
+          });
+      }
+    }
+    return groups;
   }
 
-  bool get _hasMore =>
-      _searchQuery.isEmpty && _displayCount < _allGroups.length;
+  bool get _hasMore => _searchQuery.isEmpty && _displayCount < _filteredCount;
 
   @override
   void initState() {
     super.initState();
     _loadAllProducts();
     _scrollCtrl.addListener(_onScroll);
+    // Дүкен жасырылса/ашылса — тізімді қайта жүктейміз.
+    ClientService.hiddenStoresVersion.addListener(_onHiddenStoresChanged);
+  }
+
+  void _onHiddenStoresChanged() {
+    if (mounted) _loadAllProducts();
   }
 
   @override
   void dispose() {
+    ClientService.hiddenStoresVersion.removeListener(_onHiddenStoresChanged);
     _scrollCtrl.dispose();
     _searchCtrl.dispose();
     super.dispose();
@@ -157,13 +245,21 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
       _errorMessage = null;
     });
     try {
-      final allStores = await _service.getPublishedStores();
+      // Дүкендер + клиент жасырған дүкендер (параллель).
+      final results = await Future.wait([
+        _service.getPublishedStores(),
+        _service.getHiddenStoreIds(),
+      ]);
       if (!mounted) return;
+      final allStores = results[0] as List<StoreModel>;
+      final hiddenIds = results[1] as Set<String>;
 
       final clientCity = context.read<AppUser>().city;
-      final stores = clientCity.isEmpty
-          ? allStores
-          : allStores.where((s) => s.city.isEmpty || s.city == clientCity).toList();
+      final stores = allStores
+          .where((s) => !hiddenIds.contains(s.adminUid))
+          .where((s) =>
+              clientCity.isEmpty || s.city.isEmpty || s.city == clientCity)
+          .toList();
 
       final storesWithProducts =
           stores.where((s) => s.visibleWarehouseIds.isNotEmpty).toList();
@@ -218,7 +314,11 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
     final firstName = userName.isEmpty ? '' : userName.split(' ').first;
 
     // Группы к показу + карты «вариант → батчи/магазин» (для всех вариантов).
-    final groups = _shownGroups;
+    final allFiltered = _filteredSortedGroups();
+    _filteredCount = allFiltered.length;
+    final groups = _searchQuery.isEmpty
+        ? allFiltered.take(_displayCount).toList()
+        : allFiltered;
     // Әр түс — жеке карточка.
     final cards = expandVariantCards(groups);
     final batchesById = {
@@ -266,55 +366,96 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                           )),
                 ]),
               ),
-              // Search row
+              // Search row + фильтр батырмасы
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-                child: Container(
-                  height: 46,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Row(children: [
-                    const SizedBox(width: 12),
-                    const Icon(Icons.search_rounded, color: cInk3, size: 19),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: TextField(
-                        controller: _searchCtrl,
-                        cursorColor: cGreen,
-                        textAlignVertical: TextAlignVertical.center,
-                        onChanged: (q) => setState(() {
-                          _searchQuery = q.trim();
-                          _displayCount = 20;
-                        }),
-                        style: manrope(14.5, FontWeight.w600, color: cInk),
-                        decoration: InputDecoration(
-                          hintText: tr('Поиск товаров...', 'Тауарларды іздеу...'),
-                          hintStyle:
-                              manrope(14.5, FontWeight.w500, color: cInk3),
-                          filled: false,
-                          border: InputBorder.none,
-                          enabledBorder: InputBorder.none,
-                          focusedBorder: InputBorder.none,
-                          disabledBorder: InputBorder.none,
-                          errorBorder: InputBorder.none,
-                          contentPadding: EdgeInsets.zero,
-                          isDense: true,
-                          suffixIcon: _searchQuery.isNotEmpty
-                              ? GestureDetector(
-                                  onTap: () {
-                                    _searchCtrl.clear();
-                                    setState(() => _searchQuery = '');
-                                  },
-                                  child: const Icon(Icons.close_rounded,
-                                      color: cInk3, size: 18))
-                              : null,
-                        ),
+                child: Row(children: [
+                  Expanded(
+                    child: Container(
+                      height: 46,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(14),
                       ),
+                      child: Row(children: [
+                        const SizedBox(width: 12),
+                        const Icon(Icons.search_rounded,
+                            color: cInk3, size: 19),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextField(
+                            controller: _searchCtrl,
+                            cursorColor: cGreen,
+                            textAlignVertical: TextAlignVertical.center,
+                            onChanged: (q) => setState(() {
+                              _searchQuery = q.trim();
+                              _displayCount = 20;
+                            }),
+                            style:
+                                manrope(14.5, FontWeight.w600, color: cInk),
+                            decoration: InputDecoration(
+                              hintText: tr('Поиск товаров...',
+                                  'Тауарларды іздеу...'),
+                              hintStyle: manrope(14.5, FontWeight.w500,
+                                  color: cInk3),
+                              filled: false,
+                              border: InputBorder.none,
+                              enabledBorder: InputBorder.none,
+                              focusedBorder: InputBorder.none,
+                              disabledBorder: InputBorder.none,
+                              errorBorder: InputBorder.none,
+                              contentPadding: EdgeInsets.zero,
+                              isDense: true,
+                              suffixIcon: _searchQuery.isNotEmpty
+                                  ? GestureDetector(
+                                      onTap: () {
+                                        _searchCtrl.clear();
+                                        setState(() => _searchQuery = '');
+                                      },
+                                      child: const Icon(Icons.close_rounded,
+                                          color: cInk3, size: 18))
+                                  : null,
+                            ),
+                          ),
+                        ),
+                      ]),
                     ),
-                  ]),
-                ),
+                  ),
+                  const SizedBox(width: 10),
+                  // Фильтр (санат, кому, баға, скидка, дүкен, сорт)
+                  GestureDetector(
+                    onTap: _openFilters,
+                    child: Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Stack(clipBehavior: Clip.none, children: [
+                        const Center(
+                            child: Icon(Icons.tune_rounded,
+                                color: cInk, size: 20)),
+                        if (_filters.activeCount > 0)
+                          Positioned(
+                            top: 7,
+                            right: 7,
+                            child: Container(
+                              width: 16,
+                              height: 16,
+                              decoration: const BoxDecoration(
+                                  color: cGreen, shape: BoxShape.circle),
+                              child: Center(
+                                child: Text('${_filters.activeCount}',
+                                    style: manrope(9.5, FontWeight.w800,
+                                        color: Colors.white)),
+                              ),
+                            ),
+                          ),
+                      ]),
+                    ),
+                  ),
+                ]),
               ),
             ]),
           ),
@@ -356,9 +497,11 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                                             const EdgeInsets.only(top: 60),
                                         child: ClientEmptyState(
                                           icon: Icons.search_off_rounded,
-                                          message: _searchQuery.isEmpty
-                                              ? tr('Товаров нет', 'Тауарлар жоқ')
-                                              : tr('«$_searchQuery» не найдено', '«$_searchQuery» табылмады'),
+                                          message: _searchQuery.isNotEmpty
+                                              ? tr('«$_searchQuery» не найдено', '«$_searchQuery» табылмады')
+                                              : _filters.activeCount > 0
+                                                  ? tr('По выбранным фильтрам ничего не найдено', 'Таңдалған сүзгілер бойынша ештеңе табылмады')
+                                                  : tr('Товаров нет', 'Тауарлар жоқ'),
                                         ),
                                       ),
                                     )
@@ -410,6 +553,21 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
         ]),
       ),
     );
+  }
+
+  /// Фильтр sheet-і: санат, кому, баға аралығы, скидка, дүкен, сорттау.
+  Future<void> _openFilters() async {
+    final result = await showHomeFiltersSheet(
+      context,
+      current: _filters,
+      stores: _stores,
+    );
+    if (result != null && mounted) {
+      setState(() {
+        _filters = result;
+        _displayCount = 20;
+      });
+    }
   }
 
   /// Открывает деталь товара; «Купить сейчас» переключает на вкладку корзины.
