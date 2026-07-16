@@ -20,6 +20,9 @@ class ProductModel {
   // toMap-қа ӘДЕЙІ кірмейді — админ тауарды өңдегенде нөлденіп кетпеуі үшін.
   final double ratingAvg;
   final int ratingCount;
+  // true = онлайн-витринадан жасырылған (қоймада қалады). toMap-қа КІРМЕЙДІ —
+  // тек setStorefrontHidden арқылы бөлек жаңартылады (өңдеуде жаңылмас үшін).
+  final bool storefrontHidden;
 
   const ProductModel({
     required this.id,
@@ -38,6 +41,7 @@ class ProductModel {
     this.season = '',
     this.ratingAvg = 0,
     this.ratingCount = 0,
+    this.storefrontHidden = false,
   });
 
   /// Ключ категории с учётом обратной совместимости: товары, заведённые до
@@ -128,6 +132,7 @@ class ProductModel {
         season: m['season'] as String? ?? '',
         ratingAvg: (m['rating_avg'] as num?)?.toDouble() ?? 0,
         ratingCount: (m['rating_count'] as num?)?.toInt() ?? 0,
+        storefrontHidden: m['storefront_hidden'] as bool? ?? false,
       );
 
   /// Supabase жазу үшін (snake_case; id/owner_uid сервисте қосылады;
@@ -182,6 +187,7 @@ class ProductModel {
     String? season,
     double? ratingAvg,
     int? ratingCount,
+    bool? storefrontHidden,
   }) {
     return ProductModel(
       id: id ?? this.id,
@@ -200,6 +206,7 @@ class ProductModel {
       season: season ?? this.season,
       ratingAvg: ratingAvg ?? this.ratingAvg,
       ratingCount: ratingCount ?? this.ratingCount,
+      storefrontHidden: storefrontHidden ?? this.storefrontHidden,
     );
   }
 

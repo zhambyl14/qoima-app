@@ -195,7 +195,9 @@ class ClientService {
         .from('products')
         .select()
         .eq('owner_uid', adminUid)
-        .eq('status', ProductModel.statusInStock);
+        .eq('status', ProductModel.statusInStock)
+        // Витринадан жеке жасырылған тауарлар клиентке көрсетілмейді.
+        .eq('storefront_hidden', false);
     return rows.map(ProductModel.fromMap).toList();
   }
 

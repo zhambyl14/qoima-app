@@ -531,6 +531,84 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   // ── Тауарды бөлісу (публичный веб-сілтеме → WhatsApp/Telegram/копия) ──────
   // Сілтемені кез келген адам браузерде аша алады (қосымша қажет емес).
   // Дүкен публичный болмаса, бет «қолжетімсіз» деп көрсетеді (Edge Function).
+  bool _togglingStorefront = false;
+
+  Future<void> _toggleStorefront(bool hidden) async {
+    if (_togglingStorefront) return;
+    setState(() {
+      _togglingStorefront = true;
+      _product = _product.copyWith(storefrontHidden: hidden);
+    });
+    try {
+      await _service.setStorefrontHidden(_product.id, hidden);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(hidden
+              ? tr('Товар скрыт с онлайн-витрины', 'Тауар онлайн-витринадан жасырылды')
+              : tr('Товар снова в витрине', 'Тауар қайта витринада')),
+          backgroundColor: hidden ? cInk2 : cGreen,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    } catch (e) {
+      // Сәтсіз — күйді артқа қайтарамыз.
+      if (mounted) {
+        setState(() => _product = _product.copyWith(storefrontHidden: !hidden));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(tr('Не удалось изменить', 'Өзгерту сәтсіз')),
+          backgroundColor: cRed,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _togglingStorefront = false);
+    }
+  }
+
+  Widget _buildStorefrontToggle() {
+    final hidden = _product.storefrontHidden;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: hidden ? cBg : cGreenTint.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+            color: hidden ? cLine : cGreen.withValues(alpha: 0.3)),
+      ),
+      child: Row(children: [
+        Icon(hidden ? Icons.visibility_off_outlined : Icons.storefront_outlined,
+            color: hidden ? cInk3 : cGreenDeep, size: 22),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                  hidden
+                      ? tr('Скрыт с онлайн-витрины', 'Онлайн-витринадан жасырын')
+                      : tr('Виден в онлайн-витрине', 'Онлайн-витринада көрінеді'),
+                  style: manrope(13.5, FontWeight.w700,
+                      color: hidden ? cInk2 : cGreenDeep)),
+              Text(
+                  hidden
+                      ? tr('Остаётся на складе для учёта', 'Есеп үшін қоймада қалады')
+                      : tr('Покупатели видят этот товар', 'Сатып алушылар бұл тауарды көреді'),
+                  style: manrope(11.5, FontWeight.w500, color: cInk3)),
+            ],
+          ),
+        ),
+        Switch(
+          value: !hidden,
+          activeThumbColor: Colors.white,
+          activeTrackColor: cGreen,
+          onChanged:
+              _togglingStorefront ? null : (v) => _toggleStorefront(!v),
+        ),
+      ]),
+    );
+  }
+
   Future<void> _shareProduct() async {
     final p = _product;
     final url = SupabaseConfig.productShareUrl(p.id);
@@ -828,6 +906,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       _Tag(label: p.country, icon: Icons.public_outlined),
                   ]),
                   const SizedBox(height: 12),
+
+                  // Онлайн-витрина: тауарды жасыру/көрсету (тек админ)
+                  if (isAdmin) _buildStorefrontToggle(),
 
                   // Описание
                   if (p.description.isNotEmpty) ...[

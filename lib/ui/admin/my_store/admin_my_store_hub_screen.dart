@@ -7,12 +7,12 @@ import '../../../data/models/store_model.dart';
 import '../../../data/repositories/my_store_repository.dart';
 import '../../../data/services/firestore_service.dart';
 import '../../../theme/qoima_design.dart';
-import '../../client/store_public_screen.dart';
 import '../promos/promos_screen.dart';
 import 'admin_my_store_discounts_screen.dart';
 import 'admin_reviews_screen.dart';
 import 'admin_store_visibility_screen.dart';
 import 'ms_widgets.dart';
+import 'storefront_manage_screen.dart';
 import 'store_data_screen.dart';
 
 import '../../../core/lang.dart';
@@ -170,18 +170,14 @@ class AdminMyStoreHubScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 10),
                         QMenuItem(
-                          icon: Icons.visibility_outlined, tone: 'blue',
-                          title: tr('Витрина глазами клиента', 'Витрина клиент көзімен'),
-                          subtitle: store == null
-                              ? tr('Магазин ещё не создан', 'Дүкен әлі жасалмаған')
-                              : tr('Как покупатели видят ваш каталог', 'Каталогыңыз клиентке қалай көрінеді'),
-                          onTap: store == null
-                              ? () {}
-                              : () => Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                      builder: (_) => StorePublicScreen(
-                                          store: store, previewMode: true))),
+                          icon: Icons.storefront_outlined, tone: 'blue',
+                          title: tr('Витрина магазина', 'Дүкен витринасы'),
+                          subtitle: tr('Какие товары видны онлайн + просмотр', 'Қай тауар онлайн көрінеді + қарау'),
+                          onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => StorefrontManageScreen(
+                                      store: store))),
                         ),
                         const SizedBox(height: 20),
 

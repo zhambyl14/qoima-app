@@ -748,6 +748,28 @@ class _ProductCard extends StatelessWidget {
                               color: cGreen,
                               letterSpacing: 1)),
                       const Spacer(),
+                      // Витринадан жасырылған тауар (клиентке көрінбейді)
+                      if (product.storefrontHidden && !readOnly) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 7, vertical: 3),
+                          decoration: BoxDecoration(
+                              color: const Color(0xFFF3F4F6),
+                              borderRadius: BorderRadius.circular(6)),
+                          child: const Row(mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.visibility_off_outlined,
+                                    size: 11, color: cInk3),
+                                SizedBox(width: 3),
+                                Text('Не в витрине',
+                                    style: TextStyle(
+                                        fontSize: 9.5,
+                                        fontWeight: FontWeight.w700,
+                                        color: cInk3)),
+                              ]),
+                        ),
+                        const SizedBox(width: 6),
+                      ],
                       Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 8, vertical: 3),

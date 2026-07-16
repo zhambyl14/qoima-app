@@ -180,6 +180,13 @@ class FirestoreService {
   /// Товар суреттерін ауыстырады, ЕСКІ URL-дерді қайтарады (шақырушы оларды
   /// Cloudinary-ден тазалауы үшін — restock кезінде жаңа фото ескіні DB-дан
   /// алмастырғанда, ескісі Cloudinary-де жетім қалмауы керек).
+  /// Тауарды онлайн-витринадан жасыру/қайтару. [hidden]=true — клиентке
+  /// көрсетілмейді (қоймада қалады). toMap айналып өтіп, тек осы бағанды
+  /// жаңартады — өңдеудегі басқа деректерге әсер етпейді.
+  Future<void> setStorefrontHidden(String productId, bool hidden) => _sb
+      .from('products')
+      .update({'storefront_hidden': hidden}).eq('id', productId);
+
   Future<List<String>> updateProductImages(
       String productId, List<String> imageUrls) async {
     final prow = await _sb

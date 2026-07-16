@@ -77,10 +77,11 @@ class _AddProductScreenState extends State<AddProductScreen> {
   // Қолмен қосылған размерлер — БАРЛЫҚ түс варианттарына ортақ кілт.
   final Set<String> _customSizes = {};
 
-  // ── Өз пресеттері (жылдам толтыру) — құрылғыда сақталады ──────────────
-  // Әр элемент: {'perSize': шт/размер, 'count': неше размер}.
-  List<Map<String, int>> _customPresets = [];
-  static const String _kPresetsPref = 'qty_presets_v1';
+  // ── Өз пресеттері (сақталған размер-сан таралуы) — құрылғыда сақталады ──
+  // Әр элемент: {'name': String, 'sizes': {размер: сан}}. Сатушы қазіргі
+  // толтырылған торды «пресет» етіп сақтайды да, кейін бір басып қолданады.
+  List<Map<String, dynamic>> _customPresets = [];
+  static const String _kPresetsPref = 'qty_presets_v2';
 
   // Тип/материал по категориям и список «Кому» — общие константы каталога
   // (см. category_data.dart), используются и в редактировании товара.
@@ -143,12 +144,14 @@ class _AddProductScreenState extends State<AddProductScreen> {
       final prefs = await SharedPreferences.getInstance();
       final raw = prefs.getString(_kPresetsPref);
       if (raw == null) return;
-      final list = (jsonDecode(raw) as List)
-          .map((e) => {
-                'perSize': ((e as Map)['perSize'] as num).toInt(),
-                'count': (e['count'] as num).toInt(),
-              })
-          .toList();
+      final list = (jsonDecode(raw) as List).map((e) {
+        final m = e as Map;
+        return <String, dynamic>{
+          'name': (m['name'] as String?) ?? '',
+          'sizes': ((m['sizes'] as Map?) ?? {}).map(
+              (k, v) => MapEntry(k.toString(), (v as num).toInt())),
+        };
+      }).toList();
       if (mounted) setState(() => _customPresets = list);
     } catch (_) {}
   }
@@ -158,6 +161,118 @@ class _AddProductScreenState extends State<AddProductScreen> {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_kPresetsPref, jsonEncode(_customPresets));
     } catch (_) {}
+  }
+
+  /// Белсенді түстің қазіргі толтырылған торын пресет етіп сақтайды (аты сұралады).
+  Future<void> _saveCurrentAsPreset() async {
+    final color = _activeColor;
+    if (color == null) return;
+    // Тек нөлден үлкен размерлерді аламыз.
+    final sizes = <String, int>{
+      for (final e in (_variantSizes[color] ?? {}).entries)
+        if (e.value > 0) e.key: e.value,
+    };
+    if (sizes.isEmpty) {
+      _err(tr('Сначала укажите количество по размерам',
+          'Алдымен размерлер бойынша санды енгізіңіз'));
+      return;
+    }
+    final total = sizes.values.fold(0, (a, b) => a + b);
+    final ctrl = TextEditingController(
+        text: tr('Мой пресет $total шт', 'Менің пресетім $total дана'));
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(tr('Сохранить пресет', 'Пресетті сақтау'),
+            style: const TextStyle(fontWeight: FontWeight.w700)),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text(
+              tr('Текущее распределение размеров сохранится как быстрый пресет.',
+                  'Ағымдағы размер таралуы жылдам пресет ретінде сақталады.'),
+              style: manrope(12.5, FontWeight.w500, color: cInk2)),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+                color: cGreenTint, borderRadius: BorderRadius.circular(10)),
+            child: Text(
+                (sizes.entries.toList()
+                      ..sort((a, b) => (int.tryParse(a.key) ?? 0)
+                          .compareTo(int.tryParse(b.key) ?? 0)))
+                    .map((e) => '${e.key}·${e.value}')
+                    .join('  '),
+                style: manrope(12.5, FontWeight.w700, color: cGreenDeep)),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: ctrl,
+            autofocus: true,
+            maxLength: 40,
+            decoration: InputDecoration(
+              labelText: tr('Название пресета', 'Пресет атауы'),
+              border:
+                  OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          ),
+        ]),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(tr('Отмена', 'Бас тарту'))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+                backgroundColor: cGreen, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+            child: Text(tr('Сохранить', 'Сақтау')),
+          ),
+        ],
+      ),
+    );
+    if (name == null) return;
+    setState(() => _customPresets.add({
+          'name': name.isEmpty
+              ? tr('Пресет $total шт', 'Пресет $total дана')
+              : name,
+          'sizes': sizes,
+        }));
+    _persistCustomPresets();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(tr('Пресет сохранён', 'Пресет сақталды')),
+        backgroundColor: cGreen,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ));
+    }
+  }
+
+  /// Сақталған пресетті белсенді түске қолданады. Тордағы размерлерге сан
+  /// қойылады; торда жоқ размерлер (мыс. басқа категориядан) қосымша ретінде
+  /// БАРЛЫҚ түс варианттарына қосылады (таралу толық қалпына келеді).
+  void _applyCustomPreset(Map<String, int> preset) {
+    final color = _activeColor;
+    if (color == null) return;
+    setState(() {
+      // Торда жоқ размерлерді custom ретінде барлық варианттарға қосамыз.
+      for (final size in preset.keys) {
+        final exists = (_variantSizes[color] ?? {}).containsKey(size);
+        if (!exists) {
+          _customSizes.add(size);
+          for (final c in _selectedColors) {
+            _variantSizes[c] = {...?_variantSizes[c], size: 0};
+          }
+        }
+      }
+      // Белсенді түсті пресет мәндерімен толтырамыз (тор размерлерін нөлдеп,
+      // сосын пресеттегілерін қоямыз).
+      final current = _variantSizes[color] ?? {};
+      final filled = {for (final k in current.keys) k: 0};
+      preset.forEach((size, qty) {
+        if (filled.containsKey(size)) filled[size] = qty;
+      });
+      _variantSizes[color] = filled;
+    });
   }
 
   /// Размеры для текущего выбора: для обуви зависят от пола (богаче), для
@@ -1522,70 +1637,6 @@ class _AddProductScreenState extends State<AddProductScreen> {
     );
   }
 
-  // ── Өз пресетін қосу диалогы ──────────────────────────────────────────
-  Future<void> _promptAddPreset() async {
-    final perCtrl = TextEditingController();
-    final cntCtrl = TextEditingController();
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(tr('Свой пресет', 'Өз пресеті'),
-            style: const TextStyle(fontWeight: FontWeight.w700)),
-        content: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text(
-              tr('Быстрое заполнение: сколько штук на размер и на сколько размеров (от середины сетки).',
-                  'Жылдам толтыру: әр размерге неше дана және неше размерге (тор ортасынан).'),
-              style: manrope(12.5, FontWeight.w500, color: cInk2)),
-          const SizedBox(height: 14),
-          TextField(
-            controller: perCtrl,
-            autofocus: true,
-            keyboardType: TextInputType.number,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            decoration: InputDecoration(
-              labelText: tr('Штук на размер', 'Әр размерге дана'),
-              hintText: tr('Напр: 6', 'Мыс: 6'),
-              border:
-                  OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-          ),
-          const SizedBox(height: 10),
-          TextField(
-            controller: cntCtrl,
-            keyboardType: TextInputType.number,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            decoration: InputDecoration(
-              labelText: tr('Сколько размеров', 'Неше размер'),
-              hintText: tr('Напр: 4', 'Мыс: 4'),
-              border:
-                  OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-          ),
-        ]),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text(tr('Отмена', 'Бас тарту'))),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-                backgroundColor: cGreen, foregroundColor: Colors.white),
-            onPressed: () {
-              final per = int.tryParse(perCtrl.text.trim()) ?? 0;
-              final cnt = int.tryParse(cntCtrl.text.trim()) ?? 0;
-              Navigator.pop(ctx);
-              if (per < 1 || cnt < 1) return;
-              setState(() =>
-                  _customPresets.add({'perSize': per, 'count': cnt}));
-              _persistCustomPresets();
-            },
-            child: Text(tr('Сохранить', 'Сақтау')),
-          ),
-        ],
-      ),
-    );
-  }
-
   // Пресет карточкасы (ені бірдей; custom-да ✕ өшіру батырмасы бар).
   Widget _presetCard({
     required String label,
@@ -1766,59 +1817,60 @@ class _AddProductScreenState extends State<AddProductScreen> {
         ),
       ],
       const SizedBox(height: 14),
-      _Label(tr('⚡ Быстрое заполнение', '⚡ Жылдам толтыру')),
+      Row(children: [
+        _Label(tr('⚡ Быстрое заполнение', '⚡ Жылдам толтыру')),
+        const Spacer(),
+        // Қазіргі торды пресет етіп сақтау (size→qty таралуын жаттайды)
+        GestureDetector(
+          onTap: _totalPairs > 0 ? _saveCurrentAsPreset : null,
+          child: Opacity(
+            opacity: _totalPairs > 0 ? 1 : 0.4,
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.bookmark_add_outlined, size: 15, color: cGreen),
+              const SizedBox(width: 4),
+              Text(tr('Сохранить как пресет', 'Пресет етіп сақтау'),
+                  style: manrope(11.5, FontWeight.w700, color: cGreen)),
+            ]),
+          ),
+        ),
+      ]),
       const SizedBox(height: 8),
       SizedBox(
           height: 84,
           child: ListView(
             scrollDirection: Axis.horizontal,
             children: [
+              // Дайын формула-пресеттер (категорияға сай)
               ..._presets.map((p) => _presetCard(
                     label: tr(p['labelRu'] as String, p['labelKk'] as String),
                     desc: tr(p['descRu'] as String, p['descKk'] as String),
                     recommended: p['kind'] == 'recommended',
                     onTap: () => _applyPreset(p),
                   )),
-              // Өз пресеттері (өшіруге болады)
+              // Сатушының сақталған пресеттері (нақты таралу; ✕ өшіру)
               ...List.generate(_customPresets.length, (i) {
                 final p = _customPresets[i];
-                final per = p['perSize']!;
-                final cnt = p['count']!;
+                final sizes = (p['sizes'] as Map).map(
+                    (k, v) => MapEntry(k.toString(), (v as num).toInt()));
+                final total = sizes.values.fold(0, (a, b) => a + b);
+                final preview = (sizes.entries.toList()
+                      ..sort((a, b) => (int.tryParse(a.key) ?? 0)
+                          .compareTo(int.tryParse(b.key) ?? 0)))
+                    .take(4)
+                    .map((e) => '${e.key}·${e.value}')
+                    .join(' ');
                 return _presetCard(
-                  label: tr('${per * cnt} шт · $cnt размера',
-                      '${per * cnt} дана · $cnt размер'),
-                  desc: tr('По $per шт с размера', 'Әр размерден $per дана'),
-                  onTap: () => _applyPreset({'perSize': per, 'count': cnt}),
+                  label: (p['name'] as String?)?.isNotEmpty == true
+                      ? p['name'] as String
+                      : tr('$total шт', '$total дана'),
+                  desc: preview,
+                  onTap: () => _applyCustomPreset(sizes),
                   onDelete: () {
                     setState(() => _customPresets.removeAt(i));
                     _persistCustomPresets();
                   },
                 );
               }),
-              // «+ Свой пресет»
-              GestureDetector(
-                onTap: _promptAddPreset,
-                child: Container(
-                    width: 110,
-                    height: 76,
-                    margin: const EdgeInsets.only(right: 10, top: 4),
-                    decoration: BoxDecoration(
-                        color: cGreenTint,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                            color: cGreen.withValues(alpha: 0.35),
-                            width: 1.2)),
-                    child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.add_rounded,
-                              color: cGreen, size: 22),
-                          const SizedBox(height: 4),
-                          Text(tr('Свой пресет', 'Өз пресеті'),
-                              style: manrope(11, FontWeight.w700,
-                                  color: cGreen)),
-                        ])),
-              ),
             ],
           )),
       const SizedBox(height: 14),
