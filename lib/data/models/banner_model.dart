@@ -12,6 +12,12 @@ class BannerModel {
   final bool active;
   final DateTime? startsAt;
   final DateTime? endsAt;
+  // Баннер нақты дүкенге сілтей алады: клиент басқанда сол дүкеннің
+  // каталогы (StorePublicScreen) ашылады. '' = сілтеме жоқ.
+  final String storeAdminUid;
+  final String storeName;
+
+  bool get hasStoreLink => storeAdminUid.isNotEmpty;
 
   const BannerModel({
     required this.id,
@@ -24,6 +30,8 @@ class BannerModel {
     required this.active,
     this.startsAt,
     this.endsAt,
+    this.storeAdminUid = '',
+    this.storeName = '',
   });
 
   static const String _defStart = '#00713F';
@@ -62,6 +70,8 @@ class BannerModel {
       active: m['active'] as bool? ?? true,
       startsAt: dtn(m['starts_at']),
       endsAt: dtn(m['ends_at']),
+      storeAdminUid: m['store_admin_uid'] as String? ?? '',
+      storeName: m['store_name'] as String? ?? '',
     );
   }
 
@@ -76,6 +86,8 @@ class BannerModel {
         'active': active,
         'starts_at': startsAt?.toIso8601String(),
         'ends_at': endsAt?.toIso8601String(),
+        'store_admin_uid': storeAdminUid.isEmpty ? null : storeAdminUid,
+        'store_name': storeName,
       };
 
   BannerModel copyWith({
@@ -89,6 +101,8 @@ class BannerModel {
     bool? active,
     DateTime? startsAt,
     DateTime? endsAt,
+    String? storeAdminUid,
+    String? storeName,
   }) =>
       BannerModel(
         id: id ?? this.id,
@@ -101,5 +115,7 @@ class BannerModel {
         active: active ?? this.active,
         startsAt: startsAt ?? this.startsAt,
         endsAt: endsAt ?? this.endsAt,
+        storeAdminUid: storeAdminUid ?? this.storeAdminUid,
+        storeName: storeName ?? this.storeName,
       );
 }

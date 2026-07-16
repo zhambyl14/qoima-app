@@ -133,14 +133,96 @@ class _ShopRequestsScreenState extends State<ShopRequestsScreen> {
               title: tr('Заявки магазинов', 'Дүкен өтінімдері'),
               subtitle: tr('Управление маркетплейсом', 'Маркетплейсті басқару'),
               compact: true,
-              action: _HeaderActions(
-                editPending: _editPending,
-                owners: _owners,
-                reports: _reports,
-                onSignOut: _signOut,
-              ),
+              // Тақырып қатарында тек «Шығу» — қалған навигация төмендегі
+              // жазулы чиптер қатарында (титул сығылып, әріп-әріп сынбайды).
+              action: QHeaderBtn(Icons.logout_rounded, onTap: _signOut),
               bottom: [
-                const SizedBox(height: 14),
+                const SizedBox(height: 12),
+                // ── Навигация чиптері (көлденең скролл, бейджтермен) ──────
+                SizedBox(
+                  height: 40,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    children: [
+                      StreamBuilder<List<ReportModel>>(
+                        stream: _reports,
+                        builder: (context, snap) {
+                          final n =
+                              (snap.data ?? []).where((r) => r.isNew).length;
+                          return _NavChip(
+                            icon: Icons.flag_outlined,
+                            label: tr('Жалобы', 'Шағымдар'),
+                            badge: n,
+                            onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) => const ReportsScreen())),
+                          );
+                        },
+                      ),
+                      StreamBuilder<List<UserModel>>(
+                        stream: _owners,
+                        builder: (context, snap) {
+                          final urgent = (snap.data ?? [])
+                              .where((o) => o.isExpiringSoon || o.isExpired)
+                              .length;
+                          return _NavChip(
+                            icon: Icons.card_membership_outlined,
+                            label: tr('Подписки', 'Жазылымдар'),
+                            badge: urgent,
+                            onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) =>
+                                        const SubscriptionsScreen())),
+                          );
+                        },
+                      ),
+                      _NavChip(
+                        icon: Icons.manage_accounts_outlined,
+                        label: tr('Владельцы', 'Иелер'),
+                        onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const ShopOwnersScreen())),
+                      ),
+                      _NavChip(
+                        icon: Icons.storefront_outlined,
+                        label: tr('Магазины', 'Дүкендер'),
+                        onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) =>
+                                    const MarketplaceShopsScreen())),
+                      ),
+                      StreamBuilder<List<StoreEditRequestModel>>(
+                        stream: _editPending,
+                        builder: (context, snap) {
+                          final n = snap.data?.length ?? 0;
+                          return _NavChip(
+                            icon: Icons.edit_note_rounded,
+                            label: tr('Изменения', 'Өзгерістер'),
+                            badge: n,
+                            onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) =>
+                                        const StoreEditRequestsScreen())),
+                          );
+                        },
+                      ),
+                      _NavChip(
+                        icon: Icons.photo_library_outlined,
+                        label: tr('Баннеры', 'Баннерлер'),
+                        onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const BannersScreen())),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
                 SizedBox(
                   height: 34,
                   child: ListView(
@@ -219,90 +301,62 @@ class _ShopRequestsScreenState extends State<ShopRequestsScreen> {
       );
 }
 
-// ── Header actions (маркетплейс + өзгерту запростары + баннер + шығу) ─────────────
-class _HeaderActions extends StatelessWidget {
-  final Stream<List<StoreEditRequestModel>> editPending;
-  final Stream<List<UserModel>> owners;
-  final Stream<List<ReportModel>> reports;
-  final VoidCallback onSignOut;
-  const _HeaderActions(
-      {required this.editPending,
-      required this.owners,
-      required this.reports,
-      required this.onSignOut});
+// ── Навигация чипі (икон + жазу + badge) — header астындағы қатарда ──────────
+class _NavChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final int badge;
+  final VoidCallback onTap;
+  const _NavChip(
+      {required this.icon,
+      required this.label,
+      this.badge = 0,
+      required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Row(mainAxisSize: MainAxisSize.min, children: [
-      // Шағымдар (жаңалар badge-і)
-      StreamBuilder<List<ReportModel>>(
-        stream: reports,
-        builder: (context, snap) {
-          final newCount =
-              (snap.data ?? []).where((r) => r.isNew).length;
-          return QHeaderBtn(Icons.flag_outlined,
-              badge: newCount,
-              onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => const ReportsScreen()),
-                  ));
-        },
-      ),
-      const SizedBox(width: 8),
-      StreamBuilder<List<UserModel>>(
-        stream: owners,
-        builder: (context, snap) {
-          final list = snap.data ?? [];
-          // Назар аударуды талап ететіндер: мерзімі жақын + асып кеткен.
-          final urgent = list
-              .where((o) => o.isExpiringSoon || o.isExpired)
-              .length;
-          return QHeaderBtn(Icons.card_membership_outlined,
-              badge: urgent,
-              onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => const SubscriptionsScreen()),
-                  ));
-        },
-      ),
-      const SizedBox(width: 8),
-      QHeaderBtn(Icons.manage_accounts_outlined,
-          onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const ShopOwnersScreen()),
-              )),
-      const SizedBox(width: 8),
-      QHeaderBtn(Icons.storefront_outlined,
-          onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (_) => const MarketplaceShopsScreen()),
-              )),
-      const SizedBox(width: 8),
-      StreamBuilder<List<StoreEditRequestModel>>(
-        stream: editPending,
-        builder: (context, snap) {
-          final count = snap.data?.length ?? 0;
-          return QHeaderBtn(Icons.edit_note_rounded,
-              badge: count,
-              onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => const StoreEditRequestsScreen()),
-                  ));
-        },
-      ),
-      const SizedBox(width: 8),
-      QHeaderBtn(Icons.photo_library_outlined,
-          onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const BannersScreen()),
-              )),
-      const SizedBox(width: 8),
-      QHeaderBtn(Icons.logout_rounded, onTap: onSignOut),
-    ]);
+    return GestureDetector(
+      onTap: onTap,
+      child: Stack(clipBehavior: Clip.none, children: [
+        Container(
+          margin: const EdgeInsets.only(right: 8, top: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 13),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(12),
+            border:
+                Border.all(color: Colors.white.withValues(alpha: 0.22)),
+          ),
+          child: Row(children: [
+            Icon(icon, color: Colors.white, size: 17),
+            const SizedBox(width: 7),
+            Text(label,
+                style:
+                    manrope(12.5, FontWeight.w700, color: Colors.white)),
+          ]),
+        ),
+        if (badge > 0)
+          Positioned(
+            top: -2,
+            right: 2,
+            child: Container(
+              constraints:
+                  const BoxConstraints(minWidth: 18, minHeight: 18),
+              padding: const EdgeInsets.all(3),
+              decoration: BoxDecoration(
+                color: cRed,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 1.5),
+              ),
+              child: Center(
+                child: Text(badge > 99 ? '99+' : '$badge',
+                    style: manrope(9.5, FontWeight.w800,
+                        color: Colors.white)),
+              ),
+            ),
+          ),
+      ]),
+    );
   }
 }
 

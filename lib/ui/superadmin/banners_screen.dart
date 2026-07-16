@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../data/models/banner_model.dart';
 import '../../data/repositories/banner_repository.dart';
 import '../../theme/qoima_design.dart';
@@ -187,6 +188,11 @@ class _BannerEditSheetState extends State<_BannerEditSheet> {
   late bool _active;
   bool _saving = false;
 
+  // Баннер сілтейтін дүкен ('' = сілтеме жоқ) + таңдау тізімі.
+  late String _storeUid;
+  late String _storeName;
+  List<({String uid, String name})> _stores = [];
+
   bool get _isNew => widget.banner == null;
 
   @override
@@ -200,6 +206,26 @@ class _BannerEditSheetState extends State<_BannerEditSheet> {
     _end = TextEditingController(text: b?.gradientEnd ?? '#12C97A');
     _order = TextEditingController(text: (b?.order ?? 0).toString());
     _active = b?.active ?? true;
+    _storeUid = b?.storeAdminUid ?? '';
+    _storeName = b?.storeName ?? '';
+    _loadStores();
+  }
+
+  Future<void> _loadStores() async {
+    try {
+      final rows = await Supabase.instance.client
+          .from('stores')
+          .select('admin_uid,store_name')
+          .eq('is_published', true)
+          .order('store_name');
+      if (!mounted) return;
+      setState(() => _stores = rows
+          .map((r) => (
+                uid: r['admin_uid'] as String? ?? '',
+                name: r['store_name'] as String? ?? '',
+              ))
+          .toList());
+    } catch (_) {}
   }
 
   @override
@@ -231,6 +257,8 @@ class _BannerEditSheetState extends State<_BannerEditSheet> {
       active: _active,
       startsAt: base?.startsAt,
       endsAt: base?.endsAt,
+      storeAdminUid: _storeUid,
+      storeName: _storeName,
     );
     try {
       await widget.repo.saveBanner(banner);
@@ -283,6 +311,63 @@ class _BannerEditSheetState extends State<_BannerEditSheet> {
       backgroundColor: color,
       behavior: SnackBarBehavior.floating,
     ));
+  }
+
+  /// Баннер сілтейтін дүкенді таңдау («Без ссылки» + жарияланған дүкендер).
+  Future<void> _pickStore() async {
+    final picked = await showModalBottomSheet<({String uid, String name})>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        decoration: const BoxDecoration(
+          color: cSurface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+            width: 36,
+            height: 4,
+            margin: const EdgeInsets.only(bottom: 14),
+            decoration: BoxDecoration(
+                color: cLine, borderRadius: BorderRadius.circular(2)),
+          ),
+          Text(tr('Магазин для баннера', 'Баннер дүкені'),
+              style: manrope(17, FontWeight.w800, color: cInk)),
+          const SizedBox(height: 12),
+          Flexible(
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.link_off_rounded, color: cInk3),
+                  title: Text(tr('Без ссылки', 'Сілтемесіз'),
+                      style: manrope(14.5, FontWeight.w600, color: cInk)),
+                  onTap: () => Navigator.pop(ctx, (uid: '', name: '')),
+                ),
+                ..._stores.map((s) => ListTile(
+                      leading: const Icon(Icons.storefront_rounded,
+                          color: cGreen),
+                      title: Text(s.name,
+                          style:
+                              manrope(14.5, FontWeight.w600, color: cInk)),
+                      trailing: s.uid == _storeUid
+                          ? const Icon(Icons.check_rounded, color: cGreen)
+                          : null,
+                      onTap: () => Navigator.pop(ctx, s),
+                    )),
+              ],
+            ),
+          ),
+        ]),
+      ),
+    );
+    if (picked != null && mounted) {
+      setState(() {
+        _storeUid = picked.uid;
+        _storeName = picked.name;
+      });
+    }
   }
 
   @override
@@ -377,6 +462,43 @@ class _BannerEditSheetState extends State<_BannerEditSheet> {
               _hexField(tr('Конец градиента', 'Градиент соңы'), _end, endColor),
               _field(tr('Порядок (order)', 'Реті (order)'), _order,
                   hint: '0', keyboardType: TextInputType.number),
+
+              // ── Дүкен сілтемесі: клиент баннерді басқанда осы дүкен ашылады
+              Text(tr('Магазин (при нажатии на баннер)', 'Дүкен (баннерді басқанда)'),
+                  style: manrope(12.5, FontWeight.w700, color: cInk2)),
+              const SizedBox(height: 6),
+              GestureDetector(
+                onTap: _pickStore,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 13),
+                  decoration: BoxDecoration(
+                    color: cBg,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(children: [
+                    Icon(
+                        _storeUid.isEmpty
+                            ? Icons.link_off_rounded
+                            : Icons.storefront_rounded,
+                        size: 18,
+                        color: _storeUid.isEmpty ? cInk3 : cGreen),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                          _storeUid.isEmpty
+                              ? tr('Без ссылки (просто баннер)',
+                                  'Сілтемесіз (жай баннер)')
+                              : _storeName,
+                          style: manrope(14, FontWeight.w600,
+                              color: _storeUid.isEmpty ? cInk3 : cInk)),
+                    ),
+                    const Icon(Icons.expand_more_rounded,
+                        color: cInk3, size: 20),
+                  ]),
+                ),
+              ),
+              const SizedBox(height: 12),
               const SizedBox(height: 6),
 
               // Active toggle
@@ -541,34 +663,53 @@ class _BannerEditSheetState extends State<_BannerEditSheet> {
   }
 }
 
-// ── Цветовой палитра (hex кодсыз визуалды таңдау) ────────────────────────────
-class _ColorPickerSheet extends StatelessWidget {
+// ── Толық түс палитрасы (HSV): кез келген түсті таңдау ────────────────────────
+// Жоғарыда S/V алаңы (қанықтық × жарықтық), астында Hue жолағы, жылдам
+// пресеттер және hex көрсеткіші. Ешқандай сыртқы пакет қолданылмайды.
+class _ColorPickerSheet extends StatefulWidget {
   final Color initial;
   const _ColorPickerSheet({required this.initial});
 
-  static List<Color> get _palette {
-    final out = <Color>[];
-    // Сұр реңктер: ақтан қараға
-    for (var i = 0; i <= 5; i++) {
-      out.add(Color.lerp(Colors.white, Colors.black, i / 5)!);
-    }
-    // Спектр: 12 тон × 3 жарықтық
-    for (var h = 0; h < 360; h += 30) {
-      for (final v in [1.0, 0.78, 0.55]) {
-        out.add(HSVColor.fromAHSV(1, h.toDouble(), 0.82, v).toColor());
-      }
-    }
-    return out;
+  @override
+  State<_ColorPickerSheet> createState() => _ColorPickerSheetState();
+}
+
+class _ColorPickerSheetState extends State<_ColorPickerSheet> {
+  late HSVColor _hsv = HSVColor.fromColor(widget.initial);
+
+  Color get _color => _hsv.toColor();
+
+  String get _hex {
+    String ch(double v) =>
+        (v * 255).round().clamp(0, 255).toRadixString(16).padLeft(2, '0');
+    final c = _color;
+    return '#${ch(c.r)}${ch(c.g)}${ch(c.b)}'.toUpperCase();
   }
 
-  bool _same(Color a, Color b) =>
-      (a.r - b.r).abs() < 0.02 &&
-      (a.g - b.g).abs() < 0.02 &&
-      (a.b - b.b).abs() < 0.02;
+  // Жылдам пресеттер — жиі қолданылатын брендтік реңктер.
+  static final List<Color> _quick = [
+    const Color(0xFF00713F), const Color(0xFF12C97A),
+    const Color(0xFF1A5BD0), const Color(0xFF5A3DD0),
+    const Color(0xFFB11A2B), const Color(0xFFE8590C),
+    const Color(0xFFC2255C), const Color(0xFF9A6A06),
+    const Color(0xFF0C120F), const Color(0xFF3C4D45),
+  ];
+
+  void _setSv(Offset local, Size size) {
+    final s = (local.dx / size.width).clamp(0.0, 1.0);
+    final v = 1 - (local.dy / size.height).clamp(0.0, 1.0);
+    setState(() => _hsv = _hsv.withSaturation(s).withValue(v));
+  }
+
+  void _setHue(Offset local, double width) {
+    final h = (local.dx / width).clamp(0.0, 1.0) * 360;
+    setState(() => _hsv = _hsv.withHue(h.clamp(0, 359.9)));
+  }
 
   @override
   Widget build(BuildContext context) {
-    final colors = _palette;
+    final hueColor =
+        HSVColor.fromAHSV(1, _hsv.hue, 1, 1).toColor(); // таза тон
     return Container(
       decoration: const BoxDecoration(
         color: cSurface,
@@ -579,44 +720,171 @@ class _ColorPickerSheet extends StatelessWidget {
         Container(
           width: 36,
           height: 4,
-          margin: const EdgeInsets.only(bottom: 16),
-          decoration:
-              BoxDecoration(color: cLine, borderRadius: BorderRadius.circular(2)),
+          margin: const EdgeInsets.only(bottom: 14),
+          decoration: BoxDecoration(
+              color: cLine, borderRadius: BorderRadius.circular(2)),
         ),
-        Text(tr('Выбор цвета', 'Түс таңдау'), style: manrope(17, FontWeight.w800, color: cInk)),
-        const SizedBox(height: 16),
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: colors.length,
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 6,
-            crossAxisSpacing: 10,
-            mainAxisSpacing: 10,
-            childAspectRatio: 1,
+        Row(children: [
+          Expanded(
+            child: Text(tr('Выбор цвета', 'Түс таңдау'),
+                style: manrope(17, FontWeight.w800, color: cInk)),
           ),
-          itemBuilder: (_, i) {
-            final c = colors[i];
-            final sel = _same(c, initial);
-            final isLight = c.computeLuminance() > 0.8;
-            return GestureDetector(
-              onTap: () => Navigator.pop(context, c),
-              child: Container(
+          // Ағымдағы түс + hex
+          Container(
+            padding: const EdgeInsets.fromLTRB(4, 4, 10, 4),
+            decoration: BoxDecoration(
+              color: cBg,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(children: [
+              Container(
+                width: 24,
+                height: 24,
                 decoration: BoxDecoration(
-                  color: c,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: sel ? cInk : (isLight ? cLine : Colors.transparent),
-                    width: sel ? 2.5 : 1,
+                  color: _color,
+                  borderRadius: BorderRadius.circular(7),
+                  border: Border.all(color: cLine),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(_hex,
+                  style: manrope(12.5, FontWeight.w800, color: cInk)),
+            ]),
+          ),
+        ]),
+        const SizedBox(height: 14),
+
+        // ── S/V алаңы: солдан оңға қанықтық, жоғарыдан төмен жарықтық ────
+        LayoutBuilder(builder: (ctx, constraints) {
+          final size = Size(constraints.maxWidth, 180.0);
+          return GestureDetector(
+            onPanDown: (d) => _setSv(d.localPosition, size),
+            onPanUpdate: (d) => _setSv(d.localPosition, size),
+            child: Container(
+              width: size.width,
+              height: size.height,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: cLine),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Stack(children: [
+                // ақ → таза тон (қанықтық)
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                        colors: [Colors.white, hueColor]),
+                  ),
+                  child: const SizedBox.expand(),
+                ),
+                // мөлдір → қара (жарықтық)
+                const DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Colors.transparent, Colors.black],
+                    ),
+                  ),
+                  child: SizedBox.expand(),
+                ),
+                // Нүсқағыш
+                Positioned(
+                  left: (_hsv.saturation * size.width - 10)
+                      .clamp(0.0, size.width - 20),
+                  top: ((1 - _hsv.value) * size.height - 10)
+                      .clamp(0.0, size.height - 20),
+                  child: Container(
+                    width: 20,
+                    height: 20,
+                    decoration: BoxDecoration(
+                      color: _color,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2.5),
+                      boxShadow: const [
+                        BoxShadow(color: Colors.black26, blurRadius: 4)
+                      ],
+                    ),
                   ),
                 ),
-                child: sel
-                    ? Icon(Icons.check_rounded,
-                        size: 18, color: isLight ? cInk : Colors.white)
-                    : null,
-              ),
-            );
-          },
+              ]),
+            ),
+          );
+        }),
+        const SizedBox(height: 14),
+
+        // ── Hue жолағы (кемпірқосақ) ─────────────────────────────────────
+        LayoutBuilder(builder: (ctx, constraints) {
+          final w = constraints.maxWidth;
+          return GestureDetector(
+            onPanDown: (d) => _setHue(d.localPosition, w),
+            onPanUpdate: (d) => _setHue(d.localPosition, w),
+            child: SizedBox(
+              height: 34,
+              child: Stack(children: [
+                Positioned.fill(
+                  top: 6,
+                  bottom: 6,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(11),
+                      gradient: LinearGradient(colors: [
+                        for (var h = 0; h <= 360; h += 30)
+                          HSVColor.fromAHSV(1, h % 360.0, 1, 1).toColor(),
+                      ]),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  left: (_hsv.hue / 360 * w - 11).clamp(0.0, w - 22),
+                  top: 0,
+                  child: Container(
+                    width: 22,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: HSVColor.fromAHSV(1, _hsv.hue, 1, 1).toColor(),
+                      borderRadius: BorderRadius.circular(9),
+                      border: Border.all(color: Colors.white, width: 2.5),
+                      boxShadow: const [
+                        BoxShadow(color: Colors.black26, blurRadius: 4)
+                      ],
+                    ),
+                  ),
+                ),
+              ]),
+            ),
+          );
+        }),
+        const SizedBox(height: 14),
+
+        // ── Жылдам пресеттер ─────────────────────────────────────────────
+        SizedBox(
+          height: 34,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            children: _quick
+                .map((c) => GestureDetector(
+                      onTap: () =>
+                          setState(() => _hsv = HSVColor.fromColor(c)),
+                      child: Container(
+                        width: 34,
+                        height: 34,
+                        margin: const EdgeInsets.only(right: 8),
+                        decoration: BoxDecoration(
+                          color: c,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: cLine),
+                        ),
+                      ),
+                    ))
+                .toList(),
+          ),
+        ),
+        const SizedBox(height: 16),
+        QPrimaryButton(
+          label: tr('Выбрать этот цвет', 'Осы түсті таңдау'),
+          onPressed: () => Navigator.pop(context, _color),
+          height: 50,
         ),
       ]),
     );

@@ -9,6 +9,7 @@ import 'core/supabase_config.dart';
 import 'theme/app_theme.dart';
 import 'ui/auth/blocked_screen.dart';
 import 'ui/auth/seller_join_screen.dart';
+import 'ui/auth/subscription_gate.dart';
 import 'ui/superadmin/shop_requests_screen.dart';
 import 'ui/guest/guest_shell.dart';
 import 'ui/main_shell.dart';
@@ -164,9 +165,18 @@ class QoimaApp extends StatelessWidget {
                 if (user.blocked) return const BlockedScreen();
                 if (user.isSuperadmin) return const ShopRequestsScreen();
                 if (user.isClient) return const ClientShell();
+                // Жазылым «заморозкасы»: мерзім өткеніне 3 күннен асты —
+                // иесі де, сатушылары да тек тауарларды көре алады.
+                if (user.subFrozen) return const SubscriptionFrozenScreen();
                 // Admin тіркелген соң бірден офлайн жұмысқа кіреді.
-                if (user.isAdmin) return const _AdminHomeRouter();
-                if (user.joinStatus == 'active') return const MainShell();
+                // Мерзімі жаңа өткендерге (0–3 күн) — жабылатын ескерту.
+                if (user.isAdmin) {
+                  return const SubscriptionExpiryNotice(
+                      child: _AdminHomeRouter());
+                }
+                if (user.joinStatus == 'active') {
+                  return const SubscriptionExpiryNotice(child: MainShell());
+                }
                 return const SellerJoinScreen();
               }
               if (futureSnap.connectionState == ConnectionState.waiting) {
@@ -204,11 +214,15 @@ Future<_SessState> _loadSession(String uid, BuildContext context) async {
       var blocked = false;
       var blockReason = '';
       var blockSource = '';
+      DateTime? subUntil;
       if (!userDoc.isSuperadmin) {
         final bs = await authService.fetchBlockStatus();
         blocked = bs.blocked;
         blockReason = bs.reason;
         blockSource = bs.source;
+        // Жазылым мерзімі (admin → өзі, seller → иесі): біткенде ескерту,
+        // 3 күннен кейін «заморозка» (тек оқу).
+        if (!blocked) subUntil = await authService.fetchSubscriptionUntil();
       }
       appUser.set(
         uid: userDoc.uid,
@@ -225,6 +239,7 @@ Future<_SessState> _loadSession(String uid, BuildContext context) async {
         blocked: blocked,
         blockReason: blockReason,
         blockSource: blockSource,
+        subscriptionUntil: subUntil,
       );
       if (!blocked) await wCtx.load();
       return _SessState.loaded;

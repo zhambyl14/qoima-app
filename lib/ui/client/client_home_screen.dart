@@ -15,6 +15,7 @@ import 'client_product_card.dart';
 import 'client_product_detail.dart';
 import 'client_shell.dart';
 import 'home_filters_sheet.dart';
+import 'store_public_screen.dart';
 
 import '../../core/lang.dart';
 // ── Filters state ──────────────────────────────────────────────────────────────
@@ -641,6 +642,25 @@ class _BannerCarouselState extends State<BannerCarousel> {
     });
   }
 
+  /// Дүкенге сілтелген баннер: сол дүкеннің каталогын ашады.
+  /// Дүкен жабық/блокталған/жарияланбаған болса — үнсіз ештеңе істемейміз.
+  Future<void> _openStore(BuildContext context, BannerModel b) async {
+    try {
+      final store =
+          await ClientService().getStoreByAdminUid(b.storeAdminUid);
+      if (store == null ||
+          !store.isPublished ||
+          store.isBlocked ||
+          !context.mounted) {
+        return;
+      }
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => StorePublicScreen(store: store)),
+      );
+    } catch (_) {}
+  }
+
   @override
   void dispose() {
     _sub?.cancel();
@@ -666,51 +686,72 @@ class _BannerCarouselState extends State<BannerCarousel> {
             final b = banners[i];
             return Padding(
               padding: const EdgeInsets.symmetric(horizontal: 14),
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [b.startColor, b.endColor],
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: kShadowSm,
-                ),
-                padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
-                child: Row(children: [
-                  Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (b.badge.isNotEmpty)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.22),
-                              borderRadius: BorderRadius.circular(7),
-                            ),
-                            child: Text(b.badge,
-                                style: manrope(10.5, FontWeight.w800,
-                                    color: Colors.white)),
-                          ),
-                        if (b.badge.isNotEmpty) const SizedBox(height: 6),
-                        Text(b.title,
-                            style: manrope(17, FontWeight.w800,
-                                color: Colors.white, letterSpacing: -0.3),
-                            maxLines: 1, overflow: TextOverflow.ellipsis),
-                        if (b.subtitle.isNotEmpty) ...[
-                          const SizedBox(height: 2),
-                          Text(b.subtitle,
-                              style: manrope(12.5, FontWeight.w500,
-                                  color: Colors.white.withValues(alpha: 0.9)),
-                              maxLines: 2, overflow: TextOverflow.ellipsis),
-                        ],
-                      ],
+              child: GestureDetector(
+                // Дүкенге сілтелген баннер — басқанда сол дүкеннің каталогы.
+                onTap: b.hasStoreLink ? () => _openStore(context, b) : null,
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [b.startColor, b.endColor],
                     ),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: kShadowSm,
                   ),
-                ]),
+                  padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
+                  child: Row(children: [
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (b.badge.isNotEmpty)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.22),
+                                borderRadius: BorderRadius.circular(7),
+                              ),
+                              child: Text(b.badge,
+                                  style: manrope(10.5, FontWeight.w800,
+                                      color: Colors.white)),
+                            ),
+                          if (b.badge.isNotEmpty) const SizedBox(height: 6),
+                          Text(b.title,
+                              style: manrope(17, FontWeight.w800,
+                                  color: Colors.white, letterSpacing: -0.3),
+                              maxLines: 1, overflow: TextOverflow.ellipsis),
+                          if (b.subtitle.isNotEmpty) ...[
+                            const SizedBox(height: 2),
+                            Text(b.subtitle,
+                                style: manrope(12.5, FontWeight.w500,
+                                    color:
+                                        Colors.white.withValues(alpha: 0.9)),
+                                maxLines: 2, overflow: TextOverflow.ellipsis),
+                          ],
+                        ],
+                      ),
+                    ),
+                    if (b.hasStoreLink)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 9, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.22),
+                          borderRadius: BorderRadius.circular(9),
+                        ),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          Text(tr('В магазин', 'Дүкенге'),
+                              style: manrope(11, FontWeight.w800,
+                                  color: Colors.white)),
+                          const Icon(Icons.chevron_right_rounded,
+                              color: Colors.white, size: 15),
+                        ]),
+                      ),
+                  ]),
+                ),
               ),
             );
           },

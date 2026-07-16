@@ -294,6 +294,19 @@ class AuthService {
     }
   }
 
+  /// Бизнес жазылымының мерзімі (admin → өзі, seller → иесі; RPC — DEFINER).
+  /// null = жазылым тағайындалмаған / қате — қолданба шектеу қоймайды.
+  Future<DateTime?> fetchSubscriptionUntil() async {
+    try {
+      final res = await _sb.rpc('my_subscription_status');
+      final m = (res is Map) ? res.cast<String, dynamic>() : <String, dynamic>{};
+      final raw = m['until'];
+      return raw is String && raw.isNotEmpty ? DateTime.tryParse(raw) : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Seller дүкен иесінен босап шығады (иесі блокталғанда басқа дүкенге ауысу
   /// үшін): owner_id тазарады, join_status='none' → SellerJoinScreen.
   Future<void> detachFromOwner() async {

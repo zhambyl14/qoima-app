@@ -28,6 +28,9 @@ class AppUser extends ChangeNotifier {
   bool _blocked = false;
   String _blockReason = '';
   String _blockSource = ''; // 'self' | 'owner' (иесі блокталған — каскад)
+  // Бизнес жазылымының мерзімі (admin → өзі, seller → иесі). null = тағайын-
+  // далмаған (ескі иелер) — қолданба шектемейді, модератор қолмен басқарады.
+  DateTime? _subscriptionUntil;
 
   String get uid => _uid;
   String get ownerUid => _ownerUid;
@@ -46,6 +49,7 @@ class AppUser extends ChangeNotifier {
   bool get blocked => _blocked;
   String get blockReason => _blockReason;
   String get blockSource => _blockSource;
+  DateTime? get subscriptionUntil => _subscriptionUntil;
 
   bool get isAdmin => _role == 'admin';
   bool get isSeller => _role == 'seller';
@@ -53,6 +57,26 @@ class AppUser extends ChangeNotifier {
   bool get isSuperadmin => _role == 'superadmin';
   bool get isLoaded => _uid.isNotEmpty;
   bool get isShopApproved => _shopStatus == 'approved';
+
+  // ── Жазылым күйі (admin/seller — бизнес иесінің мерзімі бойынша) ────────────
+  /// Мерзім өткелі неше күн болды (0 = бүгін бітті; өтпесе/жоқ болса null).
+  int? get subExpiredDays {
+    final until = _subscriptionUntil;
+    if (until == null) return null;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final untilDay = DateTime(until.year, until.month, until.day);
+    final d = today.difference(untilDay).inDays;
+    return d >= 0 ? d : null;
+  }
+
+  /// Жазылым мерзімі өткен (ескерту диалогы көрсетіледі).
+  bool get subExpired => subExpiredDays != null;
+
+  /// «Заморозка»: мерзім өткеніне 3 күннен асты — тек оқу режимі
+  /// (иесі де, сатушылары да ештеңе қоса/өшіре/өзгерте алмайды).
+  bool get subFrozen =>
+      (isAdmin || isSeller) && (subExpiredDays ?? -1) > 3;
 
   set assignedWarehouseId(String v) {
     if (_assignedWarehouseId == v) return;
@@ -102,6 +126,7 @@ class AppUser extends ChangeNotifier {
     bool blocked = false,
     String blockReason = '',
     String blockSource = '',
+    DateTime? subscriptionUntil,
   }) {
     _uid = uid;
     _ownerUid = ownerUid;
@@ -120,6 +145,7 @@ class AppUser extends ChangeNotifier {
     _blocked = blocked;
     _blockReason = blockReason;
     _blockSource = blockSource;
+    _subscriptionUntil = subscriptionUntil;
     notifyListeners();
   }
 
@@ -171,6 +197,7 @@ class AppUser extends ChangeNotifier {
     _blocked = false;
     _blockReason = '';
     _blockSource = '';
+    _subscriptionUntil = null;
     notifyListeners();
   }
 }
