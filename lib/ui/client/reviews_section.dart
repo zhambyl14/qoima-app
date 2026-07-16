@@ -356,6 +356,34 @@ class _ReviewTile extends StatelessWidget {
               style: manrope(13, FontWeight.w500, color: cInk2)
                   .copyWith(height: 1.45)),
         ],
+        // ── Дүкен жауабы ──────────────────────────────────────────────
+        if (review.hasReply) ...[
+          const SizedBox(height: 8),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: cGreenTint.withValues(alpha: 0.6),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: cGreen.withValues(alpha: 0.25)),
+            ),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                const Icon(Icons.storefront_rounded,
+                    size: 14, color: cGreenDeep),
+                const SizedBox(width: 5),
+                Text(tr('Ответ магазина', 'Дүкен жауабы'),
+                    style:
+                        manrope(11.5, FontWeight.w800, color: cGreenDeep)),
+              ]),
+              const SizedBox(height: 4),
+              Text(review.sellerReply,
+                  style: manrope(12.5, FontWeight.w500, color: cInk2)
+                      .copyWith(height: 1.4)),
+            ]),
+          ),
+        ],
       ]),
     );
   }

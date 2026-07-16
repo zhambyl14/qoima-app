@@ -11,8 +11,13 @@ class ReviewModel {
   final String clientName;
   final int rating; // 1..5
   final String comment;
+  // Дүкен жауабы (reply_to_review RPC арқылы жазылады; '' = жауап жоқ).
+  final String sellerReply;
+  final DateTime? sellerReplyAt;
   final DateTime createdAt;
   final DateTime updatedAt;
+
+  bool get hasReply => sellerReply.trim().isNotEmpty;
 
   const ReviewModel({
     required this.id,
@@ -22,6 +27,8 @@ class ReviewModel {
     required this.clientName,
     required this.rating,
     required this.comment,
+    this.sellerReply = '',
+    this.sellerReplyAt,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -37,6 +44,10 @@ class ReviewModel {
       clientName: m['client_name'] as String? ?? '',
       rating: (m['rating'] as num?)?.toInt() ?? 0,
       comment: m['comment'] as String? ?? '',
+      sellerReply: m['seller_reply'] as String? ?? '',
+      sellerReplyAt: m['seller_reply_at'] is String
+          ? DateTime.tryParse(m['seller_reply_at'] as String)
+          : null,
       createdAt: dt(m['created_at']),
       updatedAt: dt(m['updated_at']),
     );

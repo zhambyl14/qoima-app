@@ -22,6 +22,8 @@ class ProductGroupCard extends StatefulWidget {
   final int initialIndex;
   // selected — текущий выбранный вариант; variants — все варианты группы.
   final void Function(ProductModel selected, List<ProductModel> variants) onTap;
+  // false — жылдам «+» (себетке қосу) батырмасы жасырылады (иесінің preview-і).
+  final bool quickAddEnabled;
 
   const ProductGroupCard({
     super.key,
@@ -31,6 +33,7 @@ class ProductGroupCard extends StatefulWidget {
     required this.tone,
     required this.onTap,
     this.initialIndex = 0,
+    this.quickAddEnabled = true,
   });
 
   @override
@@ -244,19 +247,20 @@ class _ProductGroupCardState extends State<ProductGroupCard> {
                     ],
                   ),
                 ),
-                GestureDetector(
-                  onTap: _quickAdd,
-                  child: Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: cGreen,
-                      borderRadius: BorderRadius.circular(10),
+                if (widget.quickAddEnabled)
+                  GestureDetector(
+                    onTap: _quickAdd,
+                    child: Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: cGreen,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(Icons.add_rounded,
+                          color: Colors.white, size: 18),
                     ),
-                    child: const Icon(Icons.add_rounded,
-                        color: Colors.white, size: 18),
                   ),
-                ),
               ],
             ),
           ],

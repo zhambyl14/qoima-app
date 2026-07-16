@@ -7,8 +7,10 @@ import '../../../data/models/store_model.dart';
 import '../../../data/repositories/my_store_repository.dart';
 import '../../../data/services/firestore_service.dart';
 import '../../../theme/qoima_design.dart';
+import '../../client/store_public_screen.dart';
 import '../promos/promos_screen.dart';
 import 'admin_my_store_discounts_screen.dart';
+import 'admin_reviews_screen.dart';
 import 'admin_store_visibility_screen.dart';
 import 'ms_widgets.dart';
 import 'store_data_screen.dart';
@@ -154,6 +156,32 @@ class AdminMyStoreHubScreen extends StatelessWidget {
                           subtitle: tr('Коды со скидкой для клиентов', 'Клиенттерге жеңілдік кодтары'),
                           onTap: () => Navigator.push(context,
                               MaterialPageRoute(builder: (_) => const PromosScreen())),
+                        ),
+                        const SizedBox(height: 20),
+
+                        QSecLabel(tr('Покупатели', 'Сатып алушылар')),
+                        const SizedBox(height: 8),
+                        QMenuItem(
+                          icon: Icons.rate_review_outlined, tone: 'amber',
+                          title: tr('Отзывы покупателей', 'Сатып алушы пікірлері'),
+                          subtitle: tr('Читайте и отвечайте на отзывы', 'Пікірлерді оқып, жауап беріңіз'),
+                          onTap: () => Navigator.push(context,
+                              MaterialPageRoute(builder: (_) => const AdminReviewsScreen())),
+                        ),
+                        const SizedBox(height: 10),
+                        QMenuItem(
+                          icon: Icons.visibility_outlined, tone: 'blue',
+                          title: tr('Витрина глазами клиента', 'Витрина клиент көзімен'),
+                          subtitle: store == null
+                              ? tr('Магазин ещё не создан', 'Дүкен әлі жасалмаған')
+                              : tr('Как покупатели видят ваш каталог', 'Каталогыңыз клиентке қалай көрінеді'),
+                          onTap: store == null
+                              ? () {}
+                              : () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (_) => StorePublicScreen(
+                                          store: store, previewMode: true))),
                         ),
                         const SizedBox(height: 20),
 

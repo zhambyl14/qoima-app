@@ -21,12 +21,16 @@ class ClientProductDetail extends StatefulWidget {
   // Дүкен парақшасынан ашылды ма — дүкен карточкасын басқанда жаңа экран
   // орнына артқа ораламыз (шексіз стек болмауы үшін).
   final bool openedFromStore;
+  // Дүкен иесінің «клиент көзімен» алдын ала қарауы: сатып алу/таңдаулы/шағым
+  // әрекеттері жасырылады (иесі өз тауарын сатып ала алмайды).
+  final bool previewMode;
   const ClientProductDetail({
     super.key,
     required this.product,
     required this.store,
     this.allVariants = const [],
     this.openedFromStore = false,
+    this.previewMode = false,
   });
 
   @override
@@ -594,27 +598,30 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
                           icon: Icons.chevron_left_rounded,
                           onTap: () => Navigator.pop(context),
                         ),
-                        Row(children: [
-                          // Шағымдану (App Store 1.2 — UGC report)
-                          _RoundBtn(
-                            icon: Icons.flag_outlined,
-                            iconColor: cInk2,
-                            onTap: _reportProduct,
-                          ),
-                          const SizedBox(width: 8),
-                          _RoundBtn(
-                            icon: _isFavorite
-                                ? Icons.favorite_rounded
-                                : Icons.favorite_border_rounded,
-                            iconColor: cRed,
-                            onTap: _toggleFavorite,
-                          ),
-                        ]),
+                        if (widget.previewMode)
+                          const SizedBox.shrink()
+                        else
+                          Row(children: [
+                            // Шағымдану (App Store 1.2 — UGC report)
+                            _RoundBtn(
+                              icon: Icons.flag_outlined,
+                              iconColor: cInk2,
+                              onTap: _reportProduct,
+                            ),
+                            const SizedBox(width: 8),
+                            _RoundBtn(
+                              icon: _isFavorite
+                                  ? Icons.favorite_rounded
+                                  : Icons.favorite_border_rounded,
+                              iconColor: cRed,
+                              onTap: _toggleFavorite,
+                            ),
+                          ]),
                       ]),
                 ),
               ),
             ]),
-      bottomNavigationBar: avail.isEmpty
+      bottomNavigationBar: (avail.isEmpty || widget.previewMode)
           ? null
           : SafeArea(
               child: Container(

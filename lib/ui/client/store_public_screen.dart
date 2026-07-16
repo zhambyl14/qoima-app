@@ -17,9 +17,14 @@ import 'report_sheet.dart';
 /// Тауар детальіндегі дүкен карточкасынан ашылады. Әрекеттер (⋮):
 /// «Пожаловаться на магазин» және «Скрыть магазин» (клиент сатушыны өзі үшін
 /// блоктайды — App Store Guideline 1.2 талабы).
+///
+/// [previewMode] — дүкен иесі өз витринасын клиент көзімен көреді:
+/// шағым/жасыру/сатып алу әрекеттері жасырылады.
 class StorePublicScreen extends StatefulWidget {
   final StoreModel store;
-  const StorePublicScreen({super.key, required this.store});
+  final bool previewMode;
+  const StorePublicScreen(
+      {super.key, required this.store, this.previewMode = false});
 
   @override
   State<StorePublicScreen> createState() => _StorePublicScreenState();
@@ -77,6 +82,7 @@ class _StorePublicScreenState extends State<StorePublicScreen> {
           store: store,
           allVariants: variants,
           openedFromStore: true,
+          previewMode: widget.previewMode,
         ),
       ),
     );
@@ -204,7 +210,20 @@ class _StorePublicScreenState extends State<StorePublicScreen> {
                         style: manrope(20, FontWeight.w800,
                             color: Colors.white, letterSpacing: -0.4)),
                   ),
-                  // ⋮ — шағымдану / жасыру
+                  // ⋮ — шағымдану / жасыру (preview-де жасырын)
+                  if (widget.previewMode)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.16),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(tr('Предпросмотр', 'Алдын ала қарау'),
+                          style: manrope(11.5, FontWeight.w700,
+                              color: Colors.white)),
+                    )
+                  else
                   PopupMenuButton<String>(
                     icon: Container(
                       width: 38,
@@ -321,6 +340,7 @@ class _StorePublicScreenState extends State<StorePublicScreen> {
                               storeByProductId: storeById,
                               tone: i % 5,
                               onTap: _openProduct,
+                              quickAddEnabled: !widget.previewMode,
                             ),
                             childCount: cards.length,
                           ),
