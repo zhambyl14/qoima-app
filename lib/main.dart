@@ -18,6 +18,8 @@ import 'ui/admin/admin_shell.dart';
 import 'data/models/client_model.dart';
 import 'data/models/user_model.dart';
 import 'data/services/auth_service.dart';
+import 'data/services/push_service.dart';
+import 'data/services/local_notification_service.dart';
 import 'core/app_user.dart';
 import 'core/warehouse_context.dart';
 import 'core/locale_context.dart';
@@ -46,6 +48,10 @@ void main() async {
     anonKey: isLegacyJwt ? supaKey : null,
     publishableKey: isLegacyJwt ? null : supaKey,
   );
+  // FCM push (Firebase тек хабарлама жеткізуге; конфиг жоқ болса үнсіз өтеді).
+  await PushService.instance.init();
+  // Жергілікті хабарлама (себет еске салуы) — серверсіз, FCM-ге тәуелсіз.
+  await LocalNotificationService.instance.init();
   runApp(
     MultiProvider(
       providers: [
@@ -242,6 +248,10 @@ Future<_SessState> _loadSession(String uid, BuildContext context) async {
         subscriptionUntil: subUntil,
       );
       if (!blocked) await wCtx.load();
+      // Push токенін тіркейміз (рұқсат диалогы логинді бөгемеуі үшін await жоқ).
+      if (!blocked) {
+        PushService.instance.registerForUser(role: userDoc.role);
+      }
       return _SessState.loaded;
     }
 
@@ -260,6 +270,7 @@ Future<_SessState> _loadSession(String uid, BuildContext context) async {
         // Верификация жоқ — барлық клиент расталған деп есептеледі.
         emailVerified: true,
       );
+      PushService.instance.registerForUser(role: 'client');
       return _SessState.loaded;
     }
 

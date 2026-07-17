@@ -12,6 +12,8 @@ plugins {
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+    // Firebase (FCM push)
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -22,6 +24,8 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // flutter_local_notifications (себет еске салуы) осыны талап етеді.
+        isCoreLibraryDesugaringEnabled = true
     }
 
     kotlinOptions {
@@ -60,4 +64,9 @@ android {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    // flutter_local_notifications core library desugaring талабы.
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }

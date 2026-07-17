@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/lang.dart';
 import '../../theme/qoima_design.dart';
 import '../../data/models/cart_item_model.dart';
+import '../../data/services/local_notification_service.dart';
 import 'client_home_screen.dart';
 import 'client_catalog_screen.dart';
 import 'client_cart_screen.dart';
@@ -61,12 +62,16 @@ class CartProvider extends ChangeNotifier {
     }
     notifyListeners();
     _persist();
+    // Себетте тауар бар — 2 сағаттан кейін еске салу жоспарлаймыз (серверсіз,
+    // тек құрылғыда — CartProvider серверге синхрондалмайды).
+    LocalNotificationService.instance.scheduleCartReminder(itemCount: count);
   }
 
   void removeAt(int index) {
     _items.removeAt(index);
     notifyListeners();
     _persist();
+    if (_items.isEmpty) LocalNotificationService.instance.cancelCartReminder();
   }
 
   void decrementAt(int index) {
@@ -79,6 +84,7 @@ class CartProvider extends ChangeNotifier {
     }
     notifyListeners();
     _persist();
+    if (_items.isEmpty) LocalNotificationService.instance.cancelCartReminder();
   }
 
   void incrementAt(int index) {
@@ -88,10 +94,13 @@ class CartProvider extends ChangeNotifier {
     _persist();
   }
 
+  /// Себет тазарады (checkout сәтті өтті НЕМЕСЕ қолмен тазалады) — жоспарланған
+  /// еске салу керек емес.
   void clear() {
     _items.clear();
     notifyListeners();
     _persist();
+    LocalNotificationService.instance.cancelCartReminder();
   }
 }
 

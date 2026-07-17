@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/user_model.dart';
 import '../models/client_model.dart';
 import '../../core/app_user.dart';
+import 'push_service.dart';
 
 import '../../core/lang.dart';
 /// Аутентификация қателерін UI-ге жеткізетін типтелген қате.
@@ -322,6 +323,9 @@ class AuthService {
   // ── Sign out ───────────────────────────────────────────────────────────────
 
   Future<void> signOut() async {
+    // Құрылғы push-токенін өшіреміз — бұл аккаунттың хабарламалары енді
+    // осы құрылғыға келмейді (signOut-тан БҰРЫН: RLS delete uid талап етеді).
+    await PushService.instance.unregister();
     AppUser.current.clear();
     await _sb.auth.signOut();
   }
