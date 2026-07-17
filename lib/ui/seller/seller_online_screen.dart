@@ -558,9 +558,9 @@ class _OrderCardState extends State<_OrderCard> {
   String get _typeLabel {
     switch (o.orderType) {
       case OrderModel.typeSmartReservation:
-        return 'Смарт-Бронь';
+        return tr('Бронь', 'Бронь');
       case OrderModel.typeClickCollect:
-        return 'Click & Collect';
+        return tr('Самовывоз', 'Өзі алып кетеді');
       case OrderModel.typeDelivery:
         return tr('Доставка', 'Жеткізу');
       default:
@@ -1041,6 +1041,7 @@ String _normMethod(String m) {
   final s = m.toLowerCase();
   if (s.contains('kaspi')) return 'kaspi';
   if (s.contains('halyk')) return 'halyk';
+  if (s == 'card' || s.contains('карт')) return 'card';
   if (s == 'cash' || s.contains('налич')) return 'cash';
   return s;
 }
@@ -1049,6 +1050,7 @@ String _payMethodLabel(String method) {
   switch (_normMethod(method)) {
     case 'kaspi': return '📱 Kaspi';
     case 'halyk': return '📱 Halyk Bank';
+    case 'card':  return tr('💳 Оплата картой', '💳 Картамен төлем');
     case 'cash':  return tr('💵 Наличный', '💵 Қолма-қол');
     default:      return method.isNotEmpty ? method : '—';
   }
@@ -1058,6 +1060,7 @@ Color _payMethodColor(String method) {
   switch (_normMethod(method)) {
     case 'kaspi': return const Color(0xFFEB3333);
     case 'halyk': return const Color(0xFF00A550);
+    case 'card':  return const Color(0xFF3B82F6);
     default:      return cGreen;
   }
 }

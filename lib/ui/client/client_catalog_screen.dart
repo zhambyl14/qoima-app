@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../../core/app_user.dart';
 import '../../data/models/product_model.dart';
 import '../../data/models/batch_model.dart';
 import '../../data/models/store_model.dart';
@@ -100,11 +98,9 @@ class _ClientCatalogScreenState extends State<ClientCatalogScreen> {
       final allStores = results[0] as List<StoreModel>;
       final hiddenIds = results[1] as Set<String>;
 
-      final clientCity = context.read<AppUser>().city;
+      // Каталог — бүкіл Қазақстан дүкендерінің товарлары (қала шектеуінсіз).
       final stores = allStores
           .where((s) => !hiddenIds.contains(s.adminUid))
-          .where((s) =>
-              clientCity.isEmpty || s.city.isEmpty || s.city == clientCity)
           .toList();
 
       final storesWithProducts =

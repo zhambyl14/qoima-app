@@ -2,7 +2,16 @@ import 'dart:io' show Platform;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+/// FCM хабарламасы осы арна арқылы келуі керек — AndroidManifest.xml-дегі
+/// `com.google.firebase.messaging.default_notification_channel_id` мета-
+/// деректерімен және send-push edge function-дағы android.notification.
+/// channel_id-мен ДӘЛ бірдей болуы міндетті. Жоғары маңыздылық (HIGH) болмаса,
+/// хабарлама тек статус-барға үнсіз түседі, экран үстіне баннер болып
+/// қалқымайды (heads-up).
+const String kPushChannelId = 'high_importance_channel';
 
 /// FCM push-хабарламалар сервисі.
 ///
@@ -29,6 +38,20 @@ class PushService {
       await FirebaseMessaging.instance
           .setForegroundNotificationPresentationOptions(
               alert: true, badge: true, sound: true);
+      // Android: HIGH маңыздылық арнасын алдын ала жасаймыз (FCM хабарламасы
+      // осыған келгенде heads-up баннер ретінде қалқиды, тек шторкаға емес).
+      if (!kIsWeb && Platform.isAndroid) {
+        const channel = AndroidNotificationChannel(
+          kPushChannelId,
+          'Важные уведомления',
+          description: 'Заказы, продажи, возвраты и отзывы',
+          importance: Importance.high,
+        );
+        await FlutterLocalNotificationsPlugin()
+            .resolvePlatformSpecificImplementation<
+                AndroidFlutterLocalNotificationsPlugin>()
+            ?.createNotificationChannel(channel);
+      }
       // Токен жаңарса — тіркелген қолданушыға қайта сақтаймыз.
       FirebaseMessaging.instance.onTokenRefresh.listen((t) {
         final uid = _sb.auth.currentUser?.id;

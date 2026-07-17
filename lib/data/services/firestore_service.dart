@@ -7,7 +7,6 @@ import '../models/warehouse_model.dart';
 import '../models/store_model.dart';
 import '../models/reservation_model.dart';
 import '../models/order_model.dart';
-import '../models/courier_delivery_model.dart';
 import '../models/promo_model.dart';
 import '../models/revision_model.dart';
 import '../../core/app_user.dart';
@@ -1294,30 +1293,24 @@ class FirestoreService {
   Future<void> resubmitReceipt(OrderModel o, String receiptUrl) =>
       submitReceipt(o, receiptUrl);
 
+  /// Бронь депозитінің чегін дүкен иесі растады → reserved (1 сағат алу мерзімі).
+  /// Барлық онлайн-төлем — модератор картасына аударым ('card').
   Future<void> confirmReservationDeposit(OrderModel o) =>
       _sb.from('orders').update({
         'status': OrderModel.statusReserved,
+        'payment_bank': 'card',
         'payment_confirmed_by': AppUser.current.uid,
         'payment_confirmed_at': DateTime.now().toIso8601String(),
         'deadline_at':
             DateTime.now().add(OrderModel.pickupWindow).toIso8601String(),
       }).eq('id', o.id);
 
+  /// Толық төлем чегін дүкен иесі растады → confirmed (беруге дайын).
   Future<void> confirmOnlinePayment(OrderModel o) =>
       _sb.from('orders').update({
         'status': OrderModel.statusConfirmed,
+        'payment_bank': 'card',
         'payment_confirmed_by': AppUser.current.uid,
-        'payment_confirmed_at': DateTime.now().toIso8601String(),
-        'deadline_at': null,
-      }).eq('id', o.id);
-
-  Future<void> confirmPaymentByClient(OrderModel o, String paymentMethod) =>
-      _sb.from('orders').update({
-        'status': o.isSmartReservation
-            ? OrderModel.statusReserved
-            : OrderModel.statusConfirmed,
-        'payment_bank': paymentMethod,
-        'payment_confirmed_by': 'client_online',
         'payment_confirmed_at': DateTime.now().toIso8601String(),
         'deadline_at': null,
       }).eq('id', o.id);
@@ -1401,15 +1394,22 @@ class FirestoreService {
       'seller_id': 'онлайн',
       'seller_name': 'Онлайн',
       'receipt_number': receipt,
+      // Аяқталған тапсырыста дедлайн қалмауы керек — әйтпесе клиент экраны
+      // оны «мерзімі өтті» деп қате авто-болдырмайды.
+      'deadline_at': null,
     }).eq('id', order.id);
 
     final promoFactor = order.total > 0 ? order.finalTotal / order.total : 1.0;
+    // Онлайн-төлем әрқашан картаға аударым ('card') — тарихта «Оплата картой»
+    // болып көрінеді. Бронь доплатасы — дүкенде qolma-qol/kaspi.
     final payMethod = order.isSmartReservation
         ? (order.inStorePaymentMethod.isNotEmpty
             ? order.inStorePaymentMethod
             : '')
-        : order.paymentBank;
-    final depositMethod = order.isSmartReservation ? order.paymentBank : '';
+        : (order.paymentBank.isNotEmpty ? order.paymentBank : 'card');
+    final depositMethod = order.isSmartReservation
+        ? (order.paymentBank.isNotEmpty ? order.paymentBank : 'card')
+        : '';
 
     final sales = <Map<String, dynamic>>[];
     for (final item in order.items) {
@@ -1507,21 +1507,6 @@ extension RefreshX on FirestoreService {
   Future<void> refreshSalesHistory() async {}
   Future<void> refreshOnlineOrders() async {}
   Future<void> refreshWarehouses() async {}
-}
-
-// ── Courier deliveries ────────────────────────────────────────────────────────
-extension CourierDeliveriesX on FirestoreService {
-  Stream<List<CourierDeliveryModel>> watchCourierDeliveries() =>
-      Supabase.instance.client
-          .from('courier_deliveries')
-          .stream(primaryKey: ['id'])
-          .order('created_at', ascending: false)
-          .map((rows) => rows.map(CourierDeliveryModel.fromMap).toList());
-
-  Future<void> updateCourierDeliveryStatus(String id, String status) =>
-      Supabase.instance.client
-          .from('courier_deliveries')
-          .update({'status': status}).eq('id', id);
 }
 
 // ── Returns ────────────────────────────────────────────────────────────────────

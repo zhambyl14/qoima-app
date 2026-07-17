@@ -1,18 +1,16 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../core/app_config.dart';
 import '../../core/app_user.dart';
 import '../../data/models/cart_item_model.dart';
-import '../../data/models/courier_delivery_model.dart';
 import '../../data/models/order_model.dart';
 import '../../data/models/promo_model.dart';
 import '../../data/services/client_service.dart';
-import '../../data/services/firestore_service.dart';
 import '../../theme/qoima_design.dart';
 import '../auth/auth_widgets.dart';
 import '../auth/login_screen.dart';
 import 'client_shell.dart';
+import 'payment_instructions_sheet.dart';
 
 import '../../core/lang.dart';
 class ClientCartScreen extends StatefulWidget {
@@ -35,6 +33,10 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
   bool _applyingPromo = false;
 
   Set<String> _unavailableKeys = {};
+
+  // Себеттегі дүкендердің қалалары (adminUid → city) — доставка мәтіні үшін:
+  // өз қала = тегін/келісім, басқа қала = Казпочта.
+  Map<String, String> _storeCityByAdmin = {};
 
   // Применённый промокод (привязан к магазину appliedAdminUid)
   PromoModel? _appliedPromo;
@@ -157,6 +159,7 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
       final visibleByAdmin = {
         for (final s in stores) s.adminUid: s.visibleWarehouseIds,
       };
+      _storeCityByAdmin = {for (final s in stores) s.adminUid: s.city};
       final unavailable = <String>{};
       for (final item in cart.items) {
         final key = _itemKey(item);
@@ -181,13 +184,37 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
     if (_orderType == OrderModel.typeSmartReservation) {
       return (total * 0.1).ceilToDouble();
     }
-    if (_orderType == OrderModel.typeDelivery) return total + _deliveryFeeFor();
+    // Самовывоз/доставка — тауардың толық бағасы. Казпочта/қала ішіндегі
+    // жеткізуді клиент пен дүкен өзара келіседі (аппта ақы алынбайды).
     return total;
   }
 
-  /// Delivery fee from central config — change AppConfig.deliveryFee to enable.
-  double _deliveryFeeFor() =>
-      _orderType == OrderModel.typeDelivery ? AppConfig.deliveryFee : 0.0;
+  /// Себеттегі барлық дүкен клиенттің қаласында ма? (доставка мәтіні үшін)
+  /// null — белгісіз (клиент қаласы көрсетілмеген), true — өз қала, false —
+  /// кемінде бір дүкен басқа қалада.
+  bool? _allStoresInMyCity(List<CartItemModel> items) {
+    final myCity = context.read<AppUser>().city.trim();
+    if (myCity.isEmpty || items.isEmpty) return null;
+    for (final i in items) {
+      final storeCity = (_storeCityByAdmin[i.adminUid] ?? '').trim();
+      if (storeCity.isNotEmpty && storeCity != myCity) return false;
+    }
+    return true;
+  }
+
+  String _deliverySubtitle(List<CartItemModel> items) {
+    switch (_allStoresInMyCity(items)) {
+      case true:
+        return tr('По вашему городу — бесплатно, согласуете с магазином',
+            'Өз қалаңызда — тегін, дүкенмен келісесіз');
+      case false:
+        return tr('В ваш город — Казпочтой после 100% оплаты',
+            'Сіздің қалаға — 100% төлемнен кейін Казпочтамен');
+      default:
+        return tr('По городу магазина — бесплатно, в другие города — Казпочтой',
+            'Дүкен қаласында — тегін, басқа қалаға — Казпочтамен');
+    }
+  }
 
   String _warehouseAddress(List<CartItemModel> items) =>
       items.isNotEmpty ? items.first.warehouseAddress : '';
@@ -225,10 +252,9 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
     final promoDiscount = _promoDiscount(cart.items);
     final total = (subtotal - promoDiscount).clamp(0.0, subtotal);
     final deposit = _depositFor(total);
-    final deliveryFee = _deliveryFeeFor();
 
-    // Returns the bank name ('kaspi' / 'halyk') or null if cancelled.
-    final bank = await showModalBottomSheet<String>(
+    // Тапсырыс қорытындысы — растау (true) немесе бас тарту (null).
+    final confirmed = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -239,13 +265,13 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
         promoCode: _appliedPromo?.code ?? '',
         total: total,
         deposit: deposit,
-        deliveryFee: deliveryFee,
+        kazpost: _allStoresInMyCity(cart.items) == false,
         warehouseAddress: _warehouseAddress(cart.items),
         deliveryAddress: _addressCtrl.text.trim(),
       ),
     );
 
-    if (bank == null || bank.isEmpty || !mounted) return;
+    if (confirmed != true || !mounted) return;
 
     setState(() => _isLoading = true);
     try {
@@ -308,9 +334,9 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
         }
       }
 
-      // deliveryFee lives on the courier_deliveries record (one per checkout),
-      // NOT on individual sub-orders. Sub-orders always have deliveryFee: 0.
-      OrderModel? firstPlacedOrder;
+      // Әр қойма — жеке суб-тапсырыс (pending). Жеткізу ақысы аппта
+      // алынбайды: қала ішінде — келісім бойынша, басқа қалаға — Казпочта
+      // (клиент пен дүкен өзара шешеді).
       final placedOrders = <OrderModel>[];
       for (final entry in byWarehouse.entries) {
         final whItems = entry.value;
@@ -320,7 +346,7 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
         final whFinal = (whTotal - whPromo).clamp(0.0, whTotal);
         final depositAmt = _orderType == OrderModel.typeSmartReservation
             ? (whFinal * 0.1).ceilToDouble()
-            : whFinal; // delivery fee excluded from sub-order deposit
+            : whFinal;
         final isUsageOwner = entry.key == usageOwnerWh;
         final order = OrderModel(
           id: '',
@@ -338,7 +364,7 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
           address: _addressCtrl.text.trim(),
           note: _noteCtrl.text.trim(),
           depositAmount: depositAmt,
-          deliveryFee: 0.0, // fee tracked separately in courier_deliveries
+          deliveryFee: 0.0,
           promoId: whPromo > 0 && promo != null ? promo.id : '',
           promoCode: whPromo > 0 && promo != null ? promo.code : '',
           promoDiscount: whPromo,
@@ -346,39 +372,6 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
         );
         final placed = await _service.placeOrder(order);
         placedOrders.add(placed);
-        firstPlacedOrder ??= placed;
-      }
-
-      // Confirm payment immediately — moves order to confirmed / reserved.
-      final fsvc = FirestoreService();
-      for (final placed in placedOrders) {
-        await fsvc.confirmPaymentByClient(placed, bank);
-      }
-
-      // For delivery orders: create ONE courier_deliveries record.
-      // This is supplementary — if it fails, the order is still valid.
-      if (_orderType == OrderModel.typeDelivery && firstPlacedOrder != null) {
-        try {
-          final whAddresses = byWarehouse.values
-              .map((items) => items.first.warehouseAddress)
-              .where((a) => a.isNotEmpty)
-              .toSet()
-              .toList();
-          await _service.createCourierDelivery(CourierDeliveryModel(
-            id: '',
-            orderId: firstPlacedOrder.id,
-            orderNumber: firstPlacedOrder.orderNumber,
-            amount: AppConfig.deliveryFee,
-            address: _addressCtrl.text.trim(),
-            clientName: appUser.name,
-            clientPhone: appUser.phone,
-            warehouseAddresses: whAddresses,
-            createdAt: DateTime.now(),
-            status: CourierDeliveryModel.statusNew,
-          ));
-        } catch (_) {
-          // Non-fatal: orders are placed. Courier record will sync later.
-        }
       }
 
       if (!mounted) return;
@@ -386,8 +379,20 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
       _appliedPromo = null;
       _appliedAdminUid = '';
       _promoCtrl.clear();
-      // Төлемге дайын тапсырыс жасалды → Профиль → Тапсырыстарым экранына
-      // апарамыз, сонда клиент Kaspi/Halyk арқылы НАҚТЫ төлейді.
+      setState(() => _isLoading = false);
+
+      // Төлем нұсқаулығы: модератор картасы + чек тіркеу. Жабылса да
+      // тапсырыс сақталады — «Тапсырыстарым» экранынан қайта тіркеуге болады.
+      final payNow = placedOrders.fold<double>(
+          0, (s, o) => s + o.depositAmount);
+      final attached = await showPaymentInstructionsSheet(
+        context,
+        amount: payNow,
+        orders: placedOrders,
+        isDeposit: _orderType == OrderModel.typeSmartReservation,
+      );
+
+      if (!mounted) return;
       final shell = context.findAncestorStateOfType<ClientShellState>();
       if (widget.onOrderSuccess != null) {
         widget.onOrderSuccess!();
@@ -395,10 +400,13 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
         shell?.openOrdersFromCart();
       }
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(tr('Заказ принят! ✓', 'Тапсырыс қабылданды! ✓')),
-        backgroundColor: cGreen,
+        content: Text(attached == true
+            ? tr('Чек отправлен на проверку ✓', 'Чек тексеруге жіберілді ✓')
+            : tr('Заказ создан — оплатите и прикрепите чек в течение 30 минут',
+                'Тапсырыс жасалды — 30 минут ішінде төлеп, чекті тіркеңіз')),
+        backgroundColor: attached == true ? cGreen : cAmber,
         behavior: SnackBarBehavior.floating,
-        duration: Duration(seconds: 3),
+        duration: const Duration(seconds: 4),
       ));
     } catch (e) {
       if (mounted) {
@@ -497,29 +505,29 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                     const SizedBox(height: 8),
                     QSecLabel(tr('Способ получения', 'Алу тәсілі')),
 
-                    // Delivery methods
+                    // Алу тәсілдері — халыққа түсінікті атаулар.
                     ...[
                       (
                         OrderModel.typeSmartReservation,
                         Icons.timer_outlined,
-                        'Смарт-Бронь',
-                        tr('Бронь на 1 час, 10% депозит', '1 сағатқа бронь, 10% депозит'),
+                        tr('Бронь', 'Бронь'),
+                        tr('Платите 10% — товар ждёт вас 1 час, остальное в магазине',
+                            '10% төлейсіз — тауар 1 сағат күтеді, қалғанын дүкенде'),
                         'blue',
                       ),
                       (
                         OrderModel.typeClickCollect,
-                        Icons.qr_code_rounded,
-                        'Click & Collect',
-                        tr('100% онлайн, самовывоз', '100% онлайн, өзі алып кету'),
+                        Icons.storefront_outlined,
+                        tr('Самовывоз', 'Өзім барып аламын'),
+                        tr('Полная оплата онлайн, заберёте в магазине',
+                            'Толық онлайн төлем, дүкеннен өзіңіз аласыз'),
                         'green',
                       ),
                       (
                         OrderModel.typeDelivery,
                         Icons.local_shipping_outlined,
                         tr('Доставка', 'Жеткізу'),
-                        AppConfig.deliveryFee > 0
-                            ? tr('Курьером по адресу +${AppConfig.deliveryFee.toStringAsFixed(0)} ₸', 'Мекенжайға курьермен +${AppConfig.deliveryFee.toStringAsFixed(0)} ₸')
-                            : tr('Курьером по адресу · Бесплатно', 'Мекенжайға курьермен · Тегін'),
+                        _deliverySubtitle(cart.items),
                         'amber',
                       ),
                     ].map((t) {
@@ -821,7 +829,7 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
   IconData _iconFor(String type) {
     switch (type) {
       case OrderModel.typeClickCollect:
-        return Icons.qr_code_rounded;
+        return Icons.storefront_outlined;
       case OrderModel.typeDelivery:
         return Icons.local_shipping_outlined;
       default:
@@ -973,10 +981,13 @@ class _QtyBtn extends StatelessWidget {
       );
 }
 
-// ── Payment sheet ──────────────────────────────────────────────────────────────
+// ── Тапсырыс қорытындысы (растау) ──────────────────────────────────────────────
+// Растағанда true қайтады → тапсырыс жасалады да, карта + чек тіркеу
+// нұсқаулығы (payment_instructions_sheet) ашылады.
 class _PaymentSheet extends StatelessWidget {
   final String orderType, warehouseAddress, deliveryAddress, promoCode;
-  final double total, deposit, deliveryFee, subtotal, promoDiscount;
+  final double total, deposit, subtotal, promoDiscount;
+  final bool kazpost;
   const _PaymentSheet({
     required this.orderType,
     required this.subtotal,
@@ -984,7 +995,7 @@ class _PaymentSheet extends StatelessWidget {
     required this.promoCode,
     required this.total,
     required this.deposit,
-    required this.deliveryFee,
+    required this.kazpost,
     required this.warehouseAddress,
     required this.deliveryAddress,
   });
@@ -995,8 +1006,11 @@ class _PaymentSheet extends StatelessWidget {
     final isDelivery = orderType == OrderModel.typeDelivery;
     final isCC = orderType == OrderModel.typeClickCollect;
 
-    final String typeLabel =
-        isSmartRes ? 'Смарт-Бронь' : isCC ? 'Click & Collect' : tr('Доставка', 'Жеткізу');
+    final String typeLabel = isSmartRes
+        ? tr('Бронь', 'Бронь')
+        : isCC
+            ? tr('Самовывоз', 'Өзім барып аламын')
+            : tr('Доставка', 'Жеткізу');
 
     return Container(
       decoration: const BoxDecoration(
@@ -1031,9 +1045,10 @@ class _PaymentSheet extends StatelessWidget {
         if (isDelivery) ...[
           const SizedBox(height: 6),
           Text(
-            deliveryFee > 0
-                ? tr('Товары: ${money(total)}  +  Доставка: ${money(deliveryFee)}', 'Тауарлар: ${money(total)}  +  Жеткізу: ${money(deliveryFee)}')
-                : tr('Товары: ${money(total)}  +  Доставка: Бесплатно', 'Тауарлар: ${money(total)}  +  Жеткізу: Тегін'),
+            kazpost
+                ? tr('Доставка Казпочтой — согласуете с магазином после оплаты',
+                    'Казпочтамен жеткізу — төлемнен кейін дүкенмен келісесіз')
+                : tr('Доставку согласуете с магазином', 'Жеткізуді дүкенмен келісесіз'),
             style: manrope(13, FontWeight.w500, color: cInk3),
           ),
         ],
@@ -1057,44 +1072,30 @@ class _PaymentSheet extends StatelessWidget {
           _InfoRow(Icons.local_shipping_outlined, tr('Доставка', 'Жеткізу'), deliveryAddress),
         if (isSmartRes)
           _InfoRow(Icons.timer_outlined, tr('Срок брони', 'Бронь мерзімі'), tr('1 час', '1 сағат')),
-        const SizedBox(height: 20),
-        Text(
-          isSmartRes ? tr('Банк для депозита', 'Депозит банкі') : tr('Оплата через банк', 'Банк арқылы төлеу'),
-          style: manrope(13, FontWeight.w700, color: cInk2),
-        ),
-        const SizedBox(height: 10),
-        SizedBox(
-          width: double.infinity,
-          height: 52,
-          child: ElevatedButton(
-            onPressed: () => Navigator.pop(context, 'kaspi'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFEB3333),
-              foregroundColor: Colors.white,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-            ),
-            child: Text('Kaspi',
-                style: manrope(15, FontWeight.w700, color: Colors.white)),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: cBg,
+            borderRadius: BorderRadius.circular(12),
           ),
-        ),
-        const SizedBox(height: 10),
-        SizedBox(
-          width: double.infinity,
-          height: 52,
-          child: ElevatedButton(
-            onPressed: () => Navigator.pop(context, 'halyk'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF00A550),
-              foregroundColor: Colors.white,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Icon(Icons.credit_card_rounded, color: cGreen, size: 18),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                tr('Оплата переводом на карту. На следующем шаге появятся реквизиты и кнопка «Прикрепить чек».',
+                    'Төлем — картаға аударым. Келесі қадамда реквизиттер мен «Чекті тіркеу» батырмасы шығады.'),
+                style: manrope(12.5, FontWeight.w500, color: cInk2),
+              ),
             ),
-            child: Text('Halyk Bank',
-                style: manrope(15, FontWeight.w700, color: Colors.white)),
-          ),
+          ]),
+        ),
+        const SizedBox(height: 14),
+        QPrimaryButton(
+          label: tr('Продолжить к оплате', 'Төлемге өту'),
+          onPressed: () => Navigator.pop(context, true),
+          height: 52,
         ),
         const SizedBox(height: 8),
         TextButton(

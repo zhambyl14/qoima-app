@@ -25,6 +25,20 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   int _photoIndex = 0;
   bool _photoExpanded = false;
 
+  // Онлайн-магазин (жарияланған дүкен) бар ма — жоқ болса «Виден в
+  // онлайн-витрине» блогы мүлдем көрсетілмейді (мағынасы жоқ).
+  bool _storePublished = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _service.getStore().then((store) {
+      if (mounted && store != null && store.isPublished) {
+        setState(() => _storePublished = true);
+      }
+    }).catchError((_) {});
+  }
+
   // Суреттер жергілікті state-те — өңдеуден кейін бірден жаңарады
   // (widget.product.images өзгермейді). Деталь экраны осыны көрсетеді.
   late List<String> _images = List.of(widget.product.images);
@@ -907,8 +921,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   ]),
                   const SizedBox(height: 12),
 
-                  // Онлайн-витрина: тауарды жасыру/көрсету (тек админ)
-                  if (isAdmin) _buildStorefrontToggle(),
+                  // Онлайн-витрина: тауарды жасыру/көрсету — тек админ ЖӘНЕ
+                  // онлайн-магазины (жарияланған дүкені) бар болса.
+                  if (isAdmin && _storePublished) _buildStorefrontToggle(),
 
                   // Описание
                   if (p.description.isNotEmpty) ...[

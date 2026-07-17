@@ -5,10 +5,10 @@ import '../../core/app_user.dart';
 import '../../data/models/order_model.dart';
 import '../../data/models/return_model.dart';
 import '../../data/services/client_service.dart';
-import '../../data/services/firestore_service.dart';
 import '../../data/services/return_service.dart';
 import '../../core/order_helpers.dart';
 import '../../theme/qoima_design.dart';
+import 'payment_instructions_sheet.dart';
 import 'reservation_timer_widget.dart';
 import 'returns/client_return_form_screen.dart';
 import 'returns/client_returns_history_screen.dart';
@@ -78,8 +78,15 @@ class _ClientOrdersScreenState extends State<ClientOrdersScreen> {
                         }
                         final all = snap.data ?? [];
 
+                        // Мерзімі өткендерді авто-болдырмау — ТЕК белсенді емес
+                        // төлем күйлерінде (completed/confirmed тапсырысқа тиіспейміз).
                         for (final o in all) {
-                          if (o.isExpired) {
+                          final cancellable =
+                              o.status == OrderModel.statusReserved ||
+                                  o.status == OrderModel.statusRejected ||
+                                  (o.status == OrderModel.statusPending &&
+                                      o.receiptUrl.isEmpty);
+                          if (o.isExpired && cancellable) {
                             _service.cancelOrder(o).ignore();
                           }
                         }
@@ -302,9 +309,9 @@ class _OrderCardState extends State<_OrderCard> {
   String get _typeLabel {
     switch (o.orderType) {
       case OrderModel.typeClickCollect:
-        return 'Click & Collect';
+        return tr('Самовывоз', 'Өзім барып аламын');
       case OrderModel.typeSmartReservation:
-        return 'Смарт-Бронь';
+        return tr('Бронь', 'Бронь');
       case OrderModel.typeDelivery:
         return tr('Доставка', 'Жеткізу');
       default:
@@ -332,8 +339,14 @@ class _OrderCardState extends State<_OrderCard> {
       (o.isSmartReservation && o.status == OrderModel.statusReserved) ||
       (o.isClickCollect && o.status == OrderModel.statusConfirmed);
 
+  // Төлем керек: pending + чек әлі жоқ, НЕМЕСЕ чек қабылданбады (қайта тіркеу).
   bool get _needsReceipt =>
-      o.status == OrderModel.statusPending && o.receiptUrl.isEmpty;
+      (o.status == OrderModel.statusPending && o.receiptUrl.isEmpty) ||
+      o.status == OrderModel.statusRejected;
+
+  // Чек тіркелді — дүкен иесінің растауы күтілуде.
+  bool get _awaitingReview =>
+      o.status == OrderModel.statusPending && o.receiptUrl.isNotEmpty;
 
   Future<void> _cancel() async {
     final ok = await showDialog<bool>(
@@ -372,62 +385,26 @@ class _OrderCardState extends State<_OrderCard> {
     }
   }
 
-  Future<void> _payOnline(String method) async {
-    Navigator.pop(context);
+  /// Карта реквизиттері + чек тіркеу (модератор картасына аударым).
+  Future<void> _showPaymentSheet() async {
     setState(() => _uploading = true);
     try {
-      await FirestoreService().confirmPaymentByClient(o, method);
-    } catch (e) {
-      if (mounted) {
+      final attached = await showPaymentInstructionsSheet(
+        context,
+        amount: o.depositAmount > 0 ? o.depositAmount : o.finalTotal,
+        orders: [o],
+        isDeposit: o.isSmartReservation,
+      );
+      if (attached == true && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(e.toString()),
-          backgroundColor: cRed,
+          content: Text(tr('Чек отправлен на проверку ✓', 'Чек тексеруге жіберілді ✓')),
+          backgroundColor: cGreen,
           behavior: SnackBarBehavior.floating,
         ));
       }
     } finally {
       if (mounted) setState(() => _uploading = false);
     }
-  }
-
-  void _showPaymentSheet() {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (_) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(
-            width: 36,
-            height: 4,
-            decoration: BoxDecoration(
-              color: Colors.grey.shade300,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(tr('Способ оплаты', 'Төлем тәсілі'),
-              style: manrope(18, FontWeight.w800, color: cInk)),
-          const SizedBox(height: 4),
-          Text(tr('Выберите банк для перевода', 'Аударым үшін банк таңдаңыз'),
-              style: manrope(13, FontWeight.w500, color: cInk2)),
-          const SizedBox(height: 20),
-          _PayMethodBtn(
-            label: 'Kaspi',
-            color: const Color(0xFFEB3333),
-            onTap: () => _payOnline('kaspi'),
-          ),
-          const SizedBox(height: 12),
-          _PayMethodBtn(
-            label: 'Halyk Bank',
-            color: const Color(0xFF00A550),
-            onTap: () => _payOnline('halyk'),
-          ),
-          const SizedBox(height: 4),
-        ]),
-      ),
-    );
   }
 
   Future<void> _open2Gis(String address) async {
@@ -624,9 +601,33 @@ class _OrderCardState extends State<_OrderCard> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    tr('Оплатите заказ через Kaspi или Halyk Bank', 'Тапсырысты Kaspi немесе Halyk Bank арқылы төлеңіз'),
+                    o.status == OrderModel.statusRejected
+                        ? tr('Прикрепите новый чек об оплате', 'Жаңа төлем чегін тіркеңіз')
+                        : tr('Переведите оплату на карту и прикрепите чек', 'Төлемді картаға аударып, чекті тіркеңіз'),
                     style: manrope(12, FontWeight.w500,
                         color: const Color(0xFF92400E)),
+                  ),
+                ),
+              ]),
+            ),
+          ],
+
+          if (_awaitingReview) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: cBlueTint,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(children: [
+                const Icon(Icons.hourglass_top_rounded,
+                    color: cBlue, size: 16),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    tr('Чек на проверке — магазин подтвердит оплату', 'Чек тексерілуде — дүкен төлемді растайды'),
+                    style: manrope(12, FontWeight.w500, color: cBlue),
                   ),
                 ),
               ]),
@@ -755,7 +756,10 @@ class _OrderCardState extends State<_OrderCard> {
                         height: 18,
                         child: CircularProgressIndicator(
                             color: Colors.white, strokeWidth: 2))
-                    : Text(tr('Оплатить', 'Төлеу'),
+                    : Text(
+                        o.status == OrderModel.statusRejected
+                            ? tr('Прикрепить новый чек', 'Жаңа чек тіркеу')
+                            : tr('Оплатить', 'Төлеу'),
                         style: manrope(14, FontWeight.w700)),
               ),
             ),
@@ -828,31 +832,3 @@ class _OrderCardState extends State<_OrderCard> {
   }
 }
 
-// ── Payment method button ─────────────────────────────────────────────────────
-class _PayMethodBtn extends StatelessWidget {
-  final String label;
-  final Color color;
-  final VoidCallback onTap;
-  const _PayMethodBtn(
-      {required this.label, required this.color, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      height: 52,
-      child: ElevatedButton(
-        onPressed: onTap,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: color,
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12)),
-          elevation: 0,
-        ),
-        child: Text(label,
-            style: manrope(15, FontWeight.w700, color: Colors.white)),
-      ),
-    );
-  }
-}

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/app_user.dart';
 import '../../data/models/store_model.dart';
 import '../guest/guest_shell.dart';
@@ -16,6 +17,7 @@ import 'client_product_detail.dart';
 import 'client_shell.dart';
 import 'home_filters_sheet.dart';
 import 'store_public_screen.dart';
+import 'stores_list_screen.dart';
 
 import '../../core/lang.dart';
 // ── Filters state ──────────────────────────────────────────────────────────────
@@ -110,6 +112,8 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
   final _searchCtrl = TextEditingController();
 
   List<StoreModel> _stores = [];
+  // Барлық жарияланған дүкендер (қала сүзгісінсіз) — қала тізімін көрсету үшін.
+  List<StoreModel> _allStores = [];
   List<({ProductModel product, List<BatchModel> batches})> _pairs = [];
   Map<String, StoreModel> _productStoreMap = {};
   bool _loadingStores = true;
@@ -120,6 +124,10 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
   ClientFilters _filters = const ClientFilters();
   // Соңғы build-тегі сүзілген топ саны — _hasMore үшін (қайта есептемей).
   int _filteredCount = 0;
+
+  // Қала сүзгісі: null = бүкіл Қазақстан (әдепкі). Таңдау сақталады.
+  static const _kCityPrefKey = 'client_home_city_filter';
+  String? _cityFilter;
 
   // Все группы — цветовые варианты (same name+brand+type) схлопнуты в одну.
   List<ProductGroup> get _allGroups =>
@@ -212,10 +220,37 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
   @override
   void initState() {
     super.initState();
-    _loadAllProducts();
+    _restoreCityFilter();
     _scrollCtrl.addListener(_onScroll);
     // Дүкен жасырылса/ашылса — тізімді қайта жүктейміз.
     ClientService.hiddenStoresVersion.addListener(_onHiddenStoresChanged);
+  }
+
+  Future<void> _restoreCityFilter() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getString(_kCityPrefKey);
+      if (mounted && saved != null && saved.isNotEmpty) {
+        _cityFilter = saved;
+      }
+    } catch (_) {}
+    if (mounted) _loadAllProducts();
+  }
+
+  Future<void> _setCityFilter(String? city) async {
+    setState(() {
+      _cityFilter = city;
+      _displayCount = 20;
+    });
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (city == null || city.isEmpty) {
+        await prefs.remove(_kCityPrefKey);
+      } else {
+        await prefs.setString(_kCityPrefKey, city);
+      }
+    } catch (_) {}
+    _loadAllProducts();
   }
 
   void _onHiddenStoresChanged() {
@@ -255,11 +290,13 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
       final allStores = results[0] as List<StoreModel>;
       final hiddenIds = results[1] as Set<String>;
 
-      final clientCity = context.read<AppUser>().city;
-      final stores = allStores
-          .where((s) => !hiddenIds.contains(s.adminUid))
+      // Әдепкі — бүкіл Қазақстан дүкендері; _cityFilter таңдалса — сол қала.
+      final visible =
+          allStores.where((s) => !hiddenIds.contains(s.adminUid)).toList();
+      _allStores = visible;
+      final stores = visible
           .where((s) =>
-              clientCity.isEmpty || s.city.isEmpty || s.city == clientCity)
+              _cityFilter == null || s.city.trim() == _cityFilter)
           .toList();
 
       final storesWithProducts =
@@ -369,7 +406,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
               ),
               // Search row + фильтр батырмасы
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 10),
                 child: Row(children: [
                   Expanded(
                     child: Container(
@@ -458,6 +495,74 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                   ),
                 ]),
               ),
+
+              // ── Қала таңдау + Дүкендер қатары ───────────────────────────
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+                child: Row(children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: _openCitySheet,
+                      child: Container(
+                        height: 36,
+                        padding:
+                            const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.16),
+                          borderRadius: BorderRadius.circular(11),
+                          border: Border.all(
+                              color:
+                                  Colors.white.withValues(alpha: 0.22)),
+                        ),
+                        child: Row(children: [
+                          const Icon(Icons.location_on_outlined,
+                              color: Colors.white, size: 16),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              _cityFilter ??
+                                  tr('Все города', 'Барлық қалалар'),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: manrope(12.5, FontWeight.w700,
+                                  color: Colors.white),
+                            ),
+                          ),
+                          const Icon(Icons.expand_more_rounded,
+                              color: Colors.white, size: 18),
+                        ]),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => StoresListScreen(
+                              initialCity: _cityFilter)),
+                    ),
+                    child: Container(
+                      height: 36,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.16),
+                        borderRadius: BorderRadius.circular(11),
+                        border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.22)),
+                      ),
+                      child: Row(children: [
+                        const Icon(Icons.storefront_outlined,
+                            color: Colors.white, size: 16),
+                        const SizedBox(width: 6),
+                        Text(tr('Магазины', 'Дүкендер'),
+                            style: manrope(12.5, FontWeight.w700,
+                                color: Colors.white)),
+                      ]),
+                    ),
+                  ),
+                ]),
+              ),
             ]),
           ),
 
@@ -472,8 +577,8 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                     : _stores.isEmpty
                         ? ClientEmptyState(
                             icon: Icons.storefront_outlined,
-                            message: context.read<AppUser>().city.isNotEmpty
-                                ? tr('В вашем городе пока нет магазинов', 'Қалаңызда әзірге дүкендер жоқ')
+                            message: _cityFilter != null
+                                ? tr('В городе $_cityFilter пока нет магазинов', '$_cityFilter қаласында әзірге дүкен жоқ')
                                 : tr('Активных магазинов нет', 'Белсенді дүкендер жоқ'))
                         : (_loadingProducts && _pairs.isEmpty)
                             ? const CatalogGridSkeleton()
@@ -554,6 +659,88 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
         ]),
       ),
     );
+  }
+
+  /// Қала таңдау: Барлық қалалар / өз қалаңыз / дүкені бар қалалар.
+  Future<void> _openCitySheet() async {
+    final myCity = context.read<AppUser>().city.trim();
+    // Дүкені бар қалалар (санымен) — өз қала бірінші, қалғаны дүкен санына
+    // қарай кему ретімен.
+    final counts = <String, int>{};
+    for (final s in _allStores) {
+      final c = s.city.trim();
+      if (c.isNotEmpty) counts[c] = (counts[c] ?? 0) + 1;
+    }
+    final cities = counts.entries.toList()
+      ..sort((a, b) {
+        if (a.key == myCity) return -1;
+        if (b.key == myCity) return 1;
+        return b.value.compareTo(a.value);
+      });
+
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+            width: 36,
+            height: 4,
+            margin: const EdgeInsets.only(top: 12, bottom: 6),
+            decoration: BoxDecoration(
+                color: cLine, borderRadius: BorderRadius.circular(2)),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(tr('Выберите город', 'Қала таңдаңыз'),
+                  style: manrope(17, FontWeight.w800, color: cInk)),
+            ),
+          ),
+          Flexible(
+            child: ListView(
+              shrinkWrap: true,
+              padding: const EdgeInsets.fromLTRB(8, 4, 8, 16),
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.public_rounded, color: cGreen),
+                  title: Text(tr('Все города Казахстана', 'Қазақстанның барлық қаласы'),
+                      style: manrope(14.5, FontWeight.w600, color: cInk)),
+                  trailing: _cityFilter == null
+                      ? const Icon(Icons.check_rounded, color: cGreen)
+                      : null,
+                  onTap: () => Navigator.pop(ctx, ''),
+                ),
+                ...cities.map((e) => ListTile(
+                      leading: Icon(
+                          e.key == myCity
+                              ? Icons.my_location_rounded
+                              : Icons.location_city_rounded,
+                          color: e.key == myCity ? cGreen : cInk3),
+                      title: Text(
+                          e.key == myCity
+                              ? tr('${e.key} (мой город)', '${e.key} (менің қалам)')
+                              : e.key,
+                          style: manrope(14.5, FontWeight.w600, color: cInk)),
+                      subtitle: Text(
+                          tr('${e.value} магазинов', '${e.value} дүкен'),
+                          style:
+                              manrope(12, FontWeight.w500, color: cInk3)),
+                      trailing: _cityFilter == e.key
+                          ? const Icon(Icons.check_rounded, color: cGreen)
+                          : null,
+                      onTap: () => Navigator.pop(ctx, e.key),
+                    )),
+              ],
+            ),
+          ),
+        ]),
+      ),
+    );
+    if (selected == null || !mounted) return;
+    _setCityFilter(selected.isEmpty ? null : selected);
   }
 
   /// Фильтр sheet-і: санат, кому, баға аралығы, скидка, дүкен, сорттау.

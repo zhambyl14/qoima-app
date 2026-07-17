@@ -1102,6 +1102,7 @@ String _normMethod(String m) {
   final s = m.toLowerCase();
   if (s.contains('kaspi')) return 'kaspi';
   if (s.contains('halyk')) return 'halyk';
+  if (s == 'card' || s.contains('карт')) return 'card';
   if (s == 'cash' || s.contains('налич')) return 'cash';
   if (s == 'online') return 'online';
   return s;
@@ -1111,6 +1112,8 @@ String _paymentLabel(String method) {
   switch (_normMethod(method)) {
     case 'kaspi':  return '📱 Kaspi';
     case 'halyk':  return '📱 Halyk Bank';
+    // Онлайн-заказ: клиент модератор картасына аударды → «Оплата картой».
+    case 'card':   return tr('💳 Оплата картой', '💳 Картамен төлем');
     case 'online': return '🛒 Онлайн';
     default:       return tr('💵 Наличный', '💵 Қолма-қол');
   }
@@ -1120,6 +1123,7 @@ Color _paymentColor(String method) {
   switch (_normMethod(method)) {
     case 'kaspi':  return const Color(0xFFEB3333);
     case 'halyk':  return const Color(0xFF00A550);
+    case 'card':   return const Color(0xFF3B82F6);
     case 'online': return const Color(0xFF3B82F6);
     default:       return cInk3;
   }

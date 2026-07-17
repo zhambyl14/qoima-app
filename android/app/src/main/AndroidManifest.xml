@@ -33,6 +33,11 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- FCM хабарламалары осы (HIGH маңыздылық) арнаға түседі — heads-up
+             баннер ретінде қалқу үшін (push_service.dart kPushChannelId). -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="high_importance_channel" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

@@ -165,7 +165,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
               token,
               notification: { title, body: msgBody },
               data: stringData,
-              android: { priority: "high" },
+              // channel_id — клиенттегі HIGH маңыздылық арнасымен ДӘЛ бірдей
+              // (push_service.dart kPushChannelId) — heads-up баннер үшін.
+              android: {
+                priority: "high",
+                notification: { channel_id: "high_importance_channel" },
+              },
               apns: {
                 payload: { aps: { sound: "default" } },
                 headers: { "apns-priority": "10" },

@@ -10,7 +10,6 @@ export 'reservation_model.dart';
 export 'client_model.dart';
 export 'cart_item_model.dart';
 export 'order_model.dart';
-export 'courier_delivery_model.dart';
 export 'shop_request_model.dart';
 export 'store_discount_model.dart';
 export 'banner_model.dart';

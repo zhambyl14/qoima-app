@@ -5,7 +5,6 @@ import '../models/store_model.dart';
 import '../models/product_model.dart';
 import '../models/batch_model.dart';
 import '../models/order_model.dart';
-import '../models/courier_delivery_model.dart';
 import '../models/review_model.dart';
 import '../models/warehouse_model.dart';
 import '../models/cart_item_model.dart';
@@ -487,6 +486,14 @@ class ClientService {
     if (oRow == null) return;
     if (oRow['stock_restored'] == true) return;
     final liveStatus = oRow['status'] as String? ?? '';
+    // Тек белсенді төлем күйлерін болдырмауға болады — расталған/аяқталған
+    // тапсырысты клиенттік авто-cancel ЕШҚАШАН өзгертпейді.
+    const cancellable = {
+      OrderModel.statusPending,
+      OrderModel.statusReserved,
+      OrderModel.statusRejected,
+    };
+    if (!cancellable.contains(liveStatus)) return;
 
     if (order.isSmartReservation) {
       final smartActive = liveStatus == OrderModel.statusPending ||
@@ -538,11 +545,6 @@ class ClientService {
         }
       }
     } catch (_) {}
-  }
-
-  /// Курьерлік жеткізу жазбасын жасайды (себет checkout-та бір рет).
-  Future<void> createCourierDelivery(CourierDeliveryModel delivery) async {
-    await _sb.from('courier_deliveries').insert(delivery.toMap());
   }
 
   // ── Reviews (пікірлер — тек расталған сатып алушы жазады) ───────────────────

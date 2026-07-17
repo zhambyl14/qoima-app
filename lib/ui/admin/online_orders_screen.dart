@@ -2,9 +2,11 @@ import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../data/models/order_model.dart';
+import '../../data/services/cloudinary_service.dart';
 import '../../data/services/firestore_service.dart';
 import '../../theme/qoima_design.dart';
 import '../client/reservation_timer_widget.dart';
+import '../shared/prompt_text_dialog.dart';
 
 import '../../core/lang.dart';
 class OnlineOrdersScreen extends StatefulWidget {
@@ -454,9 +456,9 @@ class _OrderCardState extends State<_OrderCard> {
   String get _typeLabel {
     switch (o.orderType) {
       case OrderModel.typeSmartReservation:
-        return 'СМАРТ-БРОНЬ';
+        return tr('БРОНЬ', 'БРОНЬ');
       case OrderModel.typeClickCollect:
-        return 'CLICK & COLLECT';
+        return tr('САМОВЫВОЗ', 'ӨЗІ АЛЫП КЕТЕДІ');
       case OrderModel.typeDelivery:
         return tr('ДОСТАВКА', 'ЖЕТКІЗУ');
       default:
@@ -467,7 +469,9 @@ class _OrderCardState extends State<_OrderCard> {
   String get _statusLabel {
     switch (o.status) {
       case OrderModel.statusPending:
-        return tr('Ожидает оплаты', 'Төлем күтілуде');
+        return o.isAwaitingReview
+            ? tr('Чек на проверке', 'Чек тексеруде')
+            : tr('Ожидает оплаты', 'Төлем күтілуде');
       case OrderModel.statusReserved:
         return tr('Бронь подтверждена', 'Бронь расталды');
       case OrderModel.statusRejected:
@@ -579,6 +583,118 @@ class _OrderCardState extends State<_OrderCard> {
         HapticFeedback.mediumImpact();
         widget.onChanged();
       }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _loading = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(e.toString()),
+            backgroundColor: cRed,
+            behavior: SnackBarBehavior.floating));
+      }
+    }
+  }
+
+  /// Чекті толық экранда көру (фото/PDF preview).
+  void _viewReceipt() {
+    final url = CloudinaryService.receiptPreviewUrl(o.receiptUrl);
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.black,
+        insetPadding: const EdgeInsets.all(12),
+        child: Stack(children: [
+          InteractiveViewer(
+            maxScale: 5,
+            child: Center(
+              child: Image.network(
+                url,
+                fit: BoxFit.contain,
+                loadingBuilder: (_, child, progress) => progress == null
+                    ? child
+                    : const Padding(
+                        padding: EdgeInsets.all(60),
+                        child: CircularProgressIndicator(
+                            color: cGreen, strokeWidth: 2),
+                      ),
+                errorBuilder: (_, __, ___) => Padding(
+                  padding: const EdgeInsets.all(40),
+                  child: Text(
+                    tr('Не удалось загрузить чек', 'Чекті жүктеу мүмкін болмады'),
+                    style: manrope(14, FontWeight.w600, color: Colors.white),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 8,
+            right: 8,
+            child: IconButton(
+              icon: const Icon(Icons.close_rounded, color: Colors.white),
+              onPressed: () => Navigator.pop(context),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  /// Дүкен иесі чекті растайды: бронь → reserved, қалғаны → confirmed.
+  Future<void> _confirmPayment() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(tr('Подтвердить оплату', 'Төлемді растау')),
+        content: Text(o.isSmartReservation
+            ? tr('Деньги по чеку получены? Бронь будет подтверждена на 1 час.',
+                'Чек бойынша ақша түсті ме? Бронь 1 сағатқа расталады.')
+            : tr('Деньги по чеку получены? Заказ станет «Готов к выдаче».',
+                'Чек бойынша ақша түсті ме? Тапсырыс «Беруге дайын» болады.')),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(tr('Нет', 'Жоқ'))),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: cGreen, foregroundColor: Colors.white),
+              child: Text(tr('Да, оплата получена', 'Иә, төлем түсті'))),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _loading = true);
+    try {
+      if (o.isSmartReservation) {
+        await widget.service.confirmReservationDeposit(o);
+      } else {
+        await widget.service.confirmOnlinePayment(o);
+      }
+      if (mounted) widget.onChanged();
+    } catch (e) {
+      if (mounted) {
+        setState(() => _loading = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(e.toString()),
+            backgroundColor: cRed,
+            behavior: SnackBarBehavior.floating));
+      }
+    }
+  }
+
+  /// Чекті қабылдамау (себеппен) — клиентке пуш кетеді, 30 мин қайта тіркеу.
+  Future<void> _rejectReceipt() async {
+    final reason = await promptTextDialog(
+      context,
+      title: tr('Почему чек отклонён?', 'Чек неге қабылданбады?'),
+      hint: tr('Например: сумма не совпадает', 'Мысалы: сома сәйкес емес'),
+    );
+    if (reason == null || !mounted) return;
+    setState(() => _loading = true);
+    try {
+      await widget.service.rejectReceipt(o, reason);
+      if (mounted) widget.onChanged();
     } catch (e) {
       if (mounted) {
         setState(() => _loading = false);
@@ -868,8 +984,88 @@ class _OrderCardState extends State<_OrderCard> {
                           if (isActive) ...[
                             const SizedBox(height: 12),
 
-                            // Pending — waiting for client payment
-                            if (o.status == OrderModel.statusPending)
+                            // Pending + чек тіркелді → тексеру/растау/қабылдамау
+                            if (o.isAwaitingReview) ...[
+                              GestureDetector(
+                                onTap: _viewReceipt,
+                                child: Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 12, horizontal: 12),
+                                  decoration: BoxDecoration(
+                                    color: cAmberTint,
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                        color:
+                                            cAmber.withValues(alpha: 0.4)),
+                                  ),
+                                  child: Row(children: [
+                                    const Icon(Icons.receipt_long_rounded,
+                                        color: cAmber, size: 20),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        tr('Клиент прикрепил чек — нажмите, чтобы посмотреть',
+                                            'Клиент чек тіркеді — көру үшін басыңыз'),
+                                        style: const TextStyle(
+                                            fontSize: 12.5,
+                                            fontWeight: FontWeight.w600,
+                                            color: Color(0xFF92400E)),
+                                      ),
+                                    ),
+                                    const Icon(Icons.open_in_full_rounded,
+                                        color: cAmber, size: 16),
+                                  ]),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              ElevatedButton(
+                                onPressed: _confirmPayment,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: cGreen,
+                                  foregroundColor: Colors.white,
+                                  minimumSize:
+                                      const Size(double.infinity, 44),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius:
+                                          BorderRadius.circular(10)),
+                                  elevation: 0,
+                                ),
+                                child: Text(
+                                    tr('Подтвердить оплату', 'Төлемді растау'),
+                                    style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700)),
+                              ),
+                              const SizedBox(height: 8),
+                              SizedBox(
+                                width: double.infinity,
+                                child: OutlinedButton(
+                                  onPressed: _rejectReceipt,
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor:
+                                        const Color(0xFF92400E),
+                                    side: BorderSide(
+                                        color: cAmber.withValues(
+                                            alpha: 0.6)),
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(10)),
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 8),
+                                  ),
+                                  child: Text(
+                                      tr('Отклонить чек', 'Чекті қабылдамау'),
+                                      style: const TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w700)),
+                                ),
+                              ),
+                            ],
+
+                            // Pending — чек әлі тіркелмеген
+                            if (o.status == OrderModel.statusPending &&
+                                !o.isAwaitingReview)
                               Container(
                                 width: double.infinity,
                                 padding: const EdgeInsets.symmetric(
@@ -1046,6 +1242,7 @@ String _normMethod(String m) {
   final s = m.toLowerCase();
   if (s.contains('kaspi')) return 'kaspi';
   if (s.contains('halyk')) return 'halyk';
+  if (s == 'card' || s.contains('карт')) return 'card';
   if (s == 'cash' || s.contains('налич')) return 'cash';
   return s;
 }
@@ -1054,6 +1251,7 @@ String _payMethodLabel(String method) {
   switch (_normMethod(method)) {
     case 'kaspi':  return '📱 Kaspi';
     case 'halyk':  return '📱 Halyk Bank';
+    case 'card':   return tr('💳 Оплата картой', '💳 Картамен төлем');
     case 'cash':   return tr('💵 Наличный', '💵 Қолма-қол');
     default:       return method.isNotEmpty ? method : '—';
   }
@@ -1063,6 +1261,7 @@ Color _payMethodColor(String method) {
   switch (_normMethod(method)) {
     case 'kaspi': return const Color(0xFFEB3333);
     case 'halyk': return const Color(0xFF00A550);
+    case 'card':  return const Color(0xFF3B82F6);
     default:      return cGreen;
   }
 }
