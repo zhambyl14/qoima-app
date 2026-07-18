@@ -71,6 +71,24 @@ class PushService {
           alert: true, badge: true, sound: true);
       if (settings.authorizationStatus == AuthorizationStatus.denied) return;
 
+      // iOS: FCM токенін алудан БҰРЫН Apple-дың APNs токені дайын болуы керек.
+      // Ол Apple серверінен бірнеше секундта келеді — дайын болмаса getToken()
+      // null қайтарады немесе `apns-token-not-set` қатесін лақтырады, сондықтан
+      // токен ешқашан тіркелмейді (iOS push мүлдем келмеуінің басты себебі).
+      // Сол себепті APNs токенін қайталап (макс ~10 с) күтеміз.
+      if (!kIsWeb && Platform.isIOS) {
+        String? apns = await FirebaseMessaging.instance.getAPNSToken();
+        for (var i = 0; apns == null && i < 5; i++) {
+          await Future.delayed(const Duration(seconds: 2));
+          apns = await FirebaseMessaging.instance.getAPNSToken();
+        }
+        // Әлі де жоқ болса — токенді кейін onTokenRefresh/келесі кіру тіркейді.
+        if (apns == null) {
+          debugPrint('PushService: APNs token not ready yet, will retry later');
+          return;
+        }
+      }
+
       final token = await FirebaseMessaging.instance.getToken();
       if (token == null || token.isEmpty) return;
       await _saveToken(token, role: role);
