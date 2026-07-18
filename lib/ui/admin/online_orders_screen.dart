@@ -373,6 +373,7 @@ class _OnlineOrdersScreenState extends State<OnlineOrdersScreen> {
 
                   // Filtered list
                   ..._applyFilter(all).map((order) => _OrderCard(
+                        key: ValueKey(order.id),
                         order: order,
                         service: _service,
                         onChanged: () => setState(() {}),
@@ -416,7 +417,10 @@ class _OrderCard extends StatefulWidget {
   final FirestoreService service;
   final VoidCallback onChanged;
   const _OrderCard(
-      {required this.order, required this.service, required this.onChanged});
+      {super.key,
+      required this.order,
+      required this.service,
+      required this.onChanged});
 
   @override
   State<_OrderCard> createState() => _OrderCardState();
@@ -534,6 +538,7 @@ class _OrderCardState extends State<_OrderCard> {
     try {
       await widget.service.markHandedOver(o);
       if (mounted) {
+        setState(() => _loading = false);
         _confetti.play();
         HapticFeedback.mediumImpact();
         widget.onChanged();
@@ -579,6 +584,7 @@ class _OrderCardState extends State<_OrderCard> {
     try {
       await widget.service.handOverWithDoplate(o, method);
       if (mounted) {
+        setState(() => _loading = false);
         _confetti.play();
         HapticFeedback.mediumImpact();
         widget.onChanged();
@@ -671,7 +677,10 @@ class _OrderCardState extends State<_OrderCard> {
       } else {
         await widget.service.confirmOnlinePayment(o);
       }
-      if (mounted) widget.onChanged();
+      if (mounted) {
+        setState(() => _loading = false);
+        widget.onChanged();
+      }
     } catch (e) {
       if (mounted) {
         setState(() => _loading = false);
@@ -694,7 +703,10 @@ class _OrderCardState extends State<_OrderCard> {
     setState(() => _loading = true);
     try {
       await widget.service.rejectReceipt(o, reason);
-      if (mounted) widget.onChanged();
+      if (mounted) {
+        setState(() => _loading = false);
+        widget.onChanged();
+      }
     } catch (e) {
       if (mounted) {
         setState(() => _loading = false);
@@ -730,7 +742,10 @@ class _OrderCardState extends State<_OrderCard> {
     setState(() => _loading = true);
     try {
       await widget.service.cancelOnlineOrder(o);
-      if (mounted) widget.onChanged();
+      if (mounted) {
+        setState(() => _loading = false);
+        widget.onChanged();
+      }
     } catch (e) {
       if (mounted) {
         setState(() => _loading = false);

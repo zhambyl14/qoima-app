@@ -197,6 +197,7 @@ class _ClientOrdersScreenState extends State<ClientOrdersScreen> {
         // — өңделуде. Екеуінде де қайтаруды қайталауға болмайды.
         final returnDone = returnStatus == ReturnStatus.refunded;
         return _OrderCard(
+          key: ValueKey(o.id),
           order: o,
           canReturn: canReturn,
           hasActiveReturn: hasReturn,
@@ -270,6 +271,7 @@ class _OrderCard extends StatefulWidget {
   final bool returnDone;
   final VoidCallback? onReturnTap;
   const _OrderCard({
+    super.key,
     required this.order,
     this.canReturn = false,
     this.hasActiveReturn = false,
