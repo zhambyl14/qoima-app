@@ -26,6 +26,10 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -66,6 +70,10 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+
+	<!-- Орналасқан жеріне рұқсат (жақын дүкендерді/қалаңды анықтау үшін) -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Жақын дүкендерді және жеткізу аймағын анықтау үшін орналасқан жеріңізге рұқсат қажет</string>
 
 	<!-- Фото галереясы мен файлдарға рұқсат (file_picker / image_picker) -->
 	<key>NSPhotoLibraryUsageDescription</key>
