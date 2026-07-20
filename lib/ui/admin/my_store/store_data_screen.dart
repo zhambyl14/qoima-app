@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import '../../../core/card_utils.dart';
 import '../../../data/models/store_edit_request_model.dart';
 import '../../../data/models/store_model.dart';
@@ -161,9 +162,16 @@ class _Body extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(maskCardDisplay(store.paymentCardNumber),
+                    // Иесі өз картасын толық көреді (жасырусыз) — бұл өз дүкені.
+                    Text(
+                        store.paymentCardNumber.isEmpty
+                            ? tr('Реквизиты не указаны', 'Реквизит көрсетілмеген')
+                            : formatCardDisplay(store.paymentCardNumber),
                         style: manrope(15, FontWeight.w800,
-                            color: cInk, letterSpacing: 1.0)),
+                            color: store.paymentCardNumber.isEmpty
+                                ? cInk3
+                                : cInk,
+                            letterSpacing: 1.0)),
                     if (store.paymentBank.isNotEmpty ||
                         store.paymentCardHolder.isNotEmpty)
                       Text(
@@ -178,7 +186,22 @@ class _Body extends StatelessWidget {
                 ),
               ),
               if (store.paymentCardNumber.isNotEmpty)
-                const Icon(Icons.check_circle_rounded, color: cGreen, size: 20),
+                GestureDetector(
+                  onTap: () {
+                    Clipboard.setData(ClipboardData(
+                        text: cardDigitsOnly(store.paymentCardNumber)));
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      content: Text(tr('Номер карты скопирован',
+                          'Карта нөмірі көшірілді')),
+                      behavior: SnackBarBehavior.floating,
+                      duration: const Duration(seconds: 1),
+                    ));
+                  },
+                  child: const Padding(
+                    padding: EdgeInsets.all(4),
+                    child: Icon(Icons.copy_rounded, color: cGreen, size: 20),
+                  ),
+                ),
             ]),
           ),
 

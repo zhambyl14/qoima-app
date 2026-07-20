@@ -25,7 +25,9 @@ class ClientCartScreen extends StatefulWidget {
 
 class _ClientCartScreenState extends State<ClientCartScreen> {
   final _service = ClientService();
-  String _orderType = OrderModel.typeSmartReservation;
+  // Әдепкі таңдау ЖОҚ — клиент алу тәсілін өзі саналы түрде таңдауы керек
+  // (бұрын «Бронь» алдын ала таңдаулы тұрып, көбі байқамай бронь жасайтын).
+  String? _orderType;
   final _addressCtrl = TextEditingController();
   final _noteCtrl = TextEditingController();
   final _promoCtrl = TextEditingController();
@@ -238,6 +240,7 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
     final cart = context.read<CartProvider>();
     final appUser = context.read<AppUser>();
     if (cart.items.isEmpty) return;
+    if (_orderType == null) return; // алу тәсілі таңдалмаған
 
     if (_orderType == OrderModel.typeDelivery &&
         _addressCtrl.text.trim().isEmpty) {
@@ -259,7 +262,7 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _PaymentSheet(
-        orderType: _orderType,
+        orderType: _orderType!,
         subtotal: subtotal,
         promoDiscount: promoDiscount,
         promoCode: _appliedPromo?.code ?? '',
@@ -359,7 +362,7 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
           warehouseAddress: first.warehouseAddress,
           items: List.from(whItems),
           status: OrderModel.statusPending,
-          orderType: _orderType,
+          orderType: _orderType!,
           createdAt: DateTime.now(),
           address: _addressCtrl.text.trim(),
           note: _noteCtrl.text.trim(),
@@ -503,7 +506,25 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                     }),
 
                     const SizedBox(height: 8),
-                    QSecLabel(tr('Способ получения', 'Алу тәсілі')),
+                    QSecLabel(tr('Способ получения *', 'Алу тәсілі *')),
+                    // Ештеңе таңдалмаған кезде — таңдау міндетті екенін көрсету.
+                    if (_orderType == null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Row(children: [
+                          const Icon(Icons.info_outline,
+                              size: 15, color: cAmber),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              tr('Выберите способ получения',
+                                  'Алу тәсілін таңдаңыз'),
+                              style:
+                                  manrope(12, FontWeight.w600, color: cAmber),
+                            ),
+                          ),
+                        ]),
+                      ),
 
                     // Алу тәсілдері — халыққа түсінікті атаулар.
                     ...[
@@ -591,8 +612,9 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                       );
                     }),
 
-                    // Pickup address info
-                    if (_orderType != OrderModel.typeDelivery &&
+                    // Pickup address info (тек алу тәсілі таңдалғанда)
+                    if (_orderType != null &&
+                        _orderType != OrderModel.typeDelivery &&
                         _warehouseAddress(cart.items).isNotEmpty) ...[
                       Container(
                         padding: const EdgeInsets.all(12),
@@ -795,14 +817,20 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              _orderType == OrderModel.typeSmartReservation
-                                  ? tr('К оплате сейчас (депозит 10%)', 'Қазір төленетіні (10% депозит)')
-                                  : tr('К оплате', 'Төленетін сома'),
+                              _orderType == null
+                                  ? tr('Итого', 'Барлығы')
+                                  : _orderType ==
+                                          OrderModel.typeSmartReservation
+                                      ? tr('К оплате сейчас (депозит 10%)',
+                                          'Қазір төленетіні (10% депозит)')
+                                      : tr('К оплате', 'Төленетін сома'),
                               style: manrope(13.5, FontWeight.w600,
                                   color: cInk2),
                             ),
                             Text(
-                              money(_depositFor(finalTotal)),
+                              money(_orderType == null
+                                  ? finalTotal
+                                  : _depositFor(finalTotal)),
                               style:
                                   manrope(20, FontWeight.w800, color: cInk),
                             ),
@@ -811,11 +839,16 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                   }),
                   const SizedBox(height: 11),
                   QPrimaryButton(
-                    label: _orderType == OrderModel.typeSmartReservation
-                        ? tr('Забронировать', 'Брондау')
-                        : tr('Оплатить', 'Төлеу'),
+                    label: _orderType == null
+                        ? tr('Выберите способ получения',
+                            'Алу тәсілін таңдаңыз')
+                        : _orderType == OrderModel.typeSmartReservation
+                            ? tr('Забронировать', 'Брондау')
+                            : tr('Оплатить', 'Төлеу'),
                     isLoading: _isLoading,
-                    onPressed: (_isLoading || _unavailableKeys.isNotEmpty)
+                    onPressed: (_isLoading ||
+                            _orderType == null ||
+                            _unavailableKeys.isNotEmpty)
                         ? null
                         : _onCheckoutPressed,
                     height: 54,

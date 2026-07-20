@@ -22,6 +22,29 @@ class AppSettingsService {
   static const _kNumber = 'payment_card_number';
   static const _kHolder = 'payment_card_holder';
   static const _kBank = 'payment_card_bank';
+  static const _kMode = 'payment_mode';
+
+  /// Төлем режимі: 'platform' — бәрі модератор картасына (әдепкі);
+  /// 'store' — әр тапсырыс сол дүкеннің картасына (толтырмаса — fallback
+  /// модератор картасы). Superadmin «Реквизиты» экранында ауыстырады.
+  Future<String> getPaymentMode() async {
+    final row = await _sb
+        .from('app_settings')
+        .select('value')
+        .eq('key', _kMode)
+        .maybeSingle();
+    final v = (row?['value'] as String?)?.trim() ?? '';
+    return v == 'store' ? 'store' : 'platform';
+  }
+
+  /// Тек superadmin (RLS: app_settings_write).
+  Future<void> savePaymentMode(String mode) async {
+    await _sb.from('app_settings').upsert({
+      'key': _kMode,
+      'value': mode == 'store' ? 'store' : 'platform',
+      'updated_at': DateTime.now().toIso8601String(),
+    });
+  }
 
   Future<PaymentCardSettings> getPaymentCard() async {
     final rows = await _sb

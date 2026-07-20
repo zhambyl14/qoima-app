@@ -1237,6 +1237,14 @@ class FirestoreService {
       .order('created_at', ascending: false)
       .map((rows) => rows.map(OrderModel.fromMap).toList()));
 
+  /// Модератор (superadmin) — БАРЛЫҚ дүкендердің онлайн-тапсырыстары.
+  /// RLS: superadmin барлық orders жолдарын оқи алуы керек (0024 миграция).
+  Stream<List<OrderModel>> watchAllOnlineOrders() => retryStream(() => _sb
+      .from('orders')
+      .stream(primaryKey: ['id'])
+      .order('created_at', ascending: false)
+      .map((rows) => rows.map(OrderModel.fromMap).toList()));
+
   Future<OrderModel?> lookupOnlineOrder(String code) async {
     final num = int.tryParse(code.replaceAll('#', '').trim());
     if (num == null) return null;

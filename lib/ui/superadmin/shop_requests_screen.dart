@@ -12,6 +12,7 @@ import '../../data/services/auth_service.dart';
 import '../../theme/qoima_design.dart';
 import 'banners_screen.dart';
 import 'marketplace_shops_screen.dart';
+import 'online_sales_screen.dart';
 import 'payment_settings_screen.dart';
 import 'reject_reason_sheet.dart';
 import 'reports_screen.dart';
@@ -219,6 +220,14 @@ class _ShopRequestsScreenState extends State<ShopRequestsScreen> {
                             context,
                             MaterialPageRoute(
                                 builder: (_) => const BannersScreen())),
+                      ),
+                      _NavChip(
+                        icon: Icons.point_of_sale_rounded,
+                        label: tr('Продажи', 'Сатылымдар'),
+                        onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const OnlineSalesScreen())),
                       ),
                       _NavChip(
                         icon: Icons.credit_card_rounded,

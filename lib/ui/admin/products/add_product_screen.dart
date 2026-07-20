@@ -1506,65 +1506,109 @@ class _AddProductScreenState extends State<AddProductScreen> {
 
   void _showSizeInputSheet(String size, int currentQty) {
     int tempQty = currentQty;
+    // Санды тікелей теру үшін — үлкен цифрдың орнына өріс. +/− батырмалары
+    // осы өрісті жаңартады, өріске терген сан tempQty-ды жаңартады.
+    final qtyCtrl =
+        TextEditingController(text: currentQty > 0 ? '$currentQty' : '');
     showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true, // клавиатура шыққанда sheet жоғары көтеріледі
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (_) => StatefulBuilder(
-        builder: (ctx, setS) => Padding(
-          padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Container(
-                width: 36, height: 4,
-                margin: const EdgeInsets.only(bottom: 14),
-                decoration: BoxDecoration(
-                    color: cLine, borderRadius: BorderRadius.circular(2))),
-            Text(tr('Размер ${trValue(size)}', 'Өлшем ${trValue(size)}'),
-                style: manrope(17, FontWeight.w700, color: cInk)),
-            const SizedBox(height: 20),
-            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              GestureDetector(
-                onTap: () { if (tempQty > 0) setS(() => tempQty--); },
-                child: Container(
-                    width: 48, height: 48,
-                    decoration: BoxDecoration(
-                        color: tempQty > 0 ? cGreenTint : cLine2,
-                        borderRadius: BorderRadius.circular(14)),
-                    child: Icon(Icons.remove_rounded,
-                        color: tempQty > 0 ? cGreen : cInk3, size: 22)),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 28),
-                child: Text('$tempQty',
-                    style: manrope(34, FontWeight.w800, color: cInk,
-                        letterSpacing: -1)),
-              ),
-              GestureDetector(
-                onTap: () => setS(() => tempQty++),
-                child: Container(
-                    width: 48, height: 48,
-                    decoration: BoxDecoration(
-                        color: cGreen,
-                        borderRadius: BorderRadius.circular(14)),
-                    child: const Icon(Icons.add_rounded,
-                        color: Colors.white, size: 22)),
+        builder: (ctx, setS) {
+          // Батырмамен өзгерткенде өрісті де синхрондаймыз.
+          void setQty(int v) {
+            tempQty = v < 0 ? 0 : v;
+            qtyCtrl.text = tempQty > 0 ? '$tempQty' : '';
+            qtyCtrl.selection =
+                TextSelection.collapsed(offset: qtyCtrl.text.length);
+            setS(() {});
+          }
+
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+                24, 16, 24, 32 + MediaQuery.of(ctx).viewInsets.bottom),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Container(
+                  width: 36, height: 4,
+                  margin: const EdgeInsets.only(bottom: 14),
+                  decoration: BoxDecoration(
+                      color: cLine, borderRadius: BorderRadius.circular(2))),
+              Text(tr('Размер ${trValue(size)}', 'Өлшем ${trValue(size)}'),
+                  style: manrope(17, FontWeight.w700, color: cInk)),
+              Text(tr('Нажмите на число, чтобы ввести вручную',
+                      'Қолмен енгізу үшін санды басыңыз'),
+                  style: manrope(11.5, FontWeight.w500, color: cInk3)),
+              const SizedBox(height: 20),
+              Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                GestureDetector(
+                  onTap: () { if (tempQty > 0) setQty(tempQty - 1); },
+                  child: Container(
+                      width: 48, height: 48,
+                      decoration: BoxDecoration(
+                          color: tempQty > 0 ? cGreenTint : cLine2,
+                          borderRadius: BorderRadius.circular(14)),
+                      child: Icon(Icons.remove_rounded,
+                          color: tempQty > 0 ? cGreen : cInk3, size: 22)),
+                ),
+                // Тікелей теруге болатын өріс (санның үстіне басып жазуға болады).
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: SizedBox(
+                    width: 96,
+                    child: TextField(
+                      controller: qtyCtrl,
+                      textAlign: TextAlign.center,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(4),
+                      ],
+                      style: manrope(34, FontWeight.w800, color: cInk,
+                          letterSpacing: -1),
+                      decoration: const InputDecoration(
+                        isDense: true,
+                        hintText: '0',
+                        hintStyle: TextStyle(color: cInk3),
+                        contentPadding: EdgeInsets.symmetric(vertical: 4),
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                      ),
+                      onChanged: (v) =>
+                          setS(() => tempQty = int.tryParse(v.trim()) ?? 0),
+                    ),
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () => setQty(tempQty + 1),
+                  child: Container(
+                      width: 48, height: 48,
+                      decoration: BoxDecoration(
+                          color: cGreen,
+                          borderRadius: BorderRadius.circular(14)),
+                      child: const Icon(Icons.add_rounded,
+                          color: Colors.white, size: 22)),
+                ),
+              ]),
+              const SizedBox(height: 8),
+              Text(tr('шт.', 'дана'),
+                  style: manrope(13, FontWeight.w500, color: cInk3)),
+              const SizedBox(height: 24),
+              QPrimaryButton(
+                label: tr('Готово', 'Дайын'),
+                onPressed: () {
+                  final color = _activeColor;
+                  if (color != null) {
+                    setState(() => _variantSizes[color]![size] = tempQty);
+                  }
+                  Navigator.pop(ctx);
+                },
               ),
             ]),
-            const SizedBox(height: 8),
-            Text(tr('шт.', 'дана'), style: manrope(13, FontWeight.w500, color: cInk3)),
-            const SizedBox(height: 24),
-            QPrimaryButton(
-              label: tr('Готово', 'Дайын'),
-              onPressed: () {
-                final color = _activeColor;
-                if (color != null) {
-                  setState(() => _variantSizes[color]![size] = tempQty);
-                }
-                Navigator.pop(ctx);
-              },
-            ),
-          ]),
-        ),
+          );
+        },
       ),
     );
   }
