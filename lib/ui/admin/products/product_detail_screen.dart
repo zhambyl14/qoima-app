@@ -580,34 +580,52 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   }
 
   Widget _buildStorefrontToggle() {
-    final hidden = _product.storefrontHidden;
+    final noPhoto = _images.isEmpty;
+    // Фотосыз тауар витринада көрінбейді (сурет қосылса — автоматты шығады).
+    final hidden = _product.storefrontHidden || noPhoto;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: hidden ? cBg : cGreenTint.withValues(alpha: 0.5),
+        color: noPhoto
+            ? cAmberTint
+            : (hidden ? cBg : cGreenTint.withValues(alpha: 0.5)),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-            color: hidden ? cLine : cGreen.withValues(alpha: 0.3)),
+            color: noPhoto
+                ? cAmber.withValues(alpha: 0.4)
+                : (hidden ? cLine : cGreen.withValues(alpha: 0.3))),
       ),
       child: Row(children: [
-        Icon(hidden ? Icons.visibility_off_outlined : Icons.storefront_outlined,
-            color: hidden ? cInk3 : cGreenDeep, size: 22),
+        Icon(
+            noPhoto
+                ? Icons.add_a_photo_outlined
+                : (hidden ? Icons.visibility_off_outlined : Icons.storefront_outlined),
+            color: noPhoto
+                ? const Color(0xFF92400E)
+                : (hidden ? cInk3 : cGreenDeep),
+            size: 22),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                  hidden
-                      ? tr('Скрыт с онлайн-витрины', 'Онлайн-витринадан жасырын')
-                      : tr('Виден в онлайн-витрине', 'Онлайн-витринада көрінеді'),
+                  noPhoto
+                      ? tr('Не в витрине — нет фото', 'Витринада жоқ — фото жоқ')
+                      : hidden
+                          ? tr('Скрыт с онлайн-витрины', 'Онлайн-витринадан жасырын')
+                          : tr('Виден в онлайн-витрине', 'Онлайн-витринада көрінеді'),
                   style: manrope(13.5, FontWeight.w700,
-                      color: hidden ? cInk2 : cGreenDeep)),
+                      color: noPhoto
+                          ? const Color(0xFF92400E)
+                          : (hidden ? cInk2 : cGreenDeep))),
               Text(
-                  hidden
-                      ? tr('Остаётся на складе для учёта', 'Есеп үшін қоймада қалады')
-                      : tr('Покупатели видят этот товар', 'Сатып алушылар бұл тауарды көреді'),
+                  noPhoto
+                      ? tr('Добавьте фото, чтобы показать покупателям', 'Сатып алушыларға көрсету үшін фото қосыңыз')
+                      : hidden
+                          ? tr('Остаётся на складе для учёта', 'Есеп үшін қоймада қалады')
+                          : tr('Покупатели видят этот товар', 'Сатып алушылар бұл тауарды көреді'),
                   style: manrope(11.5, FontWeight.w500, color: cInk3)),
             ],
           ),
@@ -616,14 +634,15 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
           value: !hidden,
           activeThumbColor: Colors.white,
           activeTrackColor: cGreen,
-          onChanged:
-              _togglingStorefront ? null : (v) => _toggleStorefront(!v),
+          onChanged: (_togglingStorefront || noPhoto)
+              ? null
+              : (v) => _toggleStorefront(!v),
         ),
       ]),
     );
   }
 
-  Future<void> _shareProduct() async {
+  Future<void> _shareProduct(BuildContext originContext) async {
     final p = _product;
     final url = SupabaseConfig.productShareUrl(p.id);
     if (url.isEmpty) {
@@ -637,8 +656,16 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       return;
     }
     final text = p.name.isNotEmpty ? '${p.name}\n$url' : url;
+    // iPad/iOS-та share sheet popover анкерін талап етеді (sharePositionOrigin).
+    // Бөлісу батырмасының экрандағы тіктөртбұрышын береміз — болмаса
+    // PlatformException("sharePositionOrigin: argument must be set").
+    Rect? origin;
+    final box = originContext.findRenderObject() as RenderBox?;
+    if (box != null && box.hasSize) {
+      origin = box.localToGlobal(Offset.zero) & box.size;
+    }
     try {
-      await Share.share(text, subject: p.name);
+      await Share.share(text, subject: p.name, sharePositionOrigin: origin);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -766,9 +793,11 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       top: MediaQuery.of(context).padding.top + 8,
                       right: 12,
                       child: Row(children: [
-                        _GlassIconBtn(
-                          icon: Icons.ios_share,
-                          onTap: _shareProduct,
+                        Builder(
+                          builder: (btnCtx) => _GlassIconBtn(
+                            icon: Icons.ios_share,
+                            onTap: () => _shareProduct(btnCtx),
+                          ),
                         ),
                         if (_images.isNotEmpty) ...[
                           const SizedBox(width: 8),
@@ -1456,11 +1485,34 @@ class _PhotoManagerSheetState extends State<_PhotoManagerSheet> {
 
   Future<void> _remove(int i) async {
     if (_busy) return;
-    // Тауарда әрқашан кемінде 1 сурет болу керек — соңғысын өшіртпейміз.
+    // Соңғы фотоны өшіруге БОЛАДЫ — тауар онлайн-витринадан шығады, бірақ
+    // қоймада қалады, бар тапсырыстар/сатылымдар тимейді. Растатып аламыз.
     if (_imgs.length <= 1) {
-      _snack(tr('Нужно минимум 1 фото — сначала добавьте новое', 'Кемінде 1 сурет болуы керек — алдымен жаңа сурет қосыңыз'),
-          error: true);
-      return;
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Text(tr('Удалить последнее фото?', 'Соңғы фотоны өшіру?'),
+              style: const TextStyle(fontWeight: FontWeight.w700)),
+          content: Text(
+            tr('Без фото товар пропадёт из онлайн-витрины, но останется на складе. Оформленные заказы не затрагиваются. Фото можно добавить позже.',
+                'Фотосыз тауар онлайн-витринадан жоғалады, бірақ қоймада қалады. Рәсімделген тапсырыстар тимейді. Фотоны кейін қосуға болады.'),
+            style: manrope(13, FontWeight.w500, color: cInk2),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(tr('Отмена', 'Болдырмау'))),
+            ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: cRed, foregroundColor: Colors.white),
+                child: Text(tr('Удалить', 'Өшіру'))),
+          ],
+        ),
+      );
+      if (ok != true) return;
     }
     final url = _imgs[i];
     setState(() {

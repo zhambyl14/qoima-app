@@ -9,6 +9,9 @@ import '../../../data/models/models.dart';
 import '../../../data/services/firestore_service.dart';
 import '../../../data/services/cloudinary_service.dart';
 import '../../../theme/qoima_design.dart';
+import '../../../core/color_naming.dart';
+import '../../shared/color_picker_sheet.dart';
+import '../../shared/h_scroll_chips.dart';
 import '../../shared/mandatory_warehouse_picker.dart';
 import '../../shared/prompt_text_dialog.dart';
 import '../../widgets/image_crop_screen.dart';
@@ -32,6 +35,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
   final _descCtrl = TextEditingController();
   final _countryCtrl = TextEditingController();
 
+  // Бұрын қолданылған брендтер (ұсыныс чиптері үшін).
+  List<String> _brandSuggestions = [];
+
   String? _type;
   String? _material;
   String? _targetGroup; // кому: Мужские|Женские|Унисекс|Детские
@@ -42,17 +48,33 @@ class _AddProductScreenState extends State<AddProductScreen> {
   bool get _isShoes => _categoryKey == 'shoes';
 
   // ── Түс варианттары ────────────────────────────────────────────────────
-  // Бір модель — бірнеше түс: әр түс жеке товар-вариант болып сақталады
+  // Бір модель — бірнеше түс-нұсқа: әр нұсқа жеке товар болып сақталады
   // (клиентте name+brand+type бойынша бір карточкаға топталады). Атау, бренд,
-  // категория, бағ. — ортақ; размерлер мен фото — әр түске бөлек.
+  // категория, бағ. — ортақ; размерлер, фото, айырмашылық белгісі — әр нұсқаға
+  // бөлек. Бірдей түсті екі рет таңдауға болады (белгі арқылы ажыратылады).
+  //
+  // _selectedColors енді ТҮС АТЫ емес, бірегей НҰСҚА КІЛТІН сақтайды
+  // (мыс. «Белый#1»); нақты түсі _variantColorOf-та, белгісі _variantNoteOf-та.
   final List<String> _selectedColors = [];
+  final Map<String, String> _variantColorOf = {}; // кілт → түс аты
+  final Map<String, String> _variantHexOf = {}; // кілт → custom HEX ('' = стандарт)
+  final Map<String, TextEditingController> _variantNoteOf = {}; // кілт → белгі
   final Map<String, Map<String, int>> _variantSizes = {};
   final Map<String, List<Uint8List>> _variantImages = {};
-  // Сақтау кезінде сәтті өткен түстер — қате шығып қайта басқанда
-  // қайталанып (дубль партия) кетпес үшін өткізіп жібереміз.
   final Set<String> _savedColors = {};
-  String? _activeColor; // Размеры/Фото қадамдарындағы белсенді түс табы
+  String? _activeColor; // Размеры/Фото қадамдарындағы белсенді нұсқа кілті
+  int _variantKeySeq = 0; // бірегей кілт генераторы
   int _savingIndex = 0; // «Сохранение i/N» прогресі
+
+  // Нұсқа кілтінен нақты түс атын алу (дисплей/сақтау үшін).
+  String _baseColor(String key) => _variantColorOf[key] ?? key;
+
+  // Нұсқаның дисплей жазуы: түс (+ айырмашылық белгісі).
+  String _variantLabel(String key) {
+    final note = _variantNoteOf[key]?.text.trim() ?? '';
+    final base = trValue(_baseColor(key));
+    return note.isEmpty ? base : '$base · $note';
+  }
 
   Map<String, int> get _activeSizes => _variantSizes[_activeColor] ?? {};
   List<Uint8List> get _activeImages => _variantImages[_activeColor] ?? [];
@@ -95,36 +117,19 @@ class _AddProductScreenState extends State<AddProductScreen> {
   };
   static const Map<String, List<String>> _materialsByCategory =
       kMaterialsByCategory;
-  static const List<Map<String, dynamic>> _presets = [
-    {
-      'labelRu': 'По 1 паре с трёх размеров · 2 с ходовых',
-      'labelKk': 'Үш размерден 1 жұп · содовойдан 2',
-      'descRu': 'Всего 10–14 пар (по категории)',
-      'descKk': 'Барлығы 10–14 жұп (категорияға қарай)',
-      'kind': 'recommended',
-    },
-    {
-      'labelRu': '20 пар · 4 размера поровну',
-      'labelKk': '20 жұп · 4 размер тең',
-      'descRu': 'По 5 пар с размера',
-      'descKk': 'Әр размерден 5 жұп',
-      'perSize': 5,
-      'count': 4
-    },
-    {
-      'labelRu': '24 пары · 4 размера',
-      'labelKk': '24 жұп · 4 размер',
-      'descRu': 'По 6 пар с размера',
-      'descKk': 'Әр размерден 6 жұп',
-      'perSize': 6,
-      'count': 4
-    },
-  ];
 
   @override
   void initState() {
     super.initState();
     _loadCustomPresets();
+    _loadBrands();
+  }
+
+  // Бренд ұсыныстары вид товарға (categoryKey) байланысты болады.
+  Future<void> _loadBrands() async {
+    final brands =
+        await _firestoreService.distinctBrands(categoryKey: _categoryKey);
+    if (mounted) setState(() => _brandSuggestions = brands);
   }
 
   @override
@@ -135,6 +140,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
     _sellingCtrl.dispose();
     _descCtrl.dispose();
     _countryCtrl.dispose();
+    for (final c in _variantNoteOf.values) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -294,25 +302,55 @@ class _AddProductScreenState extends State<AddProductScreen> {
     }
   }
 
-  /// Түсті таңдау/алып тастау. Әр таңдалған түс — жеке вариант.
-  void _toggleColor(String name) {
+  /// Түсті таңдау — ӘР БАСУ жаңа нұсқа қосады (бірдей түсті бірнеше рет
+  /// таңдауға болады; әрқайсысы белгісі арқылы ажыратылады). [hex] берілсе —
+  /// ерекше (custom) түс.
+  void _addColorVariant(String colorName, {String hex = ''}) {
     setState(() {
-      if (_selectedColors.contains(name)) {
-        _selectedColors.remove(name);
-        _variantSizes.remove(name);
-        _variantImages.remove(name);
-        if (_activeColor == name) {
-          _activeColor =
-              _selectedColors.isNotEmpty ? _selectedColors.first : null;
-        }
-      } else {
-        _selectedColors.add(name);
-        _variantSizes[name] = {
-          for (final s in _sizesForSelection()) s: 0,
-          for (final s in _customSizes) s: 0,
-        };
-        _variantImages[name] = [];
-        _activeColor ??= name;
+      final key = '$colorName#${++_variantKeySeq}';
+      _selectedColors.add(key);
+      _variantColorOf[key] = colorName;
+      if (hex.isNotEmpty) _variantHexOf[key] = hex;
+      _variantNoteOf[key] = TextEditingController();
+      _variantSizes[key] = {
+        for (final s in _sizesForSelection()) s: 0,
+        for (final s in _customSizes) s: 0,
+      };
+      _variantImages[key] = [];
+      _activeColor ??= key;
+    });
+  }
+
+  /// Ерекше түс: HSV палитрадан таңдап, атын автоматты жазып, нұсқа қосамыз.
+  Future<void> _addCustomColor() async {
+    final color = await showCustomColorPicker(context);
+    if (color == null || !mounted) return;
+    _addColorVariant(describeColorName(color), hex: colorToHex(color));
+  }
+
+  /// Нұсқаның нақты түсі (custom HEX болса — соны, әйтпесе аты бойынша).
+  Color _variantColor(String key) {
+    final hex = _variantHexOf[key] ?? '';
+    if (hex.isNotEmpty) {
+      final c = hexToColor(hex);
+      if (c != null) return c;
+    }
+    return ProductModel.colorHex(_baseColor(key)) ?? const Color(0xFFBDBDBD);
+  }
+
+  /// Нұсқаны (кілт бойынша) алып тастау.
+  void _removeVariant(String key) {
+    setState(() {
+      _selectedColors.remove(key);
+      _variantColorOf.remove(key);
+      _variantHexOf.remove(key);
+      _variantNoteOf.remove(key)?.dispose();
+      _variantSizes.remove(key);
+      _variantImages.remove(key);
+      _savedColors.remove(key);
+      if (_activeColor == key) {
+        _activeColor =
+            _selectedColors.isNotEmpty ? _selectedColors.first : null;
       }
     });
   }
@@ -331,6 +369,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
       _material = null;
       _recomputeSizes();
     });
+    _loadBrands(); // осы виддің брендтері
   }
 
   void _onTargetGroupChanged(String group) {
@@ -341,37 +380,6 @@ class _AddProductScreenState extends State<AddProductScreen> {
   }
 
   /// Пресетті БЕЛСЕНДІ түс вариантына қолданады.
-  void _applyPreset(Map<String, dynamic> preset) {
-    final color = _activeColor;
-    if (color == null) return;
-    final keys = (_variantSizes[color] ?? {}).keys.toList();
-    if (keys.isEmpty) return;
-    final newMap = <String, int>{for (final k in keys) k: 0};
-
-    if (preset['kind'] == 'recommended') {
-      // Барлық размерге 1, ортаңғы 2 размерге 2 жұп
-      for (final k in keys) {
-        newMap[k] = 1;
-      }
-      final mid = keys.length ~/ 2;
-      if (mid - 1 >= 0) {
-        newMap[keys[mid - 1]] = 2;
-      }
-      if (mid < keys.length) {
-        newMap[keys[mid]] = 2;
-      }
-    } else {
-      final perSize = preset['perSize'] as int;
-      final count = (preset['count'] as int).clamp(0, keys.length);
-      final mid = (keys.length / 2).floor();
-      final start = (mid - count ~/ 2).clamp(0, keys.length - count);
-      for (var i = start; i < start + count; i++) {
-        newMap[keys[i]] = perSize;
-      }
-    }
-    setState(() => _variantSizes[color] = newMap);
-  }
-
   /// Басқа (толтырылған) варианттан белсендіге размерлерді көшіру.
   void _copySizesFrom(String donor) {
     final color = _activeColor;
@@ -548,23 +556,14 @@ class _AddProductScreenState extends State<AddProductScreen> {
       for (final color in _selectedColors) {
         if (_variantTotal(color) == 0) {
           setState(() => _activeColor = color);
-          _err(tr('Укажите количество для цвета «${trValue(color)}»',
-              '«${trValue(color)}» түсіне сан енгізіңіз'));
+          _err(tr('Укажите количество для «${trValue(_baseColor(color))}»',
+              '«${trValue(_baseColor(color))}» нұсқасына сан енгізіңіз'));
           return false;
         }
       }
     }
-    if (_step == 3) {
-      // Әр түс вариантына кемінде 1 фото.
-      for (final color in _selectedColors) {
-        if ((_variantImages[color] ?? []).isEmpty) {
-          setState(() => _activeColor = color);
-          _err(tr('Добавьте фото для цвета «${trValue(color)}»',
-              '«${trValue(color)}» түсіне фото қосыңыз'));
-          return false;
-        }
-      }
-    }
+    // Фото МІНДЕТТІ ЕМЕС. Фотосыз сақталған тауар қоймаға түседі, бірақ
+    // онлайн-витринаға шықпайды — сатушы кейін карточкадан фото қосқанда шығады.
     return true;
   }
 
@@ -586,18 +585,22 @@ class _AddProductScreenState extends State<AddProductScreen> {
       for (final color in _selectedColors) {
         if (_savedColors.contains(color)) continue;
         currentColor = color;
+        // color — нұсқа КІЛТІ; нақты түс аты мен белгісін бөліп аламыз.
+        final colorName = _baseColor(color);
+        final note = _variantNoteOf[color]?.text.trim() ?? '';
         if (mounted) {
           setState(() => _savingIndex = _savedColors.length + 1);
         }
 
-        // Бірдей товар (осы түспен) бар-жоғын тексереміз
+        // Бірдей товар (осы түс + айырмашылық белгісі) бар-жоғын тексереміз
         final existingId = await _firestoreService.findMatchingProduct(
           name: _nameCtrl.text.trim(),
           brand: _brandCtrl.text.trim(),
           type: _type ?? '',
           material: _material ?? '',
           category: _targetGroup ?? '',
-          color: color,
+          color: colorName,
+          variantNote: note,
         );
 
         final imageUrls = await _cloudinaryService
@@ -639,7 +642,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
             material: _material ?? '',
             category: _targetGroup ?? '',
             categoryKey: _categoryKey ?? '',
-            color: color,
+            color: colorName,
+            variantNote: note,
+            customColorHex: _variantHexOf[color] ?? '',
             articul: '',
             status: ProductModel.statusInStock,
             images: imageUrls,
@@ -677,8 +682,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
     } catch (e) {
       final saved = _savedColors.length;
       _err(tr(
-          'Ошибка при сохранении «${trValue(currentColor)}»: $e\nСохранено $saved из $totalN. Нажмите «Сохранить» ещё раз — готовые цвета не продублируются.',
-          '«${trValue(currentColor)}» сақтау қатесі: $e\n$totalN ішінен $saved сақталды. «Сақтау» қайта басыңыз — дайын түстер қайталанбайды.'));
+          'Ошибка при сохранении «${trValue(_baseColor(currentColor))}»: $e\nСохранено $saved из $totalN. Нажмите «Сохранить» ещё раз — готовые не продублируются.',
+          '«${trValue(_baseColor(currentColor))}» сақтау қатесі: $e\n$totalN ішінен $saved сақталды. «Сақтау» қайта басыңыз — дайындар қайталанбайды.'));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -689,11 +694,54 @@ class _AddProductScreenState extends State<AddProductScreen> {
       backgroundColor: cRed,
       behavior: SnackBarBehavior.floating));
 
+  // Сақталмаған деректер бар ма (кем дегенде бір өріс толтырылған)?
+  bool _hasUnsavedData() =>
+      !_isLoading &&
+      (_nameCtrl.text.trim().isNotEmpty ||
+          _brandCtrl.text.trim().isNotEmpty ||
+          _selectedColors.isNotEmpty ||
+          _purchaseCtrl.text.trim().isNotEmpty ||
+          _sellingCtrl.text.trim().isNotEmpty);
+
+  Future<bool> _confirmDiscard() async {
+    if (!_hasUnsavedData()) return true;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(tr('Товар не сохранён', 'Тауар сақталмады'),
+            style: const TextStyle(fontWeight: FontWeight.w700)),
+        content: Text(
+            tr('Если выйти сейчас, введённые данные будут потеряны.',
+                'Қазір шықсаңыз, енгізілген деректер жоғалады.'),
+            style: manrope(13.5, FontWeight.w500, color: cInk2)),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(tr('Остаться', 'Қалу'))),
+          ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: cRed, foregroundColor: Colors.white),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(tr('Выйти', 'Шығу'))),
+        ],
+      ),
+    );
+    return ok == true;
+  }
+
   // ── Build ─────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     final steps = [tr('Товар', 'Тауар'), tr('Цены', 'Бағалар'), tr('Размеры', 'Өлшемдер'), 'Фото'];
-    return Scaffold(
+    return PopScope(
+      canPop: !_hasUnsavedData(),
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        final navigator = Navigator.of(context);
+        if (await _confirmDiscard()) navigator.pop();
+      },
+      child: Scaffold(
       backgroundColor: cBg,
       body: SafeArea(
           child: Column(children: [
@@ -707,7 +755,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
               child: Column(children: [
                 Row(children: [
                   GestureDetector(
-                    onTap: () => Navigator.pop(context),
+                    onTap: () async {
+                      final navigator = Navigator.of(context);
+                      if (await _confirmDiscard()) navigator.pop();
+                    },
                     child: Container(
                       width: 38,
                       height: 38,
@@ -882,6 +933,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
           ]),
         ),
       ])),
+      ),
     );
   }
 
@@ -919,6 +971,19 @@ class _AddProductScreenState extends State<AddProductScreen> {
             label: 'Бренд',
             hint: tr('Напр: Nike, Adidas, New Balance', 'Мыс: Nike, Adidas, New Balance'),
             icon: Icons.workspace_premium_outlined),
+        // Бұрын қолданылған брендтер — бір жолда жылжымалы (шашылмайды).
+        if (_brandSuggestions.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          HScrollChips(
+            chips: _brandSuggestions
+                .map((b) => HChip(
+                      label: b,
+                      selected: _brandCtrl.text.trim() == b,
+                      onTap: () => setState(() => _brandCtrl.text = b),
+                    ))
+                .toList(),
+          ),
+        ],
         const SizedBox(height: 16),
         _Label(tr('Категория товара *', 'Тауар категориясы *')),
         const SizedBox(height: 8),
@@ -939,6 +1004,14 @@ class _AddProductScreenState extends State<AddProductScreen> {
         _Label(tr('Цвет *', 'Түсі *')),
         const SizedBox(height: 10),
         _buildColorPicker(),
+        if (_selectedColors.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          ..._selectedColors.map(_buildVariantNoteRow),
+          Text(
+              tr('Один цвет можно добавить дважды (напр. две белые) — впишите отличие, чтобы это были разные товары.',
+                  'Бір түсті екі рет қосуға болады (мыс. екі ақ) — айырмашылығын жазыңыз, сонда бөлек товар болады.'),
+              style: manrope(11, FontWeight.w500, color: cInk3)),
+        ],
         if (_categoryKey != null && _currentMaterials.isNotEmpty) ...[
           const SizedBox(height: 16),
           _Label(tr('Материал (необязательно)', 'Материал (міндетті емес)')),
@@ -1040,11 +1113,11 @@ class _AddProductScreenState extends State<AddProductScreen> {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              _selectedColors.length <= 1
-                  ? tr('Можно выбрать несколько цветов — каждый станет отдельным вариантом с своими размерами и фото',
-                      'Бірнеше түс таңдауға болады — әрқайсысы өз размерлері мен фотосы бар жеке вариант болады')
-                  : tr('Выбрано ${_selectedColors.length} цвета — размеры и фото укажете для каждого',
-                      '${_selectedColors.length} түс таңдалды — размерлер мен фотоны әрқайсысына бөлек енгізесіз'),
+              _selectedColors.isEmpty
+                  ? tr('Нажмите на цвет, чтобы добавить вариант. Один цвет можно добавить несколько раз.',
+                      'Вариант қосу үшін түсті басыңыз. Бір түсті бірнеше рет қосуға болады.')
+                  : tr('Выбрано ${_selectedColors.length} вариант(ов) — размеры и фото укажете для каждого',
+                      '${_selectedColors.length} нұсқа таңдалды — размерлер мен фотоны әрқайсысына бөлек енгізесіз'),
               style: manrope(11.5, FontWeight.w600, color: cBlue),
             ),
           ),
@@ -1054,18 +1127,77 @@ class _AddProductScreenState extends State<AddProductScreen> {
     ]);
   }
 
+  /// Таңдалған нұсқа жолы: түс + айырмашылық белгісі (міндетті емес) + өшіру.
+  Widget _buildVariantNoteRow(String key) {
+    final color = _baseColor(key);
+    final swatch = _variantColor(key);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(children: [
+        Container(
+          width: 18,
+          height: 18,
+          decoration: BoxDecoration(
+              color: swatch, shape: BoxShape.circle, border: Border.all(color: cLine)),
+        ),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 68,
+          child: Text(trValue(color),
+              style: manrope(12.5, FontWeight.w700, color: cInk),
+              overflow: TextOverflow.ellipsis),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: TextField(
+            controller: _variantNoteOf[key],
+            style: manrope(13, FontWeight.w600, color: cInk),
+            decoration: InputDecoration(
+              hintText: tr('Отличие (напр. чёрная подошва)',
+                  'Айырмашылық (мыс. қара табан)'),
+              hintStyle: manrope(12.5, FontWeight.w500, color: cInk3),
+              isDense: true,
+              filled: true,
+              fillColor: cBg,
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+              border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(9),
+                  borderSide: const BorderSide(color: cLine)),
+              enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(9),
+                  borderSide: const BorderSide(color: cLine)),
+              focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(9),
+                  borderSide: const BorderSide(color: cGreen, width: 1.5)),
+            ),
+          ),
+        ),
+        GestureDetector(
+          onTap: () => _removeVariant(key),
+          child: const Padding(
+            padding: EdgeInsets.all(4),
+            child: Icon(Icons.close_rounded, size: 18, color: cInk3),
+          ),
+        ),
+      ]),
+    );
+  }
+
   Widget _buildColorWrap() {
     return Wrap(
       spacing: 10,
       runSpacing: 10,
-      children: ProductModel.colorOptions.map((opt) {
+      children: [
+        ...ProductModel.colorOptions.map((opt) {
         final name = opt['name'] as String;
         final hexValue = opt['hex'] as int;
         final color = Color(hexValue);
-        final selected = _selectedColors.contains(name);
+        final count = _selectedColors.where((k) => _baseColor(k) == name).length;
+        final selected = count > 0;
         final isLight = color.computeLuminance() > 0.7;
         return GestureDetector(
-          onTap: () => _toggleColor(name),
+          onTap: () => _addColorVariant(name),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 180),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -1099,7 +1231,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                 ),
               ),
               const SizedBox(width: 7),
-              Text(trValue(name),
+              Text(count > 1 ? '${trValue(name)} ×$count' : trValue(name),
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -1107,15 +1239,36 @@ class _AddProductScreenState extends State<AddProductScreen> {
                         ? (isLight ? cInk : Colors.white)
                         : cInk2,
                   )),
-              if (selected) ...[
-                const SizedBox(width: 5),
-                Icon(Icons.check_rounded,
-                    size: 14, color: isLight ? cInk : Colors.white),
-              ],
+              const SizedBox(width: 5),
+              Icon(selected ? Icons.check_rounded : Icons.add_rounded,
+                  size: 14,
+                  color: selected
+                      ? (isLight ? cInk : Colors.white)
+                      : cInk3),
             ]),
           ),
         );
-      }).toList(),
+        }),
+        // + Свой цвет (HSV палитра, ерекше түстер үшін)
+        GestureDetector(
+          onTap: _addCustomColor,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: cGreenTint,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                  color: cGreen.withValues(alpha: 0.4), width: 1),
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.palette_outlined, size: 15, color: cGreenDeep),
+              const SizedBox(width: 6),
+              Text(tr('Свой цвет', 'Өз түсі'),
+                  style: manrope(13, FontWeight.w700, color: cGreenDeep)),
+            ]),
+          ),
+        ),
+      ],
     );
   }
 
@@ -1624,7 +1777,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
           scrollDirection: Axis.horizontal,
           children: _selectedColors.map((name) {
             final active = name == _activeColor;
-            final dot = ProductModel.colorHex(name) ?? const Color(0xFFBDBDBD);
+            final base = _baseColor(name);
+            final noteText = _variantNoteOf[name]?.text.trim() ?? '';
+            final dot = _variantColor(name);
             final count = photosStep
                 ? (_variantImages[name] ?? []).length
                 : _variantTotal(name);
@@ -1653,7 +1808,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
                     ),
                   ),
                   const SizedBox(width: 7),
-                  Text(trValue(name),
+                  Text(
+                      noteText.isNotEmpty
+                          ? '${trValue(base)} · $noteText'
+                          : trValue(base),
                       style: manrope(12.5, FontWeight.w700,
                           color: active ? cGreenDeep : cInk2)),
                   const SizedBox(width: 6),
@@ -1853,8 +2011,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
               const Icon(Icons.copy_rounded, size: 15, color: cBlue),
               const SizedBox(width: 8),
               Text(
-                  tr('Скопировать размеры с «${trValue(donor)}»',
-                      '«${trValue(donor)}» размерлерін көшіру'),
+                  tr('Скопировать размеры с «${_variantLabel(donor)}»',
+                      '«${_variantLabel(donor)}» размерлерін көшіру'),
                   style: manrope(13, FontWeight.w700, color: cBlue)),
             ]),
           ),
@@ -1862,7 +2020,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
       ],
       const SizedBox(height: 14),
       Row(children: [
-        _Label(tr('⚡ Быстрое заполнение', '⚡ Жылдам толтыру')),
+        _Label(tr('Мои пресеты', 'Менің пресеттерім')),
         const Spacer(),
         // Қазіргі торды пресет етіп сақтау (size→qty таралуын жаттайды)
         GestureDetector(
@@ -1879,18 +2037,23 @@ class _AddProductScreenState extends State<AddProductScreen> {
         ),
       ]),
       const SizedBox(height: 8),
+      if (_customPresets.isEmpty)
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(11),
+          decoration: BoxDecoration(
+              color: cBg, borderRadius: BorderRadius.circular(12)),
+          child: Text(
+              tr('Заполните размеры и нажмите «Сохранить как пресет» — потом добавляйте в одно касание.',
+                  'Размерлерді толтырып, «Пресет етіп сақтау» басыңыз — кейін бір басып қоясыз.'),
+              style: manrope(11.5, FontWeight.w600, color: cInk3)),
+        )
+      else
       SizedBox(
           height: 84,
           child: ListView(
             scrollDirection: Axis.horizontal,
             children: [
-              // Дайын формула-пресеттер (категорияға сай)
-              ..._presets.map((p) => _presetCard(
-                    label: tr(p['labelRu'] as String, p['labelKk'] as String),
-                    desc: tr(p['descRu'] as String, p['descKk'] as String),
-                    recommended: p['kind'] == 'recommended',
-                    onTap: () => _applyPreset(p),
-                  )),
               // Сатушының сақталған пресеттері (нақты таралу; ✕ өшіру)
               ...List.generate(_customPresets.length, (i) {
                 final p = _customPresets[i];
@@ -2023,10 +2186,29 @@ class _AddProductScreenState extends State<AddProductScreen> {
             icon: Icons.photo_library_outlined,
             title: tr('Фотографии товара', 'Тауар фотосуреттері'),
             subtitle: _selectedColors.length > 1
-                ? tr('Для каждого цвета · до $_maxImages фото · кадр 1:1',
-                    'Әр түске бөлек · $_maxImages фотоға дейін · кадр 1:1')
-                : tr('Минимум 1, максимум $_maxImages фото · авто-кадр 1:1', 'Кемінде 1, ең көбі $_maxImages фото · авто-кадр 1:1')),
-        const SizedBox(height: 20),
+                ? tr('Необязательно · для каждого цвета · до $_maxImages фото',
+                    'Міндетті емес · әр түске бөлек · $_maxImages фотоға дейін')
+                : tr('Необязательно · до $_maxImages фото · кадр 1:1', 'Міндетті емес · $_maxImages фотоға дейін · кадр 1:1')),
+        const SizedBox(height: 14),
+        Container(
+          padding: const EdgeInsets.all(11),
+          decoration: BoxDecoration(
+            color: cBlueTint,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(children: [
+            const Icon(Icons.info_outline, size: 16, color: cBlue),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                tr('Можно сохранить без фото — товар попадёт на склад. Но без фото он не показывается в онлайн-витрине (добавите позже в карточке).',
+                    'Фотосыз да сақтауға болады — тауар қоймаға түседі. Бірақ фотосыз онлайн-витринада көрінбейді (кейін карточкадан қосасыз).'),
+                style: manrope(11.5, FontWeight.w600, color: cBlue),
+              ),
+            ),
+          ]),
+        ),
+        const SizedBox(height: 14),
         // Түс табтары (әр түстің өз фотолары)
         _buildColorTabs(photosStep: true),
         if (_remainingSlots > 0)
@@ -2060,8 +2242,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
         if (_activeImages.isNotEmpty) ...[
           Text(
               _selectedColors.length > 1
-                  ? tr('${trValue(_activeColor ?? '')}: ${_activeImages.length} / $_maxImages фото',
-                      '${trValue(_activeColor ?? '')}: ${_activeImages.length} / $_maxImages фото')
+                  ? tr('${trValue(_baseColor(_activeColor ?? ''))}: ${_activeImages.length} / $_maxImages фото',
+                      '${trValue(_baseColor(_activeColor ?? ''))}: ${_activeImages.length} / $_maxImages фото')
                   : tr('Добавлено: ${_activeImages.length} / $_maxImages фото', 'Қосылды: ${_activeImages.length} / $_maxImages фото'),
               style: const TextStyle(
                   fontWeight: FontWeight.w600, color: cInk)),
@@ -2146,7 +2328,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                   label: _selectedColors.length > 1 ? tr('Цвета', 'Түстері') : tr('Цвет', 'Түсі'),
                   value: _selectedColors.isEmpty
                       ? '—'
-                      : _selectedColors.map(trValue).join(', ')),
+                      : _selectedColors.map(_variantLabel).join(', ')),
               _SummaryRow(
                   label: tr('Дата поставки', 'Жеткізілім күні'),
                   value:
@@ -2157,7 +2339,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
               // Әр түстің саны бөлек көрсетіледі (көп түс болғанда)
               if (_selectedColors.length > 1)
                 ..._selectedColors.map((c) => _SummaryRow(
-                    label: '· ${trValue(c)}',
+                    label: '· ${_variantLabel(c)}',
                     value: tr('${_variantTotal(c)} шт. · ${(_variantImages[c] ?? []).length} фото',
                         '${_variantTotal(c)} дана · ${(_variantImages[c] ?? []).length} фото'))),
               _SummaryRow(label: tr('Всего товаров', 'Барлық тауар'), value: tr('$_grandTotal шт.', '$_grandTotal дана')),

@@ -224,6 +224,8 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
   /// Төлем батырмасы: кірмеген → логин; кірген → бірден төлем (верификация жоқ).
   Future<void> _onCheckoutPressed() async {
     if (Supabase.instance.client.auth.currentUser == null) {
+      // Кіргеннен кейін басты бетке емес, Себетке оралу үшін белгі қоямыз.
+      context.read<CartProvider>().pendingCheckout = true;
       Navigator.push(
         context,
         MaterialPageRoute(

@@ -287,8 +287,26 @@ class _OrderCardState extends State<_OrderCard> {
   bool _showQr = false;
   bool _cancelling = false;
   bool _uploading = false;
+  String? _warehouseNote; // складтың «қалай табу» түсініктемесі (клиентке)
 
   OrderModel get o => widget.order;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadWarehouseNote();
+  }
+
+  /// Склад түсініктемесін (мыс. «1-қабат, 304 бутик») жүктейміз — клиент алуға
+  /// келгенде оңай табу үшін. Тапсырыста сақталмайды, сол себепті id бойынша аламыз.
+  Future<void> _loadWarehouseNote() async {
+    if (o.isDelivery || o.warehouseId.isEmpty || o.adminUid.isEmpty) return;
+    try {
+      final wh = await ClientService().getWarehouseById(o.adminUid, o.warehouseId);
+      final note = wh?.note?.trim() ?? '';
+      if (note.isNotEmpty && mounted) setState(() => _warehouseNote = note);
+    } catch (_) {}
+  }
 
   String get _statusTone => orderStatusTone(o.status);
   String get _statusLabel => orderStatusLabel(o.status);
@@ -636,41 +654,58 @@ class _OrderCardState extends State<_OrderCard> {
             ),
           ],
 
-          if (!o.isDelivery && o.warehouseAddress.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            GestureDetector(
-              onTap: () => _open2Gis(o.warehouseAddress),
-              child: Row(children: [
-                const Icon(Icons.location_on_outlined,
-                    color: cGreen, size: 14),
-                const SizedBox(width: 4),
-                Expanded(
-                    child: Text(o.warehouseAddress,
-                        style: manrope(12, FontWeight.w500, color: cGreen,
-                            letterSpacing: -0.2),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis)),
-                const Icon(Icons.open_in_new_rounded,
-                    color: cGreen, size: 12),
-              ]),
-            ),
-          ],
-
-          if (!o.isDelivery && o.storePhone.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            GestureDetector(
-              onTap: () => _callPhone(o.storePhone),
-              child: Row(children: [
-                const Icon(Icons.phone_outlined, color: cGreen, size: 14),
-                const SizedBox(width: 4),
-                Expanded(
-                    child: Text(tr('Магазин: ${o.storePhone}', 'Дүкен: ${o.storePhone}'),
-                        style: manrope(12, FontWeight.w500, color: cGreen,
-                            letterSpacing: -0.2),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis)),
-                const Icon(Icons.call_rounded, color: cGreen, size: 12),
-              ]),
+          if (!o.isDelivery &&
+              (o.warehouseAddress.isNotEmpty || o.storePhone.isNotEmpty)) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: cGreenTint,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: cGreen.withValues(alpha: 0.25)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(tr('Где забрать', 'Қайдан алу'),
+                      style: manrope(11.5, FontWeight.w700, color: cGreenDeep)),
+                  const SizedBox(height: 8),
+                  // Мекенжай — картаны ашады (басуға болатыны айқын).
+                  if (o.warehouseAddress.isNotEmpty)
+                    _PickupRow(
+                      icon: Icons.location_on_rounded,
+                      value: o.warehouseAddress,
+                      action: tr('Открыть карту', 'Картаны ашу'),
+                      actionIcon: Icons.open_in_new_rounded,
+                      onTap: () => _open2Gis(o.warehouseAddress),
+                    ),
+                  // Склад түсініктемесі («1-қабат, 304 бутик») — табуға көмек.
+                  if (_warehouseNote != null && _warehouseNote!.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      const Icon(Icons.tips_and_updates_outlined,
+                          color: cGreenDeep, size: 16),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(_warehouseNote!,
+                            style: manrope(13, FontWeight.w700,
+                                color: cGreenDeep, height: 1.3)),
+                      ),
+                    ]),
+                  ],
+                  // Телефон — қоңырау шалады.
+                  if (o.storePhone.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    _PickupRow(
+                      icon: Icons.phone_rounded,
+                      value: o.storePhone,
+                      action: tr('Позвонить', 'Қоңырау шалу'),
+                      actionIcon: Icons.call_rounded,
+                      onTap: () => _callPhone(o.storePhone),
+                    ),
+                  ],
+                ],
+              ),
             ),
           ],
 
@@ -830,6 +865,55 @@ class _OrderCardState extends State<_OrderCard> {
           ],
         ]),
       ),
+    );
+  }
+}
+
+// ── Алу мекенжайы жолы (басуға болатыны айқын: мән + әрекет белгісі) ───────────
+class _PickupRow extends StatelessWidget {
+  final IconData icon;
+  final String value;
+  final String action;
+  final IconData actionIcon;
+  final VoidCallback onTap;
+  const _PickupRow({
+    required this.icon,
+    required this.value,
+    required this.action,
+    required this.actionIcon,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Row(children: [
+        Icon(icon, color: cGreenDeep, size: 18),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(value,
+              style: manrope(14, FontWeight.w700, color: cGreenDeep,
+                  height: 1.25),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis),
+        ),
+        const SizedBox(width: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+          decoration: BoxDecoration(
+            color: cGreen,
+            borderRadius: BorderRadius.circular(9),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(actionIcon, color: Colors.white, size: 13),
+            const SizedBox(width: 4),
+            Text(action,
+                style: manrope(11.5, FontWeight.w700, color: Colors.white)),
+          ]),
+        ),
+      ]),
     );
   }
 }

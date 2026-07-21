@@ -45,28 +45,37 @@ class ReturnService {
     return 0;
   }
 
-  // ── ID generation ─────────────────────────────────────────────────────────────
+  // ── ID generation (атомды, дублсіз) ────────────────────────────────────────────
 
-  Future<String> _nextReturnId(String adminUid) async {
+  /// Қайтару жазбасын АТОМДЫ реттік id-мен енгізеді. Ескі MAX+1 сканы (клиент
+  /// жақта) read-after-write кідірісі/қатар жазуда бірдей id беріп,
+  /// `returns_pkey` дублін тудыратын — оның орнына серверлік `next_counter`
+  /// RPC-ін қолданамыз. Ескі жазбалармен (басқа нөмірлеу схемасы) сирек қиылыс
+  /// болса — 23505-те келесі нөмірге өтіп қайталаймыз.
+  Future<ReturnModel> _insertReturnWithCounter(
+    String adminUid,
+    ReturnModel Function(String id) build,
+  ) async {
     final year = DateTime.now().year;
-    final rows =
-        await _sb.from('returns').select('id').eq('admin_uid', adminUid);
-    int maxN = 0;
-    for (final r in rows) {
-      final parts = (r['id'] as String).split('-');
-      if (parts.length == 3 && parts[0] == 'RET' && parts[1] == '$year') {
-        final n = int.tryParse(parts[2]) ?? 0;
-        if (n > maxN) maxN = n;
+    PostgrestException? last;
+    for (var attempt = 0; attempt < 15; attempt++) {
+      final raw = await _sb.rpc('next_counter',
+          params: {'p_owner': adminUid, 'p_name': 'return_$year'});
+      final n = (raw as num).toInt();
+      final id = 'RET-$year-${n.toString().padLeft(4, '0')}';
+      final model = build(id);
+      try {
+        await _sb.from('returns').insert(model.toRow());
+        return model;
+      } on PostgrestException catch (e) {
+        if (e.code == '23505') {
+          last = e; // id бос емес (ескі жазба) — келесі нөмірге өтеміз
+          continue;
+        }
+        rethrow;
       }
     }
-    return 'RET-$year-${(maxN + 1).toString().padLeft(4, '0')}';
-  }
-
-  String _clientReturnId() {
-    final now = DateTime.now();
-    final suffix =
-        (now.millisecondsSinceEpoch % 100000).toString().padLeft(5, '0');
-    return 'RET-${now.year}-$suffix';
+    throw last ?? ReturnException(tr('Не удалось создать возврат', 'Қайтару жасалмады'));
   }
 
   // ── CLIENT side ───────────────────────────────────────────────────────────────
@@ -75,27 +84,28 @@ class ReturnService {
     required ReturnRequestInput input,
   }) async {
     try {
-      final returnId = _clientReturnId();
       final now = DateTime.now();
-      final model = ReturnModel(
-        id: returnId,
-        adminUid: input.adminUid,
-        clientUid: input.clientUid,
-        clientName: input.clientName,
-        clientPhone: input.clientPhone,
-        orderId: input.orderId,
-        type: ReturnType.online,
-        items: input.items,
-        totalAmount: input.items.fold(0, (s, i) => s + i.subtotal),
-        reason: input.reason,
-        reasonNote: input.reasonNote,
-        photoUrls: input.photoUrls,
-        pickup: input.pickup,
-        refundMethod: input.refundMethod,
-        status: ReturnStatus.requested,
-        createdAt: now,
+      final model = await _insertReturnWithCounter(
+        input.adminUid,
+        (id) => ReturnModel(
+          id: id,
+          adminUid: input.adminUid,
+          clientUid: input.clientUid,
+          clientName: input.clientName,
+          clientPhone: input.clientPhone,
+          orderId: input.orderId,
+          type: ReturnType.online,
+          items: input.items,
+          totalAmount: input.items.fold(0, (s, i) => s + i.subtotal),
+          reason: input.reason,
+          reasonNote: input.reasonNote,
+          photoUrls: input.photoUrls,
+          pickup: input.pickup,
+          refundMethod: input.refundMethod,
+          status: ReturnStatus.requested,
+          createdAt: now,
+        ),
       );
-      await _sb.from('returns').insert(model.toRow());
       return model;
     } catch (e) {
       debugPrint('[ReturnService.createReturnRequest] $e');
@@ -370,34 +380,37 @@ class ReturnService {
             tr('По этой продаже возврат уже был оформлен.', 'Бұл сатылым бойынша қайтару бұрын жасалған.'));
       }
 
-      final returnId = await _nextReturnId(adminUid);
       final now = DateTime.now();
       final sellerName = AppUser.current.name;
 
-      final model = ReturnModel(
-        id: returnId,
-        adminUid: adminUid,
-        sellerId: sellerId,
-        warehouseId:
-            sourceSale.warehouseId.isNotEmpty ? sourceSale.warehouseId : null,
-        clientUid: '',
-        clientName: '',
-        clientPhone: '',
-        saleId: sourceSale.id,
-        type: ReturnType.offline,
-        items: items,
-        totalAmount: items.fold(0, (s, i) => s + i.subtotal),
-        reason: reason,
-        photoUrls: const [],
-        pickup: ReturnPickup.selfBring,
-        refundMethod: method,
-        status: ReturnStatus.refunded,
-        createdAt: now,
-        refundedAt: now,
-        itemConditionOk: true,
-        conditionPhotos: const [],
+      final model = await _insertReturnWithCounter(
+        adminUid,
+        (id) => ReturnModel(
+          id: id,
+          adminUid: adminUid,
+          sellerId: sellerId,
+          warehouseId: sourceSale.warehouseId.isNotEmpty
+              ? sourceSale.warehouseId
+              : null,
+          clientUid: '',
+          clientName: '',
+          clientPhone: '',
+          saleId: sourceSale.id,
+          type: ReturnType.offline,
+          items: items,
+          totalAmount: items.fold(0, (s, i) => s + i.subtotal),
+          reason: reason,
+          photoUrls: const [],
+          pickup: ReturnPickup.selfBring,
+          refundMethod: method,
+          status: ReturnStatus.refunded,
+          createdAt: now,
+          refundedAt: now,
+          itemConditionOk: true,
+          conditionPhotos: const [],
+        ),
       );
-      await _sb.from('returns').insert(model.toRow());
+      final returnId = model.id;
 
       // Қойманы қалпына келтіру + warehouse есептегіш.
       final batchIds = items.map((i) => i.batchId).toSet().toList();

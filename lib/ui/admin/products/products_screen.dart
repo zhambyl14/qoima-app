@@ -9,6 +9,7 @@ import '../../../theme/qoima_design.dart';
 import '../../../theme/qoima_v2.dart';
 import '../../shared/skeletons.dart';
 import 'add_product_screen.dart';
+import 'add_products_fast_screen.dart';
 import 'product_detail_screen.dart';
 
 import '../../../core/lang.dart';
@@ -271,7 +272,34 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                 ],
                               ),
                             ),
-                            if (!widget.readOnly)
+                            if (!widget.readOnly) ...[
+                              GestureDetector(
+                                onTap: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                        builder: (_) =>
+                                            const AddProductsFastScreen())),
+                                child: Container(
+                                  height: 38,
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.16),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(Icons.bolt_rounded,
+                                            color: Colors.white, size: 19),
+                                        const SizedBox(width: 4),
+                                        Text(tr('Быстро', 'Жылдам'),
+                                            style: manrope(13, FontWeight.w700,
+                                                color: Colors.white)),
+                                      ]),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
                               GestureDetector(
                                 onTap: () => Navigator.push(
                                     context,
@@ -298,6 +326,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                       ]),
                                 ),
                               ),
+                            ],
                           ]),
 
                           // Current warehouse badge — visible for both admin and seller.

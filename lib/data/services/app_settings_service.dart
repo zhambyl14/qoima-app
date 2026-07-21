@@ -7,13 +7,19 @@ class PaymentCardSettings {
   final String number;
   final String holder;
   final String bank;
+  // Kaspi QR сілтемесі — негізгі төлем тәсілі (карта — қосымша).
+  final String kaspiLink;
   const PaymentCardSettings({
     this.number = '',
     this.holder = '',
     this.bank = '',
+    this.kaspiLink = '',
   });
 
-  bool get isConfigured => number.trim().isNotEmpty;
+  // Карта нөмірі НЕМЕСЕ Kaspi сілтемесі болса — реквизит бар.
+  bool get isConfigured =>
+      number.trim().isNotEmpty || kaspiLink.trim().isNotEmpty;
+  bool get hasKaspi => kaspiLink.trim().isNotEmpty;
 }
 
 class AppSettingsService {
@@ -22,6 +28,7 @@ class AppSettingsService {
   static const _kNumber = 'payment_card_number';
   static const _kHolder = 'payment_card_holder';
   static const _kBank = 'payment_card_bank';
+  static const _kKaspi = 'payment_kaspi_link';
   static const _kMode = 'payment_mode';
 
   /// Төлем режимі: 'platform' — бәрі модератор картасына (әдепкі);
@@ -50,7 +57,7 @@ class AppSettingsService {
     final rows = await _sb
         .from('app_settings')
         .select('key,value')
-        .inFilter('key', [_kNumber, _kHolder, _kBank]);
+        .inFilter('key', [_kNumber, _kHolder, _kBank, _kKaspi]);
     final map = {
       for (final r in rows) r['key'] as String: (r['value'] as String? ?? '')
     };
@@ -58,6 +65,7 @@ class AppSettingsService {
       number: map[_kNumber] ?? '',
       holder: map[_kHolder] ?? '',
       bank: map[_kBank] ?? '',
+      kaspiLink: map[_kKaspi] ?? '',
     );
   }
 
@@ -68,6 +76,7 @@ class AppSettingsService {
       {'key': _kNumber, 'value': card.number.trim(), 'updated_at': now},
       {'key': _kHolder, 'value': card.holder.trim(), 'updated_at': now},
       {'key': _kBank, 'value': card.bank.trim(), 'updated_at': now},
+      {'key': _kKaspi, 'value': card.kaspiLink.trim(), 'updated_at': now},
     ]);
   }
 }

@@ -16,6 +16,8 @@ class StoreModel {
   final String paymentCardNumber;
   final String paymentCardHolder;
   final String paymentBank;
+  // Kaspi QR сілтемесі — негізгі төлем тәсілі (карта — қосымша).
+  final String kaspiLink;
   // v10 — иесі (заявкадан көшіріледі) және модерация күйі
   final String ownerName;
   final String ownerIin;
@@ -45,6 +47,7 @@ class StoreModel {
     this.paymentCardNumber = '',
     this.paymentCardHolder = '',
     this.paymentBank = '',
+    this.kaspiLink = '',
     this.ownerName = '',
     this.ownerIin = '',
     this.category = '',
@@ -85,6 +88,7 @@ class StoreModel {
       paymentCardNumber: m['payment_card_number'] as String? ?? '',
       paymentCardHolder: m['payment_card_holder'] as String? ?? '',
       paymentBank: m['payment_bank'] as String? ?? '',
+      kaspiLink: m['kaspi_link'] as String? ?? '',
       ownerName: m['owner_name'] as String? ?? '',
       ownerIin: m['owner_iin'] as String? ?? '',
       category: m['category'] as String? ?? '',
@@ -113,6 +117,7 @@ class StoreModel {
         'payment_card_number': paymentCardNumber,
         'payment_card_holder': paymentCardHolder,
         'payment_bank': paymentBank,
+        'kaspi_link': kaspiLink,
         'owner_name': ownerName,
         'owner_iin': ownerIin,
         'category': category,
@@ -141,6 +146,7 @@ class StoreModel {
     String? paymentCardNumber,
     String? paymentCardHolder,
     String? paymentBank,
+    String? kaspiLink,
     String? ownerName,
     String? ownerIin,
     String? category,
@@ -168,6 +174,7 @@ class StoreModel {
         paymentCardNumber: paymentCardNumber ?? this.paymentCardNumber,
         paymentCardHolder: paymentCardHolder ?? this.paymentCardHolder,
         paymentBank: paymentBank ?? this.paymentBank,
+        kaspiLink: kaspiLink ?? this.kaspiLink,
         ownerName: ownerName ?? this.ownerName,
         ownerIin: ownerIin ?? this.ownerIin,
         category: category ?? this.category,

@@ -211,15 +211,42 @@ class _WarehouseCard extends StatelessWidget {
             QPill(tr('Главный', 'Негізгі'), tone: 'green'),
           ],
         ]),
-        subtitle: wh.address != null && wh.address!.isNotEmpty
-            ? Text(wh.address!,
-                style: manrope(12.5, FontWeight.w500, color: cInk3))
+        subtitle: (wh.address != null && wh.address!.isNotEmpty) ||
+                (wh.note != null && wh.note!.isNotEmpty)
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (wh.address != null && wh.address!.isNotEmpty)
+                    Text(wh.address!,
+                        style: manrope(12.5, FontWeight.w500, color: cInk3)),
+                  if (wh.note != null && wh.note!.isNotEmpty)
+                    Row(children: [
+                      const Icon(Icons.place_outlined, size: 12, color: cGreen),
+                      const SizedBox(width: 3),
+                      Expanded(
+                        child: Text(wh.note!,
+                            style: manrope(12, FontWeight.w600, color: cGreen)),
+                      ),
+                    ]),
+                ],
+              )
             : null,
         trailing: PopupMenuButton<String>(
           icon: const Icon(Icons.more_vert, color: cInk3, size: 20),
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           onSelected: (val) async {
+            if (val == 'edit') {
+              showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                shape: const RoundedRectangleBorder(
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+                builder: (_) =>
+                    _AddWarehouseSheet(service: service, existing: wh),
+              );
+              return;
+            }
             if (val == 'delete' && !wh.isMain) {
               // Қадам 1: растау
               final ok1 = await showDialog<bool>(
@@ -282,6 +309,13 @@ class _WarehouseCard extends StatelessWidget {
             }
           },
           itemBuilder: (_) => [
+            PopupMenuItem(
+                value: 'edit',
+                child: Row(children: [
+                  const Icon(Icons.edit_outlined, size: 16, color: cInk2),
+                  const SizedBox(width: 8),
+                  Text(tr('Редактировать', 'Өңдеу')),
+                ])),
             if (!wh.isMain)
               PopupMenuItem(
                   value: 'delete',
@@ -298,10 +332,11 @@ class _WarehouseCard extends StatelessWidget {
   }
 }
 
-// ── Қойма қосу bottom sheet ───────────────────────────────────────────────────
+// ── Қойма қосу/өңдеу bottom sheet ─────────────────────────────────────────────
 class _AddWarehouseSheet extends StatefulWidget {
   final FirestoreService service;
-  const _AddWarehouseSheet({required this.service});
+  final WarehouseModel? existing; // null → қосу, әйтпесе → өңдеу
+  const _AddWarehouseSheet({required this.service, this.existing});
   @override
   State<_AddWarehouseSheet> createState() => _AddWarehouseSheetState();
 }
@@ -313,6 +348,19 @@ class _AddWarehouseSheetState extends State<_AddWarehouseSheet> {
   final _noteCtrl = TextEditingController();
   bool _loading = false;
   String? _error;
+
+  bool get _isEdit => widget.existing != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final w = widget.existing;
+    if (w != null) {
+      _nameCtrl.text = w.name;
+      _addressCtrl.text = w.address ?? '';
+      _noteCtrl.text = w.note ?? '';
+    }
+  }
 
   @override
   void dispose() {
@@ -344,7 +392,10 @@ class _AddWarehouseSheetState extends State<_AddWarehouseSheet> {
                           color: Colors.grey.shade300,
                           borderRadius: BorderRadius.circular(2)))),
               const SizedBox(height: 16),
-              Text(tr('Новый склад', 'Жаңа қойма'),
+              Text(
+                  _isEdit
+                      ? tr('Редактировать склад', 'Қойманы өңдеу')
+                      : tr('Новый склад', 'Жаңа қойма'),
                   style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
@@ -393,8 +444,8 @@ class _AddWarehouseSheetState extends State<_AddWarehouseSheet> {
               const SizedBox(height: 12),
               _Field(
                   ctrl: _noteCtrl,
-                  label: tr('Примечание', 'Ескерту'),
-                  hint: tr('Дополнительная информация', 'Қосымша ақпарат'),
+                  label: tr('Как найти (видит клиент)', 'Қалай табу (клиент көреді)'),
+                  hint: tr('Напр: 1 этаж, бутик 304', 'Мыс: 1-қабат, 304 бутик'),
                   icon: Icons.notes_rounded),
               if (_error != null) ...[
                 const SizedBox(height: 10),
@@ -429,13 +480,23 @@ class _AddWarehouseSheetState extends State<_AddWarehouseSheet> {
                               _error = null;
                             });
                             try {
-                              await widget.service.createWarehouse(
-                                name: name,
-                                address: _addressCtrl.text.trim(),
-                                note: _noteCtrl.text.trim().isEmpty
-                                    ? null
-                                    : _noteCtrl.text.trim(),
-                              );
+                              final note = _noteCtrl.text.trim().isEmpty
+                                  ? null
+                                  : _noteCtrl.text.trim();
+                              if (_isEdit) {
+                                await widget.service.updateWarehouse(
+                                  warehouseId: widget.existing!.id,
+                                  name: name,
+                                  address: _addressCtrl.text.trim(),
+                                  note: note,
+                                );
+                              } else {
+                                await widget.service.createWarehouse(
+                                  name: name,
+                                  address: _addressCtrl.text.trim(),
+                                  note: note,
+                                );
+                              }
                               if (context.mounted) Navigator.pop(context);
                             } catch (e) {
                               setState(() {
@@ -450,7 +511,7 @@ class _AddWarehouseSheetState extends State<_AddWarehouseSheet> {
                             height: 22,
                             child: CircularProgressIndicator(
                                 color: Colors.white, strokeWidth: 2))
-                        : Text(tr('Сохранить', 'Сақтау'),
+                        : Text(_isEdit ? tr('Сохранить', 'Сақтау') : tr('Добавить', 'Қосу'),
                             style: TextStyle(fontWeight: FontWeight.w700)),
                   )),
             ]),

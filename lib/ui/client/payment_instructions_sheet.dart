@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../core/card_utils.dart';
+import '../../core/contact_utils.dart';
 import '../../core/lang.dart';
 import '../../data/models/order_model.dart';
 import '../../data/models/store_model.dart';
@@ -49,6 +50,7 @@ class _PayGroup {
   final String storeName;
   final List<OrderModel> orders;
   final PaymentCardSettings card;
+  final String kaspiLink; // негізгі төлем (карта — қосымша)
   final double amount;
   final bool isFallback; // дүкен картасы толтырылмаған → модератор картасы
   _PayGroup({
@@ -56,6 +58,7 @@ class _PayGroup {
     required this.storeName,
     required this.orders,
     required this.card,
+    this.kaspiLink = '',
     required this.amount,
     this.isFallback = false,
   });
@@ -119,23 +122,28 @@ class _PaymentInstructionsSheetState extends State<_PaymentInstructionsSheet> {
                   bank: store.paymentBank,
                 )
               : modCard;
+          // Kaspi — дүкендікі болса соны, әйтпесе модератордікі (fallback).
+          final storeKaspi = store?.kaspiLink.trim() ?? '';
+          final kaspi = storeKaspi.isNotEmpty ? storeKaspi : modCard.kaspiLink;
           final amount = orders.fold<double>(0, (s, o) => s + o.depositAmount);
           groups.add(_PayGroup(
             id: adminUid,
             storeName: orders.first.storeName,
             orders: orders,
             card: card,
+            kaspiLink: kaspi,
             amount: amount,
             isFallback: !hasCard,
           ));
         });
       } else {
-        // platform: барлық тапсырыс — бір модератор картасы.
+        // platform: барлық тапсырыс — бір модератор картасы + Kaspi.
         groups.add(_PayGroup(
           id: 'platform',
           storeName: '',
           orders: widget.orders,
           card: modCard,
+          kaspiLink: modCard.kaspiLink,
           amount: widget.amount,
         ));
       }
@@ -240,6 +248,20 @@ class _PaymentInstructionsSheetState extends State<_PaymentInstructionsSheet> {
     }
   }
 
+  Future<void> _openKaspi(String link) async {
+    try {
+      await openExternalUrl(link);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(tr('Не удалось открыть Kaspi', 'Kaspi ашылмады')),
+          backgroundColor: cRed,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final multi = _groups.length > 1;
@@ -267,26 +289,29 @@ class _PaymentInstructionsSheetState extends State<_PaymentInstructionsSheet> {
               : tr('Оплата заказа', 'Тапсырысты төлеу'),
           style: manrope(18, FontWeight.w800, color: cInk),
         ),
-        const SizedBox(height: 6),
-        Text(money(widget.amount),
-            style:
-                manrope(32, FontWeight.w800, color: cInk, letterSpacing: -1)),
-        if (multi) ...[
+        // Көп дүкенде ҮЛКЕН жалпы соманы КӨРСЕТПЕЙМІЗ — клиент оны бір дүкенге
+        // толық аударып жіберуі мүмкін. Әр дүкеннің сомасы төменде бөлек тұрады.
+        if (!multi) ...[
           const SizedBox(height: 6),
+          Text(money(widget.amount),
+              style: manrope(32, FontWeight.w800,
+                  color: cInk, letterSpacing: -1)),
+        ] else ...[
+          const SizedBox(height: 10),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
               color: cAmberTint,
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(12),
             ),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              const Icon(Icons.info_outline, color: cAmber, size: 16),
+              const Icon(Icons.info_outline, color: cAmber, size: 18),
               const SizedBox(width: 8),
               Flexible(
                 child: Text(
-                  tr('Заказ из ${_groups.length} магазинов — оплатите каждый отдельно',
-                      '${_groups.length} дүкеннен тапсырыс — әрқайсысын бөлек төлеңіз'),
-                  style: manrope(12, FontWeight.w600,
+                  tr('Заказ из ${_groups.length} магазинов — платите КАЖДОМУ отдельно по его сумме ниже',
+                      '${_groups.length} дүкеннен тапсырыс — ӘРҚАЙСЫСЫНА төмендегі өз сомасымен бөлек төлеңіз'),
+                  style: manrope(12.5, FontWeight.w700,
                       color: const Color(0xFF92400E)),
                 ),
               ),
@@ -348,7 +373,7 @@ class _PaymentInstructionsSheetState extends State<_PaymentInstructionsSheet> {
                   style: manrope(14, FontWeight.w800, color: cInk)),
             ),
             Text(money(g.amount),
-                style: manrope(14, FontWeight.w800, color: cGreen)),
+                style: manrope(18, FontWeight.w800, color: cGreen)),
           ]),
           const SizedBox(height: 10),
         ],
@@ -393,10 +418,29 @@ class _PaymentInstructionsSheetState extends State<_PaymentInstructionsSheet> {
             ]),
           )
         else ...[
-          // ── Карта картасы ──────────────────────────────────────────────────
+          // ── Kaspi — НЕГІЗГІ төлем тәсілі (қызыл) ────────────────────────────
+          if (g.kaspiLink.trim().isNotEmpty) ...[
+            _KaspiPayButton(
+              amount: g.amount,
+              onTap: () => _openKaspi(g.kaspiLink),
+            ),
+            const SizedBox(height: 12),
+            Row(children: [
+              const Expanded(child: Divider(color: cLine)),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                child: Text(tr('или на карту', 'немесе картаға'),
+                    style: manrope(11.5, FontWeight.w600, color: cInk3)),
+              ),
+              const Expanded(child: Divider(color: cLine)),
+            ]),
+            const SizedBox(height: 12),
+          ],
+          // ── Карта картасы (Kaspi болса — қосымша, кішірек) ──────────────────
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(18),
+            padding: EdgeInsets.all(
+                g.kaspiLink.trim().isNotEmpty ? 14 : 18),
             decoration: BoxDecoration(
               gradient: kGrad,
               borderRadius: BorderRadius.circular(18),
@@ -413,7 +457,9 @@ class _PaymentInstructionsSheetState extends State<_PaymentInstructionsSheet> {
                   Row(children: [
                     Expanded(
                       child: Text(cardNumber,
-                          style: manrope(21, FontWeight.w800,
+                          style: manrope(
+                              g.kaspiLink.trim().isNotEmpty ? 17 : 21,
+                              FontWeight.w800,
                               color: Colors.white, letterSpacing: 1.2)),
                     ),
                     GestureDetector(
@@ -484,6 +530,63 @@ class _PaymentInstructionsSheetState extends State<_PaymentInstructionsSheet> {
           ),
         ],
       ]),
+    );
+  }
+}
+
+/// Kaspi — негізгі төлем батырмасы (қызыл). Сомасын көрсетіп, Kaspi сілтемесін
+/// сыртқы қосымшада ашады. Клиент Kaspi-де соманы теріп, төлеп, чекті тіркейді.
+class _KaspiPayButton extends StatelessWidget {
+  final double amount;
+  final VoidCallback onTap;
+  const _KaspiPayButton({required this.amount, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: const Color(0xFFF14635), // Kaspi қызылы
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+          child: Row(children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: const Center(
+                child: Text('K',
+                    style: TextStyle(
+                        color: Color(0xFFF14635),
+                        fontWeight: FontWeight.w900,
+                        fontSize: 20)),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(tr('Оплатить через Kaspi', 'Kaspi арқылы төлеу'),
+                      style: manrope(15, FontWeight.w800, color: Colors.white)),
+                  Text(
+                      tr('Сумма к оплате: ${money(amount)}',
+                          'Төленетін сома: ${money(amount)}'),
+                      style: manrope(12, FontWeight.w600,
+                          color: Colors.white.withValues(alpha: 0.9))),
+                ],
+              ),
+            ),
+            const Icon(Icons.open_in_new_rounded, color: Colors.white, size: 20),
+          ]),
+        ),
+      ),
     );
   }
 }

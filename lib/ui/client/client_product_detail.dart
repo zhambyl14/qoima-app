@@ -125,6 +125,16 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
     super.dispose();
   }
 
+  /// Нұсқа чипінің жазуы: түс + айырмашылық белгісі («Ақ · қара табан»).
+  String _variantChipLabel(ProductModel v, int i) {
+    final parts = <String>[
+      if (v.color.isNotEmpty) trValue(v.color),
+      if (v.variantNote.trim().isNotEmpty) v.variantNote.trim(),
+    ];
+    if (parts.isEmpty) return tr('Вариант ${i + 1}', 'Нұсқа ${i + 1}');
+    return parts.join(' · ');
+  }
+
   /// Переключение цветового варианта: меняем товар и перезагружаем батчи.
   void _onSelectVariant(int i) {
     if (i == _variantIndex) return;
@@ -410,17 +420,20 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
 
                       const SizedBox(height: 16),
 
-                      // ── Түсі (color variants) ───────────────────────
+                      // ── Нұсқалар (түс + айырмашылық белгісі) ─────────
                       if (_variants.length > 1) ...[
-                        QSecLabel(tr('Цвет', 'Түсі')),
+                        QSecLabel(
+                            _variants.any((v) => v.variantNote.isNotEmpty)
+                                ? tr('Варианты', 'Нұсқалары')
+                                : tr('Цвет', 'Түсі')),
                         Wrap(
                           spacing: 8,
                           runSpacing: 8,
                           children: List.generate(_variants.length, (i) {
                             final v = _variants[i];
                             final selected = i == _variantIndex;
-                            final dot = ProductModel.colorHex(v.color) ??
-                                const Color(0xFFBDBDBD);
+                            final dot =
+                                v.effectiveColor ?? const Color(0xFFBDBDBD);
                             return GestureDetector(
                               onTap: () => _onSelectVariant(i),
                               child: AnimatedContainer(
@@ -450,9 +463,7 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
                                       ),
                                       const SizedBox(width: 7),
                                       Text(
-                                          v.color.isNotEmpty
-                                              ? trValue(v.color)
-                                              : tr('Цвет ${i + 1}', 'Түс ${i + 1}'),
+                                          _variantChipLabel(v, i),
                                           style: manrope(13, FontWeight.w700,
                                               color: selected
                                                   ? cGreenDeep
@@ -799,6 +810,7 @@ class _SpecSection extends StatelessWidget {
       if (product.material.isNotEmpty) _SpecRow('Материал', trValue(product.material)),
       if (product.brand.isNotEmpty)    _SpecRow('Бренд', product.brand),
       if (product.color.isNotEmpty)    _SpecRow(tr('Цвет', 'Түсі'), trValue(product.color)),
+      if (product.variantNote.trim().isNotEmpty) _SpecRow(tr('Особенность', 'Ерекшелігі'), product.variantNote.trim()),
       if (product.type.isNotEmpty)     _SpecRow(tr('Тип', 'Түрі'), trValue(product.type)),
       if (product.season.isNotEmpty)   _SpecRow(tr('Сезон', 'Маусым'), trValue(product.season)),
       if (product.country.isNotEmpty)  _SpecRow(tr('Страна', 'Өндірілген ел'), product.country),

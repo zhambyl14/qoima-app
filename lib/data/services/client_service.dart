@@ -48,13 +48,34 @@ List<({ProductGroup group, int index})> expandVariantCards(
 }
 
 bool productGroupMatches(ProductGroup g, String query) {
-  if (query.isEmpty) return true;
-  final p = g.main;
-  return SearchHelper.matches(p.name, query) ||
-      SearchHelper.matches(p.brand, query) ||
-      SearchHelper.matches(p.type, query) ||
-      SearchHelper.matches(p.color, query) ||
-      g.variants.any((v) => SearchHelper.matches(v.color, query));
+  if (query.trim().isEmpty) return true;
+  // Топтың БАРЛЫҚ нұсқаларының барлық өрісі бір мәтінге жиналады: атауы, бренд,
+  // түр, түс, сипаттама, маусым, «кімге», айырмашылық белгісі. Канондық мәндер
+  // ru + ағымдағы тіл (trValue) түрінде де қосылады — «жасыл кеды» да, «зелёные
+  // кеды» да табылады. Клиенттің сұранысы бос қайтпауы үшін.
+  final buf = StringBuffer();
+  void add(String s) {
+    if (s.trim().isNotEmpty) buf.write(' $s');
+  }
+
+  for (final v in g.variants) {
+    add(v.name);
+    add(v.brand);
+    add(v.type);
+    add(trValue(v.type));
+    add(v.color);
+    add(trValue(v.color));
+    add(v.description);
+    add(v.season);
+    add(trValue(v.season));
+    add(v.category);
+    add(trValue(v.category));
+    add(v.material);
+    add(trValue(v.material));
+    add(v.variantNote);
+  }
+  // Әр сұраныс сөзі кез келген өріске сәйкес келсе жеткілікті (typo-толерантты).
+  return SearchHelper.allWordsMatch(buf.toString(), query);
 }
 
 int productGroupScore(ProductGroup g, String query) {
@@ -197,7 +218,12 @@ class ClientService {
         .eq('status', ProductModel.statusInStock)
         // Витринадан жеке жасырылған тауарлар клиентке көрсетілмейді.
         .eq('storefront_hidden', false);
-    return rows.map(ProductModel.fromMap).toList();
+    return rows
+        .map(ProductModel.fromMap)
+        // Фотосы жоқ тауар онлайн-витринаға шықпайды (қоймада қалады, сатушы
+        // карточкадан фото қосқанда автоматты шығады). Сток/тапсырысқа әсер жоқ.
+        .where((p) => p.images.isNotEmpty)
+        .toList();
   }
 
   /// Товардың batch-тары. [onlyAvailable]=true — тек қолжетімді (тауары бар).

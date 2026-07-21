@@ -77,14 +77,24 @@ class CloudinaryService {
     throw CloudinaryException(tr('Ошибка [${resp.statusCode}]: $msg', 'Қате [${resp.statusCode}]: $msg'));
   }
 
-  /// PDF чекті апп ІШІНДЕ inline көрсету үшін 1-бет JPG preview URL жасайды.
-  /// Фото болса өзгертусіз қайтарады.
+  /// Чек PDF пе?
+  static bool isPdfReceipt(String url) => url.toLowerCase().contains('.pdf');
+
+  /// Чекті апп ІШІНДЕ inline көрсетуге арналған URL.
+  ///  • PDF → 1-бет JPG (Cloudinary-де «Allow delivery of PDF and ZIP files»
+  ///    қосулы болуы керек; өшірулі болса — сыртқы браузерде ашылады).
+  ///  • Фото → әрқашан оқылатын форматқа (f_jpg) айналдырамыз — iOS HEIC/webp
+  ///    немесе үлкен өлшем Flutter-де қап-қара болып қалмауы үшін.
   static String receiptPreviewUrl(String url) {
     if (url.isEmpty) return url;
-    if (!url.toLowerCase().contains('.pdf')) return url;
-    return url
-        .replaceFirst('/upload/', '/upload/pg_1,f_jpg,w_1000/')
-        .replaceFirst(RegExp(r'\.pdf$', caseSensitive: false), '.jpg');
+    const marker = '/upload/';
+    if (!url.contains(marker)) return url;
+    if (isPdfReceipt(url)) {
+      return url
+          .replaceFirst(marker, '${marker}pg_1,f_jpg,w_1400/')
+          .replaceFirst(RegExp(r'\.pdf$', caseSensitive: false), '.jpg');
+    }
+    return url.replaceFirst(marker, '${marker}f_jpg,w_1400/');
   }
 
   Future<String> _upload(List<int> bytes, String fileName,

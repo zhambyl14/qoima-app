@@ -1,6 +1,7 @@
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../core/contact_utils.dart';
 import '../../data/models/order_model.dart';
 import '../../data/services/cloudinary_service.dart';
 import '../../data/services/firestore_service.dart';
@@ -600,9 +601,24 @@ class _OrderCardState extends State<_OrderCard> {
     }
   }
 
-  /// Чекті толық экранда көру (фото/PDF preview).
+  /// Чекті толық экранда көру (фото/PDF preview). Жүктелмесе — сыртқы браузерде
+  /// ашуға болады (мыс. Cloudinary-де PDF жеткізуі өшірулі болса).
   void _viewReceipt() {
     final url = CloudinaryService.receiptPreviewUrl(o.receiptUrl);
+    Future<void> openExternal() async {
+      try {
+        await openExternalUrl(o.receiptUrl);
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(tr('Не удалось открыть чек', 'Чекті ашу мүмкін болмады')),
+            backgroundColor: cRed,
+            behavior: SnackBarBehavior.floating,
+          ));
+        }
+      }
+    }
+
     showDialog(
       context: context,
       builder: (_) => Dialog(
@@ -623,11 +639,27 @@ class _OrderCardState extends State<_OrderCard> {
                             color: cGreen, strokeWidth: 2),
                       ),
                 errorBuilder: (_, __, ___) => Padding(
-                  padding: const EdgeInsets.all(40),
-                  child: Text(
-                    tr('Не удалось загрузить чек', 'Чекті жүктеу мүмкін болмады'),
-                    style: manrope(14, FontWeight.w600, color: Colors.white),
-                  ),
+                  padding: const EdgeInsets.all(32),
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    const Icon(Icons.receipt_long_outlined,
+                        color: Colors.white54, size: 48),
+                    const SizedBox(height: 12),
+                    Text(
+                      tr('Не удалось показать чек здесь',
+                          'Чекті мұнда көрсету мүмкін болмады'),
+                      textAlign: TextAlign.center,
+                      style: manrope(14, FontWeight.w600, color: Colors.white),
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      onPressed: openExternal,
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: cGreen,
+                          foregroundColor: Colors.white),
+                      icon: const Icon(Icons.open_in_new_rounded, size: 18),
+                      label: Text(tr('Открыть в браузере', 'Браузерде ашу')),
+                    ),
+                  ]),
                 ),
               ),
             ),
@@ -635,10 +667,18 @@ class _OrderCardState extends State<_OrderCard> {
           Positioned(
             top: 8,
             right: 8,
-            child: IconButton(
-              icon: const Icon(Icons.close_rounded, color: Colors.white),
-              onPressed: () => Navigator.pop(context),
-            ),
+            child: Row(children: [
+              // Сыртта ашу — әрқашан қолжетімді (PDF/жүктелмеген жағдайға).
+              IconButton(
+                icon: const Icon(Icons.open_in_new_rounded, color: Colors.white),
+                tooltip: tr('Открыть в браузере', 'Браузерде ашу'),
+                onPressed: openExternal,
+              ),
+              IconButton(
+                icon: const Icon(Icons.close_rounded, color: Colors.white),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ]),
           ),
         ]),
       ),

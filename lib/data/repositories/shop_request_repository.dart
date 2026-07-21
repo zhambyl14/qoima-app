@@ -42,6 +42,7 @@ class ShopRequestRepository {
       paymentCardNumber: req.cardNumber,
       paymentCardHolder: req.cardHolder,
       paymentBank: req.cardBank,
+      kaspiLink: req.kaspiLink,
       ownerName: req.ownerName,
       ownerIin: req.ownerIin,
       category: req.category,

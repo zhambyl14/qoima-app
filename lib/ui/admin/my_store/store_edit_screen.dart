@@ -32,6 +32,7 @@ class _StoreEditScreenState extends State<StoreEditScreen> {
   late final _phoneCtrl = TextEditingController(text: widget.store.phone);
   late final _cardCtrl = TextEditingController(
       text: formatCardDisplay(widget.store.paymentCardNumber));
+  late final _kaspiCtrl = TextEditingController(text: widget.store.kaspiLink);
   final _commentCtrl = TextEditingController();
 
   late String _city = widget.store.city;
@@ -47,6 +48,7 @@ class _StoreEditScreenState extends State<StoreEditScreen> {
     _iinCtrl.dispose();
     _phoneCtrl.dispose();
     _cardCtrl.dispose();
+    _kaspiCtrl.dispose();
     _commentCtrl.dispose();
     super.dispose();
   }
@@ -66,6 +68,8 @@ class _StoreEditScreenState extends State<StoreEditScreen> {
     add('ownerName', tr('ФИО', 'Аты-жөні'), store.ownerName, _ownerNameCtrl.text);
     add('ownerIin', tr('ИИН / БИН', 'ЖСН / БСН'), store.ownerIin, _iinCtrl.text);
     add('phone', 'Телефон', store.phone, _phoneCtrl.text);
+    add('kaspiLink', tr('Ссылка Kaspi', 'Kaspi сілтемесі'), store.kaspiLink,
+        _kaspiCtrl.text);
     add('paymentCardNumber', tr('Номер карты', 'Карта нөмірі'), store.paymentCardNumber,
         cardDigitsOnly(_cardCtrl.text));
     return changes;
@@ -260,9 +264,19 @@ class _StoreEditScreenState extends State<StoreEditScreen> {
                 ),
 
                 const SizedBox(height: 20),
-                QSecLabel(tr('Выплаты', 'Төлемдер')),
+                QSecLabel(tr('Приём оплаты', 'Төлем қабылдау')),
                 _EditField(
-                  label: tr('Номер карты', 'Карта нөмірі'),
+                  label: tr('Ссылка Kaspi QR (основной способ)',
+                      'Kaspi QR сілтемесі (негізгі)'),
+                  icon: Icons.qr_code_2_rounded,
+                  controller: _kaspiCtrl,
+                  original: store.kaspiLink,
+                  onChanged: (_) => setState(() {}),
+                  keyboardType: TextInputType.url,
+                ),
+                const SizedBox(height: 14),
+                _EditField(
+                  label: tr('Номер карты (запасной)', 'Карта нөмірі (қосымша)'),
                   icon: Icons.account_balance_wallet_outlined,
                   controller: _cardCtrl,
                   original: formatCardDisplay(store.paymentCardNumber),

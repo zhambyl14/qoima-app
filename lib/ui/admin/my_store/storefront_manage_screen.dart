@@ -54,13 +54,18 @@ class _StorefrontManageScreenState extends State<StorefrontManageScreen> {
 
   bool _isHidden(ProductModel p) => _pending[p.id] ?? p.storefrontHidden;
 
+  // Витринада НАҚТЫ көрінеді ме: жасырылмаған ЖӘНЕ суреті бар. Фотосыз тауар
+  // клиентке шықпайды (getStoreProducts images-ті сүзеді) — сондықтан ол
+  // «витринада» болып саналмайды.
+  bool _isVisible(ProductModel p) => !_isHidden(p) && p.images.isNotEmpty;
+
   List<ProductModel> _filter(List<ProductModel> all) {
     // Сатылған (толық) тауарларды тізбелемейміз — тек қолда барлар.
     var list = all
         .where((p) => p.status == ProductModel.statusInStock)
         .toList();
-    if (_tab == 1) list = list.where((p) => !_isHidden(p)).toList();
-    if (_tab == 2) list = list.where(_isHidden).toList();
+    if (_tab == 1) list = list.where(_isVisible).toList();
+    if (_tab == 2) list = list.where((p) => !_isVisible(p)).toList();
     if (_q.isNotEmpty) {
       final q = _q.toLowerCase();
       list = list
@@ -82,8 +87,8 @@ class _StorefrontManageScreenState extends State<StorefrontManageScreen> {
           final all = (snap.data ?? [])
               .where((p) => p.status == ProductModel.statusInStock)
               .toList();
-          final hiddenCount = all.where(_isHidden).length;
-          final visibleCount = all.length - hiddenCount;
+          final visibleCount = all.where(_isVisible).length;
+          final hiddenCount = all.length - visibleCount;
           final list = _filter(snap.data ?? []);
 
           return SafeArea(
@@ -307,37 +312,51 @@ class _Row extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis),
               const SizedBox(height: 4),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: hidden ? cLine2 : cGreenTint,
-                  borderRadius: BorderRadius.circular(7),
-                ),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(
-                      hidden
-                          ? Icons.visibility_off_outlined
-                          : Icons.visibility_outlined,
-                      size: 12,
-                      color: hidden ? cInk3 : cGreenDeep),
-                  const SizedBox(width: 4),
-                  Text(
-                      hidden
-                          ? tr('Скрыт с витрины', 'Витринадан жасырын')
-                          : tr('В витрине', 'Витринада'),
-                      style: manrope(10.5, FontWeight.w700,
-                          color: hidden ? cInk3 : cGreenDeep)),
-                ]),
-              ),
+              Builder(builder: (_) {
+                final noPhoto = product.images.isEmpty;
+                final Color bg = noPhoto
+                    ? cAmberTint
+                    : (hidden ? cLine2 : cGreenTint);
+                final Color fg = noPhoto
+                    ? const Color(0xFF92400E)
+                    : (hidden ? cInk3 : cGreenDeep);
+                return Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: bg,
+                    borderRadius: BorderRadius.circular(7),
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(
+                        noPhoto
+                            ? Icons.add_a_photo_outlined
+                            : (hidden
+                                ? Icons.visibility_off_outlined
+                                : Icons.visibility_outlined),
+                        size: 12,
+                        color: fg),
+                    const SizedBox(width: 4),
+                    Text(
+                        noPhoto
+                            ? tr('Нет фото — добавьте, чтобы показать',
+                                'Фото жоқ — көрсету үшін қосыңыз')
+                            : (hidden
+                                ? tr('Скрыт с витрины', 'Витринадан жасырын')
+                                : tr('В витрине', 'Витринада')),
+                        style: manrope(10.5, FontWeight.w700, color: fg)),
+                  ]),
+                );
+              }),
             ],
           ),
         ),
+        // Фотосыз тауарды витринаға қосуға болмайды — переключатель өшірулі.
         Switch(
-          value: !hidden,
+          value: !hidden && product.images.isNotEmpty,
           activeThumbColor: Colors.white,
           activeTrackColor: cGreen,
-          onChanged: onChanged,
+          onChanged: product.images.isEmpty ? null : onChanged,
         ),
       ]),
     );

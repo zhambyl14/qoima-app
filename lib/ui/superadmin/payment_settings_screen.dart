@@ -18,6 +18,7 @@ class _PaymentSettingsScreenState extends State<PaymentSettingsScreen> {
   final _numberCtrl = TextEditingController();
   final _holderCtrl = TextEditingController();
   final _bankCtrl = TextEditingController();
+  final _kaspiCtrl = TextEditingController();
   String _mode = 'platform'; // 'platform' | 'store'
   bool _loading = true;
   bool _saving = false;
@@ -33,6 +34,7 @@ class _PaymentSettingsScreenState extends State<PaymentSettingsScreen> {
     _numberCtrl.dispose();
     _holderCtrl.dispose();
     _bankCtrl.dispose();
+    _kaspiCtrl.dispose();
     super.dispose();
   }
 
@@ -45,6 +47,7 @@ class _PaymentSettingsScreenState extends State<PaymentSettingsScreen> {
         _numberCtrl.text = formatCardDisplay(card.number);
         _holderCtrl.text = card.holder;
         _bankCtrl.text = card.bank;
+        _kaspiCtrl.text = card.kaspiLink;
         _mode = mode;
         _loading = false;
       });
@@ -69,6 +72,7 @@ class _PaymentSettingsScreenState extends State<PaymentSettingsScreen> {
         number: digits,
         holder: _holderCtrl.text.trim(),
         bank: _bankCtrl.text.trim(),
+        kaspiLink: _kaspiCtrl.text.trim(),
       ));
       await _service.savePaymentMode(_mode);
       if (mounted) {
@@ -164,7 +168,19 @@ class _PaymentSettingsScreenState extends State<PaymentSettingsScreen> {
                     ),
                     const SizedBox(height: 18),
                     _Field(
-                      label: tr('Номер карты', 'Карта нөмірі'),
+                      label: tr('Ссылка Kaspi QR (основной способ)',
+                          'Kaspi QR сілтемесі (негізгі тәсіл)'),
+                      child: TextField(
+                        controller: _kaspiCtrl,
+                        keyboardType: TextInputType.url,
+                        style: manrope(14, FontWeight.w600, color: cInk),
+                        decoration:
+                            _dec('https://pay.kaspi.kz/pay/...'),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    _Field(
+                      label: tr('Номер карты (запасной)', 'Карта нөмірі (қосымша)'),
                       child: TextField(
                         controller: _numberCtrl,
                         keyboardType: TextInputType.number,

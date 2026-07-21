@@ -138,6 +138,7 @@ class FirestoreService {
     required String material,
     required String category,
     required String color,
+    String variantNote = '',
   }) async {
     final rows = await _sb
         .from('products')
@@ -147,14 +148,52 @@ class FirestoreService {
         .eq('brand', brand.trim());
     for (final r in rows) {
       final p = ProductModel.fromMap(r);
+      // variant_note кимлікке кіреді: әр түрлі белгі = бөлек товар (повторный
+      // завоз болмайды; бірдей белгі ғана бар карточкаға жаңа партия қосады).
       if (p.type == type &&
           p.material == material &&
           p.category == category &&
-          p.color == color) {
+          p.color == color &&
+          p.variantNote.trim() == variantNote.trim()) {
         return p.id;
       }
     }
     return null;
+  }
+
+  /// Осы дүкеннің тауарларынан бірегей брендтер (жиілігі бойынша, ең көп қолданылған
+  /// алдында). Товар қосу формасында ұсыныс ретінде көрсетіледі — бренд қайта-қайта
+  /// теруге тура келмейді.
+  Future<List<String>> distinctBrands({String? categoryKey}) =>
+      _distinctColumn('brand', categoryKey: categoryKey);
+
+  /// Осы дүкеннің тауарларынан бұрын қолданылған тип/түрлер (өз нұсқаларын да).
+  /// [categoryKey] берілсе — тек сол вид товардың типтерін/брендтерін қайтарады
+  /// (мыс. футболка → футболка брендтері/типтері ғана).
+  Future<List<String>> distinctTypes({String? categoryKey}) =>
+      _distinctColumn('type', categoryKey: categoryKey);
+
+  Future<List<String>> _distinctColumn(String column,
+      {String? categoryKey}) async {
+    try {
+      var query =
+          _sb.from('products').select(column).eq('owner_uid', _ownerUid);
+      if (categoryKey != null && categoryKey.isNotEmpty) {
+        query = query.eq('category_key', categoryKey);
+      }
+      final rows = await query;
+      final counts = <String, int>{};
+      for (final r in rows) {
+        final v = (r[column] as String? ?? '').trim();
+        if (v.isEmpty) continue;
+        counts[v] = (counts[v] ?? 0) + 1;
+      }
+      final list = counts.keys.toList()
+        ..sort((a, b) => counts[b]!.compareTo(counts[a]!));
+      return list;
+    } catch (_) {
+      return [];
+    }
   }
 
   Stream<List<ProductModel>> watchProducts() => retryStream(() => _sb

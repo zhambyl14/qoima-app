@@ -190,6 +190,12 @@ class _ProductGroupCardState extends State<ProductGroupCard> {
                 style: manrope(13, FontWeight.w700, color: cInk),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis),
+            // Айырмашылық белгісі — екі ұқсас карточканы ажырату үшін.
+            if (_product.variantNote.trim().isNotEmpty)
+              Text(_product.variantNote.trim(),
+                  style: manrope(11, FontWeight.w700, color: cGreen),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis),
             // Рейтинг (денормализацияланған — N+1 сұраныссыз)
             if (_product.ratingCount > 0) ...[
               const SizedBox(height: 3),
@@ -211,7 +217,7 @@ class _ProductGroupCardState extends State<ProductGroupCard> {
                 runSpacing: 8,
                 children: List.generate(variantCount, (i) {
                   return _ColorDot(
-                    color: ProductModel.colorHex(_variants[i].color),
+                    color: _variants[i].effectiveColor,
                     selected: i == _selectedIndex,
                     onTap: () => setState(() => _selectedIndex = i),
                   );

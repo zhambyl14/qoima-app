@@ -12,6 +12,7 @@ class ShopRequestModel {
   final String cardNumber;
   final String cardHolder;
   final String cardBank;
+  final String kaspiLink; // Kaspi QR сілтемесі (негізгі төлем тәсілі)
   final bool contractAccepted;
   final String status; // 'pending' | 'approved' | 'rejected'
   final DateTime createdAt;
@@ -32,6 +33,7 @@ class ShopRequestModel {
     this.cardNumber = '',
     this.cardHolder = '',
     this.cardBank = '',
+    this.kaspiLink = '',
     this.contractAccepted = false,
     this.status = 'pending',
     required this.createdAt,
@@ -61,6 +63,7 @@ class ShopRequestModel {
       cardNumber: m['card_number'] as String? ?? '',
       cardHolder: m['card_holder'] as String? ?? '',
       cardBank: m['card_bank'] as String? ?? '',
+      kaspiLink: m['kaspi_link'] as String? ?? '',
       contractAccepted: m['contract_accepted'] as bool? ?? false,
       status: m['status'] as String? ?? 'pending',
       createdAt: dtn(m['created_at']) ?? DateTime.now(),
@@ -83,6 +86,7 @@ class ShopRequestModel {
         'card_number': cardNumber,
         'card_holder': cardHolder,
         'card_bank': cardBank,
+        'kaspi_link': kaspiLink,
         'contract_accepted': contractAccepted,
         'status': status,
       };
@@ -106,6 +110,7 @@ class ShopRequestModel {
         cardNumber: cardNumber,
         cardHolder: cardHolder,
         cardBank: cardBank,
+        kaspiLink: kaspiLink,
         contractAccepted: contractAccepted,
         status: status ?? this.status,
         createdAt: createdAt,

@@ -21,6 +21,10 @@ class CartProvider extends ChangeNotifier {
   final List<CartItemModel> _items = [];
   bool _loaded = false;
 
+  // Гест «Оплатить» басып логинге кеткенде true болады — кіргеннен кейін
+  // ClientShell бұны көріп бірден Себет табын ашады (басты бет орнына).
+  bool pendingCheckout = false;
+
   CartProvider() {
     _load();
   }
@@ -116,6 +120,21 @@ class ClientShellState extends State<ClientShell> {
   int _currentIndex = 0;
   // Профиль табы ішінде тапсырыстар экранын көрсету (true) немесе профиль (false).
   bool _showOrders = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Гест checkout кезінде логинге кетіп, енді кіргеннен кейін ClientShell
+    // жаңадан құрылды — Себетке қайта апарамыз (клиент сол жерден тоқтап еді).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final cart = context.read<CartProvider>();
+      if (cart.pendingCheckout) {
+        cart.pendingCheckout = false;
+        if (cart.items.isNotEmpty) setIndex(_cartTabIndex);
+      }
+    });
+  }
 
   void setIndex(int i) => setState(() {
         _currentIndex = i;

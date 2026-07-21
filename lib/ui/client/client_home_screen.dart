@@ -776,7 +776,9 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
       if (shell != null) {
         shell.setIndex(2); // Себет — жаңа таб реті бойынша 2-ші
       } else {
-        context.findAncestorStateOfType<GuestShellState>()?.setIndex(1);
+        // GuestShell табтары: 0=Басты, 1=Каталог, 2=Себет. Бұрын қате 1 (Каталог)
+        // қойылып, «купить» басқанда клиент каталогқа өтіп кететін — енді Себет.
+        context.findAncestorStateOfType<GuestShellState>()?.setIndex(2);
       }
     }
   }

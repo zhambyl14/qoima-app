@@ -10,6 +10,13 @@ class ProductModel {
   final String category; // целевая группа / пол (напр. «Мужчинам», «Женские»)
   final String categoryKey; // тип товара v2: shoes|tshirt|outer|... ('' = shoes)
   final String color;
+  // Ұсақ айырмашылық белгісі (мыс. «қара табан», «гүлі бар»). Бірдей модель/түс
+  // болса да, әр түрлі белгі = БӨЛЕК товар (findMatchingProduct кимлікке қосады —
+  // повторный завоз болмайды). Клиент detail-де нұсқа ауыстырғышта көреді.
+  final String variantNote;
+  // HSV палитрадан таңдалған ерекше түстің нақты HEX коды ('#RRGGBB'). Бос болса —
+  // color аты бойынша colorOptions-тан есептеледі.
+  final String customColorHex;
   final String articul;
   final String status; // "В наличии" | "Продано"
   final List<String> images;
@@ -33,6 +40,8 @@ class ProductModel {
     required this.category,
     this.categoryKey = '',
     required this.color,
+    this.variantNote = '',
+    this.customColorHex = '',
     required this.articul,
     required this.status,
     required this.images,
@@ -95,6 +104,17 @@ class ProductModel {
     return null;
   }
 
+  /// Нақты түс: custom HEX болса — соны, әйтпесе аты бойынша палитрадан.
+  Color? get effectiveColor {
+    final h = customColorHex.trim().replaceFirst('#', '');
+    if (h.isNotEmpty) {
+      final full = h.length == 6 ? 'FF$h' : h;
+      final v = int.tryParse(full, radix: 16);
+      if (v != null) return Color(v);
+    }
+    return colorHex(color);
+  }
+
   factory ProductModel.fromJson(Map<String, dynamic> json, {String? docId}) {
     return ProductModel(
       id: docId ?? json['id'] as String? ?? '',
@@ -105,6 +125,8 @@ class ProductModel {
       category: json['category'] as String? ?? '',
       categoryKey: json['categoryKey'] as String? ?? '',
       color: json['color'] as String? ?? '',
+      variantNote: json['variantNote'] as String? ?? '',
+      customColorHex: json['customColorHex'] as String? ?? '',
       articul: json['articul'] as String? ?? '',
       status: json['status'] as String? ?? statusInStock,
       images: List<String>.from(json['images'] as List? ?? []),
@@ -124,6 +146,8 @@ class ProductModel {
         category: m['category'] as String? ?? '',
         categoryKey: m['category_key'] as String? ?? '',
         color: m['color'] as String? ?? '',
+        variantNote: m['variant_note'] as String? ?? '',
+        customColorHex: m['color_hex'] as String? ?? '',
         articul: m['articul'] as String? ?? '',
         status: m['status'] as String? ?? statusInStock,
         images: (m['images'] as List?)?.map((e) => e.toString()).toList() ?? [],
@@ -145,6 +169,8 @@ class ProductModel {
         'category': category,
         'category_key': categoryKey,
         'color': color,
+        'variant_note': variantNote,
+        'color_hex': customColorHex,
         'articul': articul,
         'status': status,
         'images': images,
@@ -162,6 +188,8 @@ class ProductModel {
         'category': category,
         'categoryKey': categoryKey,
         'color': color,
+        'variantNote': variantNote,
+        'customColorHex': customColorHex,
         'articul': articul,
         'status': status,
         'images': images,
@@ -179,6 +207,8 @@ class ProductModel {
     String? category,
     String? categoryKey,
     String? color,
+    String? variantNote,
+    String? customColorHex,
     String? articul,
     String? status,
     List<String>? images,
@@ -198,6 +228,8 @@ class ProductModel {
       category: category ?? this.category,
       categoryKey: categoryKey ?? this.categoryKey,
       color: color ?? this.color,
+      variantNote: variantNote ?? this.variantNote,
+      customColorHex: customColorHex ?? this.customColorHex,
       articul: articul ?? this.articul,
       status: status ?? this.status,
       images: images ?? this.images,

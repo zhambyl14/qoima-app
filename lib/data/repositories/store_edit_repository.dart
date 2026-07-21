@@ -16,6 +16,7 @@ class StoreEditRepository {
     'ownerIin': 'owner_iin',
     'phone': 'phone',
     'paymentCardNumber': 'payment_card_number',
+    'kaspiLink': 'kaspi_link',
   };
 
   // ── Owner ──────────────────────────────────────────────────────────────────

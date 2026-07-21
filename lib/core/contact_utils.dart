@@ -9,6 +9,30 @@ Future<void> makePhoneCall(String phone) async {
   }
 }
 
+/// Открывает произвольную ссылку во внешнем приложении/браузере
+/// (Kaspi QR сілтемесі, карта т.б.). http/https болмаса — қосамыз.
+Future<void> openExternalUrl(String rawUrl) async {
+  var url = rawUrl.trim();
+  if (url.isEmpty) return;
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    url = 'https://$url';
+  }
+  final uri = Uri.parse(url);
+  if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+    throw Exception(tr('Не удалось открыть ссылку', 'Сілтемені ашу мүмкін болмады'));
+  }
+}
+
+/// Открывает адрес на карте (геопоиск по строке).
+Future<void> openMapQuery(String address) async {
+  final q = Uri.encodeComponent(address.trim());
+  if (q.isEmpty) return;
+  final uri = Uri.parse('https://www.google.com/maps/search/?api=1&query=$q');
+  if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+    throw Exception(tr('Не удалось открыть карту', 'Картаны ашу мүмкін болмады'));
+  }
+}
+
 /// Открывает Telegram в официальном приложении.
 /// username — без @, например 'zhambyl_magzhan'.
 Future<void> openTelegram(String username) async {

@@ -55,6 +55,63 @@ class SearchHelper {
     return false;
   }
 
+  /// Левенштейн қашықтығы (typo-толерантты іздеу үшін).
+  static int _levenshtein(String a, String b) {
+    if (a == b) return 0;
+    if (a.isEmpty) return b.length;
+    if (b.isEmpty) return a.length;
+    final prev = List<int>.generate(b.length + 1, (i) => i);
+    final cur = List<int>.filled(b.length + 1, 0);
+    for (int i = 0; i < a.length; i++) {
+      cur[0] = i + 1;
+      for (int j = 0; j < b.length; j++) {
+        final cost = a[i] == b[j] ? 0 : 1;
+        cur[j + 1] = [
+          cur[j] + 1, // insert
+          prev[j + 1] + 1, // delete
+          prev[j] + cost, // replace
+        ].reduce((x, y) => x < y ? x : y);
+      }
+      for (int j = 0; j <= b.length; j++) {
+        prev[j] = cur[j];
+      }
+    }
+    return prev[b.length];
+  }
+
+  // Сөз ұзындығына қарай рұқсат етілген қате саны (қысқа сөзге қатаңырақ).
+  static int _tolerance(int len) => len <= 3 ? 0 : (len <= 6 ? 1 : 2);
+
+  /// БІР сұраныс сөзі [text]-ке сәйкес пе: substring НЕМЕСЕ typo-толерантты
+  /// (мәтінді сөздерге бөліп, әрқайсысын Левенштейнмен салыстырады).
+  static bool wordMatches(String text, String word) {
+    final w = normalize(word);
+    if (w.isEmpty) return true;
+    final t = normalize(text);
+    if (t.contains(w)) return true; // substring/префикс
+    final maxDist = _tolerance(w.length);
+    if (maxDist == 0) return false;
+    for (final token in t.split(RegExp(r'[^a-z0-9]+'))) {
+      if (token.isEmpty) continue;
+      // Ұзындығы жақын токендерді ғана салыстырамыз (жылдамдық үшін).
+      if ((token.length - w.length).abs() > maxDist) continue;
+      if (_levenshtein(token, w) <= maxDist) return true;
+    }
+    return false;
+  }
+
+  /// Барлық сұраныс сөздері [text]-те табылу керек (әр сөз кез келген өріске
+  /// сәйкес келуі мүмкін; сөздер арасында — ЖӘНЕ). «жасыл кеды» → түсі жасыл
+  /// ЖӘНЕ түрі кеды тауарлар шығады.
+  static bool allWordsMatch(String text, String query) {
+    final words = query.trim().split(RegExp(r'\s+'));
+    for (final w in words) {
+      if (w.isEmpty) continue;
+      if (!wordMatches(text, w)) return false;
+    }
+    return true;
+  }
+
   /// Балл: жоғары = жақсырақ сәйкестік (нәтижелерді сұрыптауға).
   static int score(String text, String query) {
     final tLower = text.toLowerCase();
