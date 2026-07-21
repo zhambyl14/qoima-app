@@ -1,3 +1,5 @@
+import '../../core/banks.dart';
+
 /// Дүкен ашу заявкасы (Supabase `shop_requests`).
 class ShopRequestModel {
   final String id;
@@ -12,7 +14,8 @@ class ShopRequestModel {
   final String cardNumber;
   final String cardHolder;
   final String cardBank;
-  final String kaspiLink; // Kaspi QR сілтемесі (негізгі төлем тәсілі)
+  final String kaspiLink; // ЕСКІ өріс (bank_qrs.kaspi-ге көшеді)
+  final Map<String, String> bankQrs; // {bank_id: qr_link}
   final bool contractAccepted;
   final String status; // 'pending' | 'approved' | 'rejected'
   final DateTime createdAt;
@@ -34,6 +37,7 @@ class ShopRequestModel {
     this.cardHolder = '',
     this.cardBank = '',
     this.kaspiLink = '',
+    this.bankQrs = const {},
     this.contractAccepted = false,
     this.status = 'pending',
     required this.createdAt,
@@ -64,6 +68,7 @@ class ShopRequestModel {
       cardHolder: m['card_holder'] as String? ?? '',
       cardBank: m['card_bank'] as String? ?? '',
       kaspiLink: m['kaspi_link'] as String? ?? '',
+      bankQrs: parseBankQrs(m['bank_qrs'], m['kaspi_link'] as String? ?? ''),
       contractAccepted: m['contract_accepted'] as bool? ?? false,
       status: m['status'] as String? ?? 'pending',
       createdAt: dtn(m['created_at']) ?? DateTime.now(),
@@ -87,6 +92,7 @@ class ShopRequestModel {
         'card_holder': cardHolder,
         'card_bank': cardBank,
         'kaspi_link': kaspiLink,
+        'bank_qrs': bankQrs,
         'contract_accepted': contractAccepted,
         'status': status,
       };
@@ -111,6 +117,7 @@ class ShopRequestModel {
         cardHolder: cardHolder,
         cardBank: cardBank,
         kaspiLink: kaspiLink,
+        bankQrs: bankQrs,
         contractAccepted: contractAccepted,
         status: status ?? this.status,
         createdAt: createdAt,

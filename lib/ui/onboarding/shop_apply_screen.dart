@@ -5,11 +5,11 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/app_user.dart';
-import '../../core/card_utils.dart';
 import '../../core/kz_cities.dart';
 import '../../data/models/shop_request_model.dart';
 import '../../data/repositories/shop_request_repository.dart';
 import '../../theme/qoima_design.dart';
+import '../shared/bank_qr_editor.dart';
 import 'contract_screen.dart';
 
 import '../../core/lang.dart';
@@ -37,22 +37,20 @@ class _ShopApplyScreenState extends State<ShopApplyScreen>
   final _phoneCtrl = TextEditingController();
   final _iinCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
-  final _cardCtrl = TextEditingController();
-  final _cardHolderCtrl = TextEditingController();
-  final _kaspiCtrl = TextEditingController();
 
   String? _city;
   String _category = '';
   bool _contractAccepted = false;
   bool _loading = false;
+  // Банк QR сілтемелері {bank_id: qr_link} — карта реквизиті орнына.
+  Map<String, String> _bankQrs = {};
 
   // Черновик — қосымшадан шығып қайта кіргенде толтырылған деректер өшпес үшін
   // (SharedPreferences). Өтінім сәтті жіберілгенде тазаланады.
   static const String _kDraftKey = 'shop_apply_draft_v1';
 
   List<TextEditingController> get _allCtrls => [
-        _shopNameCtrl, _ownerNameCtrl, _phoneCtrl, _iinCtrl,
-        _descCtrl, _cardCtrl, _cardHolderCtrl, _kaspiCtrl,
+        _shopNameCtrl, _ownerNameCtrl, _phoneCtrl, _iinCtrl, _descCtrl,
       ];
 
   static const _categories = [
@@ -103,9 +101,13 @@ class _ShopApplyScreenState extends State<ShopApplyScreen>
         if (s('phone').isNotEmpty) _phoneCtrl.text = s('phone');
         if (s('iin').isNotEmpty) _iinCtrl.text = s('iin');
         if (s('desc').isNotEmpty) _descCtrl.text = s('desc');
-        if (s('card').isNotEmpty) _cardCtrl.text = s('card');
-        if (s('cardHolder').isNotEmpty) _cardHolderCtrl.text = s('cardHolder');
-        if (s('kaspi').isNotEmpty) _kaspiCtrl.text = s('kaspi');
+        final rawQrs = m['bankQrs'];
+        if (rawQrs is Map) {
+          _bankQrs = {
+            for (final e in rawQrs.entries)
+              e.key.toString(): (e.value?.toString() ?? ''),
+          }..removeWhere((k, v) => v.trim().isEmpty);
+        }
         if (s('city').isNotEmpty) _city = s('city');
         if (s('category').isNotEmpty) _category = s('category');
         _contractAccepted = m['contract'] == true;
@@ -124,9 +126,7 @@ class _ShopApplyScreenState extends State<ShopApplyScreen>
             'phone': _phoneCtrl.text,
             'iin': _iinCtrl.text,
             'desc': _descCtrl.text,
-            'card': _cardCtrl.text,
-            'cardHolder': _cardHolderCtrl.text,
-            'kaspi': _kaspiCtrl.text,
+            'bankQrs': _bankQrs,
             'city': _city ?? '',
             'category': _category,
             'contract': _contractAccepted,
@@ -152,9 +152,6 @@ class _ShopApplyScreenState extends State<ShopApplyScreen>
     _phoneCtrl.dispose();
     _iinCtrl.dispose();
     _descCtrl.dispose();
-    _cardCtrl.dispose();
-    _cardHolderCtrl.dispose();
-    _kaspiCtrl.dispose();
     super.dispose();
   }
 
@@ -164,7 +161,7 @@ class _ShopApplyScreenState extends State<ShopApplyScreen>
       _category.isNotEmpty &&
       _ownerNameCtrl.text.trim().isNotEmpty &&
       _phoneCtrl.text.trim().isNotEmpty &&
-      isCardValid(_cardCtrl.text) &&
+      _bankQrs.isNotEmpty &&
       _contractAccepted &&
       !_loading;
 
@@ -183,10 +180,7 @@ class _ShopApplyScreenState extends State<ShopApplyScreen>
         city: _city ?? '',
         category: _category,
         description: _descCtrl.text.trim(),
-        cardNumber: cardDigitsOnly(_cardCtrl.text),
-        cardHolder: _cardHolderCtrl.text.trim().toUpperCase(),
-        cardBank: '',
-        kaspiLink: _kaspiCtrl.text.trim(),
+        bankQrs: _bankQrs,
         contractAccepted: _contractAccepted,
         status: 'pending',
         createdAt: DateTime.now(),
@@ -396,36 +390,15 @@ class _ShopApplyScreenState extends State<ShopApplyScreen>
                 ),
 
                 const SizedBox(height: 20),
-                QSecLabel(tr('Приём оплаты', 'Төлем қабылдау')),
-                _Field(
-                  controller: _kaspiCtrl,
-                  label: tr('Ссылка Kaspi QR (основной способ)',
-                      'Kaspi QR сілтемесі (негізгі тәсіл)'),
-                  hint: 'https://pay.kaspi.kz/pay/...',
-                  icon: Icons.qr_code_2_rounded,
-                  keyboardType: TextInputType.url,
+                QSecLabel(tr('Приём оплаты — QR банков', 'Төлем қабылдау — банк QR-лары')),
+                BankQrEditor(
+                  initial: _bankQrs,
+                  onChanged: (m) {
+                    _bankQrs = m;
+                    _saveDraft();
+                    setState(() {}); // «Отправить» батырмасын жаңарту үшін
+                  },
                 ),
-                const SizedBox(height: 6),
-                Text(
-                    tr('Клиенты будут платить по Kaspi QR. Ссылку можно скопировать в приложении Kaspi.',
-                        'Клиенттер Kaspi QR арқылы төлейді. Сілтемені Kaspi қосымшасынан көшіріп алуға болады.'),
-                    style: manrope(11.5, FontWeight.w600, color: cInk3)),
-                const SizedBox(height: 14),
-                _CardField(
-                  controller: _cardCtrl,
-                  onChanged: (_) => setState(() {}),
-                ),
-                const SizedBox(height: 14),
-                _Field(
-                  controller: _cardHolderCtrl,
-                  label: tr('Имя владельца карты (необязательно)', 'Карта иесінің аты (міндетті емес)'),
-                  hint: 'A. NURLAN',
-                  icon: Icons.badge_outlined,
-                  textCapitalization: TextCapitalization.characters,
-                ),
-                const SizedBox(height: 6),
-                Text(tr('Карта — запасной способ (если у клиента нет Kaspi). Имя должно совпадать с владельцем ИИН.', 'Карта — қосымша тәсіл (клиентте Kaspi болмаса). Аты ЖСН иесімен сәйкес болуы керек.'),
-                    style: manrope(11.5, FontWeight.w600, color: cInk3)),
 
                 const SizedBox(height: 20),
                 QSecLabel(tr('Договор', 'Шарт')),
@@ -581,72 +554,6 @@ class _Field extends StatelessWidget {
             const SizedBox(width: 14),
           ]),
         ),
-      ],
-    );
-  }
-}
-
-// ── Card field (для выплат) ──────────────────────────────────────────────────────
-class _CardField extends StatelessWidget {
-  final TextEditingController controller;
-  final ValueChanged<String>? onChanged;
-  const _CardField({required this.controller, this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    final raw = cardDigitsOnly(controller.text);
-    final valid = isCardValid(controller.text);
-    final showError = raw.length == 16 && !valid;
-    final borderColor = valid ? cGreen : (showError ? cRed : cLine);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(tr('Номер карты (для выплат)', 'Карта нөмірі (төлемдер үшін)'),
-            style: manrope(12.5, FontWeight.w700, color: cInk2)),
-        const SizedBox(height: 6),
-        Container(
-          height: 52,
-          decoration: BoxDecoration(
-            color: cSurface,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: borderColor, width: 1.5),
-          ),
-          child: Row(children: [
-            const SizedBox(width: 14),
-            const Icon(Icons.credit_card_outlined, color: cInk3, size: 19),
-            const SizedBox(width: 10),
-            Expanded(
-              child: TextField(
-                controller: controller,
-                keyboardType: TextInputType.number,
-                inputFormatters: [CardNumberFormatter()],
-                onChanged: onChanged,
-                style: manrope(15, FontWeight.w700, color: cInk,
-                    letterSpacing: 0.5),
-                cursorColor: cGreen,
-                decoration: InputDecoration(
-                  hintText: '4400 4302 1183 5577',
-                  hintStyle: manrope(15, FontWeight.w500, color: cInk3),
-                  border: InputBorder.none,
-                  enabledBorder: InputBorder.none,
-                  focusedBorder: InputBorder.none,
-                  counterText: '',
-                  contentPadding: EdgeInsets.zero,
-                  isDense: true,
-                ),
-              ),
-            ),
-            if (valid)
-              const Icon(Icons.check_circle_rounded, color: cGreen, size: 19),
-            const SizedBox(width: 14),
-          ]),
-        ),
-        if (showError) ...[
-          const SizedBox(height: 6),
-          Text(tr('Карта должна содержать 16 цифр и пройти проверку', 'Картада 16 сан болып, тексеруден өтуі керек'),
-              style: manrope(11.5, FontWeight.w600, color: cRed)),
-        ],
       ],
     );
   }

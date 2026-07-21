@@ -1,3 +1,5 @@
+import '../../core/banks.dart';
+
 class StoreModel {
   final String adminUid;
   final String storeName;
@@ -16,8 +18,10 @@ class StoreModel {
   final String paymentCardNumber;
   final String paymentCardHolder;
   final String paymentBank;
-  // Kaspi QR сілтемесі — негізгі төлем тәсілі (карта — қосымша).
+  // Kaspi QR сілтемесі — ЕСКІ өріс (bank_qrs.kaspi-ге көшеді, back-compat).
   final String kaspiLink;
+  // Банк QR сілтемелері: {bank_id: qr_link}. Клиент кәдімгі QR-код ретінде көреді.
+  final Map<String, String> bankQrs;
   // v10 — иесі (заявкадан көшіріледі) және модерация күйі
   final String ownerName;
   final String ownerIin;
@@ -48,6 +52,7 @@ class StoreModel {
     this.paymentCardHolder = '',
     this.paymentBank = '',
     this.kaspiLink = '',
+    this.bankQrs = const {},
     this.ownerName = '',
     this.ownerIin = '',
     this.category = '',
@@ -89,6 +94,7 @@ class StoreModel {
       paymentCardHolder: m['payment_card_holder'] as String? ?? '',
       paymentBank: m['payment_bank'] as String? ?? '',
       kaspiLink: m['kaspi_link'] as String? ?? '',
+      bankQrs: parseBankQrs(m['bank_qrs'], m['kaspi_link'] as String? ?? ''),
       ownerName: m['owner_name'] as String? ?? '',
       ownerIin: m['owner_iin'] as String? ?? '',
       category: m['category'] as String? ?? '',
@@ -118,6 +124,7 @@ class StoreModel {
         'payment_card_holder': paymentCardHolder,
         'payment_bank': paymentBank,
         'kaspi_link': kaspiLink,
+        'bank_qrs': bankQrs,
         'owner_name': ownerName,
         'owner_iin': ownerIin,
         'category': category,
@@ -147,6 +154,7 @@ class StoreModel {
     String? paymentCardHolder,
     String? paymentBank,
     String? kaspiLink,
+    Map<String, String>? bankQrs,
     String? ownerName,
     String? ownerIin,
     String? category,
@@ -175,6 +183,7 @@ class StoreModel {
         paymentCardHolder: paymentCardHolder ?? this.paymentCardHolder,
         paymentBank: paymentBank ?? this.paymentBank,
         kaspiLink: kaspiLink ?? this.kaspiLink,
+        bankQrs: bankQrs ?? this.bankQrs,
         ownerName: ownerName ?? this.ownerName,
         ownerIin: ownerIin ?? this.ownerIin,
         category: category ?? this.category,

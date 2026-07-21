@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import '../../core/card_utils.dart';
 import '../../core/lang.dart';
 import '../../data/services/app_settings_service.dart';
 import '../../theme/qoima_design.dart';
+import '../shared/bank_qr_editor.dart';
 
 /// Модератор: платформаның төлем реквизиттері. Барлық онлайн-заказ төлемдері
 /// осы картаға аударылады — клиент checkout кезінде дәл осы нөмірді көреді.
@@ -15,10 +15,7 @@ class PaymentSettingsScreen extends StatefulWidget {
 
 class _PaymentSettingsScreenState extends State<PaymentSettingsScreen> {
   final _service = AppSettingsService();
-  final _numberCtrl = TextEditingController();
-  final _holderCtrl = TextEditingController();
-  final _bankCtrl = TextEditingController();
-  final _kaspiCtrl = TextEditingController();
+  Map<String, String> _bankQrs = {}; // {bank_id: qr_link}
   String _mode = 'platform'; // 'platform' | 'store'
   bool _loading = true;
   bool _saving = false;
@@ -29,25 +26,13 @@ class _PaymentSettingsScreenState extends State<PaymentSettingsScreen> {
     _load();
   }
 
-  @override
-  void dispose() {
-    _numberCtrl.dispose();
-    _holderCtrl.dispose();
-    _bankCtrl.dispose();
-    _kaspiCtrl.dispose();
-    super.dispose();
-  }
-
   Future<void> _load() async {
     try {
       final card = await _service.getPaymentCard();
       final mode = await _service.getPaymentMode();
       if (!mounted) return;
       setState(() {
-        _numberCtrl.text = formatCardDisplay(card.number);
-        _holderCtrl.text = card.holder;
-        _bankCtrl.text = card.bank;
-        _kaspiCtrl.text = card.kaspiLink;
+        _bankQrs = Map.of(card.bankQrs);
         _mode = mode;
         _loading = false;
       });
@@ -57,23 +42,9 @@ class _PaymentSettingsScreenState extends State<PaymentSettingsScreen> {
   }
 
   Future<void> _save() async {
-    final digits = cardDigitsOnly(_numberCtrl.text);
-    if (digits.isNotEmpty && !isCardValid(digits)) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(tr('Проверьте номер карты (16 цифр)', 'Карта нөмірін тексеріңіз (16 сан)')),
-        backgroundColor: cRed,
-        behavior: SnackBarBehavior.floating,
-      ));
-      return;
-    }
     setState(() => _saving = true);
     try {
-      await _service.savePaymentCard(PaymentCardSettings(
-        number: digits,
-        holder: _holderCtrl.text.trim(),
-        bank: _bankCtrl.text.trim(),
-        kaspiLink: _kaspiCtrl.text.trim(),
-      ));
+      await _service.savePaymentCard(PaymentCardSettings(bankQrs: _bankQrs));
       await _service.savePaymentMode(_mode);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -138,7 +109,10 @@ class _PaymentSettingsScreenState extends State<PaymentSettingsScreen> {
                       onTap: () => setState(() => _mode = 'store'),
                     ),
                     const SizedBox(height: 20),
-                    Text(tr('Карта платформы', 'Платформа картасы'),
+                    Text(
+                        _mode == 'store'
+                            ? tr('Резервные QR платформы', 'Платформаның резервтік QR-лары')
+                            : tr('QR банков платформы', 'Платформаның банк QR-лары'),
                         style: manrope(13, FontWeight.w800, color: cInk)),
                     const SizedBox(height: 10),
                     Container(
@@ -156,58 +130,20 @@ class _PaymentSettingsScreenState extends State<PaymentSettingsScreen> {
                             Expanded(
                               child: Text(
                                 _mode == 'store'
-                                    ? tr('Резервная карта: используется, когда у магазина не указаны реквизиты.',
-                                        'Резервтік карта: дүкеннің реквизиті болмағанда қолданылады.')
-                                    : tr('Этот номер карты видят клиенты при оплате онлайн-заказов. Все переводы поступают сюда, магазины подтверждают оплату по чеку.',
-                                        'Бұл карта нөмірін клиенттер онлайн-заказ төлегенде көреді. Барлық аударым осында түседі, дүкендер төлемді чек арқылы растайды.'),
+                                    ? tr('Используются, когда у магазина не указаны QR.',
+                                        'Дүкенде QR болмағанда қолданылады.')
+                                    : tr('Клиенты видят эти QR при оплате онлайн-заказов и платят любым банком.',
+                                        'Клиенттер осы QR-ларды онлайн-заказ төлегенде көріп, кез келген банкпен төлейді.'),
                                 style: manrope(12.5, FontWeight.w500,
                                     color: cInk2),
                               ),
                             ),
                           ]),
                     ),
-                    const SizedBox(height: 18),
-                    _Field(
-                      label: tr('Ссылка Kaspi QR (основной способ)',
-                          'Kaspi QR сілтемесі (негізгі тәсіл)'),
-                      child: TextField(
-                        controller: _kaspiCtrl,
-                        keyboardType: TextInputType.url,
-                        style: manrope(14, FontWeight.w600, color: cInk),
-                        decoration:
-                            _dec('https://pay.kaspi.kz/pay/...'),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    _Field(
-                      label: tr('Номер карты (запасной)', 'Карта нөмірі (қосымша)'),
-                      child: TextField(
-                        controller: _numberCtrl,
-                        keyboardType: TextInputType.number,
-                        inputFormatters: [CardNumberFormatter()],
-                        style: manrope(16, FontWeight.w700, color: cInk,
-                            letterSpacing: 1),
-                        decoration: _dec('0000 0000 0000 0000'),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    _Field(
-                      label: tr('Владелец карты', 'Карта иесі'),
-                      child: TextField(
-                        controller: _holderCtrl,
-                        textCapitalization: TextCapitalization.words,
-                        style: manrope(14.5, FontWeight.w600, color: cInk),
-                        decoration: _dec(tr('Имя Фамилия', 'Аты Тегі')),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    _Field(
-                      label: tr('Банк', 'Банк'),
-                      child: TextField(
-                        controller: _bankCtrl,
-                        style: manrope(14.5, FontWeight.w600, color: cInk),
-                        decoration: _dec(tr('Например: Kaspi Gold', 'Мысалы: Kaspi Gold')),
-                      ),
+                    const SizedBox(height: 16),
+                    BankQrEditor(
+                      initial: _bankQrs,
+                      onChanged: (m) => _bankQrs = m,
                     ),
                     const SizedBox(height: 24),
                     QPrimaryButton(
@@ -222,26 +158,6 @@ class _PaymentSettingsScreenState extends State<PaymentSettingsScreen> {
     );
   }
 
-  InputDecoration _dec(String hint) => InputDecoration(
-        hintText: hint,
-        hintStyle: manrope(14, FontWeight.w500, color: cInk3),
-        filled: true,
-        fillColor: cSurface,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: cLine),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: cLine),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: cGreen, width: 1.5),
-        ),
-      );
 }
 
 class _ModeOption extends StatelessWidget {

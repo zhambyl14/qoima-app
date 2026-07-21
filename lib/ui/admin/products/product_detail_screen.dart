@@ -7,8 +7,10 @@ import '../../../data/models/models.dart';
 import '../../../data/services/firestore_service.dart';
 import '../../../data/services/cloudinary_service.dart';
 import '../../../theme/qoima_design.dart';
+import '../../shared/color_picker_sheet.dart';
 import '../../shared/prompt_text_dialog.dart';
 import '../../widgets/image_crop_screen.dart';
+import '../../../core/color_naming.dart';
 import 'dart:typed_data';
 import 'package:image_picker/image_picker.dart';
 
@@ -225,6 +227,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     String type = p.type;
     String group = p.category;
     String color = p.color;
+    String colorHex = p.customColorHex; // HSV-мен таңдалған ерекше түс HEX-і
     String material = p.material;
     String season = p.season;
     // Дропдаун ішкі state-і «Свой вариант…» пунктінде қалып қоймауы үшін
@@ -372,49 +375,105 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
-                    children: ProductModel.colorOptions.map((opt) {
-                      final name = opt['name'] as String;
-                      final c = Color(opt['hex'] as int);
-                      final sel = color == name;
-                      final isLight = c.computeLuminance() > 0.7;
-                      return GestureDetector(
-                        onTap: () => setS(() => color = name),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: sel ? c : Colors.white,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                                color: sel ? c : cLine, width: sel ? 2 : 1),
-                          ),
-                          child: Row(mainAxisSize: MainAxisSize.min, children: [
-                            Container(
-                              width: 14,
-                              height: 14,
-                              decoration: BoxDecoration(
-                                color: c,
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                    color: isLight
-                                        ? Colors.grey.shade300
-                                        : Colors.transparent,
-                                    width: 1),
-                              ),
+                    children: [
+                      ...ProductModel.colorOptions.map((opt) {
+                        final name = opt['name'] as String;
+                        final c = Color(opt['hex'] as int);
+                        // Стандарт түс — тек custom HEX болмағанда таңдалған.
+                        final sel = color == name && colorHex.isEmpty;
+                        final isLight = c.computeLuminance() > 0.7;
+                        return GestureDetector(
+                          onTap: () => setS(() {
+                            color = name;
+                            colorHex = ''; // ерекше түсті тазалаймыз
+                          }),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: sel ? c : Colors.white,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                  color: sel ? c : cLine, width: sel ? 2 : 1),
                             ),
-                            const SizedBox(width: 7),
-                            Text(trValue(name),
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: sel
+                            child: Row(mainAxisSize: MainAxisSize.min, children: [
+                              Container(
+                                width: 14,
+                                height: 14,
+                                decoration: BoxDecoration(
+                                  color: c,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                      color: isLight
+                                          ? Colors.grey.shade300
+                                          : Colors.transparent,
+                                      width: 1),
+                                ),
+                              ),
+                              const SizedBox(width: 7),
+                              Text(trValue(name),
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: sel
+                                        ? (isLight ? cInk : Colors.white)
+                                        : cInk2,
+                                  )),
+                            ]),
+                          ),
+                        );
+                      }),
+                      // Ерекше түс (HSV): таңдалса — осы чип белсенді, нақты
+                      // түспен + автомат атпен көрінеді. Басу — қайта таңдау.
+                      Builder(builder: (_) {
+                        final hasCustom = colorHex.isNotEmpty;
+                        final cc = hexToColor(colorHex);
+                        final isLight =
+                            (cc ?? cGreen).computeLuminance() > 0.7;
+                        return GestureDetector(
+                          onTap: () async {
+                            final picked = await showCustomColorPicker(ctx,
+                                initial: cc ?? const Color(0xFF12C97A));
+                            if (picked != null) {
+                              setS(() {
+                                color = describeColorName(picked);
+                                colorHex = colorToHex(picked);
+                              });
+                            }
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: hasCustom ? (cc ?? cGreen) : Colors.white,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                  color: hasCustom ? (cc ?? cGreen) : cLine,
+                                  width: hasCustom ? 2 : 1),
+                            ),
+                            child: Row(mainAxisSize: MainAxisSize.min, children: [
+                              Icon(Icons.colorize_rounded,
+                                  size: 15,
+                                  color: hasCustom
                                       ? (isLight ? cInk : Colors.white)
-                                      : cInk2,
-                                )),
-                          ]),
-                        ),
-                      );
-                    }).toList(),
+                                      : cGreen),
+                              const SizedBox(width: 6),
+                              Text(
+                                  hasCustom
+                                      ? trValue(color)
+                                      : tr('Свой цвет', 'Өз түсі'),
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: hasCustom
+                                        ? (isLight ? cInk : Colors.white)
+                                        : cGreen,
+                                  )),
+                            ]),
+                          ),
+                        );
+                      }),
+                    ],
                   ),
                   label(tr('Материал (необязательно)', 'Материал (міндетті емес)')),
                   Wrap(
@@ -511,6 +570,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         material: material,
         category: group,
         color: color,
+        colorHex: colorHex,
         description: descCtrl.text.trim(),
         country: countryCtrl.text.trim(),
         season: season,
@@ -523,6 +583,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             material: material,
             category: group,
             color: color,
+            customColorHex: colorHex,
             description: descCtrl.text.trim(),
             country: countryCtrl.text.trim(),
             season: season,

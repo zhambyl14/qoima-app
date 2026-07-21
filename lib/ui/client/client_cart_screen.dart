@@ -162,9 +162,27 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
         for (final s in stores) s.adminUid: s.visibleWarehouseIds,
       };
       _storeCityByAdmin = {for (final s in stores) s.adminUid: s.city};
+
+      // Витринада НАҚТЫ көрінетін товар id-лері (фото бар, жасырылмаған, қолда
+      // бар). Витринадан алынған товарды (фотосыз/жасырын) сатып алуға болмайды —
+      // корзинада тұрса да «недоступен» болады.
+      final admins = cart.items.map((i) => i.adminUid).toSet();
+      final storefrontIds = <String>{};
+      for (final adminUid in admins) {
+        try {
+          final prods = await _service.getStoreProducts(adminUid);
+          storefrontIds.addAll(prods.map((p) => p.id));
+        } catch (_) {}
+      }
+
       final unavailable = <String>{};
       for (final item in cart.items) {
         final key = _itemKey(item);
+        // Витринадан алынған (жасырылған/фотосыз) → сатуға жарамсыз.
+        if (!storefrontIds.contains(item.productId)) {
+          unavailable.add(key);
+          continue;
+        }
         final visible = visibleByAdmin[item.adminUid] ?? [];
         if (!visible.contains(item.warehouseId)) {
           unavailable.add(key);
@@ -947,7 +965,7 @@ class _CartItemCard extends StatelessWidget {
                   style: manrope(12, FontWeight.w500, color: cInk3)),
               const SizedBox(height: 6),
               if (isUnavailable)
-                QPill(tr('Товар закончился', 'Тауар таусылды'), tone: 'red',
+                QPill(tr('Недоступен для заказа', 'Тапсырысқа қолжетімсіз'), tone: 'red',
                     icon: const Icon(Icons.info_outline,
                         size: 12, color: Color(0xFFB11A2B)))
               else if (item.hasDiscount)

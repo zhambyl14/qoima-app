@@ -255,6 +255,7 @@ class FirestoreService {
     required String description,
     required String country,
     required String season,
+    String colorHex = '',
   }) =>
       _sb.from('products').update({
         'name': name.trim(),
@@ -263,6 +264,7 @@ class FirestoreService {
         'material': material,
         'category': category,
         'color': color,
+        'color_hex': colorHex.trim(),
         'description': description.trim(),
         'country': country.trim(),
         'season': season,

@@ -1,8 +1,8 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
-import '../../core/card_utils.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+import '../../core/banks.dart';
 import '../../core/contact_utils.dart';
 import '../../core/lang.dart';
 import '../../data/models/order_model.dart';
@@ -49,16 +49,15 @@ class _PayGroup {
   final String id; // platform: 'platform'; store: adminUid
   final String storeName;
   final List<OrderModel> orders;
-  final PaymentCardSettings card;
-  final String kaspiLink; // негізгі төлем (карта — қосымша)
+  // Банк QR сілтемелері {bank_id: qr_link}. Клиент кәдімгі QR-код ретінде көреді.
+  final Map<String, String> bankQrs;
   final double amount;
-  final bool isFallback; // дүкен картасы толтырылмаған → модератор картасы
+  final bool isFallback; // дүкенде QR жоқ → модератор QR-лары
   _PayGroup({
     required this.id,
     required this.storeName,
     required this.orders,
-    required this.card,
-    this.kaspiLink = '',
+    required this.bankQrs,
     required this.amount,
     this.isFallback = false,
   });
@@ -113,37 +112,27 @@ class _PaymentInstructionsSheetState extends State<_PaymentInstructionsSheet> {
         }
         byAdmin.forEach((adminUid, orders) {
           final store = storeByAdmin[adminUid];
-          final hasCard =
-              store != null && store.paymentCardNumber.trim().isNotEmpty;
-          final card = hasCard
-              ? PaymentCardSettings(
-                  number: store.paymentCardNumber,
-                  holder: store.paymentCardHolder,
-                  bank: store.paymentBank,
-                )
-              : modCard;
-          // Kaspi — дүкендікі болса соны, әйтпесе модератордікі (fallback).
-          final storeKaspi = store?.kaspiLink.trim() ?? '';
-          final kaspi = storeKaspi.isNotEmpty ? storeKaspi : modCard.kaspiLink;
+          // Дүкеннің банк QR-лары; жоқ болса — модератор QR-лары (fallback).
+          final storeQrs = store?.bankQrs ?? const <String, String>{};
+          final hasQrs = storeQrs.isNotEmpty;
+          final qrs = hasQrs ? storeQrs : modCard.bankQrs;
           final amount = orders.fold<double>(0, (s, o) => s + o.depositAmount);
           groups.add(_PayGroup(
             id: adminUid,
             storeName: orders.first.storeName,
             orders: orders,
-            card: card,
-            kaspiLink: kaspi,
+            bankQrs: qrs,
             amount: amount,
-            isFallback: !hasCard,
+            isFallback: !hasQrs,
           ));
         });
       } else {
-        // platform: барлық тапсырыс — бір модератор картасы + Kaspi.
+        // platform: барлық тапсырыс — модератор банк QR-лары.
         groups.add(_PayGroup(
           id: 'platform',
           storeName: '',
           orders: widget.orders,
-          card: modCard,
-          kaspiLink: modCard.kaspiLink,
+          bankQrs: modCard.bankQrs,
           amount: widget.amount,
         ));
       }
@@ -248,20 +237,6 @@ class _PaymentInstructionsSheetState extends State<_PaymentInstructionsSheet> {
     }
   }
 
-  Future<void> _openKaspi(String link) async {
-    try {
-      await openExternalUrl(link);
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(tr('Не удалось открыть Kaspi', 'Kaspi ашылмады')),
-          backgroundColor: cRed,
-          behavior: SnackBarBehavior.floating,
-        ));
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final multi = _groups.length > 1;
@@ -348,8 +323,7 @@ class _PaymentInstructionsSheetState extends State<_PaymentInstructionsSheet> {
   }
 
   Widget _buildGroup(_PayGroup g, {required bool showTitle}) {
-    final card = g.card;
-    final cardNumber = formatCardDisplay(card.number);
+    final qrs = orderedBankQrs(g.bankQrs);
     final done = _done.contains(g.id);
     final uploading = _uploadingGroupId == g.id;
 
@@ -377,7 +351,7 @@ class _PaymentInstructionsSheetState extends State<_PaymentInstructionsSheet> {
           ]),
           const SizedBox(height: 10),
         ],
-        if (!card.isConfigured)
+        if (qrs.isEmpty)
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
@@ -418,85 +392,37 @@ class _PaymentInstructionsSheetState extends State<_PaymentInstructionsSheet> {
             ]),
           )
         else ...[
-          // ── Kaspi — НЕГІЗГІ төлем тәсілі (қызыл) ────────────────────────────
-          if (g.kaspiLink.trim().isNotEmpty) ...[
-            _KaspiPayButton(
-              amount: g.amount,
-              onTap: () => _openKaspi(g.kaspiLink),
-            ),
-            const SizedBox(height: 12),
-            Row(children: [
-              const Expanded(child: Divider(color: cLine)),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                child: Text(tr('или на карту', 'немесе картаға'),
-                    style: manrope(11.5, FontWeight.w600, color: cInk3)),
-              ),
-              const Expanded(child: Divider(color: cLine)),
+          // ── Төленетін сома ─────────────────────────────────────────────────
+          Center(
+            child: Column(children: [
+              Text(tr('Сумма к оплате', 'Төленетін сома'),
+                  style: manrope(12.5, FontWeight.w500, color: cInk2)),
+              Text(money(g.amount),
+                  style: manrope(26, FontWeight.w800, color: cInk)),
             ]),
-            const SizedBox(height: 12),
-          ],
-          // ── Карта картасы (Kaspi болса — қосымша, кішірек) ──────────────────
-          Container(
-            width: double.infinity,
-            padding: EdgeInsets.all(
-                g.kaspiLink.trim().isNotEmpty ? 14 : 18),
-            decoration: BoxDecoration(
-              gradient: kGrad,
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    tr('Переведите деньги на карту',
-                        'Ақшаны осы картаға аударыңыз'),
-                    style: manrope(12.5, FontWeight.w600,
-                        color: Colors.white.withValues(alpha: 0.85)),
-                  ),
-                  const SizedBox(height: 10),
-                  Row(children: [
-                    Expanded(
-                      child: Text(cardNumber,
-                          style: manrope(
-                              g.kaspiLink.trim().isNotEmpty ? 17 : 21,
-                              FontWeight.w800,
-                              color: Colors.white, letterSpacing: 1.2)),
-                    ),
-                    GestureDetector(
-                      onTap: () {
-                        Clipboard.setData(
-                            ClipboardData(text: cardDigitsOnly(card.number)));
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                          content: Text(tr('Номер карты скопирован',
-                              'Карта нөмірі көшірілді')),
-                          behavior: SnackBarBehavior.floating,
-                          duration: const Duration(seconds: 1),
-                        ));
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Icon(Icons.copy_rounded,
-                            color: Colors.white, size: 18),
-                      ),
-                    ),
-                  ]),
-                  if (card.holder.isNotEmpty || card.bank.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      [
-                        if (card.holder.isNotEmpty) card.holder,
-                        if (card.bank.isNotEmpty) card.bank,
-                      ].join(' · '),
-                      style: manrope(12.5, FontWeight.w600,
-                          color: Colors.white.withValues(alpha: 0.9)),
-                    ),
-                  ],
-                ]),
           ),
+          const SizedBox(height: 10),
+          // ── Единый QR нұсқауы ──────────────────────────────────────────────
+          Container(
+            padding: const EdgeInsets.all(11),
+            decoration: BoxDecoration(
+                color: cGreenTint, borderRadius: BorderRadius.circular(12)),
+            child: Row(children: [
+              const Icon(Icons.qr_code_scanner_rounded,
+                  color: cGreenDeep, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  tr('Отсканируйте QR любым банковским приложением (Kaspi, Halyk и др.) и переведите сумму.',
+                      'QR-ды кез келген банк қосымшасымен (Kaspi, Halyk т.б.) сканерлеп, соманы аударыңыз.'),
+                  style: manrope(12, FontWeight.w600, color: cGreenDeep),
+                ),
+              ),
+            ]),
+          ),
+          const SizedBox(height: 12),
+          // ── QR-код(тар): бір → үлкен; көп → жылжымалы қатар ─────────────────
+          _QrArea(qrs: qrs),
           const SizedBox(height: 12),
           if (!showTitle)
             Container(
@@ -534,58 +460,73 @@ class _PaymentInstructionsSheetState extends State<_PaymentInstructionsSheet> {
   }
 }
 
-/// Kaspi — негізгі төлем батырмасы (қызыл). Сомасын көрсетіп, Kaspi сілтемесін
-/// сыртқы қосымшада ашады. Клиент Kaspi-де соманы теріп, төлеп, чекті тіркейді.
-class _KaspiPayButton extends StatelessWidget {
-  final double amount;
-  final VoidCallback onTap;
-  const _KaspiPayButton({required this.amount, required this.onTap});
+/// QR-код(тар) аймағы: бір банк болса — үлкен ортаға; көп болса — жылжымалы
+/// қатар (оң нан солға). Единый QR — кез келген банк қосымшасы сканерлейді.
+class _QrArea extends StatelessWidget {
+  final List<MapEntry<String, String>> qrs;
+  const _QrArea({required this.qrs});
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: const Color(0xFFF14635), // Kaspi қызылы
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
-          child: Row(children: [
-            Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(9),
-              ),
-              child: const Center(
-                child: Text('K',
-                    style: TextStyle(
-                        color: Color(0xFFF14635),
-                        fontWeight: FontWeight.w900,
-                        fontSize: 20)),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(tr('Оплатить через Kaspi', 'Kaspi арқылы төлеу'),
-                      style: manrope(15, FontWeight.w800, color: Colors.white)),
-                  Text(
-                      tr('Сумма к оплате: ${money(amount)}',
-                          'Төленетін сома: ${money(amount)}'),
-                      style: manrope(12, FontWeight.w600,
-                          color: Colors.white.withValues(alpha: 0.9))),
-                ],
-              ),
-            ),
-            const Icon(Icons.open_in_new_rounded, color: Colors.white, size: 20),
-          ]),
+    if (qrs.length == 1) {
+      return Center(
+          child: _QrTile(
+              bankId: qrs.first.key, link: qrs.first.value, size: 200));
+    }
+    return SizedBox(
+      height: 232,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        itemCount: qrs.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 12),
+        itemBuilder: (_, i) =>
+            _QrTile(bankId: qrs[i].key, link: qrs[i].value, size: 160),
+      ),
+    );
+  }
+}
+
+/// Бір банктің QR коды: банк аты + QR суреті. Басу — сілтемені қосымшада ашу
+/// (клиент сол телефонда болса, өз банк қосымшасы ашылады).
+class _QrTile extends StatelessWidget {
+  final String bankId;
+  final String link;
+  final double size;
+  const _QrTile(
+      {required this.bankId, required this.link, required this.size});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () async {
+        try {
+          await openExternalUrl(link);
+        } catch (_) {}
+      },
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: cLine),
+          boxShadow: kShadowSm,
         ),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text(bankName(bankId),
+              style: manrope(13.5, FontWeight.w800, color: cInk)),
+          const SizedBox(height: 8),
+          QrImageView(
+            data: link,
+            version: QrVersions.auto,
+            size: size,
+            backgroundColor: Colors.white,
+            padding: EdgeInsets.zero,
+          ),
+          const SizedBox(height: 6),
+          Text(tr('Нажмите, чтобы открыть', 'Ашу үшін басыңыз'),
+              style: manrope(10.5, FontWeight.w600, color: cInk3)),
+        ]),
       ),
     );
   }
