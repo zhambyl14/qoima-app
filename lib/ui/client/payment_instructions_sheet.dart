@@ -352,26 +352,50 @@ class _PaymentInstructionsSheetState extends State<_PaymentInstructionsSheet> {
           const SizedBox(height: 10),
         ],
         if (qrs.isEmpty)
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: cAmberTint,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: cAmber.withValues(alpha: 0.35)),
-            ),
-            child: Row(children: [
-              const Icon(Icons.info_outline, color: cAmber, size: 18),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  tr('Реквизиты для оплаты временно недоступны. Попробуйте позже.',
-                      'Төлем реквизиттері уақытша қолжетімсіз. Кейінірек көріңіз.'),
-                  style: manrope(13, FontWeight.w600,
-                      color: const Color(0xFF92400E)),
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: cAmberTint,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: cAmber.withValues(alpha: 0.35)),
                 ),
+                child: Row(children: [
+                  const Icon(Icons.info_outline, color: cAmber, size: 18),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      tr('Реквизиты для оплаты временно недоступны. Попробуйте позже.',
+                          'Төлем реквизиттері уақытша қолжетімсіз. Кейінірек көріңіз.'),
+                      style: manrope(13, FontWeight.w600,
+                          color: const Color(0xFF92400E)),
+                    ),
+                  ),
+                ]),
               ),
-            ]),
-          )
+            ),
+            const SizedBox(width: 12),
+            Container(
+              width: 118,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: cBg,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: cLine),
+              ),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.hourglass_top_rounded,
+                    color: cInk3, size: 20),
+                const SizedBox(height: 6),
+                Text(
+                    tr('Реквизиты скоро будут доступны',
+                        'Реквизит жақында қолжетімді болады'),
+                    textAlign: TextAlign.center,
+                    style: manrope(10.5, FontWeight.w600, color: cInk3)),
+              ]),
+            ),
+          ])
         else if (done)
           Container(
             padding: const EdgeInsets.all(14),
@@ -392,37 +416,80 @@ class _PaymentInstructionsSheetState extends State<_PaymentInstructionsSheet> {
             ]),
           )
         else ...[
-          // ── Төленетін сома ─────────────────────────────────────────────────
-          Center(
-            child: Column(children: [
-              Text(tr('Сумма к оплате', 'Төленетін сома'),
-                  style: manrope(12.5, FontWeight.w500, color: cInk2)),
-              Text(money(g.amount),
-                  style: manrope(26, FontWeight.w800, color: cInk)),
-            ]),
-          ),
-          const SizedBox(height: 10),
-          // ── Единый QR нұсқауы ──────────────────────────────────────────────
-          Container(
-            padding: const EdgeInsets.all(11),
-            decoration: BoxDecoration(
-                color: cGreenTint, borderRadius: BorderRadius.circular(12)),
-            child: Row(children: [
-              const Icon(Icons.qr_code_scanner_rounded,
-                  color: cGreenDeep, size: 18),
-              const SizedBox(width: 8),
+          // ── Бір банк болса — сома СОЛДА, QR ОҢДА (солдан оңға, түсінікті).
+          //    Бірнеше банк болса — QR-лар қатарға сыймайды, ескі вертикаль
+          //    орналасу қалады (сома үстінде, QR-лар астында жылжымалы).
+          if (qrs.length == 1)
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Expanded(
-                child: Text(
-                  tr('Отсканируйте QR любым банковским приложением (Kaspi, Halyk и др.) и переведите сумму.',
-                      'QR-ды кез келген банк қосымшасымен (Kaspi, Halyk т.б.) сканерлеп, соманы аударыңыз.'),
-                  style: manrope(12, FontWeight.w600, color: cGreenDeep),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(tr('Сумма к оплате', 'Төленетін сома'),
+                        style: manrope(12.5, FontWeight.w500, color: cInk2)),
+                    Text(money(g.amount),
+                        style: manrope(24, FontWeight.w800, color: cInk)),
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                          color: cGreenTint,
+                          borderRadius: BorderRadius.circular(12)),
+                      child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(Icons.qr_code_scanner_rounded,
+                                color: cGreenDeep, size: 16),
+                            const SizedBox(width: 7),
+                            Expanded(
+                              child: Text(
+                                tr('Отсканируйте QR любым банковским приложением (Kaspi, Halyk и др.) и переведите сумму.',
+                                    'QR-ды кез келген банк қосымшасымен (Kaspi, Halyk т.б.) сканерлеп, соманы аударыңыз.'),
+                                style: manrope(11.5, FontWeight.w600,
+                                    color: cGreenDeep),
+                              ),
+                            ),
+                          ]),
+                    ),
+                  ],
                 ),
               ),
-            ]),
-          ),
-          const SizedBox(height: 12),
-          // ── QR-код(тар): бір → үлкен; көп → жылжымалы қатар ─────────────────
-          _QrArea(qrs: qrs),
+              const SizedBox(width: 12),
+              _QrTile(bankId: qrs.first.key, link: qrs.first.value, size: 118),
+            ])
+          else ...[
+            // ── Төленетін сома (орталықта) ─────────────────────────────────
+            Center(
+              child: Column(children: [
+                Text(tr('Сумма к оплате', 'Төленетін сома'),
+                    style: manrope(12.5, FontWeight.w500, color: cInk2)),
+                Text(money(g.amount),
+                    style: manrope(26, FontWeight.w800, color: cInk)),
+              ]),
+            ),
+            const SizedBox(height: 10),
+            // ── Единый QR нұсқауы ──────────────────────────────────────────
+            Container(
+              padding: const EdgeInsets.all(11),
+              decoration: BoxDecoration(
+                  color: cGreenTint, borderRadius: BorderRadius.circular(12)),
+              child: Row(children: [
+                const Icon(Icons.qr_code_scanner_rounded,
+                    color: cGreenDeep, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    tr('Отсканируйте QR любым банковским приложением (Kaspi, Halyk и др.) и переведите сумму.',
+                        'QR-ды кез келген банк қосымшасымен (Kaspi, Halyk т.б.) сканерлеп, соманы аударыңыз.'),
+                    style: manrope(12, FontWeight.w600, color: cGreenDeep),
+                  ),
+                ),
+              ]),
+            ),
+            const SizedBox(height: 12),
+            // ── QR-код(тар): жылжымалы қатар ────────────────────────────────
+            _QrArea(qrs: qrs),
+          ],
           const SizedBox(height: 12),
           if (!showTitle)
             Container(
