@@ -527,22 +527,31 @@ class ClientService {
           liveStatus == OrderModel.statusRejected;
       if (smartActive) {
         for (final item in order.items) {
-          await _sb.rpc('adjust_batch_sizes', params: {
-            'p_batch': item.batchId,
-            'p_deltas': {item.size: -item.qty},
-            'p_field': 'reserved_sizes',
-            'p_guard': false,
-          });
+          try {
+            await _sb.rpc('adjust_batch_sizes', params: {
+              'p_batch': item.batchId,
+              'p_deltas': {item.size: -item.qty},
+              'p_field': 'reserved_sizes',
+              'p_guard': false,
+            });
+          } on PostgrestException catch (e) {
+            // Партия өшірілген болуы мүмкін — болдырмау бөгелмесін.
+            if (!e.message.contains('batch_not_found')) rethrow;
+          }
         }
       }
     } else {
       for (final item in order.items) {
-        await _sb.rpc('adjust_batch_sizes', params: {
-          'p_batch': item.batchId,
-          'p_deltas': {item.size: item.qty},
-          'p_field': 'sizes_quantity',
-          'p_guard': false,
-        });
+        try {
+          await _sb.rpc('adjust_batch_sizes', params: {
+            'p_batch': item.batchId,
+            'p_deltas': {item.size: item.qty},
+            'p_field': 'sizes_quantity',
+            'p_guard': false,
+          });
+        } on PostgrestException catch (e) {
+          if (!e.message.contains('batch_not_found')) rethrow;
+        }
       }
     }
 

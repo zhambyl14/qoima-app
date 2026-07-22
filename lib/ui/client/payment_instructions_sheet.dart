@@ -471,17 +471,17 @@ class _QrArea extends StatelessWidget {
     if (qrs.length == 1) {
       return Center(
           child: _QrTile(
-              bankId: qrs.first.key, link: qrs.first.value, size: 200));
+              bankId: qrs.first.key, link: qrs.first.value, size: 130));
     }
     return SizedBox(
-      height: 232,
+      height: 178,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
         itemCount: qrs.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 12),
+        separatorBuilder: (_, __) => const SizedBox(width: 10),
         itemBuilder: (_, i) =>
-            _QrTile(bankId: qrs[i].key, link: qrs[i].value, size: 160),
+            _QrTile(bankId: qrs[i].key, link: qrs[i].value, size: 110),
       ),
     );
   }
@@ -496,37 +496,72 @@ class _QrTile extends StatelessWidget {
   const _QrTile(
       {required this.bankId, required this.link, required this.size});
 
+  Future<void> _open() async {
+    try {
+      await openExternalUrl(link);
+    } catch (_) {}
+  }
+
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () async {
-        try {
-          await openExternalUrl(link);
-        } catch (_) {}
-      },
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: cLine),
-          boxShadow: kShadowSm,
-        ),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text(bankName(bankId),
-              style: manrope(13.5, FontWeight.w800, color: cInk)),
-          const SizedBox(height: 8),
-          QrImageView(
-            data: link,
-            version: QrVersions.auto,
-            size: size,
-            backgroundColor: Colors.white,
-            padding: EdgeInsets.zero,
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: _open,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: cLine),
+            boxShadow: kShadowSm,
           ),
-          const SizedBox(height: 6),
-          Text(tr('Нажмите, чтобы открыть', 'Ашу үшін басыңыз'),
-              style: manrope(10.5, FontWeight.w600, color: cInk3)),
-        ]),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Text(bankName(bankId),
+                style: manrope(12.5, FontWeight.w800, color: cInk)),
+            const SizedBox(height: 6),
+            // QR-дың үстіне «ашылады» белгісі — сурет екені емес, батырма
+            // екені бірден көрінсін деп.
+            Stack(alignment: Alignment.center, children: [
+              QrImageView(
+                data: link,
+                version: QrVersions.auto,
+                size: size,
+                backgroundColor: Colors.white,
+                padding: EdgeInsets.zero,
+              ),
+              Container(
+                width: size * 0.26,
+                height: size * 0.26,
+                decoration: BoxDecoration(
+                  color: cGreen,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.white, width: 2),
+                ),
+                child: Icon(Icons.touch_app_rounded,
+                    color: Colors.white, size: size * 0.16),
+              ),
+            ]),
+            const SizedBox(height: 8),
+            // Айқын, түсті «Открыть» батырмасы — тек жазу емес.
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: cGreenTint,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.open_in_new_rounded,
+                    size: 12, color: cGreenDeep),
+                const SizedBox(width: 4),
+                Text(tr('Открыть', 'Ашу'),
+                    style: manrope(11, FontWeight.w800, color: cGreenDeep)),
+              ]),
+            ),
+          ]),
+        ),
       ),
     );
   }

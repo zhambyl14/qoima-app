@@ -450,6 +450,27 @@ class FirestoreService {
   /// бірден жабылады). Сол кезде товардың сурет URL-дері қайтарылады — шақырушы
   /// оларды Cloudinary-ден тазалайды. Әйтпесе бос тізім қайтады.
   Future<List<String>> deleteBatch(String productId, String batchId) async {
+    // Осы партияға сілтейтін БЕЛСЕНДІ (әлі шешілмеген) тапсырыс бар ма —
+    // болса өшірмейміз. Әйтпесе тапсырысты кейін болдырмау кезінде
+    // adjust_batch_sizes «batch_not_found» лақтырып, cancel мәңгі бөгеледі.
+    final activeStatuses = [
+      OrderModel.statusPending,
+      OrderModel.statusReserved,
+      OrderModel.statusRejected,
+    ];
+    final activeOrders = await _sb
+        .from('orders')
+        .select('id')
+        .inFilter('status', activeStatuses)
+        .contains('items', [
+          {'batchId': batchId}
+        ]).limit(1);
+    if (activeOrders.isNotEmpty) {
+      throw SaleException(tr(
+          'По этой партии есть неоплаченный/незавершённый заказ. Сначала отмените или дождитесь его завершения.',
+          'Бұл партия бойынша төленбеген/аяқталмаған тапсырыс бар. Алдымен оны болдырмаңыз немесе аяқталуын күтіңіз.'));
+    }
+
     final sales = await _sb
         .from('sales_history')
         .select('id')
@@ -1506,13 +1527,19 @@ class FirestoreService {
     if (oRow['stock_restored'] == true) return;
 
     for (final item in order.items) {
-      await _sb.rpc('adjust_batch_sizes', params: {
-        'p_batch': item.batchId,
-        'p_deltas': {item.size: item.qty},
-        'p_field':
-            order.isSmartReservation ? 'reserved_sizes' : 'sizes_quantity',
-        'p_guard': false,
-      });
+      try {
+        await _sb.rpc('adjust_batch_sizes', params: {
+          'p_batch': item.batchId,
+          'p_deltas': {item.size: item.qty},
+          'p_field':
+              order.isSmartReservation ? 'reserved_sizes' : 'sizes_quantity',
+          'p_guard': false,
+        });
+      } on PostgrestException catch (e) {
+        // Партия өшірілген болуы мүмкін (мыс. модератор жойған) — қалпына
+        // келтіретін ештеңе жоқ, бірақ тапсырысты болдырмау бөгелмеуі керек.
+        if (!e.message.contains('batch_not_found')) rethrow;
+      }
     }
 
     final countsPromo = (oRow['promo_counts_usage'] as bool? ?? false) &&
