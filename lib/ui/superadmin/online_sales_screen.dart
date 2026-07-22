@@ -389,12 +389,34 @@ class _SaleCard extends StatelessWidget {
                       ]),
                     )),
                 const Divider(height: 16),
+                // ⚠️ ТҮЗЕТУ: бұрын әрдайым `o.total` (промокодқа дейінгі толық
+                // сома) көрсетілетін. Енді жеткізу/промокодты ескеретін нақты
+                // сома көрсетіледі (deposit_amount-пен сәйкес).
+                if (o.promoDiscount > 0) ...[
+                  Row(children: [
+                    Text(tr('Сумма товаров', 'Тауар сомасы'),
+                        style: manrope(11.5, FontWeight.w500, color: cInk3)),
+                    const Spacer(),
+                    Text(money(o.total),
+                        style: manrope(12, FontWeight.w600, color: cInk2)),
+                  ]),
+                  const SizedBox(height: 3),
+                  Row(children: [
+                    Text(tr('Промокод ${o.promoCode}', 'Промокод ${o.promoCode}'),
+                        style: manrope(11.5, FontWeight.w500, color: cInk3)),
+                    const Spacer(),
+                    Text('−${money(o.promoDiscount)}',
+                        style: manrope(12, FontWeight.w600, color: cGreen)),
+                  ]),
+                  const SizedBox(height: 3),
+                ],
                 // Amount + payment method
                 Row(children: [
                   Text(tr('Сумма', 'Сома'),
                       style: manrope(12.5, FontWeight.w500, color: cInk2)),
                   const Spacer(),
-                  Text(money(o.total),
+                  Text(
+                      money(o.isDelivery ? o.totalWithDelivery : o.finalTotal),
                       style: manrope(15, FontWeight.w800, color: cGreen)),
                 ]),
                 if (o.isSmartReservation) ...[

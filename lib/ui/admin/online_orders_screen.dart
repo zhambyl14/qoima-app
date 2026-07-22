@@ -1008,6 +1008,13 @@ class _OrderCardState extends State<_OrderCard> {
                             _PayRow(
                                 label: tr('Сумма товаров', 'Тауар сомасы'),
                                 value: '${o.total.toStringAsFixed(0)} ₸'),
+                            if (o.promoDiscount > 0)
+                              _PayRow(
+                                  label: tr('Промокод ${o.promoCode}',
+                                      'Промокод ${o.promoCode}'),
+                                  value:
+                                      '−${o.promoDiscount.toStringAsFixed(0)} ₸',
+                                  valueColor: cGreen),
                             if (o.deliveryFee > 0)
                               _PayRow(
                                   label: tr('Доставка', 'Жеткізу'),
@@ -1023,9 +1030,25 @@ class _OrderCardState extends State<_OrderCard> {
                                   value: _payMethodLabel(o.paymentBank),
                                   valueColor: _payMethodColor(o.paymentBank)),
                           ] else ...[
+                            // ⚠️ ТҮЗЕТУ: бұрын мұнда `o.total` (промокодқа дейінгі
+                            // толық сома) көрсетілетін — админ клиенттің НАҚТЫ
+                            // төлейтін сомасын көрмей, толық баға деп қателесетін.
+                            // Енді `o.finalTotal` (= o.total − promoDiscount)
+                            // көрсетіледі — дәл deposit_amount-пен сәйкес келеді.
+                            if (o.promoDiscount > 0) ...[
+                              _PayRow(
+                                  label: tr('Сумма товаров', 'Тауар сомасы'),
+                                  value: '${o.total.toStringAsFixed(0)} ₸'),
+                              _PayRow(
+                                  label: tr('Промокод ${o.promoCode}',
+                                      'Промокод ${o.promoCode}'),
+                                  value:
+                                      '−${o.promoDiscount.toStringAsFixed(0)} ₸',
+                                  valueColor: cGreen),
+                            ],
                             _PayRow(
                                 label: tr('Итого к оплате', 'Барлығы төленетіні'),
-                                value: '${o.total.toStringAsFixed(0)} ₸',
+                                value: '${o.finalTotal.toStringAsFixed(0)} ₸',
                                 valueColor: cGreen,
                                 bold: true),
                             if (o.paymentBank.isNotEmpty)
