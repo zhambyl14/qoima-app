@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../core/banks.dart';
-import '../../core/contact_utils.dart';
 import '../../core/lang.dart';
 import '../../data/models/order_model.dart';
 import '../../data/models/store_model.dart';
@@ -328,8 +327,8 @@ class _PaymentInstructionsSheetState extends State<_PaymentInstructionsSheet> {
     final uploading = _uploadingGroupId == g.id;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      padding: showTitle ? const EdgeInsets.all(12) : EdgeInsets.zero,
+      margin: EdgeInsets.only(bottom: showTitle ? 10 : 14),
+      padding: showTitle ? const EdgeInsets.all(10) : EdgeInsets.zero,
       decoration: showTitle
           ? BoxDecoration(
               color: cBg,
@@ -416,80 +415,59 @@ class _PaymentInstructionsSheetState extends State<_PaymentInstructionsSheet> {
             ]),
           )
         else ...[
-          // ── Бір банк болса — сома СОЛДА, QR ОҢДА (солдан оңға, түсінікті).
-          //    Бірнеше банк болса — QR-лар қатарға сыймайды, ескі вертикаль
-          //    орналасу қалады (сома үстінде, QR-лар астында жылжымалы).
-          if (qrs.length == 1)
-            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+          // ── Сома СОЛДА (аты + банк белгілері + нұсқау), QR ОҢДА — банк
+          //    саны неше болса да ЖАЛҒЫЗ ортақ QR көрсетіледі (бірінші сілтеме,
+          //    әдетте kaspi): ол QR-ды кез келген қосылған банк қосымшасы
+          //    сканерлей алады, сондықтан әр банкке бөлек QR қажет емес.
+          //    Компактілеу (multi=showTitle): бірнеше дүкен болса QR кішірек —
+          //    осылай төмендегі басқа дүкендер де экранда «көрініп тұрады».
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // showTitle=true болғанда сома жоғарыдағы дүкен атауы
+                  // қатарында көрсетілген — мұнда қайталамаймыз (компактілеу).
+                  if (!showTitle) ...[
                     Text(tr('Сумма к оплате', 'Төленетін сома'),
                         style: manrope(12.5, FontWeight.w500, color: cInk2)),
                     Text(money(g.amount),
                         style: manrope(24, FontWeight.w800, color: cInk)),
-                    const SizedBox(height: 10),
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                          color: cGreenTint,
-                          borderRadius: BorderRadius.circular(12)),
-                      child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Icon(Icons.qr_code_scanner_rounded,
-                                color: cGreenDeep, size: 16),
-                            const SizedBox(width: 7),
-                            Expanded(
-                              child: Text(
-                                tr('Отсканируйте QR любым банковским приложением (Kaspi, Halyk и др.) и переведите сумму.',
-                                    'QR-ды кез келген банк қосымшасымен (Kaspi, Halyk т.б.) сканерлеп, соманы аударыңыз.'),
-                                style: manrope(11.5, FontWeight.w600,
-                                    color: cGreenDeep),
-                              ),
-                            ),
-                          ]),
-                    ),
                   ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              _QrTile(bankId: qrs.first.key, link: qrs.first.value, size: 118),
-            ])
-          else ...[
-            // ── Төленетін сома (орталықта) ─────────────────────────────────
-            Center(
-              child: Column(children: [
-                Text(tr('Сумма к оплате', 'Төленетін сома'),
-                    style: manrope(12.5, FontWeight.w500, color: cInk2)),
-                Text(money(g.amount),
-                    style: manrope(26, FontWeight.w800, color: cInk)),
-              ]),
-            ),
-            const SizedBox(height: 10),
-            // ── Единый QR нұсқауы ──────────────────────────────────────────
-            Container(
-              padding: const EdgeInsets.all(11),
-              decoration: BoxDecoration(
-                  color: cGreenTint, borderRadius: BorderRadius.circular(12)),
-              child: Row(children: [
-                const Icon(Icons.qr_code_scanner_rounded,
-                    color: cGreenDeep, size: 18),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    tr('Отсканируйте QR любым банковским приложением (Kaspi, Halyk и др.) и переведите сумму.',
-                        'QR-ды кез келген банк қосымшасымен (Kaspi, Halyk т.б.) сканерлеп, соманы аударыңыз.'),
-                    style: manrope(12, FontWeight.w600, color: cGreenDeep),
+                  SizedBox(height: showTitle ? 0 : 10),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                        color: cGreenTint,
+                        borderRadius: BorderRadius.circular(12)),
+                    child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.qr_code_scanner_rounded,
+                              color: cGreenDeep, size: 16),
+                          const SizedBox(width: 7),
+                          Expanded(
+                            child: Text(
+                              tr('Отсканируйте QR любым банковским приложением и переведите сумму.',
+                                  'QR-ды кез келген банк қосымшасымен сканерлеп, соманы аударыңыз.'),
+                              style: manrope(11.5, FontWeight.w600,
+                                  color: cGreenDeep),
+                            ),
+                          ),
+                        ]),
                   ),
-                ),
-              ]),
+                  SizedBox(height: showTitle ? 8 : 10),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [for (final e in qrs) _BankBadge(bankId: e.key)],
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 12),
-            // ── QR-код(тар): жылжымалы қатар ────────────────────────────────
-            _QrArea(qrs: qrs),
-          ],
+            const SizedBox(width: 12),
+            _QrTile(link: qrs.first.value, size: showTitle ? 100 : 128),
+          ]),
           const SizedBox(height: 12),
           if (!showTitle)
             Container(
@@ -527,96 +505,66 @@ class _PaymentInstructionsSheetState extends State<_PaymentInstructionsSheet> {
   }
 }
 
-/// QR-код(тар) аймағы: бір банк болса — үлкен ортаға; көп болса — жылжымалы
-/// қатар (оң нан солға). Единый QR — кез келген банк қосымшасы сканерлейді.
-class _QrArea extends StatelessWidget {
-  final List<MapEntry<String, String>> qrs;
-  const _QrArea({required this.qrs});
+/// Банк белгісі (badge): түсті шеңбер + аты. Тек ақпараттық — «осы QR-ды
+/// мына банктердің қосымшасымен де сканерлеуге болады» дегенді білдіреді,
+/// басылмайды (QR біреу-ақ, барлық банкке ортақ).
+class _BankBadge extends StatelessWidget {
+  final String bankId;
+  const _BankBadge({required this.bankId});
 
   @override
   Widget build(BuildContext context) {
-    if (qrs.length == 1) {
-      return Center(
-          child: _QrTile(
-              bankId: qrs.first.key, link: qrs.first.value, size: 130));
-    }
-    return SizedBox(
-      height: 178,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        itemCount: qrs.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 10),
-        itemBuilder: (_, i) =>
-            _QrTile(bankId: qrs[i].key, link: qrs[i].value, size: 110),
+    final name = bankName(bankId);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: cLine),
       ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Container(
+          width: 16,
+          height: 16,
+          alignment: Alignment.center,
+          decoration:
+              BoxDecoration(color: bankColor(bankId), shape: BoxShape.circle),
+          child: Text(
+            name.isNotEmpty ? name[0].toUpperCase() : '?',
+            style: manrope(9, FontWeight.w800, color: Colors.white),
+          ),
+        ),
+        const SizedBox(width: 5),
+        Text(name, style: manrope(11, FontWeight.w800, color: cInk)),
+      ]),
     );
   }
 }
 
-/// Бір банктің QR коды: банк аты + QR суреті. Басу — сілтемені қосымшада ашу
-/// (клиент сол телефонда болса, өз банк қосымшасы ашылады).
+/// Ортақ QR-код: барлық қосылған банк қосымшасы сканерлей алатын жалғыз
+/// сурет. Үстінде банк аты, астында «Открыть» батырмасы ЖОҚ — тек таза QR,
+/// камерамен сканерлеуге арналған.
 class _QrTile extends StatelessWidget {
-  final String bankId;
   final String link;
   final double size;
-  const _QrTile(
-      {required this.bankId, required this.link, required this.size});
-
-  Future<void> _open() async {
-    try {
-      await openExternalUrl(link);
-    } catch (_) {}
-  }
+  const _QrTile({required this.link, required this.size});
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        onTap: _open,
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: cLine),
-            boxShadow: kShadowSm,
-          ),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Text(bankName(bankId),
-                style: manrope(12.5, FontWeight.w800, color: cInk)),
-            const SizedBox(height: 6),
-            // ЕСКЕРТУ: QR-дың ҮСТІНЕ ешбір белгі қоймаймыз — камера/банк
-            // қосымшасы сканерлей алмай қалады. Басу мүмкіндігі тек
-            // астындағы түсті «Открыть» батырмасымен көрсетіледі.
-            QrImageView(
-              data: link,
-              version: QrVersions.auto,
-              size: size,
-              backgroundColor: Colors.white,
-              padding: EdgeInsets.zero,
-            ),
-            const SizedBox(height: 8),
-            // Айқын, түсті «Открыть» батырмасы — тек жазу емес.
-            Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: cGreenTint,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                const Icon(Icons.open_in_new_rounded,
-                    size: 12, color: cGreenDeep),
-                const SizedBox(width: 4),
-                Text(tr('Открыть', 'Ашу'),
-                    style: manrope(11, FontWeight.w800, color: cGreenDeep)),
-              ]),
-            ),
-          ]),
-        ),
+        border: Border.all(color: cLine),
+        boxShadow: kShadowSm,
+      ),
+      child: QrImageView(
+        data: link,
+        version: QrVersions.auto,
+        size: size,
+        backgroundColor: Colors.white,
+        padding: EdgeInsets.zero,
       ),
     );
   }

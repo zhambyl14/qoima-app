@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart' show Color;
+
 /// Қазақстан банктері — дүкен иесі әрқайсысының QR сілтемесін қоса алады.
 /// Клиент төлемде осы QR-ды кәдімгі QR-код ретінде көреді (единый QR — кез
 /// келген банк қосымшасы сканерлей алады).
@@ -21,6 +23,20 @@ const List<BankDef> kBanks = [
 
 String bankName(String id) =>
     kBanks.firstWhere((b) => b.id == id, orElse: () => BankDef(id, id)).name;
+
+/// Банктің бренд түсі — клиентке көрсетілетін шағын белгі (badge) үшін.
+Color bankColor(String id) => switch (id) {
+      'kaspi' => const Color(0xFFE30611),
+      'halyk' => const Color(0xFF046A38),
+      'freedom' => const Color(0xFF00A651),
+      'forte' => const Color(0xFFF7941D),
+      'bcc' => const Color(0xFF0033A0),
+      'eurasian' => const Color(0xFF005BAA),
+      'bereke' => const Color(0xFF6E2585),
+      'alatau' => const Color(0xFF1B998B),
+      'home' => const Color(0xFFDA291C),
+      _ => const Color(0xFF64748B),
+    };
 
 /// Supabase `bank_qrs` (jsonb) → `Map<String,String>`. Ескі [kaspiFallback]
 /// (kaspi_link) болса, картада kaspi жоқ кезде оны қосады (back-compat).
