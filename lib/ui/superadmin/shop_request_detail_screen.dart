@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
+import '../../core/banks.dart';
 import '../../core/card_utils.dart';
 import '../../data/models/shop_request_model.dart';
 import '../../data/repositories/shop_request_repository.dart';
@@ -168,7 +169,38 @@ class _ShopRequestDetailScreenState extends State<ShopRequestDetailScreen> {
                   ]),
                 ),
 
-                if (req.cardNumber.isNotEmpty) ...[
+                if (req.bankQrs.isNotEmpty) ...[
+                  const SizedBox(height: 18),
+                  QSecLabel(tr('Приём оплаты — QR банков', 'Төлем қабылдау — банк QR-лары')),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                        color: cGreenTint,
+                        borderRadius: BorderRadius.circular(14)),
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: orderedBankQrs(req.bankQrs)
+                          .map((e) => Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 10, vertical: 6),
+                                decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(9),
+                                    border: Border.all(color: cLine)),
+                                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                  const Icon(Icons.qr_code_2_rounded,
+                                      size: 14, color: cGreenDeep),
+                                  const SizedBox(width: 5),
+                                  Text(bankName(e.key),
+                                      style: manrope(12, FontWeight.w700,
+                                          color: cInk)),
+                                ]),
+                              ))
+                          .toList(),
+                    ),
+                  ),
+                ] else if (req.cardNumber.isNotEmpty) ...[
                   const SizedBox(height: 18),
                   QSecLabel(tr('Финансы — карта', 'Қаржы — карта')),
                   _CardInfoCard(req: req),

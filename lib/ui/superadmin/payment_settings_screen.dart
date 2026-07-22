@@ -220,16 +220,3 @@ class _ModeOption extends StatelessWidget {
       );
 }
 
-class _Field extends StatelessWidget {
-  final String label;
-  final Widget child;
-  const _Field({required this.label, required this.child});
-
-  @override
-  Widget build(BuildContext context) =>
-      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(label, style: manrope(12.5, FontWeight.w700, color: cInk2)),
-        const SizedBox(height: 6),
-        child,
-      ]);
-}

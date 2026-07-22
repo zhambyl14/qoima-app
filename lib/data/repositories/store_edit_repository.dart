@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/store_edit_request_model.dart';
 import '../models/store_model.dart';
@@ -17,6 +18,7 @@ class StoreEditRepository {
     'phone': 'phone',
     'paymentCardNumber': 'payment_card_number',
     'kaspiLink': 'kaspi_link',
+    'bankQrs': 'bank_qrs',
   };
 
   // ── Owner ──────────────────────────────────────────────────────────────────
@@ -80,7 +82,17 @@ class StoreEditRepository {
     };
     for (final c in req.changes) {
       final col = _fieldToColumn[c.field] ?? c.field;
-      patch[col] = c.newValue;
+      // bank_qrs — jsonb: JSON жолын картаға айналдырамыз (әйтпесе мәтін болып қалады).
+      if (col == 'bank_qrs') {
+        try {
+          final decoded = jsonDecode(c.newValue);
+          patch[col] = decoded is Map ? decoded : <String, dynamic>{};
+        } catch (_) {
+          patch[col] = <String, dynamic>{};
+        }
+      } else {
+        patch[col] = c.newValue;
+      }
       if (c.field == 'storeName') {
         patch['store_slug'] = StoreModel.generateSlug(c.newValue);
       }

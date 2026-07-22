@@ -1,12 +1,13 @@
+import 'dart:convert';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../../core/card_utils.dart';
 import '../../../core/kz_cities.dart';
 import '../../../data/models/store_edit_request_model.dart';
 import '../../../data/models/store_model.dart';
 import '../../../data/repositories/store_edit_repository.dart';
 import '../../../theme/qoima_design.dart';
+import '../../shared/bank_qr_editor.dart';
 import 'store_edit_pending_screen.dart';
 
 import '../../../core/lang.dart';
@@ -30,12 +31,10 @@ class _StoreEditScreenState extends State<StoreEditScreen> {
   late final _ownerNameCtrl = TextEditingController(text: widget.store.ownerName);
   late final _iinCtrl = TextEditingController(text: widget.store.ownerIin);
   late final _phoneCtrl = TextEditingController(text: widget.store.phone);
-  late final _cardCtrl = TextEditingController(
-      text: formatCardDisplay(widget.store.paymentCardNumber));
-  late final _kaspiCtrl = TextEditingController(text: widget.store.kaspiLink);
   final _commentCtrl = TextEditingController();
 
   late String _city = widget.store.city;
+  late Map<String, String> _bankQrs = Map.of(widget.store.bankQrs);
   bool _loading = false;
 
   StoreModel get store => widget.store;
@@ -47,8 +46,6 @@ class _StoreEditScreenState extends State<StoreEditScreen> {
     _ownerNameCtrl.dispose();
     _iinCtrl.dispose();
     _phoneCtrl.dispose();
-    _cardCtrl.dispose();
-    _kaspiCtrl.dispose();
     _commentCtrl.dispose();
     super.dispose();
   }
@@ -68,30 +65,27 @@ class _StoreEditScreenState extends State<StoreEditScreen> {
     add('ownerName', tr('ФИО', 'Аты-жөні'), store.ownerName, _ownerNameCtrl.text);
     add('ownerIin', tr('ИИН / БИН', 'ЖСН / БСН'), store.ownerIin, _iinCtrl.text);
     add('phone', 'Телефон', store.phone, _phoneCtrl.text);
-    add('kaspiLink', tr('Ссылка Kaspi', 'Kaspi сілтемесі'), store.kaspiLink,
-        _kaspiCtrl.text);
-    add('paymentCardNumber', tr('Номер карты', 'Карта нөмірі'), store.paymentCardNumber,
-        cardDigitsOnly(_cardCtrl.text));
+    // Банк QR-лары: жалпы картаны бір JSON EditField ретінде жібереміз.
+    final oldQrs = jsonEncode(store.bankQrs);
+    final newQrs = jsonEncode(_bankQrs);
+    if (oldQrs != newQrs) {
+      changes.add(EditField(
+          field: 'bankQrs',
+          label: tr('QR банков', 'Банк QR-лары'),
+          oldValue: oldQrs,
+          newValue: newQrs));
+    }
     return changes;
   }
 
   int get _changedCount => _collectChanges().length;
 
-  bool get _cardOk {
-    final raw = cardDigitsOnly(_cardCtrl.text);
-    return raw.isEmpty || isCardValid(raw);
-  }
-
-  bool get _canSubmit => _changedCount > 0 && _cardOk && !_loading;
+  bool get _canSubmit => _changedCount > 0 && !_loading;
 
   Future<void> _onSubmit() async {
     final changes = _collectChanges();
     if (changes.isEmpty) {
       _snack(tr('Вы ничего не изменили', 'Ештеңе өзгертпедіңіз'));
-      return;
-    }
-    if (!_cardOk) {
-      _snack(tr('Карта должна содержать 16 цифр и пройти проверку', 'Картада 16 сан болып, тексеруден өтуі керек'));
       return;
     }
 
@@ -264,26 +258,10 @@ class _StoreEditScreenState extends State<StoreEditScreen> {
                 ),
 
                 const SizedBox(height: 20),
-                QSecLabel(tr('Приём оплаты', 'Төлем қабылдау')),
-                _EditField(
-                  label: tr('Ссылка Kaspi QR (основной способ)',
-                      'Kaspi QR сілтемесі (негізгі)'),
-                  icon: Icons.qr_code_2_rounded,
-                  controller: _kaspiCtrl,
-                  original: store.kaspiLink,
-                  onChanged: (_) => setState(() {}),
-                  keyboardType: TextInputType.url,
-                ),
-                const SizedBox(height: 14),
-                _EditField(
-                  label: tr('Номер карты (запасной)', 'Карта нөмірі (қосымша)'),
-                  icon: Icons.account_balance_wallet_outlined,
-                  controller: _cardCtrl,
-                  original: formatCardDisplay(store.paymentCardNumber),
-                  onChanged: (_) => setState(() {}),
-                  keyboardType: TextInputType.number,
-                  formatters: [CardNumberFormatter()],
-                  errorText: (!_cardOk) ? tr('16 цифр, проверка не пройдена', '16 сан, тексеруден өтпеді') : null,
+                QSecLabel(tr('Приём оплаты — QR банков', 'Төлем қабылдау — банк QR-лары')),
+                BankQrEditor(
+                  initial: _bankQrs,
+                  onChanged: (m) => setState(() => _bankQrs = m),
                 ),
 
                 const SizedBox(height: 14),
@@ -347,7 +325,6 @@ class _EditField extends StatelessWidget {
   final TextInputType? keyboardType;
   final List<TextInputFormatter>? formatters;
   final int? maxLength;
-  final String? errorText;
   final bool showChanged;
 
   const _EditField({
@@ -360,7 +337,6 @@ class _EditField extends StatelessWidget {
     this.keyboardType,
     this.formatters,
     this.maxLength,
-    this.errorText,
     this.showChanged = true,
   });
 
@@ -394,10 +370,7 @@ class _EditField extends StatelessWidget {
             color: cSurface,
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-                color: errorText != null
-                    ? cRed
-                    : (changed ? cAmber : cLine),
-                width: 1.5),
+                color: changed ? cAmber : cLine, width: 1.5),
             boxShadow: changed
                 ? [
                     BoxShadow(
@@ -444,10 +417,7 @@ class _EditField extends StatelessWidget {
             ],
           ),
         ),
-        if (errorText != null) ...[
-          const SizedBox(height: 4),
-          Text(errorText!, style: manrope(11.5, FontWeight.w600, color: cRed)),
-        ] else if (changed) ...[
+        if (changed) ...[
           const SizedBox(height: 4),
           Text(tr('Было: ${original.isEmpty ? '—' : original}', 'Бұрын: ${original.isEmpty ? '—' : original}'),
               style: manrope(11.5, FontWeight.w500, color: cInk3)

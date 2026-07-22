@@ -159,7 +159,13 @@ async function reconcile(
     from += pageSize;
   }
 
-  const orphanIds = allIds.filter((id) => !referenced.has(id));
+  // ⚠️ ТЕК ТАУАР суреттерін өшіреміз. Upload preset-тің asset_folder-і
+  // qoima_products болғандықтан, by_asset_folder тізімі ЧЕКТЕРДІ де қайтарады
+  // (олардың public_id-і qoima_receipts/… ). Оларды өшіріп алмау үшін тек
+  // public_id-і `qoima_products/`-пен басталатын жетімдерді жоямыз.
+  const orphanIds = allIds.filter(
+    (id) => id.startsWith('qoima_products/') && !referenced.has(id),
+  );
   let deleted = 0;
   if (doDelete) {
     for (const pid of orphanIds) {
@@ -258,9 +264,8 @@ Deno.serve(async (req) => {
     // 1) 14+ күн сатулы тұрғандардың фотосын кезекке қосамыз.
     await a.rpc('sweep_sold_out_images', { p_days: 14 });
 
-    // 1б) 14+ күн бұрын тіркелген төлем чектерін кезекке қосамыз
-    //     (orders.receipt_url тазаланады — чек 14 күн ғана сақталады).
-    await a.rpc('sweep_expired_receipts', { p_days: 14 });
+    // ⚠️ Төлем чектерін АВТОМАТТЫ ӨШІРМЕЙМІЗ — олар төлем айғағы, дауда керек
+    //    болуы мүмкін (бұрын sweep_expired_receipts өшіретін — алынды).
 
     // 2) Кезекті партиялап Cloudinary-ден өшіреміз. Сәтсіздер кезекте ҚАЛАДЫ
     //    (кілт түзелген соң келесі drain тазалайды).

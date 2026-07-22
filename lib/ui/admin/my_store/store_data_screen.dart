@@ -1,7 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show Clipboard, ClipboardData;
-import '../../../core/card_utils.dart';
+import '../../../core/banks.dart';
 import '../../../data/models/store_edit_request_model.dart';
 import '../../../data/models/store_model.dart';
 import '../../../data/repositories/store_edit_repository.dart';
@@ -159,49 +158,24 @@ class _Body extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Иесі өз картасын толық көреді (жасырусыз) — бұл өз дүкені.
-                    Text(
-                        store.paymentCardNumber.isEmpty
-                            ? tr('Реквизиты не указаны', 'Реквизит көрсетілмеген')
-                            : formatCardDisplay(store.paymentCardNumber),
-                        style: manrope(15, FontWeight.w800,
-                            color: store.paymentCardNumber.isEmpty
-                                ? cInk3
-                                : cInk,
-                            letterSpacing: 1.0)),
-                    if (store.paymentBank.isNotEmpty ||
-                        store.paymentCardHolder.isNotEmpty)
+                child: Builder(builder: (_) {
+                  final qrs = orderedBankQrs(store.bankQrs);
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       Text(
-                          [
-                            if (store.paymentBank.isNotEmpty) store.paymentBank,
-                            if (store.paymentCardHolder.isNotEmpty)
-                              store.paymentCardHolder,
-                          ].join(' · '),
-                          style:
-                              manrope(12, FontWeight.w600, color: cInk3)),
-                  ],
-                ),
+                          qrs.isEmpty
+                              ? tr('QR не указаны', 'QR көрсетілмеген')
+                              : tr('QR банков: ${qrs.length}', 'Банк QR-лары: ${qrs.length}'),
+                          style: manrope(15, FontWeight.w800,
+                              color: qrs.isEmpty ? cInk3 : cInk)),
+                      if (qrs.isNotEmpty)
+                        Text(qrs.map((e) => bankName(e.key)).join(' · '),
+                            style: manrope(12, FontWeight.w600, color: cInk3)),
+                    ],
+                  );
+                }),
               ),
-              if (store.paymentCardNumber.isNotEmpty)
-                GestureDetector(
-                  onTap: () {
-                    Clipboard.setData(ClipboardData(
-                        text: cardDigitsOnly(store.paymentCardNumber)));
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                      content: Text(tr('Номер карты скопирован',
-                          'Карта нөмірі көшірілді')),
-                      behavior: SnackBarBehavior.floating,
-                      duration: const Duration(seconds: 1),
-                    ));
-                  },
-                  child: const Padding(
-                    padding: EdgeInsets.all(4),
-                    child: Icon(Icons.copy_rounded, color: cGreen, size: 20),
-                  ),
-                ),
             ]),
           ),
 
