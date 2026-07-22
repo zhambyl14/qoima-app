@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../core/banks.dart';
+import '../../core/contact_utils.dart';
 import '../../core/lang.dart';
 import '../../data/models/order_model.dart';
 import '../../data/models/store_model.dart';
@@ -460,7 +461,10 @@ class _PaymentInstructionsSheetState extends State<_PaymentInstructionsSheet> {
                   Wrap(
                     spacing: 6,
                     runSpacing: 6,
-                    children: [for (final e in qrs) _BankBadge(bankId: e.key)],
+                    children: [
+                      for (final e in qrs)
+                        _BankBadge(bankId: e.key, link: e.value),
+                    ],
                   ),
                 ],
               ),
@@ -505,38 +509,52 @@ class _PaymentInstructionsSheetState extends State<_PaymentInstructionsSheet> {
   }
 }
 
-/// Банк белгісі (badge): түсті шеңбер + аты. Тек ақпараттық — «осы QR-ды
-/// мына банктердің қосымшасымен де сканерлеуге болады» дегенді білдіреді,
-/// басылмайды (QR біреу-ақ, барлық банкке ортақ).
+/// Банк белгісі (badge): түсті шеңбер + аты. Басылатын — сол банктің өз
+/// сілтемесін қосымшада ашады (клиент QR сканерлемей, тікелей өтуді
+/// қаласа). QR суреті бір-ақ (ортақ) қалады — бұл батырма тек «жылдам өту».
 class _BankBadge extends StatelessWidget {
   final String bankId;
-  const _BankBadge({required this.bankId});
+  final String link;
+  const _BankBadge({required this.bankId, required this.link});
+
+  Future<void> _open() async {
+    try {
+      await openExternalUrl(link);
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
     final name = bankName(bankId);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-      decoration: BoxDecoration(
-        color: Colors.white,
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        onTap: _open,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: cLine),
-      ),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Container(
-          width: 16,
-          height: 16,
-          alignment: Alignment.center,
-          decoration:
-              BoxDecoration(color: bankColor(bankId), shape: BoxShape.circle),
-          child: Text(
-            name.isNotEmpty ? name[0].toUpperCase() : '?',
-            style: manrope(9, FontWeight.w800, color: Colors.white),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: cLine),
           ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Container(
+              width: 16,
+              height: 16,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                  color: bankColor(bankId), shape: BoxShape.circle),
+              child: Text(
+                name.isNotEmpty ? name[0].toUpperCase() : '?',
+                style: manrope(9, FontWeight.w800, color: Colors.white),
+              ),
+            ),
+            const SizedBox(width: 5),
+            Text(name, style: manrope(11, FontWeight.w800, color: cInk)),
+          ]),
         ),
-        const SizedBox(width: 5),
-        Text(name, style: manrope(11, FontWeight.w800, color: cInk)),
-      ]),
+      ),
     );
   }
 }
