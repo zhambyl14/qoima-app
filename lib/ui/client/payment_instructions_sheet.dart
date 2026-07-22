@@ -521,28 +521,16 @@ class _QrTile extends StatelessWidget {
             Text(bankName(bankId),
                 style: manrope(12.5, FontWeight.w800, color: cInk)),
             const SizedBox(height: 6),
-            // QR-дың үстіне «ашылады» белгісі — сурет екені емес, батырма
-            // екені бірден көрінсін деп.
-            Stack(alignment: Alignment.center, children: [
-              QrImageView(
-                data: link,
-                version: QrVersions.auto,
-                size: size,
-                backgroundColor: Colors.white,
-                padding: EdgeInsets.zero,
-              ),
-              Container(
-                width: size * 0.26,
-                height: size * 0.26,
-                decoration: BoxDecoration(
-                  color: cGreen,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.white, width: 2),
-                ),
-                child: Icon(Icons.touch_app_rounded,
-                    color: Colors.white, size: size * 0.16),
-              ),
-            ]),
+            // ЕСКЕРТУ: QR-дың ҮСТІНЕ ешбір белгі қоймаймыз — камера/банк
+            // қосымшасы сканерлей алмай қалады. Басу мүмкіндігі тек
+            // астындағы түсті «Открыть» батырмасымен көрсетіледі.
+            QrImageView(
+              data: link,
+              version: QrVersions.auto,
+              size: size,
+              backgroundColor: Colors.white,
+              padding: EdgeInsets.zero,
+            ),
             const SizedBox(height: 8),
             // Айқын, түсті «Открыть» батырмасы — тек жазу емес.
             Container(
