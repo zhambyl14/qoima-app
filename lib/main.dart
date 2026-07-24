@@ -48,16 +48,21 @@ void main() async {
     anonKey: isLegacyJwt ? supaKey : null,
     publishableKey: isLegacyJwt ? null : supaKey,
   );
+  // Жергілікті хабарлама плагині — БҰРЫН дайын болуы керек: PushService
+  // foreground FCM хабарламасын осы сервис арқылы local notification
+  // ретінде көрсетеді (Android), сол себепті реті маңызды.
+  await LocalNotificationService.instance.init();
   // FCM push (Firebase тек хабарлама жеткізуге; конфиг жоқ болса үнсіз өтеді).
   await PushService.instance.init();
-  // Жергілікті хабарлама (себет еске салуы) — серверсіз, FCM-ге тәуелсіз.
-  await LocalNotificationService.instance.init();
+  // Сақталған тілді runApp алдында оқимыз — қосымша сол тілмен бірден ашылады
+  // (алғашқы кадрда дұрыс тіл, қосымша rebuild/жыпылық жоқ).
+  final initialLocale = await LocaleContext.loadSaved();
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AppUser()),
         ChangeNotifierProvider(create: (_) => WarehouseContext()),
-        ChangeNotifierProvider(create: (_) => LocaleContext()),
+        ChangeNotifierProvider(create: (_) => LocaleContext(initialLocale)),
         ChangeNotifierProvider(create: (_) => CartProvider()),
       ],
       child: const QoimaApp(),
@@ -72,6 +77,11 @@ class QoimaApp extends StatelessWidget {
   Widget build(BuildContext context) {
     final locale = context.watch<LocaleContext>().locale;
     return MaterialApp(
+      // Тіл ауысқанда бүкіл ағашты мәжбүрлеп қайта құрамыз. tr() статикалық
+      // currentLang оқитындықтан (InheritedWidget-ке жазылмайды), кэштелген
+      // маршрут мазмұны өздігінен жаңармайды — key өзгеруі MaterialApp астындағы
+      // Navigator/экрандардың бәрін жаңа тілде сол сәтте қайта салады.
+      key: ValueKey(locale.languageCode),
       title: 'Qoima',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.theme.copyWith(

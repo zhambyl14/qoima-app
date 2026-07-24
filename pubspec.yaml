@@ -2,7 +2,6 @@ name: qoima
 description: Мобильное приложение для учёта склада обуви.
 publish_to: 'none'
 version: 1.0.1+15
-
 environment:
   sdk: '>=3.0.0 <4.0.0'
 

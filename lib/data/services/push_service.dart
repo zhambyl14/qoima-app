@@ -1,9 +1,11 @@
+import 'dart:convert';
 import 'dart:io' show Platform;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'local_notification_service.dart';
 
 /// FCM хабарламасы осы арна арқылы келуі керек — AndroidManifest.xml-дегі
 /// `com.google.firebase.messaging.default_notification_channel_id` мета-
@@ -12,6 +14,16 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 /// хабарлама тек статус-барға үнсіз түседі, экран үстіне баннер болып
 /// қалқымайды (heads-up).
 const String kPushChannelId = 'high_importance_channel';
+const String kPushChannelName = 'Важные уведомления';
+
+/// Firebase-тің фондық isolate-інде шақырылады (қолданба background/
+/// terminated күйде FCM хабарламасы келгенде). ТОП-ДЕҢГЕЙ функция болуы
+/// МІНДЕТТІ (класс әдісі жарамайды) — Flutter/Firebase талабы. «notification»
+/// өрісі бар хабарламаларды осы режимде OS өзі автоматты көрсетеді, сол
+/// себепті денесі бос — тек хендлер тіркелмеді деген Firebase ескертуін
+/// болдырмау және болашақ data-only өңдеу үшін орын дайындау мақсатында.
+@pragma('vm:entry-point')
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {}
 
 /// FCM push-хабарламалар сервисі.
 ///
@@ -27,14 +39,27 @@ class PushService {
 
   SupabaseClient get _sb => Supabase.instance.client;
 
+  /// Push баннерін басып ашқанда (background тап немесе cold start) шақырылады
+  /// — data payload-пен. Қазір навигация роутері жоқ, сол себепті бұл — UI
+  /// қабатына data-ны жеткізетін кеңею нүктесі (мыс. белгілі бір экранға
+  /// секіру). Тіркелмесе — тек debugPrint-пен шектеледі.
+  void Function(Map<String, dynamic> data)? onNotificationOpen;
+
   /// main()-де бір рет: Firebase-ті көтереміз. Сәтсіз болса (конфиг жоқ,
   /// желі т.б.) — үнсіз өтеміз, қолданба push-сыз жұмыс істей береді.
+  ///
+  /// МАҢЫЗДЫ: LocalNotificationService.instance.init() бұдан БҰРЫН
+  /// аяқталған болуы керек (main.dart-та шақыру ретін қараңыз) — foreground
+  /// FCM хабарламасын local notification ретінде көрсету үшін _plugin
+  /// дайын тұруы қажет.
   Future<void> init() async {
     if (kIsWeb) return; // web push (VAPID) — бөлек баптау, әзірге қосылмаған
     try {
       await Firebase.initializeApp();
       _firebaseReady = true;
-      // iOS: қолданба ашық тұрғанда да жүйелік баннер көрсетілсін.
+      // iOS: қолданба ашық тұрғанда да жүйелік баннер көрсетілсін (APNs
+      // өзі баннер/дыбыс/badge шығарады — қосымша local notification
+      // ЖАСАМАЙМЫЗ, әйтпесе екі рет көрінеді).
       await FirebaseMessaging.instance
           .setForegroundNotificationPresentationOptions(
               alert: true, badge: true, sound: true);
@@ -43,7 +68,7 @@ class PushService {
       if (!kIsWeb && Platform.isAndroid) {
         const channel = AndroidNotificationChannel(
           kPushChannelId,
-          'Важные уведомления',
+          kPushChannelName,
           description: 'Заказы, продажи, возвраты и отзывы',
           importance: Importance.high,
         );
@@ -57,9 +82,56 @@ class PushService {
         final uid = _sb.auth.currentUser?.id;
         if (uid != null) _saveToken(t);
       });
+      // Android: foreground-та local notification ретінде көрсетілген
+      // push-ты пайдаланушы бассы — сол да background/cold-start тапталуымен
+      // БІРДЕЙ _handleOpen жолымен жүреді (бір ғана onNotificationOpen хугі).
+      LocalNotificationService.instance.onPushTap = _handleOpen;
+      // Фондық isolate хендлер — background/terminated күйдегі хабарламаны
+      // дұрыс өңдеу үшін тіркелуі МІНДЕТТІ (тіркелмесе Firebase ескертеді,
+      // кейбір платформаларда getInitialMessage/аналитика тұрақсыз жұмыс
+      // істейді).
+      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+
+      // ── FOREGROUND: НЕГІЗГІ ТҮЗЕТУ ──────────────────────────────────────
+      // FCM «notification» пейлоуын OS foreground-та АВТОМАТТЫ көрсетпейді
+      // (Android-та тек background/terminated күйде көрсетеді — бос қалу
+      // багының түбірлік себебі осы еді). Мұнда қолмен ұстап, local
+      // notification ретінде көрсетеміз (Android). iOS-те жоғарыдағы
+      // setForegroundNotificationPresentationOptions арқылы APNs өзі
+      // баннер шығарады, сол себепті қайталап көрсетпейміз.
+      FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
+
+      // Қолданба фонда тұрып, пайдаланушы push баннерін басып ашса.
+      FirebaseMessaging.onMessageOpenedApp.listen((m) => _handleOpen(m.data));
+
+      // Қолданба МҮЛДЕМ жабық күйде push басып ашылса (cold start) —
+      // алғашқы кадрдан кейін тексереміз.
+      final initial = await FirebaseMessaging.instance.getInitialMessage();
+      if (initial != null) _handleOpen(initial.data);
     } catch (e) {
       debugPrint('PushService init skipped: $e');
     }
+  }
+
+  /// Foreground-та келген FCM хабарламасын Android-та local notification
+  /// ретінде көрсетеді (iOS-ті APNs өзі жүйелік деңгейде көрсетеді —
+  /// setForegroundNotificationPresentationOptions арқылы).
+  Future<void> _handleForegroundMessage(RemoteMessage message) async {
+    final n = message.notification;
+    if (n == null) return; // тек data-хабарлама — көрсетілетін мәтін жоқ
+    if (kIsWeb || !Platform.isAndroid) return;
+    await LocalNotificationService.instance.showPush(
+      channelId: kPushChannelId,
+      channelName: kPushChannelName,
+      title: n.title ?? '',
+      body: n.body ?? '',
+      payload: jsonEncode(message.data),
+    );
+  }
+
+  void _handleOpen(Map<String, dynamic> data) {
+    debugPrint('PushService: notification opened, data=$data');
+    onNotificationOpen?.call(data);
   }
 
   /// Логиннен кейін: рұқсат сұрап, токенді fcm_tokens-ке жазамыз.

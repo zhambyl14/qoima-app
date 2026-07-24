@@ -1,12 +1,14 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
-/// Жергілікті (серверсіз) хабарламалар — тек «себет тұрып қалды» еске
-/// салуына арналған. FCM/PushService-ке МҮЛДЕМ тәуелсіз: себет (CartProvider)
-/// тек SharedPreferences-те, серверде жоқ, сол себепті бұл еске салу да
-/// толығымен құрылғыда жоспарланады (OS scheduler).
+/// Жергілікті (серверсіз) хабарламалар: «себет тұрып қалды» еске салуы +
+/// PushService-тің foreground FCM хабарламаларын жүйелік баннер ретінде
+/// көрсетуі (Android-та FCM «notification» пейлоуын OS foreground-та
+/// автоматты көрсетпейді — сол алшақтықты осы сервис жабады).
 class LocalNotificationService {
   LocalNotificationService._();
   static final LocalNotificationService instance = LocalNotificationService._();
@@ -16,6 +18,16 @@ class LocalNotificationService {
 
   final _plugin = FlutterLocalNotificationsPlugin();
   bool _ready = false;
+
+  // showPush() әр шақыруда бөлек id алады (cart reminder-дің бекітілген
+  // 9001 id-мен қақтығыспас үшін бөлек диапазоннан бастаймыз) — әйтпесе
+  // қатарынан келген push-тар бір-бірін алмастырып, тек соңғысы көрінер еді.
+  int _pushNotifId = 20000;
+
+  /// PushService FCM push-ты (foreground) local notification ретінде
+  /// көрсеткенде пайдаланушы оны басса шақырылады — data payload-пен.
+  /// Навигацияны PushService жағында байланыстырады.
+  void Function(Map<String, dynamic> data)? onPushTap;
 
   Future<void> init() async {
     if (kIsWeb) return; // web-те локал хабарлама схемасы бөлек — қосылмаған
@@ -29,10 +41,60 @@ class LocalNotificationService {
       );
       await _plugin.initialize(
         const InitializationSettings(android: androidInit, iOS: iosInit),
+        onDidReceiveNotificationResponse: _onTap,
       );
       _ready = true;
     } catch (e) {
       debugPrint('LocalNotificationService init skipped: $e');
+    }
+  }
+
+  void _onTap(NotificationResponse response) {
+    final payload = response.payload;
+    if (payload == null || payload.isEmpty) return;
+    try {
+      final data = jsonDecode(payload) as Map<String, dynamic>;
+      onPushTap?.call(data);
+    } catch (e) {
+      debugPrint('LocalNotificationService: tap payload decode failed: $e');
+    }
+  }
+
+  /// FCM push-ты (foreground) жүйелік хабарлама ретінде көрсетеді.
+  /// [channelId]/[channelName] — PushService-тегі HIGH маңыздылық арнасымен
+  /// ДӘЛ бірдей болуы керек: сол кезде дыбыс/діріл/heads-up баннер
+  /// background/terminated режимдегідей бірдей болады.
+  Future<void> showPush({
+    required String channelId,
+    required String channelName,
+    required String title,
+    required String body,
+    String? payload,
+  }) async {
+    if (!_ready) return;
+    try {
+      _pushNotifId++;
+      await _plugin.show(
+        _pushNotifId,
+        title,
+        body,
+        NotificationDetails(
+          android: AndroidNotificationDetails(
+            channelId,
+            channelName,
+            importance: Importance.high,
+            priority: Priority.high,
+          ),
+          iOS: const DarwinNotificationDetails(
+            presentAlert: true,
+            presentBadge: true,
+            presentSound: true,
+          ),
+        ),
+        payload: payload,
+      );
+    } catch (e) {
+      debugPrint('showPush failed: $e');
     }
   }
 
