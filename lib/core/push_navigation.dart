@@ -29,6 +29,12 @@ final rootNavigatorKey = GlobalKey<NavigatorState>();
 /// үшін). Сол сәтте Navigator әлі mount болмауы мүмкін — дайын болғанша
 /// қысқа аралықпен қайталап тексереміз (PushService.registerForUser-дегі
 /// APNs токен күту паттернімен бірдей идиома).
+///
+/// cold-start-та (қолданба мүлдем жабық түрде push арқылы ашылса) сессияны
+/// қалпына келтіру (Supabase auth restore + users/clients кестесінен жол
+/// оқу) Navigator mount болғаннан да кешірек аяқталуы мүмкін — сол себепті
+/// user.isLoaded-ті бірден тексеріп қана қоймай, соны да қайталап күтеміз,
+/// әйтпесе push тапталуы үнсіз жоғалып кетеді (навигация болмайды).
 Future<void> handlePushOpen(Map<String, dynamic> data) async {
   NavigatorState? nav = rootNavigatorKey.currentState;
   for (var i = 0; nav == null && i < 50; i++) {
@@ -39,7 +45,10 @@ Future<void> handlePushOpen(Map<String, dynamic> data) async {
 
   final type = data['type'] as String? ?? '';
   final user = AppUser.current;
-  if (!user.isLoaded) return; // әлі логин болмаса — секірер жер жоқ
+  for (var i = 0; !user.isLoaded && i < 100; i++) {
+    await Future.delayed(const Duration(milliseconds: 100));
+  }
+  if (!user.isLoaded) return; // сессия ешқашан қалпына келмеді — секірер жер жоқ
 
   try {
     switch (type) {
