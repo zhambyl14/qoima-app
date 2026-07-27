@@ -23,6 +23,7 @@ import 'data/services/local_notification_service.dart';
 import 'core/app_user.dart';
 import 'core/warehouse_context.dart';
 import 'core/locale_context.dart';
+import 'core/push_navigation.dart';
 import 'l10n/app_localizations.dart';
 
 void main() async {
@@ -52,6 +53,10 @@ void main() async {
   // foreground FCM хабарламасын осы сервис арқылы local notification
   // ретінде көрсетеді (Android), сол себепті реті маңызды.
   await LocalNotificationService.instance.init();
+  // Push тапталғанда экранға секіру хендлерін init()-тен БҰРЫН тіркейміз —
+  // cold-start getInitialMessage init() ішінде синхронды тексеріледі, кеш
+  // қалса сол тапталу жіберіліп қалады.
+  PushService.instance.onNotificationOpen = handlePushOpen;
   // FCM push (Firebase тек хабарлама жеткізуге; конфиг жоқ болса үнсіз өтеді).
   await PushService.instance.init();
   // Сақталған тілді runApp алдында оқимыз — қосымша сол тілмен бірден ашылады
@@ -82,6 +87,9 @@ class QoimaApp extends StatelessWidget {
       // маршрут мазмұны өздігінен жаңармайды — key өзгеруі MaterialApp астындағы
       // Navigator/экрандардың бәрін жаңа тілде сол сәтте қайта салады.
       key: ValueKey(locale.languageCode),
+      // Push тапталғанда (background/cold-start/foreground) ағымдағы
+      // shell/таб үстіне дұрыс экранды салу үшін — lib/core/push_navigation.dart.
+      navigatorKey: rootNavigatorKey,
       title: 'Qoima',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.theme.copyWith(

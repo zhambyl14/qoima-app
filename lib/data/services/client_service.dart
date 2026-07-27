@@ -200,6 +200,18 @@ class ClientService {
     return row == null ? null : StoreModel.fromMap(row);
   }
 
+  /// ProductModel дүкен иесінің uid-ін алып жүрмейді — push deep-link үшін
+  /// (продукттан дүкенге секіру) бөлек сұраймыз.
+  Future<String?> getProductOwnerUid(String productId) async {
+    if (productId.isEmpty) return null;
+    final row = await _sb
+        .from('products')
+        .select('owner_uid')
+        .eq('id', productId)
+        .maybeSingle();
+    return row?['owner_uid'] as String?;
+  }
+
   // ── Products ───────────────────────────────────────────────────────────────
 
   Future<ProductModel?> getProductById(

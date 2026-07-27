@@ -458,13 +458,17 @@ class FirestoreService {
       OrderModel.statusReserved,
       OrderModel.statusRejected,
     ];
-    final activeOrders = await _sb
+    // Postgrest-тің .contains() әдісі List<Map> үшін JSON емес, Postgres
+    // массив синтаксисін қолданады (мысалы: cs.{"{batchId: ...}"}) — бұл
+    // жарамсыз JSON деп серверде PostgrestException (22P02) лақтырады.
+    // Сондықтан items ішінен batchId сәйкестігін клиент жағында тексереміз.
+    final activeOrdersRaw = await _sb
         .from('orders')
-        .select('id')
-        .inFilter('status', activeStatuses)
-        .contains('items', [
-          {'batchId': batchId}
-        ]).limit(1);
+        .select('id, items')
+        .inFilter('status', activeStatuses);
+    final activeOrders = activeOrdersRaw.where((o) => (o['items'] as List? ??
+            [])
+        .any((it) => (it as Map)['batchId'] == batchId));
     if (activeOrders.isNotEmpty) {
       throw SaleException(tr(
           'По этой партии есть неоплаченный/незавершённый заказ. Сначала отмените или дождитесь его завершения.',
@@ -805,6 +809,13 @@ class FirestoreService {
         .eq('product_id', productId)
         .order('sale_date', ascending: false);
     return rows.map(SaleModel.fromMap).toList();
+  }
+
+  Future<SaleModel?> getSaleById(String id) async {
+    if (id.isEmpty) return null;
+    final row =
+        await _sb.from('sales_history').select().eq('id', id).maybeSingle();
+    return row == null ? null : SaleModel.fromMap(row);
   }
 
   Future<double> getTotalRevenue({DateTime? from, DateTime? to}) async {

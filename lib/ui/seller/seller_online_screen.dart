@@ -12,7 +12,11 @@ import '../../data/services/return_service.dart';
 
 import '../../core/lang.dart';
 class SellerOnlineScreen extends StatefulWidget {
-  const SellerOnlineScreen({super.key});
+  /// Push deep-link арқылы ашылғанда: осы orderId-ды тізімнен тауып,
+  /// «Заказ найден» баннерінде бірден көрсетеміз (id бойынша — push
+  /// data-да order_number емес, id келеді).
+  final String? openOrderId;
+  const SellerOnlineScreen({super.key, this.openOrderId});
 
   @override
   State<SellerOnlineScreen> createState() => _SellerOnlineScreenState();
@@ -33,6 +37,19 @@ class _SellerOnlineScreenState extends State<SellerOnlineScreen> {
 
   OrderModel? _lookupResult;
   String? _lookupError;
+
+  @override
+  void initState() {
+    super.initState();
+    final id = widget.openOrderId;
+    if (id != null && id.isNotEmpty) {
+      _ordersStream.first.then((all) {
+        if (!mounted) return;
+        final match = all.where((o) => o.id == id);
+        if (match.isNotEmpty) setState(() => _lookupResult = match.first);
+      });
+    }
+  }
 
   String _warehouseId(BuildContext ctx) {
     final wCtx = ctx.read<WarehouseContext>();
@@ -120,6 +137,22 @@ class _SellerOnlineScreenState extends State<SellerOnlineScreen> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 6, 20, 12),
                 child: Row(children: [
+                  // Push deep-link арқылы ашылғанда ғана (bottom-nav табы
+                  // ретінде артқа батырма қажет емес — таб ауыстырумен шығады).
+                  if (widget.openOrderId != null)
+                    GestureDetector(
+                      onTap: () => Navigator.maybePop(context),
+                      child: Container(
+                        width: 38, height: 38,
+                        margin: const EdgeInsets.only(right: 10),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.16),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(Icons.chevron_left_rounded,
+                            color: Colors.white, size: 22),
+                      ),
+                    ),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,

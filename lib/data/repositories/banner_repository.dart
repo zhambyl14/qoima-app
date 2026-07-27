@@ -17,6 +17,13 @@ class BannerRepository {
         return list;
       });
 
+  Future<BannerModel?> getBannerById(String id) async {
+    if (id.isEmpty) return null;
+    final row =
+        await _sb.from('banners').select().eq('id', id).maybeSingle();
+    return row == null ? null : BannerModel.fromMap(row);
+  }
+
   Stream<List<BannerModel>> watchAllBanners() =>
       _sb.from('banners').stream(primaryKey: ['id']).map((rows) =>
           rows.map(BannerModel.fromMap).toList()

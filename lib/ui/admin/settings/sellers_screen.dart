@@ -5,14 +5,18 @@ import '../../../theme/qoima_design.dart';
 
 import '../../../core/lang.dart';
 class SellersScreen extends StatefulWidget {
-  const SellersScreen({super.key});
+  /// Push deep-link арқылы ашылғанда (join_request): «Запросы» табын (1)
+  /// бірден ашамыз.
+  final int initialTab;
+  const SellersScreen({super.key, this.initialTab = 0});
   @override
   State<SellersScreen> createState() => _SellersScreenState();
 }
 
 class _SellersScreenState extends State<SellersScreen>
     with SingleTickerProviderStateMixin {
-  late final TabController _tab = TabController(length: 2, vsync: this);
+  late final TabController _tab = TabController(
+      length: 2, vsync: this, initialIndex: widget.initialTab);
   final _service = FirestoreService();
 
   @override

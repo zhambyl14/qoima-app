@@ -922,6 +922,29 @@ class _Step1State extends State<_Step1> {
                                       overflow: TextOverflow.ellipsis),
                                 ),
                               ]),
+                              if (p.color.isNotEmpty) ...[
+                                const SizedBox(height: 4),
+                                Row(children: [
+                                  Container(
+                                    width: 12,
+                                    height: 12,
+                                    decoration: BoxDecoration(
+                                        color: p.effectiveColor ?? cInk3,
+                                        shape: BoxShape.circle,
+                                        border: Border.all(color: cLine)),
+                                  ),
+                                  const SizedBox(width: 5),
+                                  Flexible(
+                                    child: Text(trValue(p.color),
+                                        style: const TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w600,
+                                            color: cInk2),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis),
+                                  ),
+                                ]),
+                              ],
                             ])),
                         if (sel)
                           Container(

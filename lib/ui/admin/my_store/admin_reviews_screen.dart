@@ -11,7 +11,11 @@ import '../../client/reviews_section.dart' show RatingStars;
 /// Пікірді өшіру/өзгерту иесіне БЕРІЛМЕЙДІ (рейтинг манипуляциясы —
 /// App Store 5.6.3) — тек жауап. Заңсыз пікірге шағымды superadmin қарайды.
 class AdminReviewsScreen extends StatefulWidget {
-  const AdminReviewsScreen({super.key});
+  /// Push deep-link арқылы ашылғанда: тек осы өнімнің пікірлерін көрсетеміз
+  /// (reviewId емес — push data-да productId келеді, бір өнімде бірнеше
+  /// пікір болуы мүмкін).
+  final String? productId;
+  const AdminReviewsScreen({super.key, this.productId});
 
   @override
   State<AdminReviewsScreen> createState() => _AdminReviewsScreenState();
@@ -37,13 +41,16 @@ class _AdminReviewsScreenState extends State<AdminReviewsScreen> {
   }
 
   List<ReviewModel> _filter(List<ReviewModel> all) {
+    final byProduct = widget.productId == null
+        ? all
+        : all.where((r) => r.productId == widget.productId).toList();
     switch (_tab) {
       case 1:
-        return all.where((r) => !r.hasReply).toList();
+        return byProduct.where((r) => !r.hasReply).toList();
       case 2:
-        return all.where((r) => r.hasReply).toList();
+        return byProduct.where((r) => r.hasReply).toList();
       default:
-        return all;
+        return byProduct;
     }
   }
 
@@ -89,6 +96,9 @@ class _AdminReviewsScreenState extends State<AdminReviewsScreen> {
                   : tr('★ ${avg.toStringAsFixed(1)} · ${all.length} отзывов',
                       '★ ${avg.toStringAsFixed(1)} · ${all.length} пікір'),
               compact: true,
+              // Push deep-link арқылы ашылғанда (productId бар) — артқа
+              // батырма керек (әйтпесе тек жүйелік back/swipe арқылы шығады).
+              showBack: widget.productId != null,
               bottom: [
                 const SizedBox(height: 14),
                 SizedBox(

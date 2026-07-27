@@ -16,14 +16,20 @@ import 'returns/client_returns_history_screen.dart';
 import '../../core/lang.dart';
 class ClientOrdersScreen extends StatefulWidget {
   final VoidCallback? onBack;
-  const ClientOrdersScreen({super.key, this.onBack});
+  /// Push deep-link арқылы ашылғанда (order_status): дұрыс табты бірден
+  /// ашамыз (0=белсенді, 1=аяқталған).
+  final int initialTabIndex;
+  /// Push data-дағы orderId — сол тапсырыстың карточкасын бөлектейміз.
+  final String? highlightOrderId;
+  const ClientOrdersScreen(
+      {super.key, this.onBack, this.initialTabIndex = 0, this.highlightOrderId});
 
   @override
   State<ClientOrdersScreen> createState() => _ClientOrdersScreenState();
 }
 
 class _ClientOrdersScreenState extends State<ClientOrdersScreen> {
-  int _tabIndex = 0; // 0=active, 1=completed, 2=returns
+  late int _tabIndex = widget.initialTabIndex; // 0=active, 1=completed, 2=returns
 
   final ClientService _service = ClientService();
   // v11: тапсырыстар clientUid бойынша сұралады (email-auth токенінде телефон жоқ).
@@ -152,6 +158,7 @@ class _ClientOrdersScreenState extends State<ClientOrdersScreen> {
                                         ? active
                                         : completed,
                                     returnStatusByOrder,
+                                    widget.highlightOrderId,
                                   ),
                           ),
                         ]);
@@ -164,8 +171,11 @@ class _ClientOrdersScreenState extends State<ClientOrdersScreen> {
     );
   }
 
-  Widget _buildOrderList(BuildContext context, List<OrderModel> orders,
-      Map<String, ReturnStatus> returnStatusByOrder) {
+  Widget _buildOrderList(
+      BuildContext context,
+      List<OrderModel> orders,
+      Map<String, ReturnStatus> returnStatusByOrder,
+      String? highlightOrderId) {
     if (orders.isEmpty) {
       return Center(
           child: Column(
@@ -202,6 +212,7 @@ class _ClientOrdersScreenState extends State<ClientOrdersScreen> {
           canReturn: canReturn,
           hasActiveReturn: hasReturn,
           returnDone: returnDone,
+          highlighted: highlightOrderId != null && o.id == highlightOrderId,
           onReturnTap: canReturn && !hasReturn
               ? () => Navigator.push(
                   context,
@@ -269,6 +280,8 @@ class _OrderCard extends StatefulWidget {
   final bool canReturn;
   final bool hasActiveReturn;
   final bool returnDone;
+  /// Push deep-link арқылы ашылғанда: дәл осы тапсырысты бөлектейміз.
+  final bool highlighted;
   final VoidCallback? onReturnTap;
   const _OrderCard({
     super.key,
@@ -276,6 +289,7 @@ class _OrderCard extends StatefulWidget {
     this.canReturn = false,
     this.hasActiveReturn = false,
     this.returnDone = false,
+    this.highlighted = false,
     this.onReturnTap,
   });
 
@@ -455,10 +469,16 @@ class _OrderCardState extends State<_OrderCard> {
         color: cSurface,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: o.status == OrderModel.statusRejected
-              ? cRed.withValues(alpha: 0.3)
-              : cLine,
-          width: o.status == OrderModel.statusRejected ? 1.5 : 1,
+          color: widget.highlighted
+              ? cGreen
+              : o.status == OrderModel.statusRejected
+                  ? cRed.withValues(alpha: 0.3)
+                  : cLine,
+          width: widget.highlighted
+              ? 2
+              : o.status == OrderModel.statusRejected
+                  ? 1.5
+                  : 1,
         ),
         boxShadow: kShadowSm,
       ),

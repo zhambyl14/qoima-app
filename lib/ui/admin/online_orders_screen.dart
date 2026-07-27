@@ -11,7 +11,11 @@ import '../shared/prompt_text_dialog.dart';
 
 import '../../core/lang.dart';
 class OnlineOrdersScreen extends StatefulWidget {
-  const OnlineOrdersScreen({super.key});
+  /// Push deep-link арқылы ашылғанда: осы orderId-ды тізімнен тауып,
+  /// «Заказ найден» баннерінде бірден көрсетеміз (order_number емес, id
+  /// бойынша — push data-да id келеді).
+  final String? openOrderId;
+  const OnlineOrdersScreen({super.key, this.openOrderId});
 
   @override
   State<OnlineOrdersScreen> createState() => _OnlineOrdersScreenState();
@@ -30,6 +34,19 @@ class _OnlineOrdersScreenState extends State<OnlineOrdersScreen> {
   OrderModel? _lookupResult;
   bool _lookupLoading = false;
   String? _lookupError;
+
+  @override
+  void initState() {
+    super.initState();
+    final id = widget.openOrderId;
+    if (id != null && id.isNotEmpty) {
+      _ordersStream.first.then((all) {
+        if (!mounted) return;
+        final match = all.where((o) => o.id == id);
+        if (match.isNotEmpty) setState(() => _lookupResult = match.first);
+      });
+    }
+  }
 
   @override
   void dispose() {
