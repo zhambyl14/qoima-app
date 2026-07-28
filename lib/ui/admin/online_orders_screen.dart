@@ -10,6 +10,7 @@ import '../client/reservation_timer_widget.dart';
 import '../shared/prompt_text_dialog.dart';
 
 import '../../core/lang.dart';
+import '../../core/error_text.dart';
 class OnlineOrdersScreen extends StatefulWidget {
   /// Push deep-link арқылы ашылғанда: осы orderId-ды тізімнен тауып,
   /// «Заказ найден» баннерінде бірден көрсетеміз (order_number емес, id
@@ -74,7 +75,7 @@ class _OnlineOrdersScreenState extends State<OnlineOrdersScreen> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _lookupError = e.toString();
+          _lookupError = friendlyError(e);
           _lookupLoading = false;
         });
       }
@@ -565,7 +566,7 @@ class _OrderCardState extends State<_OrderCard> {
       if (mounted) {
         setState(() => _loading = false);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(e.toString()),
+            content: Text(friendlyError(e)),
             backgroundColor: cRed,
             behavior: SnackBarBehavior.floating));
       }
@@ -611,7 +612,7 @@ class _OrderCardState extends State<_OrderCard> {
       if (mounted) {
         setState(() => _loading = false);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(e.toString()),
+            content: Text(friendlyError(e)),
             backgroundColor: cRed,
             behavior: SnackBarBehavior.floating));
       }
@@ -742,7 +743,7 @@ class _OrderCardState extends State<_OrderCard> {
       if (mounted) {
         setState(() => _loading = false);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(e.toString()),
+            content: Text(friendlyError(e)),
             backgroundColor: cRed,
             behavior: SnackBarBehavior.floating));
       }
@@ -768,7 +769,7 @@ class _OrderCardState extends State<_OrderCard> {
       if (mounted) {
         setState(() => _loading = false);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(e.toString()),
+            content: Text(friendlyError(e)),
             backgroundColor: cRed,
             behavior: SnackBarBehavior.floating));
       }
@@ -807,7 +808,7 @@ class _OrderCardState extends State<_OrderCard> {
       if (mounted) {
         setState(() => _loading = false);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(e.toString()),
+            content: Text(friendlyError(e)),
             backgroundColor: cRed,
             behavior: SnackBarBehavior.floating));
       }

@@ -8,6 +8,7 @@ import '../../theme/qoima_design.dart';
 import 'reject_reason_sheet.dart';
 
 import '../../core/lang.dart';
+import '../../core/error_text.dart';
 /// Superadmin — заявка детальі. Бекіту / бас тарту (себебімен).
 class ShopRequestDetailScreen extends StatefulWidget {
   final ShopRequestModel req;
@@ -43,7 +44,7 @@ class _ShopRequestDetailScreenState extends State<ShopRequestDetailScreen> {
       if (mounted) {
         setState(() => _loading = false);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(e.toString()),
+          content: Text(friendlyError(e)),
           backgroundColor: cRed,
           behavior: SnackBarBehavior.floating,
         ));
@@ -77,7 +78,7 @@ class _ShopRequestDetailScreenState extends State<ShopRequestDetailScreen> {
       if (mounted) {
         setState(() => _loading = false);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(e.toString()),
+          content: Text(friendlyError(e)),
           backgroundColor: cRed,
           behavior: SnackBarBehavior.floating,
         ));

@@ -7,6 +7,7 @@ import '../shared/edit_field_display.dart';
 import 'reject_reason_sheet.dart';
 
 import '../../core/lang.dart';
+import '../../core/error_text.dart';
 const _editRejectReasons = [
   'Данные не соответствуют действительности',
   'Карта не совпадает с владельцем ИИН',
@@ -44,7 +45,7 @@ class _StoreEditDiffScreenState extends State<StoreEditDiffScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _loading = false);
-        _snack(e.toString(), cRed);
+        _snack(friendlyError(e), cRed);
       }
     }
   }
@@ -71,7 +72,7 @@ class _StoreEditDiffScreenState extends State<StoreEditDiffScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _loading = false);
-        _snack(e.toString(), cRed);
+        _snack(friendlyError(e), cRed);
       }
     }
   }

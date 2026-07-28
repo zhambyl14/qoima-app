@@ -11,6 +11,7 @@ import 'client_product_detail.dart';
 import 'client_shell.dart';
 
 import '../../core/lang.dart';
+import '../shared/error_view.dart';
 /// Универсальный fashion-каталог, 3 уровня выбора (как маркетплейс):
 /// L1 — категория (Обувь / Одежда / …) → L2 — кому → L3 — тип товара → товары.
 /// Уровни управляются ЛОКАЛЬНЫМ состоянием (Navigator.push ЕМЕС).
@@ -28,7 +29,8 @@ class _ClientCatalogScreenState extends State<ClientCatalogScreen> {
   Map<String, StoreModel> _productStoreMap = {};
   bool _loadingStores = true;
   bool _loadingProducts = false;
-  String? _error;
+  // Шикі қате нысаны (мәтінге AppErrorView айналдырады).
+  Object? _error;
 
   // Деңгейлер: _cat==null → L1; _aud==null → L2; _type==null → L3; әйтпесе L4.
   _MainCatDef? _cat;
@@ -140,7 +142,7 @@ class _ClientCatalogScreenState extends State<ClientCatalogScreen> {
         setState(() {
           _loadingStores = false;
           _loadingProducts = false;
-          _error = e.toString();
+          _error = e;
         });
       }
     }
@@ -285,8 +287,7 @@ class _ClientCatalogScreenState extends State<ClientCatalogScreen> {
             child: _loadingStores
                 ? const CatalogGridSkeleton()
                 : _error != null
-                    ? ClientEmptyState(
-                        icon: Icons.error_outline_rounded, message: _error!)
+                    ? AppErrorView(error: _error, onRetry: _loadAll)
                     : isL1
                         ? _buildCategoryGrid()
                         : isL2

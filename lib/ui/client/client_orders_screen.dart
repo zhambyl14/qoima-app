@@ -14,6 +14,9 @@ import 'returns/client_return_form_screen.dart';
 import 'returns/client_returns_history_screen.dart';
 
 import '../../core/lang.dart';
+import '../../core/error_text.dart';
+import '../shared/error_view.dart';
+
 class ClientOrdersScreen extends StatefulWidget {
   final VoidCallback? onBack;
   /// Push deep-link арқылы ашылғанда (order_status): дұрыс табты бірден
@@ -81,6 +84,11 @@ class _ClientOrdersScreenState extends State<ClientOrdersScreen> {
                           return const Center(
                               child: CircularProgressIndicator(
                                   color: cGreen));
+                        }
+                        // Желі жоқ болса ағын қатемен келеді — бұрын бұл
+                        // «тапсырыс жоқ» болып көрінетін (жаңылыстыратын).
+                        if (snap.hasError && !snap.hasData) {
+                          return AppErrorView(error: snap.error);
                         }
                         final all = snap.data ?? [];
 
@@ -409,7 +417,7 @@ class _OrderCardState extends State<_OrderCard> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(e.toString()),
+          content: Text(friendlyError(e)),
           backgroundColor: cRed,
           behavior: SnackBarBehavior.floating,
         ));

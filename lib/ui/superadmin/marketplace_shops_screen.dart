@@ -5,6 +5,7 @@ import '../../data/repositories/store_moderation_repository.dart';
 import '../../theme/qoima_design.dart';
 
 import '../../core/lang.dart';
+import '../../core/error_text.dart';
 /// Superadmin — маркетплейс дүкендерін басқару + блоктау (v10 §12).
 class MarketplaceShopsScreen extends StatefulWidget {
   const MarketplaceShopsScreen({super.key});
@@ -95,7 +96,7 @@ class _MarketplaceShopsScreenState extends State<MarketplaceShopsScreen> {
       await _repo.unblockStore(shop.adminUid);
       _snack(tr('Магазин разблокирован', 'Дүкен блоктан шығарылды'), cGreen);
     } catch (e) {
-      _snack(e.toString(), cRed);
+      _snack(friendlyError(e), cRed);
     }
   }
 
@@ -115,7 +116,7 @@ class _MarketplaceShopsScreenState extends State<MarketplaceShopsScreen> {
       );
       _snack(tr('Магазин «${shop.storeName}» заблокирован', '«${shop.storeName}» дүкені блокталды'), cInk);
     } catch (e) {
-      _snack(e.toString(), cRed);
+      _snack(friendlyError(e), cRed);
     }
   }
 

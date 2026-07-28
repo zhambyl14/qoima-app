@@ -13,6 +13,7 @@ import 'client_shell.dart';
 import 'payment_instructions_sheet.dart';
 
 import '../../core/lang.dart';
+import '../../core/error_text.dart';
 class ClientCartScreen extends StatefulWidget {
   /// Тапсырыс сәтті жасалғанда (төлемге дайын) шақырылады — ClientShell
   /// Профиль → Тапсырыстарым экранына ауыстырады. null болса (қонақ) — әрекет жоқ.
@@ -434,7 +435,7 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          content: Text(friendlyError(e)),
           backgroundColor: cRed,
           behavior: SnackBarBehavior.floating,
         ));

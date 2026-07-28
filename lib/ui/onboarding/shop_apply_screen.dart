@@ -13,6 +13,7 @@ import '../shared/bank_qr_editor.dart';
 import 'contract_screen.dart';
 
 import '../../core/lang.dart';
+import '../../core/error_text.dart';
 /// Дүкен ашу заявкасының формасы. Owner толтырып жібереді — superadmin бекітеді.
 /// Жіберілген соң `shopRequests`-ке жазылады; корневой gate күту экранына ауысады.
 class ShopApplyScreen extends StatefulWidget {
@@ -201,7 +202,7 @@ class _ShopApplyScreenState extends State<ShopApplyScreen>
       if (mounted) {
         setState(() => _loading = false);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(e.toString()),
+          content: Text(friendlyError(e)),
           backgroundColor: cRed,
           behavior: SnackBarBehavior.floating,
         ));

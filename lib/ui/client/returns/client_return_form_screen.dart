@@ -8,6 +8,7 @@ import '../../../theme/qoima_design.dart';
 import 'client_return_status_screen.dart';
 
 import '../../../core/lang.dart';
+import '../../../core/error_text.dart';
 class ClientReturnFormScreen extends StatefulWidget {
   final OrderModel order;
   const ClientReturnFormScreen({super.key, required this.order});
@@ -114,7 +115,7 @@ class _ClientReturnFormScreenState extends State<ClientReturnFormScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(e.toString()),
+          content: Text(friendlyError(e)),
           backgroundColor: cRed,
           behavior: SnackBarBehavior.floating,
         ));

@@ -6,6 +6,7 @@ import '../../../data/services/return_service.dart';
 import '../../../theme/qoima_design.dart';
 
 import '../../../core/lang.dart';
+import '../../../core/error_text.dart';
 /// Admin-side offline return: browse recent sales → select items → pick refund method.
 class MakeOfflineReturnScreen extends StatefulWidget {
   const MakeOfflineReturnScreen({super.key});
@@ -52,7 +53,7 @@ class _MakeOfflineReturnScreenState extends State<MakeOfflineReturnScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(e.toString()),
+          content: Text(friendlyError(e)),
           backgroundColor: cRed,
           behavior: SnackBarBehavior.floating,
         ));
@@ -131,7 +132,7 @@ class _MakeOfflineReturnScreenState extends State<MakeOfflineReturnScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(e.toString()),
+          content: Text(friendlyError(e)),
           backgroundColor: cRed,
           behavior: SnackBarBehavior.floating,
         ));

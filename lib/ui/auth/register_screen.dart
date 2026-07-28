@@ -4,6 +4,7 @@ import '../../data/services/auth_service.dart';
 import '../../theme/qoima_design.dart';
 import 'auth_widgets.dart';
 import 'telegram_verify_button.dart';
+import '../../core/error_text.dart';
 
 /// Сатушы / магазинді тіркеу — 3 қадамдық шебер:
 /// 1) рөл (владелец/продавец) + аты · 2) құпиясөз (2 рет) ·
@@ -100,7 +101,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     } on AuthFailure catch (e) {
       _setErr(e.message);
     } catch (e) {
-      _setErr(e.toString().replaceFirst('Exception: ', ''));
+      _setErr(friendlyError(e));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

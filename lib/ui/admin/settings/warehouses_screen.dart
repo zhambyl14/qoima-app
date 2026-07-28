@@ -4,6 +4,7 @@ import '../../../data/services/firestore_service.dart';
 import '../../../theme/qoima_design.dart';
 
 import '../../../core/lang.dart';
+import '../../../core/error_text.dart';
 class WarehousesScreen extends StatefulWidget {
   const WarehousesScreen({super.key});
   @override
@@ -500,7 +501,7 @@ class _AddWarehouseSheetState extends State<_AddWarehouseSheet> {
                               if (context.mounted) Navigator.pop(context);
                             } catch (e) {
                               setState(() {
-                                _error = e.toString();
+                                _error = friendlyError(e);
                                 _loading = false;
                               });
                             }

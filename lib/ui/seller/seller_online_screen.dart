@@ -11,6 +11,7 @@ import '../../data/models/return_model.dart';
 import '../../data/services/return_service.dart';
 
 import '../../core/lang.dart';
+import '../../core/error_text.dart';
 class SellerOnlineScreen extends StatefulWidget {
   /// Push deep-link арқылы ашылғанда: осы orderId-ды тізімнен тауып,
   /// «Заказ найден» баннерінде бірден көрсетеміз (id бойынша — push
@@ -90,7 +91,7 @@ class _SellerOnlineScreenState extends State<SellerOnlineScreen> {
       });
     } catch (e) {
       if (mounted) {
-        setState(() => _lookupError = e.toString());
+        setState(() => _lookupError = friendlyError(e));
       }
     }
   }
@@ -685,7 +686,7 @@ class _OrderCardState extends State<_OrderCard> {
       if (mounted) {
         setState(() => _loading = false);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(e.toString()),
+            content: Text(friendlyError(e)),
             backgroundColor: cRed,
             behavior: SnackBarBehavior.floating));
       }
@@ -731,7 +732,7 @@ class _OrderCardState extends State<_OrderCard> {
       if (mounted) {
         setState(() => _loading = false);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(e.toString()),
+            content: Text(friendlyError(e)),
             backgroundColor: cRed,
             behavior: SnackBarBehavior.floating));
       }
@@ -771,7 +772,7 @@ class _OrderCardState extends State<_OrderCard> {
       if (mounted) {
         setState(() => _loading = false);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(e.toString()),
+            content: Text(friendlyError(e)),
             backgroundColor: cRed,
             behavior: SnackBarBehavior.floating));
       }

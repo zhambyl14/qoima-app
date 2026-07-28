@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -15,64 +17,236 @@ import 'ui/guest/guest_shell.dart';
 import 'ui/main_shell.dart';
 import 'ui/client/client_shell.dart';
 import 'ui/admin/admin_shell.dart';
+import 'ui/shared/error_view.dart';
 import 'data/models/client_model.dart';
 import 'data/models/user_model.dart';
 import 'data/services/auth_service.dart';
 import 'data/services/push_service.dart';
 import 'data/services/local_notification_service.dart';
 import 'core/app_user.dart';
+import 'core/lang.dart';
 import 'core/warehouse_context.dart';
 import 'core/locale_context.dart';
 import 'core/push_navigation.dart';
 import 'l10n/app_localizations.dart';
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await initializeDateFormatting('ru', null);
-  await initializeDateFormatting('kk', null);
-  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-    statusBarColor: Colors.transparent,
-    statusBarIconBrightness: Brightness.light,
-  ));
-  // Тек тік (портрет) режим — телефонда автоповорот қосулы болса да
-  // қосымша көлденеңге бұрылмайды (интерфейс тік бағдарға арналған).
-  await SystemChrome.setPreferredOrientations(const [
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-  ]);
-  // Supabase инициализациясы. Кілт түрін автоматты анықтаймыз: ескі JWT
-  // (eyJ...) → anonKey; жаңа кілт (sb_publishable_...) → publishableKey.
-  final supaKey = SupabaseConfig.anonKey;
-  final isLegacyJwt = supaKey.startsWith('eyJ');
-  await Supabase.initialize(
-    url: SupabaseConfig.url,
-    anonKey: isLegacyJwt ? supaKey : null,
-    publishableKey: isLegacyJwt ? null : supaKey,
-  );
-  // Жергілікті хабарлама плагині — БҰРЫН дайын болуы керек: PushService
-  // foreground FCM хабарламасын осы сервис арқылы local notification
-  // ретінде көрсетеді (Android), сол себепті реті маңызды.
-  await LocalNotificationService.instance.init();
-  // Push тапталғанда экранға секіру хендлерін init()-тен БҰРЫН тіркейміз —
-  // cold-start getInitialMessage init() ішінде синхронды тексеріледі, кеш
-  // қалса сол тапталу жіберіліп қалады.
-  PushService.instance.onNotificationOpen = handlePushOpen;
-  // FCM push (Firebase тек хабарлама жеткізуге; конфиг жоқ болса үнсіз өтеді).
-  await PushService.instance.init();
-  // Сақталған тілді runApp алдында оқимыз — қосымша сол тілмен бірден ашылады
-  // (алғашқы кадрда дұрыс тіл, қосымша rebuild/жыпылық жоқ).
-  final initialLocale = await LocaleContext.loadSaved();
-  runApp(
-    MultiProvider(
-      providers: [
-        ChangeNotifierProvider(create: (_) => AppUser()),
-        ChangeNotifierProvider(create: (_) => WarehouseContext()),
-        ChangeNotifierProvider(create: (_) => LocaleContext(initialLocale)),
-        ChangeNotifierProvider(create: (_) => CartProvider()),
-      ],
-      child: const QoimaApp(),
-    ),
-  );
+/// ҚОСЫМШАНЫҢ ІСКЕ ҚОСЫЛУЫ — ЕҢ МАҢЫЗДЫ ЕРЕЖЕ:
+/// `runApp` бірінші кадрды кешіктірмеу үшін ЕШҚАНДАЙ желі/плагин
+/// инициализациясын КҮТПЕЙДІ. Бұрын main() ішінде Supabase/Firebase/
+/// хабарлама сервистері `await`-пен шақырылатын да, сол қадамдардың бірі
+/// (мыс. интернет жоқ кездегі плагин шақыруы) қатып қалса, runApp мүлде
+/// орындалмай, пайдаланушы АҚ ЭКРАН көретін (қосымша «ашылмай» қалатын).
+/// Енді: бірден splash салынады → инициализация [_QoimaBootState._boot]
+/// ішінде, әр қадамы таймаутпен әрі try/catch-пен жүреді → қате болса
+/// «Қайталау» батырмасы бар түсінікті экран шығады.
+void main() {
+  runZonedGuarded(() {
+    WidgetsFlutterBinding.ensureInitialized();
+    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.light,
+    ));
+    // Виджет құру кезіндегі қате: релизде әдепкі сұр/қара экранның орнына
+    // түсінікті хабар (қосымша толық «өліп» қалмайды).
+    ErrorWidget.builder = (details) {
+      debugPrint('UI build error: ${details.exception}');
+      return const _UiErrorBox();
+    };
+    FlutterError.onError = (details) {
+      FlutterError.presentError(details);
+      debugPrint('FlutterError: ${details.exception}');
+    };
+    runApp(const QoimaBoot());
+  }, (error, stack) {
+    // Ұсталмаған асинхронды қате қосымшаны құлатпасын — тек логқа.
+    debugPrint('Uncaught async error: $error\n$stack');
+  });
+}
+
+/// Инициализация кезеңдері.
+enum _BootStage { loading, ready, failed }
+
+/// Инициализацияны бірінші кадрдан КЕЙІН, қауіпсіз түрде жүргізетін қабық.
+class QoimaBoot extends StatefulWidget {
+  const QoimaBoot({super.key});
+
+  @override
+  State<QoimaBoot> createState() => _QoimaBootState();
+}
+
+class _QoimaBootState extends State<QoimaBoot> {
+  _BootStage _stage = _BootStage.loading;
+  Object? _error;
+  Locale _locale = const Locale('ru');
+
+  /// Supabase бір-ақ рет көтеріледі («Қайталау» басылғанда қайта шақырмаймыз).
+  static bool _supabaseReady = false;
+  static bool _notificationsStarted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _boot();
+  }
+
+  /// Қосымша жұмысы үшін МІНДЕТТІ жалғыз қадам — Supabase. Қалғаны
+  /// «best-effort»: сәтсіз болса да қосымша ашылады.
+  Future<void> _boot() async {
+    if (mounted) {
+      setState(() {
+        _stage = _BootStage.loading;
+        _error = null;
+      });
+    }
+
+    // Тек тік (портрет) режим.
+    await _bestEffort(
+      'orientation',
+      () => SystemChrome.setPreferredOrientations(const [
+        DeviceOrientation.portraitUp,
+        DeviceOrientation.portraitDown,
+      ]),
+    );
+    // Күн/ай атаулары (intl) — жүктелмесе тек формат әдепкі болады.
+    await _bestEffort('intl', () async {
+      await initializeDateFormatting('ru', null);
+      await initializeDateFormatting('kk', null);
+    });
+    // Сақталған тіл — алғашқы кадрдан дұрыс тілмен ашылу үшін.
+    try {
+      _locale = await LocaleContext.loadSaved()
+          .timeout(const Duration(seconds: 5));
+    } catch (e) {
+      debugPrint('boot: locale load skipped: $e');
+    }
+
+    // ── Supabase (міндетті) ────────────────────────────────────────────────
+    // Кілт түрін автоматты анықтаймыз: ескі JWT (eyJ...) → anonKey;
+    // жаңа кілт (sb_publishable_...) → publishableKey.
+    if (!_supabaseReady) {
+      try {
+        final supaKey = SupabaseConfig.anonKey;
+        final isLegacyJwt = supaKey.startsWith('eyJ');
+        await Supabase.initialize(
+          url: SupabaseConfig.url,
+          anonKey: isLegacyJwt ? supaKey : null,
+          publishableKey: isLegacyJwt ? null : supaKey,
+        ).timeout(const Duration(seconds: 25));
+        _supabaseReady = true;
+      } catch (e, s) {
+        debugPrint('boot: Supabase init failed: $e\n$s');
+        if (!mounted) return;
+        setState(() {
+          _stage = _BootStage.failed;
+          _error = e;
+        });
+        return;
+      }
+    }
+
+    if (!mounted) return;
+    setState(() => _stage = _BootStage.ready);
+
+    // ── Хабарламалар (міндетті емес) ───────────────────────────────────────
+    // Бірінші кадрдан КЕЙІН, фонда: Firebase/APNs шақырулары кейде ұзаққа
+    // созылады, ал олар интерфейсті бөгемеуі керек.
+    if (!_notificationsStarted) {
+      _notificationsStarted = true;
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => unawaited(_initNotifications()));
+    }
+  }
+
+  /// Қатесі де, кідірісі де қосымшаны тоқтатпайтын қадам.
+  Future<void> _bestEffort(String name, Future<void> Function() step) async {
+    try {
+      await step().timeout(const Duration(seconds: 8));
+    } catch (e) {
+      debugPrint('boot: $name skipped: $e');
+    }
+  }
+
+  Future<void> _initNotifications() async {
+    // Жергілікті хабарлама плагині PushService-тен БҰРЫН дайын болуы керек —
+    // foreground FCM хабарламасы сол арқылы көрсетіледі (Android).
+    await _bestEffort(
+        'local notifications', () => LocalNotificationService.instance.init());
+    // Push тапталғанда экранға секіру хендлерін init()-тен БҰРЫН тіркейміз —
+    // cold-start getInitialMessage init() ішінде тексеріледі.
+    PushService.instance.onNotificationOpen = handlePushOpen;
+    try {
+      await PushService.instance.init().timeout(const Duration(seconds: 30));
+    } catch (e) {
+      debugPrint('boot: push init skipped: $e');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    switch (_stage) {
+      case _BootStage.loading:
+        return const _BootShell(child: _Splash());
+      case _BootStage.failed:
+        return _BootShell(
+          child: Scaffold(
+            backgroundColor: const Color(0xFFF1F4F3),
+            body: SafeArea(
+              child: AppErrorView(error: _error, onRetry: _boot),
+            ),
+          ),
+        );
+      case _BootStage.ready:
+        return MultiProvider(
+          providers: [
+            ChangeNotifierProvider(create: (_) => AppUser()),
+            ChangeNotifierProvider(create: (_) => WarehouseContext()),
+            ChangeNotifierProvider(create: (_) => LocaleContext(_locale)),
+            ChangeNotifierProvider(create: (_) => CartProvider()),
+          ],
+          child: const QoimaApp(),
+        );
+    }
+  }
+}
+
+/// Инициализация кезіндегі минималды қабық (провайдерлерсіз, l10n-сыз).
+class _BootShell extends StatelessWidget {
+  final Widget child;
+  const _BootShell({required this.child});
+
+  @override
+  Widget build(BuildContext context) => MaterialApp(
+        debugShowCheckedModeBanner: false,
+        title: 'Qoima',
+        theme: AppTheme.theme,
+        home: child,
+      );
+}
+
+/// Виджет құру қатесі кезінде көрсетіледі (ErrorWidget.builder).
+/// Ешбір ата-виджетке тәуелді болмауы керек — сол себепті Directionality өзінде.
+class _UiErrorBox extends StatelessWidget {
+  const _UiErrorBox();
+
+  @override
+  Widget build(BuildContext context) => Directionality(
+        textDirection: TextDirection.ltr,
+        child: Container(
+          color: const Color(0xFFF1F4F3),
+          alignment: Alignment.center,
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            tr('Не удалось отобразить этот экран. Попробуйте ещё раз.',
+                'Бұл экранды көрсету мүмкін болмады. Қайталап көріңіз.'),
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+                fontSize: 14,
+                color: Color(0xFF566B61),
+                fontWeight: FontWeight.w500,
+                decoration: TextDecoration.none),
+          ),
+        ),
+      );
 }
 
 class QoimaApp extends StatelessWidget {
@@ -163,56 +337,105 @@ class QoimaApp extends StatelessWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      home: StreamBuilder<AuthState>(
-        stream: Supabase.instance.client.auth.onAuthStateChange,
-        builder: (context, snapshot) {
-          // currentSession инициализация кезінде қалпына келтіріледі, сондықтан
-          // оны тікелей оқимыз; ағын тек өзгерістерде қайта құрады.
-          final session = Supabase.instance.client.auth.currentSession;
-          if (session == null) {
-            // clear() — notifyListeners шақырады, build фазасынан тыс орындаймыз.
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              context.read<AppUser>().clear();
-              context.read<WarehouseContext>().clear();
-            });
-            // Кірмеген пайдаланушы — каталогты шолып, корзинаға тауар сала алады.
-            return const GuestShell();
-          }
-          return FutureBuilder<_SessState>(
-            future: _loadSession(session.user.id, context),
-            builder: (innerCtx, futureSnap) {
-              // AppUser-ді бірінші тексереміз (реактивті — watch): тіркелу
-              // экрандары AppUser.set() шақырғанда gate өзі дұрыс экранға ауысады.
-              final user = innerCtx.watch<AppUser>();
-              if (user.isLoaded) {
-                // Жалпы блок — ешқандай әрекетке жол жоқ (seller босап шыға алады).
-                if (user.blocked) return const BlockedScreen();
-                if (user.isSuperadmin) return const ShopRequestsScreen();
-                if (user.isClient) return const ClientShell();
-                // Жазылым «заморозкасы»: мерзім өткеніне 3 күннен асты —
-                // иесі де, сатушылары да тек тауарларды көре алады.
-                if (user.subFrozen) return const SubscriptionFrozenScreen();
-                // Admin тіркелген соң бірден офлайн жұмысқа кіреді.
-                // Мерзімі жаңа өткендерге (0–3 күн) — жабылатын ескерту.
-                if (user.isAdmin) {
-                  return const SubscriptionExpiryNotice(
-                      child: _AdminHomeRouter());
-                }
-                if (user.joinStatus == 'active') {
-                  return const SubscriptionExpiryNotice(child: MainShell());
-                }
-                return const SellerJoinScreen();
+      home: const _RootGate(),
+    );
+  }
+}
+
+/// Түбірлік «қақпа»: сессия бар/жоқ → профильді жүктеу → рөлге сай экран.
+///
+/// Бұрын бұл `home:` ішіндегі StreamBuilder болатын да, әр rebuild сайын
+/// профильді ҚАЙТА сұрайтын, ал желі қатесінде пайдаланушыны ЕСЕПТЕН
+/// ШЫҒАРЫП жіберетін (интернет жоқ кезде «өзі шығып кетті» деген шағым).
+/// Енді: сұрау uid бойынша бір рет жасалады, желі қатесінде сессия сақталады
+/// да, «Қайталау» батырмасы бар экран көрсетіледі.
+class _RootGate extends StatefulWidget {
+  const _RootGate();
+
+  @override
+  State<_RootGate> createState() => _RootGateState();
+}
+
+class _RootGateState extends State<_RootGate> {
+  Future<_SessResult>? _future;
+  String? _loadedUid;
+
+  void _retry(String uid) {
+    setState(() {
+      _loadedUid = uid;
+      _future = _loadSession(uid, context);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<AuthState>(
+      stream: Supabase.instance.client.auth.onAuthStateChange,
+      builder: (context, snapshot) {
+        // currentSession инициализация кезінде қалпына келтіріледі, сондықтан
+        // оны тікелей оқимыз; ағын тек өзгерістерде қайта құрады.
+        final session = Supabase.instance.client.auth.currentSession;
+        if (session == null) {
+          _future = null;
+          _loadedUid = null;
+          // clear() — notifyListeners шақырады, build фазасынан тыс орындаймыз.
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            context.read<AppUser>().clear();
+            context.read<WarehouseContext>().clear();
+          });
+          // Кірмеген пайдаланушы — каталогты шолып, корзинаға тауар сала алады.
+          return const GuestShell();
+        }
+
+        final uid = session.user.id;
+        if (_future == null || _loadedUid != uid) {
+          _loadedUid = uid;
+          _future = _loadSession(uid, context);
+        }
+
+        return FutureBuilder<_SessResult>(
+          future: _future,
+          builder: (innerCtx, futureSnap) {
+            // AppUser-ді бірінші тексереміз (реактивті — watch): тіркелу
+            // экрандары AppUser.set() шақырғанда gate өзі дұрыс экранға ауысады.
+            final user = innerCtx.watch<AppUser>();
+            if (user.isLoaded) {
+              // Жалпы блок — ешқандай әрекетке жол жоқ (seller босап шыға алады).
+              if (user.blocked) return const BlockedScreen();
+              if (user.isSuperadmin) return const ShopRequestsScreen();
+              if (user.isClient) return const ClientShell();
+              // Жазылым «заморозкасы»: мерзім өткеніне 3 күннен асты —
+              // иесі де, сатушылары да тек тауарларды көре алады.
+              if (user.subFrozen) return const SubscriptionFrozenScreen();
+              // Admin тіркелген соң бірден офлайн жұмысқа кіреді.
+              // Мерзімі жаңа өткендерге (0–3 күн) — жабылатын ескерту.
+              if (user.isAdmin) {
+                return const SubscriptionExpiryNotice(child: _AdminHomeRouter());
               }
-              if (futureSnap.connectionState == ConnectionState.waiting) {
-                return const _Splash();
+              if (user.joinStatus == 'active') {
+                return const SubscriptionExpiryNotice(child: MainShell());
               }
-              // Сессия бар, бірақ профиль жоқ (орфан) немесе желі қатесі —
-              // қауіпсіз шығарамыз да, реактивті gate кіру экранына қайтарады.
-              return const _AuthFallback();
-            },
-          );
-        },
-      ),
+              return const SellerJoinScreen();
+            }
+            if (futureSnap.connectionState == ConnectionState.waiting) {
+              return const _Splash();
+            }
+            final result = futureSnap.data;
+            // Желі/сервер қатесі — ЕСЕПТЕН ШЫҒАРМАЙМЫЗ: сессия орнында қалады,
+            // пайдаланушы интернет қосылған соң «Қайталау» басады.
+            if (result == null || result.state == _SessState.error) {
+              return _SessionErrorScreen(
+                error: result?.error,
+                onRetry: () async => _retry(uid),
+              );
+            }
+            // Сессия бар, бірақ профиль жоқ (орфан) — қауіпсіз шығарамыз да,
+            // реактивті gate кіру экранына қайтарады.
+            return const _AuthFallback();
+          },
+        );
+      },
     );
   }
 }
@@ -222,7 +445,13 @@ class QoimaApp extends StatelessWidget {
 /// error — желі/басқа қате.
 enum _SessState { loaded, orphan, error }
 
-Future<_SessState> _loadSession(String uid, BuildContext context) async {
+class _SessResult {
+  final _SessState state;
+  final Object? error;
+  const _SessResult(this.state, [this.error]);
+}
+
+Future<_SessResult> _loadSession(String uid, BuildContext context) async {
   final wCtx = context.read<WarehouseContext>();
   final appUser = context.read<AppUser>();
   try {
@@ -270,7 +499,7 @@ Future<_SessState> _loadSession(String uid, BuildContext context) async {
       if (!blocked) {
         PushService.instance.registerForUser(role: userDoc.role);
       }
-      return _SessState.loaded;
+      return const _SessResult(_SessState.loaded);
     }
 
     // Try client doc (тікелей сұрау — қате жұтылмайды)
@@ -289,14 +518,44 @@ Future<_SessState> _loadSession(String uid, BuildContext context) async {
         emailVerified: true,
       );
       PushService.instance.registerForUser(role: 'client');
-      return _SessState.loaded;
+      return const _SessResult(_SessState.loaded);
     }
 
     // Екі сұрау да сәтті өтіп, екеуі де бос — профилі жоқ орфан сессия.
-    return _SessState.orphan;
-  } catch (_) {
-    return _SessState.error;
+    return const _SessResult(_SessState.orphan);
+  } catch (e) {
+    debugPrint('_loadSession failed: $e');
+    return _SessResult(_SessState.error, e);
   }
+}
+
+/// Профильді жүктеу сәтсіз (көбіне интернет жоқ) — шығармай, қайталау ұсынамыз.
+class _SessionErrorScreen extends StatelessWidget {
+  final Object? error;
+  final Future<void> Function() onRetry;
+  const _SessionErrorScreen({required this.error, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        backgroundColor: const Color(0xFFF1F4F3),
+        body: SafeArea(
+          child: Column(
+            children: [
+              Expanded(child: AppErrorView(error: error, onRetry: onRetry)),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: TextButton(
+                  onPressed: () => AuthService().signOut(),
+                  child: Text(
+                    tr('Выйти из аккаунта', 'Аккаунттан шығу'),
+                    style: const TextStyle(color: Color(0xFF93A39B)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
 }
 
 /// Кірген, бірақ профилі жоқ орфан күй: пайдаланушыны қауіпсіз шығарамыз да,

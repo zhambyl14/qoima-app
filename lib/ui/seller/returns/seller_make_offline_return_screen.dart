@@ -6,6 +6,7 @@ import '../../../data/services/return_service.dart';
 import '../../../theme/qoima_design.dart';
 
 import '../../../core/lang.dart';
+import '../../../core/error_text.dart';
 /// Seller-side offline return: browse recent sales → select items → pick refund method.
 class SellerMakeOfflineReturnScreen extends StatefulWidget {
   const SellerMakeOfflineReturnScreen({super.key});
@@ -53,7 +54,7 @@ class _SellerMakeOfflineReturnScreenState
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(e.toString()),
+          content: Text(friendlyError(e)),
           backgroundColor: cRed,
           behavior: SnackBarBehavior.floating,
         ));
@@ -132,7 +133,7 @@ class _SellerMakeOfflineReturnScreenState
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(e.toString()),
+          content: Text(friendlyError(e)),
           backgroundColor: cRed,
           behavior: SnackBarBehavior.floating,
         ));

@@ -9,6 +9,7 @@ import '../../theme/qoima_design.dart';
 import '../main_shell.dart';
 
 import '../../core/lang.dart';
+import '../../core/error_text.dart';
 class SellerJoinScreen extends StatefulWidget {
   const SellerJoinScreen({super.key});
   @override
@@ -47,7 +48,7 @@ class _SellerJoinScreenState extends State<SellerJoinScreen> {
       if (mounted) context.read<AppUser>().joinStatus = 'pending';
       setState(() {});
     } catch (e) {
-      setState(() => _error = e.toString());
+      setState(() => _error = friendlyError(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }

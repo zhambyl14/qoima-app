@@ -20,6 +20,7 @@ import 'store_public_screen.dart';
 import 'stores_list_screen.dart';
 
 import '../../core/lang.dart';
+import '../shared/error_view.dart';
 // ── Filters state ──────────────────────────────────────────────────────────────
 class ClientFilters {
   final String search;
@@ -118,7 +119,9 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
   Map<String, StoreModel> _productStoreMap = {};
   bool _loadingStores = true;
   bool _loadingProducts = false;
-  String? _errorMessage;
+  // Шикі қате нысаны — AppErrorView оны түсінікті мәтінге айналдырады
+  // әрі желі қатесін бөлек (Wi-Fi иконкасымен) көрсетеді.
+  Object? _errorMessage;
   int _displayCount = 20;
   String _searchQuery = '';
   ClientFilters _filters = const ClientFilters();
@@ -340,7 +343,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
         setState(() {
           _loadingStores = false;
           _loadingProducts = false;
-          _errorMessage = e.toString();
+          _errorMessage = e;
         });
       }
     }
@@ -571,9 +574,8 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
             child: _loadingStores
                 ? const CatalogGridSkeleton()
                 : _errorMessage != null
-                    ? ClientEmptyState(
-                        icon: Icons.error_outline_rounded,
-                        message: _errorMessage!)
+                    ? AppErrorView(
+                        error: _errorMessage, onRetry: _loadAllProducts)
                     : _stores.isEmpty
                         ? ClientEmptyState(
                             icon: Icons.storefront_outlined,

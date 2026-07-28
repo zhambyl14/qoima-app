@@ -6,6 +6,7 @@ import '../../../data/services/firestore_service.dart';
 import '../../../theme/qoima_design.dart';
 
 import '../../../core/lang.dart';
+import '../../../core/error_text.dart';
 /// Открывает лист создания/редактирования промокода.
 Future<void> showPromoEditSheet(BuildContext context,
     {PromoModel? existing}) async {
@@ -156,7 +157,7 @@ class _PromoEditSheetState extends State<_PromoEditSheet> {
       if (mounted) Navigator.pop(context);
     } catch (e) {
       if (mounted) {
-        _err(e.toString().replaceFirst('SaleException: ', ''));
+        _err(friendlyError(e));
       }
     } finally {
       if (mounted) setState(() => _saving = false);

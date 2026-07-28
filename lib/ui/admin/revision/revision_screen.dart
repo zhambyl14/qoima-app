@@ -8,6 +8,7 @@ import '../../../data/services/firestore_service.dart';
 import '../../../theme/qoima_design.dart';
 
 import '../../../core/lang.dart';
+import '../../../core/error_text.dart';
 
 /// Ревизия: тауарды түгендеу — жетіспегенін «недостача» етіп жазу,
 /// кейін «Списать» арқылы қоймадан шығару (sales_history, type='writeoff').
@@ -278,7 +279,7 @@ class _RevisionScreenState extends State<RevisionScreen>
       HapticFeedback.mediumImpact();
       _snack(tr('Списано на ${amount.toStringAsFixed(0)} ₸ — прибыль владельца', '${amount.toStringAsFixed(0)} ₸ списание — иенің пайдасы'));
     } catch (e) {
-      _snack(e.toString().replaceFirst('SaleException: ', ''), isError: true);
+      _snack(friendlyError(e), isError: true);
     } finally {
       if (mounted) setState(() => _busy = false);
     }

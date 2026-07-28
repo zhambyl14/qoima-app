@@ -6,6 +6,7 @@ import '../../data/repositories/store_moderation_repository.dart';
 import '../../theme/qoima_design.dart';
 
 import '../../core/lang.dart';
+import '../../core/error_text.dart';
 /// Superadmin — дүкен иелерін басқару: ЖАЛПЫ блок (офлайн + онлайн).
 /// Блокталған иесі мен оның сатушылары ешқандай әрекет жасай алмайды
 /// (gate → BlockedScreen); сатушы иесінен босап шыға алады.
@@ -103,7 +104,7 @@ class _ShopOwnersScreenState extends State<ShopOwnersScreen> {
       await _repo.unblockOwner(owner.uid);
       _snack(tr('Владелец разблокирован', 'Иесі блоктан шығарылды'), cGreen);
     } catch (e) {
-      _snack(e.toString(), cRed);
+      _snack(friendlyError(e), cRed);
     }
   }
 
@@ -123,7 +124,7 @@ class _ShopOwnersScreenState extends State<ShopOwnersScreen> {
       );
       _snack(tr('Владелец «${owner.name}» заблокирован', '«${owner.name}» иесі блокталды'), cInk);
     } catch (e) {
-      _snack(e.toString(), cRed);
+      _snack(friendlyError(e), cRed);
     }
   }
 

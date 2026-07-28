@@ -15,6 +15,7 @@ import 'dart:typed_data';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../core/lang.dart';
+import '../../../core/error_text.dart';
 class ProductDetailScreen extends StatefulWidget {
   final ProductModel product;
   const ProductDetailScreen({super.key, required this.product});
@@ -82,7 +83,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     } catch (e) {
       // Архивке көшірілген жағдай (сатылымы бар партия) — хабарлама көрсетеміз.
       if (!mounted) return;
-      final msg = e is SaleException ? e.message : e.toString();
+      final msg = e is SaleException ? e.message : friendlyError(e);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(msg),
         backgroundColor: cInk2,

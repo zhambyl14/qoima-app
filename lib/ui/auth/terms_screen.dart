@@ -5,6 +5,7 @@ import '../../core/app_user.dart';
 import '../../theme/qoima_design.dart';
 
 import '../../core/lang.dart';
+import '../../core/error_text.dart';
 /// Шарттарды қабылдау экраны. Жаңа admin (owner) тіркелген соң алғашқы қадам.
 /// Екі checkbox белгіленбейінше «Завершить» белсенді емес. Қабылдаған соң
 /// users/{uid}.termsAccepted=true жазылып, AppUser жаңарады — ары қарай
@@ -41,7 +42,7 @@ class _TermsScreenState extends State<TermsScreen> {
       if (mounted) {
         setState(() => _loading = false);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(e.toString()),
+          content: Text(friendlyError(e)),
           backgroundColor: cRed,
           behavior: SnackBarBehavior.floating,
         ));

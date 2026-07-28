@@ -6,6 +6,7 @@ import '../../data/repositories/banner_repository.dart';
 import '../../theme/qoima_design.dart';
 
 import '../../core/lang.dart';
+import '../../core/error_text.dart';
 /// Superadmin — управление промо-баннерами клиентской главной.
 /// Список с переключателем active, добавление/редактирование/удаление.
 class BannersScreen extends StatelessWidget {
@@ -266,7 +267,7 @@ class _BannerEditSheetState extends State<_BannerEditSheet> {
     } catch (e) {
       if (mounted) {
         setState(() => _saving = false);
-        _snack(e.toString(), cRed);
+        _snack(friendlyError(e), cRed);
       }
     }
   }
@@ -300,7 +301,7 @@ class _BannerEditSheetState extends State<_BannerEditSheet> {
       await widget.repo.deleteBanner(b.id);
       if (mounted) Navigator.pop(context);
     } catch (e) {
-      if (mounted) _snack(e.toString(), cRed);
+      if (mounted) _snack(friendlyError(e), cRed);
     }
   }
 

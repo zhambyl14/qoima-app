@@ -11,6 +11,7 @@ import '../../shared/bank_qr_editor.dart';
 import 'store_edit_pending_screen.dart';
 
 import '../../../core/lang.dart';
+import '../../../core/error_text.dart';
 /// Owner — дүкен мәліметтерін өңдеу (v10 §8). Өрістер ағымдағы мәндермен
 /// толтырылады; өзгерген өріс «ИЗМЕНЕНО» badge + «Было:» көрсетеді. «Отправить»
 /// тек ӨЗГЕРГЕН өрістерден `changes` массивін құрып, storeEditRequests-ке жазады.
@@ -138,7 +139,7 @@ class _StoreEditScreenState extends State<StoreEditScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _loading = false);
-        _snack(e.toString());
+        _snack(friendlyError(e));
       }
     }
   }

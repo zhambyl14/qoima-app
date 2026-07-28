@@ -5,6 +5,7 @@ import '../../../data/services/return_service.dart';
 import '../../../theme/qoima_design.dart';
 
 import '../../../core/lang.dart';
+import '../../../core/error_text.dart';
 class ClientReturnStatusScreen extends StatelessWidget {
   final ReturnModel ret;
   const ClientReturnStatusScreen({super.key, required this.ret});
@@ -71,7 +72,7 @@ class _StatusBodyState extends State<_StatusBody> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(e.toString()),
+          content: Text(friendlyError(e)),
           backgroundColor: cRed,
           behavior: SnackBarBehavior.floating,
         ));

@@ -6,6 +6,7 @@ import '../../data/models/store_model.dart';
 import '../../data/services/client_service.dart';
 import '../../theme/qoima_design.dart';
 import 'store_public_screen.dart';
+import '../shared/error_view.dart';
 
 /// Дүкендер тізімі — бүкіл Қазақстан бойынша, қала бойынша сүзгімен.
 /// Клиент өз қаласындағы (немесе кез келген қаладағы) дүкендерді көріп,
@@ -23,6 +24,8 @@ class _StoresListScreenState extends State<StoresListScreen> {
   final _service = ClientService();
   List<StoreModel> _stores = [];
   bool _loading = true;
+  // Жүктеу қатесі (көбіне интернет жоқ) — бұрын тізім жай «бос» көрінетін.
+  Object? _error;
   String? _city;
 
   @override
@@ -33,6 +36,7 @@ class _StoresListScreenState extends State<StoresListScreen> {
   }
 
   Future<void> _load() async {
+    if (mounted) setState(() { _loading = true; _error = null; });
     try {
       final results = await Future.wait([
         _service.getPublishedStores(),
@@ -47,8 +51,13 @@ class _StoresListScreenState extends State<StoresListScreen> {
               b.storeName.toLowerCase()));
         _loading = false;
       });
-    } catch (_) {
-      if (mounted) setState(() => _loading = false);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = e;
+        });
+      }
     }
   }
 
@@ -116,7 +125,9 @@ class _StoresListScreenState extends State<StoresListScreen> {
               ? const Center(
                   child:
                       CircularProgressIndicator(color: cGreen, strokeWidth: 2))
-              : filtered.isEmpty
+              : _error != null
+                  ? AppErrorView(error: _error, onRetry: _load)
+                  : filtered.isEmpty
                   ? Center(
                       child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,

@@ -7,6 +7,7 @@ import '../../theme/qoima_design.dart';
 import 'owner_products_screen.dart';
 
 import '../../core/lang.dart';
+import '../../core/error_text.dart';
 
 /// Superadmin (модератор) — дүкен иелерінің жазылым (подписка) мониторингі.
 /// Тіркелген уақыт, доступ мерзімі, «бітейін деп тұр» / «асып кеткен» статусы;
@@ -197,7 +198,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
       }
       _snack(tr('Подписка обновлена', 'Жазылым жаңартылды'), cGreen);
     } catch (e) {
-      _snack(e.toString(), cRed);
+      _snack(friendlyError(e), cRed);
     }
   }
 
@@ -211,7 +212,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
       await _repo.clearSubscription(owner.uid);
       _snack(tr('Подписка сброшена', 'Жазылым тазаланды'), cInk);
     } catch (e) {
-      _snack(e.toString(), cRed);
+      _snack(friendlyError(e), cRed);
     }
   }
 
@@ -220,7 +221,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
       await _repo.unblockOwner(owner.uid);
       _snack(tr('Владелец разблокирован', 'Иесі блоктан шығарылды'), cGreen);
     } catch (e) {
-      _snack(e.toString(), cRed);
+      _snack(friendlyError(e), cRed);
     }
   }
 
@@ -241,7 +242,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
       _snack(tr('«${owner.name}» заблокирован', '«${owner.name}» блокталды'),
           cInk);
     } catch (e) {
-      _snack(e.toString(), cRed);
+      _snack(friendlyError(e), cRed);
     }
   }
 

@@ -13,6 +13,7 @@ import '../../../theme/qoima_design.dart';
 import 'ms_widgets.dart';
 
 import '../../../core/lang.dart';
+import '../../../core/error_text.dart';
 class AdminMyStoreDiscountAddScreen extends StatefulWidget {
   const AdminMyStoreDiscountAddScreen({super.key});
 
@@ -198,7 +199,7 @@ class _AdminMyStoreDiscountAddScreenState
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          content: Text(friendlyError(e)),
           backgroundColor: cRed,
           behavior: SnackBarBehavior.floating,
         ));

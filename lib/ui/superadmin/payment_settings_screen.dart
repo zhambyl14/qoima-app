@@ -3,6 +3,7 @@ import '../../core/lang.dart';
 import '../../data/services/app_settings_service.dart';
 import '../../theme/qoima_design.dart';
 import '../shared/bank_qr_editor.dart';
+import '../../core/error_text.dart';
 
 /// Модератор: платформаның төлем реквизиттері. Барлық онлайн-заказ төлемдері
 /// осы картаға аударылады — клиент checkout кезінде дәл осы нөмірді көреді.
@@ -56,7 +57,7 @@ class _PaymentSettingsScreenState extends State<PaymentSettingsScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(e.toString()),
+          content: Text(friendlyError(e)),
           backgroundColor: cRed,
           behavior: SnackBarBehavior.floating,
         ));

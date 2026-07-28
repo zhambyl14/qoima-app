@@ -7,6 +7,7 @@ import '../../../theme/qoima_design.dart';
 import 'ms_widgets.dart';
 
 import '../../../core/lang.dart';
+import '../../../core/error_text.dart';
 /// «Витрина қоймалары» — клиентке интернет-дүкенде қай қоймалардан тауар
 /// көрсетілетінін баптайды (StoreModel.visibleWarehouseIds).
 class AdminStoreVisibilityScreen extends StatefulWidget {
@@ -82,7 +83,7 @@ class _AdminStoreVisibilityScreenState
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(e.toString()),
+          content: Text(friendlyError(e)),
           backgroundColor: cRed,
           behavior: SnackBarBehavior.floating,
         ));

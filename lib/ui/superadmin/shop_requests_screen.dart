@@ -22,6 +22,7 @@ import 'store_edit_requests_screen.dart';
 import 'subscriptions_screen.dart';
 
 import '../../core/lang.dart';
+import '../../core/error_text.dart';
 /// Superadmin (маркетплейс модераторы) басты экраны — дүкен заявкалары.
 /// Корневой gate role=='superadmin' болғанда осыны home етіп көрсетеді.
 class ShopRequestsScreen extends StatefulWidget {
@@ -65,7 +66,7 @@ class _ShopRequestsScreenState extends State<ShopRequestsScreen> {
       await _repo.approveRequest(requestId: req.id, reviewedBy: _uid);
       _snack(tr('Магазин «${req.shopName}» одобрен', '«${req.shopName}» дүкені мақұлданды'), cGreen);
     } catch (e) {
-      _snack(e.toString(), cRed);
+      _snack(friendlyError(e), cRed);
     }
   }
 
@@ -81,7 +82,7 @@ class _ShopRequestsScreenState extends State<ShopRequestsScreen> {
           requestId: req.id, reviewedBy: _uid, reviewNote: note);
       _snack(tr('Заявка отклонена', 'Өтінім қабылданбады'), cInk);
     } catch (e) {
-      _snack(e.toString(), cRed);
+      _snack(friendlyError(e), cRed);
     }
   }
 

@@ -7,6 +7,7 @@ import '../../data/repositories/report_repository.dart';
 import '../../data/repositories/store_moderation_repository.dart';
 import '../../theme/qoima_design.dart';
 import 'reject_reason_sheet.dart';
+import '../../core/error_text.dart';
 
 /// Superadmin — контент шағымдары (тауар/дүкен/пікір).
 ///
@@ -78,7 +79,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
               : tr('Жалоба отклонена', 'Шағым қабылданбады'),
           cGreen);
     } catch (e) {
-      _snack(e.toString(), cRed);
+      _snack(friendlyError(e), cRed);
     }
   }
 
@@ -112,7 +113,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
       await _repo.deleteReview(r.targetId);
       _snack(tr('Отзыв удалён', 'Пікір өшірілді'), cGreen);
     } catch (e) {
-      _snack(e.toString(), cRed);
+      _snack(friendlyError(e), cRed);
     }
   }
 
@@ -134,7 +135,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
           ownerUid: r.adminUid, reason: reason, blockedBy: _uid);
       _snack(tr('Магазин заблокирован', 'Дүкен блокталды'), cGreen);
     } catch (e) {
-      _snack(e.toString(), cRed);
+      _snack(friendlyError(e), cRed);
     }
   }
 

@@ -10,6 +10,7 @@ import '../../../theme/qoima_v2.dart';
 import '../../shared/mandatory_warehouse_picker.dart';
 
 import '../../../core/lang.dart';
+import '../../../core/error_text.dart';
 // ── CartItem ──────────────────────────────────────────────────────────────────
 class CartItem {
   final ProductModel product;
@@ -282,7 +283,7 @@ class _MakeSaleScreenState extends State<MakeSaleScreen> {
         ));
       }
     } catch (e) {
-      _snack(e.toString().replaceFirst('SaleException: ', ''), isError: true);
+      _snack(friendlyError(e), isError: true);
     } finally {
       if (mounted) setState(() => _isConfirming = false);
     }

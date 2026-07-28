@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="ic_launcher_background">#156945</color>
+    <!-- Қосымша ашылып жатқандағы фон — Dart splash-пен бірдей жасыл.
+         Бұрын ақ болатын: ашылу сәл кешіксе «бос ақ экран» көрінетін. -->
+    <color name="qoima_splash">#00A862</color>
 </resources>

@@ -6,6 +6,7 @@ import '../../../theme/qoima_design.dart';
 import 'seller_return_receive_screen.dart';
 
 import '../../../core/lang.dart';
+import '../../../core/error_text.dart';
 /// Shows details of a return request for the seller to review (approve/reject).
 /// Also used as a read-only detail view for received/refunded/rejected returns.
 class SellerReturnReviewScreen extends StatelessWidget {
@@ -64,7 +65,7 @@ class _ReviewBodyState extends State<_ReviewBody> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(e.toString()),
+          content: Text(friendlyError(e)),
           backgroundColor: cRed,
           behavior: SnackBarBehavior.floating,
         ));
@@ -129,7 +130,7 @@ class _ReviewBodyState extends State<_ReviewBody> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(e.toString()),
+          content: Text(friendlyError(e)),
           backgroundColor: cRed,
           behavior: SnackBarBehavior.floating,
         ));

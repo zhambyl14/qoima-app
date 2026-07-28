@@ -5,6 +5,7 @@ import '../../../data/services/return_service.dart';
 import '../../../theme/qoima_design.dart';
 
 import '../../../core/lang.dart';
+import '../../../core/error_text.dart';
 class AdminReturnAnalyticsScreen extends StatefulWidget {
   final String adminUid;
   const AdminReturnAnalyticsScreen({super.key, required this.adminUid});
@@ -39,7 +40,7 @@ class _AdminReturnAnalyticsScreenState
       );
       if (mounted) setState(() => _analytics = result);
     } catch (e) {
-      if (mounted) setState(() => _error = e.toString());
+      if (mounted) setState(() => _error = friendlyError(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }

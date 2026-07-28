@@ -12,6 +12,7 @@ import '../../data/services/client_service.dart';
 import '../../data/services/cloudinary_service.dart';
 import '../../data/services/firestore_service.dart';
 import '../../theme/qoima_design.dart';
+import '../../core/error_text.dart';
 
 /// Төлем нұсқаулығы: төлем картасының нөмірі + чек тіркеу.
 ///
@@ -229,7 +230,7 @@ class _PaymentInstructionsSheetState extends State<_PaymentInstructionsSheet> {
       if (mounted) {
         setState(() => _uploadingGroupId = null);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          content: Text(friendlyError(e)),
           backgroundColor: cRed,
           behavior: SnackBarBehavior.floating,
         ));

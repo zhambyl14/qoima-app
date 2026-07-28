@@ -4,6 +4,7 @@ import '../../../data/services/firestore_service.dart';
 import '../../../theme/qoima_design.dart';
 
 import '../../../core/lang.dart';
+import '../../../core/error_text.dart';
 class SellersScreen extends StatefulWidget {
   /// Push deep-link арқылы ашылғанда (join_request): «Запросы» табын (1)
   /// бірден ашамыз.
@@ -410,7 +411,7 @@ class _PendingCard extends StatelessWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content:
-              Text(tr('Ошибка: ${e.toString().replaceFirst('Exception: ', '')}', 'Қате: ${e.toString().replaceFirst('Exception: ', '')}')),
+              Text(tr('Ошибка: ${friendlyError(e)}', 'Қате: ${friendlyError(e)}')),
           backgroundColor: const Color(0xFFEF4444),
           behavior: SnackBarBehavior.floating,
         ));
