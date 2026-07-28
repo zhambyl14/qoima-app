@@ -6,9 +6,9 @@ import 'package:timezone/data/latest_all.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
 /// Жергілікті (серверсіз) хабарламалар: «себет тұрып қалды» еске салуы +
-/// PushService-тің foreground FCM хабарламаларын жүйелік баннер ретінде
-/// көрсетуі (Android-та FCM «notification» пейлоуын OS foreground-та
-/// автоматты көрсетпейді — сол алшақтықты осы сервис жабады).
+/// PushService-тің foreground FCM хабарламаларын (барлық платформада)
+/// жүйелік баннер ретінде көрсетуі — FCM «notification» пейлоуын OS
+/// foreground-та автоматты көрсетпейді, сол алшақтықты осы сервис жабады.
 class LocalNotificationService {
   LocalNotificationService._();
   static final LocalNotificationService instance = LocalNotificationService._();

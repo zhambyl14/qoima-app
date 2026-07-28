@@ -1,11 +1,23 @@
+import 'dart:async' show unawaited;
 import 'dart:convert';
 import 'dart:io' show Platform;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
+import 'package:flutter/services.dart' show MethodChannel, MethodCall;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'local_notification_service.dart';
+
+/// iOS-тағы AppDelegate.swift-пен байланысатын арна (ios/Runner/AppDelegate.swift
+/// қараңыз). Firebase/flutter_local_notifications плагиндерінің iOS-тегі
+/// UNUserNotificationCenterDelegate бөлісуі Scene-based (ImplicitEngine)
+/// шаблонда сенімсіз болып шықты — FirebaseMessaging.onMessage/onMessageOpenedApp
+/// іске қосылмай қалатын (кеңінен тексерілді). Сол себепті iOS-те push
+/// оқиғаларын AppDelegate ӨЗІ ұстап, осы арна арқылы тікелей жібереді.
+/// Android-та бұл арна қолданылмайды — FirebaseMessaging стандартты жолмен
+/// дұрыс жұмыс істейді.
+final _nativePushChannel = MethodChannel('qoima/push_native');
 
 /// FCM хабарламасы осы арна арқылы келуі керек — AndroidManifest.xml-дегі
 /// `com.google.firebase.messaging.default_notification_channel_id` мета-
@@ -57,12 +69,45 @@ class PushService {
     try {
       await Firebase.initializeApp();
       _firebaseReady = true;
-      // iOS: қолданба ашық тұрғанда да жүйелік баннер көрсетілсін (APNs
-      // өзі баннер/дыбыс/badge шығарады — қосымша local notification
-      // ЖАСАМАЙМЫЗ, әйтпесе екі рет көрінеді).
-      await FirebaseMessaging.instance
-          .setForegroundNotificationPresentationOptions(
-              alert: true, badge: true, sound: true);
+
+      // ── КРИТИКАЛЫ ТІРКЕУ — БӘРІНЕН БҰРЫН, ЕШБІР БАЯУ ШАҚЫРУДЫ КҮТПЕЙ ────
+      // main.dart бұл init()-ті сыртқы таймаутпен шақырады (интерфейсті
+      // мәңгі бөгемеу үшін). Бұрын тыңдаушылар (onMessage/onMessageOpenedApp)
+      // төмендегі баяу native шақырулардан (setForegroundNotificationPresen-
+      // tationOptions, getInitialMessage) КЕЙІН тіркелетін — сол шақырулардың
+      // біреуі баяулап сыртқы таймаутқа ілінсе, init() толық үзіліп, ешбір
+      // тыңдаушы тіркелмей қалатын (push мүлде өңделмейтін түбірлік себеп
+      // осы болатын). Енді тыңдаушылар алдымен, синхронды тіркеледі —
+      // сыртқы таймаут іске қосылса да, push өңдеу жұмыс істей береді.
+      LocalNotificationService.instance.onPushTap = _handleOpen;
+      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+      FirebaseMessaging.instance.onTokenRefresh.listen((t) {
+        final uid = _sb.auth.currentUser?.id;
+        if (uid != null) _saveToken(t);
+      });
+      if (!kIsWeb && Platform.isIOS) {
+        // iOS: push оқиғаларын AppDelegate.swift ұстап, осы арна арқылы
+        // жібереді (себебі жоғарыдағы файл түсініктемесінде).
+        _nativePushChannel.setMethodCallHandler(_handleNativeCall);
+        unawaited(_checkNativeInitialPush());
+      } else {
+        // Android: стандартты Firebase ағындары дұрыс жұмыс істейді.
+        FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
+        FirebaseMessaging.onMessageOpenedApp.listen((m) => _handleOpen(m.data));
+      }
+
+      // ── Қалғаны — міндетті емес/баяу болуы мүмкін, бөлек тар таймаутпен ──
+      // iOS-тің өз баннерін ӨШІРЕМІЗ (alert/sound false) — тек badge қалады.
+      // _handleForegroundMessage барлық платформада ӨЗІМІЗ local notification
+      // көрсетеді — жалғыз, сенімді, платформа-тәуелсіз жол.
+      try {
+        await FirebaseMessaging.instance
+            .setForegroundNotificationPresentationOptions(
+                alert: false, badge: true, sound: false)
+            .timeout(const Duration(seconds: 5));
+      } catch (e) {
+        debugPrint('PushService: setForegroundNotificationPresentationOptions skipped: $e');
+      }
       // Android: HIGH маңыздылық арнасын алдын ала жасаймыз (FCM хабарламасы
       // осыған келгенде heads-up баннер ретінде қалқиды, тек шторкаға емес).
       if (!kIsWeb && Platform.isAndroid) {
@@ -77,49 +122,28 @@ class PushService {
                 AndroidFlutterLocalNotificationsPlugin>()
             ?.createNotificationChannel(channel);
       }
-      // Токен жаңарса — тіркелген қолданушыға қайта сақтаймыз.
-      FirebaseMessaging.instance.onTokenRefresh.listen((t) {
-        final uid = _sb.auth.currentUser?.id;
-        if (uid != null) _saveToken(t);
-      });
-      // Android: foreground-та local notification ретінде көрсетілген
-      // push-ты пайдаланушы бассы — сол да background/cold-start тапталуымен
-      // БІРДЕЙ _handleOpen жолымен жүреді (бір ғана onNotificationOpen хугі).
-      LocalNotificationService.instance.onPushTap = _handleOpen;
-      // Фондық isolate хендлер — background/terminated күйдегі хабарламаны
-      // дұрыс өңдеу үшін тіркелуі МІНДЕТТІ (тіркелмесе Firebase ескертеді,
-      // кейбір платформаларда getInitialMessage/аналитика тұрақсыз жұмыс
-      // істейді).
-      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-
-      // ── FOREGROUND: НЕГІЗГІ ТҮЗЕТУ ──────────────────────────────────────
-      // FCM «notification» пейлоуын OS foreground-та АВТОМАТТЫ көрсетпейді
-      // (Android-та тек background/terminated күйде көрсетеді — бос қалу
-      // багының түбірлік себебі осы еді). Мұнда қолмен ұстап, local
-      // notification ретінде көрсетеміз (Android). iOS-те жоғарыдағы
-      // setForegroundNotificationPresentationOptions арқылы APNs өзі
-      // баннер шығарады, сол себепті қайталап көрсетпейміз.
-      FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
-
-      // Қолданба фонда тұрып, пайдаланушы push баннерін басып ашса.
-      FirebaseMessaging.onMessageOpenedApp.listen((m) => _handleOpen(m.data));
-
       // Қолданба МҮЛДЕМ жабық күйде push басып ашылса (cold start) —
       // алғашқы кадрдан кейін тексереміз.
-      final initial = await FirebaseMessaging.instance.getInitialMessage();
-      if (initial != null) _handleOpen(initial.data);
+      try {
+        final initial = await FirebaseMessaging.instance
+            .getInitialMessage()
+            .timeout(const Duration(seconds: 5));
+        if (initial != null) _handleOpen(initial.data);
+      } catch (e) {
+        debugPrint('PushService: getInitialMessage skipped: $e');
+      }
     } catch (e) {
       debugPrint('PushService init skipped: $e');
     }
   }
 
-  /// Foreground-та келген FCM хабарламасын Android-та local notification
-  /// ретінде көрсетеді (iOS-ті APNs өзі жүйелік деңгейде көрсетеді —
-  /// setForegroundNotificationPresentationOptions арқылы).
+  /// Foreground-та келген FCM хабарламасын БАРЛЫҚ платформада local
+  /// notification ретінде көрсетеді (iOS-тің меншікті баннері жоғарыда
+  /// өшірілген — қосарланып көрінбейді).
   Future<void> _handleForegroundMessage(RemoteMessage message) async {
     final n = message.notification;
     if (n == null) return; // тек data-хабарлама — көрсетілетін мәтін жоқ
-    if (kIsWeb || !Platform.isAndroid) return;
+    if (kIsWeb) return;
     await LocalNotificationService.instance.showPush(
       channelId: kPushChannelId,
       channelName: kPushChannelName,
@@ -127,6 +151,57 @@ class PushService {
       body: n.body ?? '',
       payload: jsonEncode(message.data),
     );
+  }
+
+  /// iOS: AppDelegate.swift-тен келетін «qoima/push_native» арнасының
+  /// шақырулары (ios/Runner/AppDelegate.swift қараңыз).
+  Future<void> _handleNativeCall(MethodCall call) async {
+    switch (call.method) {
+      case 'onForegroundMessage':
+        final args = Map<String, dynamic>.from(call.arguments as Map);
+        final data = _asStringMap(args['data']);
+        final title = args['title'] as String? ?? '';
+        final body = args['body'] as String? ?? '';
+        if (title.isEmpty && body.isEmpty) return; // тек data-хабарлама
+        await LocalNotificationService.instance.showPush(
+          channelId: kPushChannelId,
+          channelName: kPushChannelName,
+          title: title,
+          body: body,
+          payload: jsonEncode(data),
+        );
+        break;
+      case 'onNotificationTap':
+        final args = Map<String, dynamic>.from(call.arguments as Map);
+        final data = _asStringMap(args['data']);
+        _handleOpen(data);
+        break;
+    }
+  }
+
+  /// Қолданба МҮЛДЕМ жабық күйден push арқылы ашылса (cold start) —
+  /// AppDelegate.swift launchOptions-тан сақтап қойған хабарламаны сұраймыз.
+  Future<void> _checkNativeInitialPush() async {
+    try {
+      // ЕСКЕРТУ: AppDelegate.swift getInitialPush деректерді {"data": ...}
+      // ЕМЕС, тікелей карта ретінде қайтарады (onForegroundMessage/
+      // onNotificationTap-тан айырмашылығы).
+      final initial = await _nativePushChannel
+          .invokeMethod<Map>('getInitialPush')
+          .timeout(const Duration(seconds: 5));
+      if (initial == null) return;
+      final data = _asStringMap(initial);
+      if (data.isNotEmpty) _handleOpen(data);
+    } catch (e) {
+      debugPrint('PushService: native getInitialPush skipped: $e');
+    }
+  }
+
+  Map<String, dynamic> _asStringMap(Object? raw) {
+    if (raw is Map) {
+      return raw.map((k, v) => MapEntry(k.toString(), v));
+    }
+    return {};
   }
 
   void _handleOpen(Map<String, dynamic> data) {
@@ -137,10 +212,12 @@ class PushService {
   /// Логиннен кейін: рұқсат сұрап, токенді fcm_tokens-ке жазамыз.
   /// [role] — хабарламаларды рөл бойынша бағыттау үшін (admin/seller/client).
   Future<void> registerForUser({required String role}) async {
+    debugPrint('PushService: registerForUser start (firebaseReady=$_firebaseReady, role=$role)');
     if (!_firebaseReady) return;
     try {
       final settings = await FirebaseMessaging.instance.requestPermission(
           alert: true, badge: true, sound: true);
+      debugPrint('PushService: permission status = ${settings.authorizationStatus}');
       if (settings.authorizationStatus == AuthorizationStatus.denied) return;
 
       // iOS: FCM токенін алудан БҰРЫН Apple-дың APNs токені дайын болуы керек.
