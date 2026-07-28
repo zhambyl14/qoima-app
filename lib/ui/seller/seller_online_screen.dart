@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../core/app_user.dart';
+import '../../core/order_helpers.dart';
 import '../../core/warehouse_context.dart';
 import '../../data/models/order_model.dart';
 import '../../data/services/firestore_service.dart';
@@ -120,6 +121,12 @@ class _SellerOnlineScreenState extends State<SellerOnlineScreen> {
         return all;
     }
   }
+
+  /// Филтрленген тізім, «Заказ найден» баннерінде бөлек көрсетілген
+  /// тапсырысты алып тастап (қайталанбауы үшін).
+  List<OrderModel> _restList(List<OrderModel> all) => _applyFilter(all)
+      .where((o) => o.id != _lookupResult?.id)
+      .toList();
 
   @override
   Widget build(BuildContext context) {
@@ -342,7 +349,7 @@ class _SellerOnlineScreenState extends State<SellerOnlineScreen> {
                         o.status == OrderModel.statusReserved ||
                         (o.status == OrderModel.statusPending &&
                             o.receiptUrl.isEmpty))) {
-                  _service.cancelOnlineOrder(o).ignore();
+                  _service.cancelOnlineOrder(o, actorRole: 'system').ignore();
                 }
               }
 
@@ -509,22 +516,24 @@ class _SellerOnlineScreenState extends State<SellerOnlineScreen> {
                     const SizedBox(height: 16),
                   ],
 
-                  // Section label
-                  if (_applyFilter(all).isNotEmpty)
+                  // Section label. «Заказ найден» ретінде жоғарыда көрсетілген
+                  // тапсырыс мұнда ҚАЙТАЛАНБАУЫ керек (екі виджет бір
+                  // тапсырысты басқарса, әрекеттер бір-бірінен жасырын қалады).
+                  if (_restList(all).isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 10),
                       child: QSecLabel(tr('В выдаче', 'Беруде')),
                     ),
 
                   // Orders list
-                  ..._applyFilter(all).map((order) => _OrderCard(
+                  ..._restList(all).map((order) => _OrderCard(
                         key: ValueKey(order.id),
                         order: order,
                         service: _service,
                         onChanged: () => setState(() {}),
                       )),
 
-                  if (_applyFilter(all).isEmpty && _lookupResult == null)
+                  if (_restList(all).isEmpty && _lookupResult == null)
                     Padding(
                       padding: const EdgeInsets.only(top: 48),
                       child: Column(children: [
@@ -619,7 +628,7 @@ class _OrderCardState extends State<_OrderCard> {
       case OrderModel.statusCompleted:
         return tr('Завершён', 'Аяқталды');
       case OrderModel.statusCancelled:
-        return tr('Отменён', 'Бас тартылды');
+        return cancelledByLabel(o, viewerUid: AppUser.current.uid);
       case OrderModel.statusReturned:
         return tr('Возврат', 'Қайтару');
       default:
@@ -763,7 +772,7 @@ class _OrderCardState extends State<_OrderCard> {
     if (ok != true || !mounted) return;
     setState(() => _loading = true);
     try {
-      await widget.service.cancelOnlineOrder(o);
+      await widget.service.cancelOnlineOrder(o, actorRole: 'seller');
       if (mounted) {
         setState(() => _loading = false);
         widget.onChanged();

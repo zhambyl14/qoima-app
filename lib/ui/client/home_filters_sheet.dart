@@ -35,6 +35,11 @@ class _FiltersSheetState extends State<_FiltersSheet> {
   late String? _storeId = widget.current.storeId;
   late bool _onSale = widget.current.onSale;
   late String _sort = widget.current.sort;
+
+  // Дүкен саны 90+ болғанда бүкіл Wrap экранды баса алады — алдымен
+  // шектеулі саны, «Показать все» басқанда ғана қалғаны ашылады.
+  static const int _collapsedLimit = 12;
+  bool _showAllStores = false;
   late final _minCtrl = TextEditingController(
       text: widget.current.minPrice?.toStringAsFixed(0) ?? '');
   late final _maxCtrl = TextEditingController(
@@ -221,12 +226,26 @@ class _FiltersSheetState extends State<_FiltersSheet> {
                       selected: _storeId == null,
                       onTap: () => setState(() => _storeId = null),
                     ),
-                    ...widget.stores.map((s) => _Chip(
-                          label: s.storeName,
-                          selected: _storeId == s.adminUid,
-                          onTap: () => setState(() => _storeId =
-                              _storeId == s.adminUid ? null : s.adminUid),
-                        )),
+                    // Дүкен саны көп болса (90+) — алдымен шектеулі саны ғана,
+                    // «Показать все» ашпайынша экранды баспас үшін.
+                    ...(_showAllStores
+                            ? widget.stores
+                            : widget.stores.take(_collapsedLimit))
+                        .map((s) => _Chip(
+                              label: s.storeName,
+                              selected: _storeId == s.adminUid,
+                              onTap: () => setState(() => _storeId =
+                                  _storeId == s.adminUid ? null : s.adminUid),
+                            )),
+                    if (!_showAllStores &&
+                        widget.stores.length > _collapsedLimit)
+                      _Chip(
+                        label: tr(
+                            'Показать все (${widget.stores.length})',
+                            'Барлығын көрсету (${widget.stores.length})'),
+                        selected: false,
+                        onTap: () => setState(() => _showAllStores = true),
+                      ),
                   ],
                 ),
                 const SizedBox(height: 18),

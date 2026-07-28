@@ -97,6 +97,7 @@ class StoreModerationRepository {
       if (currentUntil == null || !currentUntil.isAfter(now))
         'subscription_started_at': now.toIso8601String(),
       'subscription_plan': '$months ай',
+      'sub_reminder_sent': false,
     }).eq('id', ownerUid);
   }
 
@@ -110,6 +111,7 @@ class StoreModerationRepository {
         'subscription_until': until.toIso8601String(),
         'subscription_started_at': DateTime.now().toIso8601String(),
         'subscription_note': note,
+        'sub_reminder_sent': false,
       }).eq('id', ownerUid);
 
   /// Жазылымды тазалау (мерзім берілмеген күйге қайтару).

@@ -35,6 +35,12 @@ class OrderModel {
   final DateTime? rejectedAt;
   final DateTime? deadlineAt;
   final bool stockRestored;
+
+  // ── Кім болдырмады (race-condition түзетуден кейін) ─────────────────────────
+  final String cancelledByRole; // client|admin|seller|system
+  final String cancelledByUid;
+  final String cancelledByName;
+  final DateTime? cancelledAt;
   final String paymentCardNumber;
   final String paymentCardHolder;
   final String paymentBank;
@@ -95,6 +101,10 @@ class OrderModel {
     this.rejectedAt,
     this.deadlineAt,
     this.stockRestored = false,
+    this.cancelledByRole = '',
+    this.cancelledByUid = '',
+    this.cancelledByName = '',
+    this.cancelledAt,
     this.paymentCardNumber = '',
     this.paymentCardHolder = '',
     this.paymentBank = '',
@@ -166,6 +176,10 @@ class OrderModel {
       rejectedAt: dtn(m['rejected_at']),
       deadlineAt: dtn(m['deadline_at']),
       stockRestored: m['stock_restored'] as bool? ?? false,
+      cancelledByRole: m['cancelled_by_role'] as String? ?? '',
+      cancelledByUid: m['cancelled_by_uid'] as String? ?? '',
+      cancelledByName: m['cancelled_by_name'] as String? ?? '',
+      cancelledAt: dtn(m['cancelled_at']),
       paymentCardNumber: m['payment_card_number'] as String? ?? '',
       paymentCardHolder: m['payment_card_holder'] as String? ?? '',
       paymentBank: m['payment_bank'] as String? ?? '',
@@ -252,6 +266,10 @@ class OrderModel {
     DateTime? rejectedAt,
     DateTime? deadlineAt,
     bool? stockRestored,
+    String? cancelledByRole,
+    String? cancelledByUid,
+    String? cancelledByName,
+    DateTime? cancelledAt,
     String? paymentCardNumber,
     String? paymentCardHolder,
     String? paymentBank,
@@ -294,6 +312,10 @@ class OrderModel {
         rejectedAt: rejectedAt ?? this.rejectedAt,
         deadlineAt: deadlineAt ?? this.deadlineAt,
         stockRestored: stockRestored ?? this.stockRestored,
+        cancelledByRole: cancelledByRole ?? this.cancelledByRole,
+        cancelledByUid: cancelledByUid ?? this.cancelledByUid,
+        cancelledByName: cancelledByName ?? this.cancelledByName,
+        cancelledAt: cancelledAt ?? this.cancelledAt,
         paymentCardNumber: paymentCardNumber ?? this.paymentCardNumber,
         paymentCardHolder: paymentCardHolder ?? this.paymentCardHolder,
         paymentBank: paymentBank ?? this.paymentBank,

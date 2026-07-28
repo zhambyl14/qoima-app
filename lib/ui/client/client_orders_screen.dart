@@ -331,7 +331,9 @@ class _OrderCardState extends State<_OrderCard> {
   }
 
   String get _statusTone => orderStatusTone(o.status);
-  String get _statusLabel => orderStatusLabel(o.status);
+  String get _statusLabel => o.status == OrderModel.statusCancelled
+      ? cancelledByLabel(o, viewerUid: AppUser.current.uid)
+      : orderStatusLabel(o.status);
 
   IconData get _statusIcon {
     switch (o.status) {

@@ -105,6 +105,16 @@ class _AddProductScreenState extends State<AddProductScreen> {
   List<Map<String, dynamic>> _customPresets = [];
   static const String _kPresetsPref = 'qty_presets_v2';
 
+  // Ағымдағы категорияға тиесілі пресеттер ғана (индексімен қоса — ✕ өшіру
+  // дәл сол элементті табу үшін). Категориясыз (осы түзетуден бұрын
+  // сақталған) ескі пресеттер қайта сақталғанша көрсетілмейді.
+  List<MapEntry<int, Map<String, dynamic>>> get _presetsForCategory =>
+      [
+        for (var i = 0; i < _customPresets.length; i++)
+          if ((_customPresets[i]['category'] as String?) == _categoryKey)
+            MapEntry(i, _customPresets[i]),
+      ];
+
   // Тип/материал по категориям и список «Кому» — общие константы каталога
   // (см. category_data.dart), используются и в редактировании товара.
   static const Map<String, List<String>> _typesByCategory = kTypesByCategory;
@@ -158,6 +168,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
           'name': (m['name'] as String?) ?? '',
           'sizes': ((m['sizes'] as Map?) ?? {}).map(
               (k, v) => MapEntry(k.toString(), (v as num).toInt())),
+          // Осы түзетуден бұрын сақталған пресеттерде жоқ (null қалады —
+          // ешбір категорияға сәйкес келмейді, қайта сақталғанша жасырын).
+          'category': m['category'] as String?,
         };
       }).toList();
       if (mounted) setState(() => _customPresets = list);
@@ -243,6 +256,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
               ? tr('Пресет $total шт', 'Пресет $total дана')
               : name,
           'sizes': sizes,
+          // Категорияға байланысты — басқа категория қосу кезінде
+          // көрсетілмеуі керек (размер шкаласы мүлдем бөлек).
+          'category': _categoryKey ?? '',
         }));
     _persistCustomPresets();
     if (mounted) {
@@ -2037,7 +2053,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
         ),
       ]),
       const SizedBox(height: 8),
-      if (_customPresets.isEmpty)
+      if (_presetsForCategory.isEmpty)
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(11),
@@ -2054,9 +2070,11 @@ class _AddProductScreenState extends State<AddProductScreen> {
           child: ListView(
             scrollDirection: Axis.horizontal,
             children: [
-              // Сатушының сақталған пресеттері (нақты таралу; ✕ өшіру)
-              ...List.generate(_customPresets.length, (i) {
-                final p = _customPresets[i];
+              // Сатушының сақталған пресеттері (нақты таралу; ✕ өшіру) — ТЕК
+              // ағымдағы категорияға (мыс. аяқ киім/киім размер шкаласы бөлек).
+              ..._presetsForCategory.map((entry) {
+                final i = entry.key;
+                final p = entry.value;
                 final sizes = (p['sizes'] as Map).map(
                     (k, v) => MapEntry(k.toString(), (v as num).toInt()));
                 final total = sizes.values.fold(0, (a, b) => a + b);

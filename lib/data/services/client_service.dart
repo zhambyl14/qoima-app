@@ -514,42 +514,55 @@ class ClientService {
       .order('created_at', ascending: false)
       .map((rows) => rows.map(OrderModel.fromMap).toList());
 
-  /// Клиент тапсырысты бас тартады: қойманы қалпына келтіреді (идемпотентті).
+  /// Клиент тапсырысты бас тартады. Бас тарту — атомдық `claim_order_transition`
+  /// RPC арқылы (0030): қатар серверде LOCK-талып, ағымдағы статус тексеріледі,
+  /// сондықтан дәл сол сәтте админ/сатушы «выдать»/«отменить» басса — тек
+  /// біреуі ғана өтеді, қойма қосарланып өзгермейді. Расталған/аяқталған
+  /// тапсырысты клиенттік авто-cancel ЕШҚАШАН өзгертпейді (claim өзі
+  /// қабылдамайды).
   Future<void> cancelOrder(OrderModel order) async {
+    try {
+      await _sb.rpc('claim_order_transition', params: {
+        'p_order': order.id,
+        'p_expected': const [
+          OrderModel.statusPending,
+          OrderModel.statusReserved,
+          OrderModel.statusRejected,
+        ],
+        'p_new_status': OrderModel.statusCancelled,
+        'p_actor_role': 'client',
+        'p_actor_uid': order.clientUid,
+        'p_actor_name': order.clientName,
+      });
+    } on PostgrestException catch (e) {
+      if (e.message.contains('order_state_changed') ||
+          e.message.contains('order_not_found')) {
+        return; // тапсырыс бұрын өңделген — үнсіз шығамыз (auto-cancel те шақырады)
+      }
+      rethrow;
+    }
+
     final oRow = await _sb
         .from('orders')
-        .select('status,stock_restored,promo_counts_usage,promo_id,client_uid')
+        .select('promo_counts_usage,promo_id,client_uid')
         .eq('id', order.id)
         .maybeSingle();
     if (oRow == null) return;
-    if (oRow['stock_restored'] == true) return;
-    final liveStatus = oRow['status'] as String? ?? '';
-    // Тек белсенді төлем күйлерін болдырмауға болады — расталған/аяқталған
-    // тапсырысты клиенттік авто-cancel ЕШҚАШАН өзгертпейді.
-    const cancellable = {
-      OrderModel.statusPending,
-      OrderModel.statusReserved,
-      OrderModel.statusRejected,
-    };
-    if (!cancellable.contains(liveStatus)) return;
 
     if (order.isSmartReservation) {
-      final smartActive = liveStatus == OrderModel.statusPending ||
-          liveStatus == OrderModel.statusReserved ||
-          liveStatus == OrderModel.statusRejected;
-      if (smartActive) {
-        for (final item in order.items) {
-          try {
-            await _sb.rpc('adjust_batch_sizes', params: {
-              'p_batch': item.batchId,
-              'p_deltas': {item.size: -item.qty},
-              'p_field': 'reserved_sizes',
-              'p_guard': false,
-            });
-          } on PostgrestException catch (e) {
-            // Партия өшірілген болуы мүмкін — болдырмау бөгелмесін.
-            if (!e.message.contains('batch_not_found')) rethrow;
-          }
+      // Claim сәтті болды — тапсырыс pending/reserved/rejected күйінде
+      // болғаны расталды, сондықтан резервтен азайту әрқашан орынды.
+      for (final item in order.items) {
+        try {
+          await _sb.rpc('adjust_batch_sizes', params: {
+            'p_batch': item.batchId,
+            'p_deltas': {item.size: -item.qty},
+            'p_field': 'reserved_sizes',
+            'p_guard': false,
+          });
+        } on PostgrestException catch (e) {
+          // Партия өшірілген болуы мүмкін — болдырмау бөгелмесін.
+          if (!e.message.contains('batch_not_found')) rethrow;
         }
       }
     } else {
@@ -579,7 +592,6 @@ class ClientService {
     }
 
     await _sb.from('orders').update({
-      'status': OrderModel.statusCancelled,
       'stock_restored': true,
     }).eq('id', order.id);
 

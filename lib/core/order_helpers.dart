@@ -74,3 +74,27 @@ bool orderIsActive(String status) =>
     status != OrderModel.statusCompleted &&
     status != OrderModel.statusCancelled &&
     status != OrderModel.statusReturned;
+
+/// «Кім отменил» деген белгі (0030 — cancelled_by_*). Viewer-дің өз әрекеті
+/// болса «Вы отменили» деп көрсетеді, әйтпесе рөліне қарай (client/seller/
+/// admin/system-авто-мерзім).
+String cancelledByLabel(OrderModel o, {required String viewerUid}) {
+  if (o.status != OrderModel.statusCancelled || o.cancelledByRole.isEmpty) {
+    return tr('Отменён', 'Бас тартылды');
+  }
+  if (viewerUid.isNotEmpty && o.cancelledByUid == viewerUid) {
+    return tr('Вы отменили', 'Сіз болдырмадыңыз');
+  }
+  switch (o.cancelledByRole) {
+    case 'client':
+      return tr('Отменил клиент', 'Клиент болдырмады');
+    case 'seller':
+      return tr('Отменил продавец', 'Сатушы болдырмады');
+    case 'admin':
+      return tr('Отменил владелец', 'Дүкен иесі болдырмады');
+    case 'system':
+      return tr('Отменено (истёк срок)', 'Болдырылмады (мерзімі өтті)');
+    default:
+      return tr('Отменён', 'Бас тартылды');
+  }
+}

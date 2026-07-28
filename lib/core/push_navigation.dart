@@ -16,6 +16,8 @@ import '../ui/seller/sales/sale_detail_screen.dart';
 import '../ui/seller/seller_online_screen.dart';
 import '../ui/seller/returns/seller_return_receive_screen.dart';
 import '../ui/seller/returns/seller_return_review_screen.dart';
+import '../ui/superadmin/marketplace_shops_screen.dart';
+import '../ui/superadmin/subscriptions_screen.dart';
 
 /// MaterialApp-тың түбір Navigator-і. AdminShell/SellerShell/ClientShell
 /// bottom-nav таптары бір ортақ Scaffold-ты IndexedStack-пен ауыстырады —
@@ -76,6 +78,12 @@ Future<void> handlePushOpen(Map<String, dynamic> data) async {
         break;
       case 'banner':
         await _openBanner(nav, user, data);
+        break;
+      case 'store_registered':
+        _openStoreRegistered(nav, user);
+        break;
+      case 'subscription_expiring':
+        _openSubscriptionExpiring(nav, user);
         break;
     }
   } catch (e) {
@@ -196,4 +204,17 @@ Future<void> _openBanner(
   final store = await ClientService().getStoreByAdminUid(banner.storeAdminUid);
   if (store == null || !store.isPublished || store.isBlocked) return;
   nav.push(MaterialPageRoute(builder: (_) => StorePublicScreen(store: store)));
+}
+
+// ── superadmin: жаңа дүкен тіркелді (0031) ───────────────────────────────────
+void _openStoreRegistered(NavigatorState nav, AppUser user) {
+  if (!user.isSuperadmin) return;
+  nav.push(
+      MaterialPageRoute(builder: (_) => const MarketplaceShopsScreen()));
+}
+
+// ── superadmin: иенің жазылым мерзімі жақындап қалды (0031) ──────────────────
+void _openSubscriptionExpiring(NavigatorState nav, AppUser user) {
+  if (!user.isSuperadmin) return;
+  nav.push(MaterialPageRoute(builder: (_) => const SubscriptionsScreen()));
 }

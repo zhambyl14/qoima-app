@@ -1,7 +1,9 @@
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../core/app_user.dart';
 import '../../core/contact_utils.dart';
+import '../../core/order_helpers.dart';
 import '../../data/models/order_model.dart';
 import '../../data/services/cloudinary_service.dart';
 import '../../data/services/firestore_service.dart';
@@ -306,7 +308,7 @@ class _OnlineOrdersScreenState extends State<OnlineOrdersScreen> {
                         o.status == OrderModel.statusReserved ||
                         (o.status == OrderModel.statusPending &&
                             o.receiptUrl.isEmpty))) {
-                  _service.cancelOnlineOrder(o).ignore();
+                  _service.cancelOnlineOrder(o, actorRole: 'system').ignore();
                 }
               }
 
@@ -390,13 +392,18 @@ class _OnlineOrdersScreenState extends State<OnlineOrdersScreen> {
                     const SizedBox(height: 16),
                   ],
 
-                  // Filtered list
-                  ..._applyFilter(all).map((order) => _OrderCard(
-                        key: ValueKey(order.id),
-                        order: order,
-                        service: _service,
-                        onChanged: () => setState(() {}),
-                      )),
+                  // Filtered list (жоғарыда «Заказ найден» ретінде көрсетілген
+                  // тапсырыс осында ҚАЙТАЛАНБАУЫ керек — екі бөлек виджет бір
+                  // тапсырысты басқарса, біреуінде әрекет екіншісіне белгісіз
+                  // қалып, қатар шаққанда «қуып кетуі» мүмкін еді).
+                  ..._applyFilter(all)
+                      .where((o) => o.id != _lookupResult?.id)
+                      .map((order) => _OrderCard(
+                            key: ValueKey(order.id),
+                            order: order,
+                            service: _service,
+                            onChanged: () => setState(() {}),
+                          )),
 
                   if (_applyFilter(all).isEmpty && _lookupResult == null)
                     Padding(
@@ -504,7 +511,7 @@ class _OrderCardState extends State<_OrderCard> {
       case OrderModel.statusCompleted:
         return tr('Завершён', 'Аяқталды');
       case OrderModel.statusCancelled:
-        return tr('Отменён', 'Бас тартылды');
+        return cancelledByLabel(o, viewerUid: AppUser.current.uid);
       case OrderModel.statusReturned:
         return tr('Возврат', 'Қайтару');
       default:

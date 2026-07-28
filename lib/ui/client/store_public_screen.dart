@@ -37,6 +37,9 @@ class _StorePublicScreenState extends State<StorePublicScreen> {
   List<({ProductModel product, List<BatchModel> batches})> _pairs = [];
   bool _loading = true;
   bool _hidden = false; // клиент осы дүкенді жасырған ба
+  // Дүкен иесі витринадан жасырған/дүкен блокталған — [widget.store] ескі
+  // (кэштелген) болуы мүмкін болғандықтан, кірген сәтте қайта тексереміз.
+  bool _unavailable = false;
   String _query = '';
 
   StoreModel get store => widget.store;
@@ -55,6 +58,22 @@ class _StorePublicScreenState extends State<StorePublicScreen> {
 
   Future<void> _load() async {
     try {
+      // [widget.store] шақырушыда кэштелген болуы мүмкін (Избранное, басты
+      // бет, тауар карточкасы) — иесі дүкенді витринадан жасырған/блоктаған
+      // болса, соны осы жерде қайта тексеріп барып қана тауарды жүктейміз.
+      // Иенің өзі preview режимінде өз дүкенін бұл тексеруден тыс көреді.
+      if (!widget.previewMode) {
+        final fresh = await _service.getStoreByAdminUid(store.adminUid);
+        if (fresh == null || !fresh.isPublished || fresh.isBlocked) {
+          if (mounted) {
+            setState(() {
+              _unavailable = true;
+              _loading = false;
+            });
+          }
+          return;
+        }
+      }
       final results = await Future.wait([
         _service.getStoreProductsWithBatches(
             store.adminUid, store.visibleWarehouseIds),
@@ -283,7 +302,15 @@ class _StorePublicScreenState extends State<StorePublicScreen> {
           Expanded(
             child: _loading
                 ? const CatalogGridSkeleton()
-                : CustomScrollView(slivers: [
+                : _unavailable
+                    ? Center(
+                        child: ClientEmptyState(
+                          icon: Icons.storefront_outlined,
+                          message: tr('Магазин недоступен',
+                              'Дүкен қолжетімсіз'),
+                        ),
+                      )
+                    : CustomScrollView(slivers: [
                     // Дүкен ақпараты
                     SliverToBoxAdapter(child: _buildStoreInfo()),
                     // Іздеу

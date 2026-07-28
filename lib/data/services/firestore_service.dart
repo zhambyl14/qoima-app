@@ -1359,88 +1359,125 @@ class FirestoreService {
     return null;
   }
 
+  // ── Тапсырыс статусын атомдық ауыстыру (race condition түзету, 0030) ────────
+  // Қатарды серверде `for update` LOCK-тап, ағымдағы статусты тексереді.
+  // Екі жақтан бір мезетте шақырылса — біреуі сәтті ауыстырады, екіншісі
+  // ЖАҢА статусты көріп, ешбір side-effect (қойма/sales_history) орындамай,
+  // түсінікті қатемен тоқтайды. Осыдан кейінгі бүкіл жазу — «жеңген» жаққа
+  // ғана тиесілі, сондықтан қауіпсіз орындалады.
+  Future<void> _claimOrder(
+    String orderId,
+    List<String> expected,
+    String newStatus, {
+    String actorRole = '',
+    String actorUid = '',
+    String actorName = '',
+  }) async {
+    try {
+      await _sb.rpc('claim_order_transition', params: {
+        'p_order': orderId,
+        'p_expected': expected,
+        'p_new_status': newStatus,
+        'p_actor_role': actorRole,
+        'p_actor_uid': actorUid,
+        'p_actor_name': actorName,
+      });
+    } on PostgrestException catch (e) {
+      if (e.message.contains('order_state_changed') ||
+          e.message.contains('order_not_found')) {
+        throw Exception(tr(
+          'Заказ уже обработан — обновите список',
+          'Тапсырыс өңделіп қойды — тізімді жаңартыңыз',
+        ));
+      }
+      rethrow;
+    }
+  }
+
   // ── Payment receipt flow ─────────────────────────────────────────────────────
 
-  Future<void> submitReceipt(OrderModel o, String receiptUrl) =>
-      _sb.from('orders').update({
-        'receipt_url': receiptUrl,
-        'receipt_submitted_at': DateTime.now().toIso8601String(),
-        'status': OrderModel.statusPending,
-        'rejection_reason': '',
-        'rejected_at': null,
-        'deadline_at': null,
-      }).eq('id', o.id);
+  Future<void> submitReceipt(OrderModel o, String receiptUrl) async {
+    await _claimOrder(o.id, const [OrderModel.statusPending, OrderModel.statusRejected],
+        OrderModel.statusPending);
+    await _sb.from('orders').update({
+      'receipt_url': receiptUrl,
+      'receipt_submitted_at': DateTime.now().toIso8601String(),
+      'rejection_reason': '',
+      'rejected_at': null,
+      'deadline_at': null,
+    }).eq('id', o.id);
+  }
 
   Future<void> resubmitReceipt(OrderModel o, String receiptUrl) =>
       submitReceipt(o, receiptUrl);
 
   /// Бронь депозитінің чегін дүкен иесі растады → reserved (1 сағат алу мерзімі).
   /// Барлық онлайн-төлем — модератор картасына аударым ('card').
-  Future<void> confirmReservationDeposit(OrderModel o) =>
-      _sb.from('orders').update({
-        'status': OrderModel.statusReserved,
-        'payment_bank': 'card',
-        'payment_confirmed_by': AppUser.current.uid,
-        'payment_confirmed_at': DateTime.now().toIso8601String(),
-        'deadline_at':
-            DateTime.now().add(OrderModel.pickupWindow).toIso8601String(),
-      }).eq('id', o.id);
-
-  /// Толық төлем чегін дүкен иесі растады → confirmed (беруге дайын).
-  Future<void> confirmOnlinePayment(OrderModel o) =>
-      _sb.from('orders').update({
-        'status': OrderModel.statusConfirmed,
-        'payment_bank': 'card',
-        'payment_confirmed_by': AppUser.current.uid,
-        'payment_confirmed_at': DateTime.now().toIso8601String(),
-        'deadline_at': null,
-      }).eq('id', o.id);
-
-  Future<void> rejectReceipt(OrderModel o, String reason) =>
-      _sb.from('orders').update({
-        'status': OrderModel.statusRejected,
-        'rejection_reason': reason,
-        'rejected_at': DateTime.now().toIso8601String(),
-        'deadline_at':
-            DateTime.now().add(OrderModel.receiptWindow).toIso8601String(),
-      }).eq('id', o.id);
-
-  Future<void> confirmInStorePayment(OrderModel o,
-          {String paymentMethod = 'cash'}) =>
-      _sb.from('orders').update({
-        'status': OrderModel.statusConfirmed,
-        'payment_confirmed_by': AppUser.current.uid,
-        'payment_confirmed_at': DateTime.now().toIso8601String(),
-        'in_store_payment_method': paymentMethod,
-        'deadline_at': null,
-      }).eq('id', o.id);
-
-  Future<void> handOverWithDoplate(OrderModel order, String doplaMethod) async {
-    if (order.status != OrderModel.statusReserved) {
-      throw Exception(tr('Заказ не в статусе брони', 'Тапсырыс бронь күйінде емес'));
-    }
-    await _sb
-        .from('orders')
-        .update({'in_store_payment_method': doplaMethod}).eq('id', order.id);
-    await markHandedOver(order.copyWith(
-      status: OrderModel.statusConfirmed,
-      inStorePaymentMethod: doplaMethod,
-    ));
+  Future<void> confirmReservationDeposit(OrderModel o) async {
+    await _claimOrder(
+        o.id, const [OrderModel.statusPending], OrderModel.statusReserved);
+    await _sb.from('orders').update({
+      'payment_bank': 'card',
+      'payment_confirmed_by': AppUser.current.uid,
+      'payment_confirmed_at': DateTime.now().toIso8601String(),
+      'deadline_at':
+          DateTime.now().add(OrderModel.pickupWindow).toIso8601String(),
+    }).eq('id', o.id);
   }
 
-  Future<void> markHandedOver(OrderModel order) =>
-      _completeOrder(order, fromHandover: true);
+  /// Толық төлем чегін дүкен иесі растады → confirmed (беруге дайын).
+  Future<void> confirmOnlinePayment(OrderModel o) async {
+    await _claimOrder(
+        o.id, const [OrderModel.statusPending], OrderModel.statusConfirmed);
+    await _sb.from('orders').update({
+      'payment_bank': 'card',
+      'payment_confirmed_by': AppUser.current.uid,
+      'payment_confirmed_at': DateTime.now().toIso8601String(),
+      'deadline_at': null,
+    }).eq('id', o.id);
+  }
 
-  Future<void> confirmOnlineOrder(OrderModel order) =>
-      _completeOrder(order, fromHandover: false);
+  Future<void> rejectReceipt(OrderModel o, String reason) async {
+    await _claimOrder(
+        o.id, const [OrderModel.statusPending], OrderModel.statusRejected);
+    await _sb.from('orders').update({
+      'rejection_reason': reason,
+      'rejected_at': DateTime.now().toIso8601String(),
+      'deadline_at':
+          DateTime.now().add(OrderModel.receiptWindow).toIso8601String(),
+    }).eq('id', o.id);
+  }
+
+  Future<void> confirmInStorePayment(OrderModel o,
+      {String paymentMethod = 'cash'}) async {
+    await _claimOrder(
+        o.id, const [OrderModel.statusPending], OrderModel.statusConfirmed);
+    await _sb.from('orders').update({
+      'payment_confirmed_by': AppUser.current.uid,
+      'payment_confirmed_at': DateTime.now().toIso8601String(),
+      'in_store_payment_method': paymentMethod,
+      'deadline_at': null,
+    }).eq('id', o.id);
+  }
+
+  Future<void> handOverWithDoplate(OrderModel order, String doplaMethod) =>
+      _completeOrder(
+        order.copyWith(inStorePaymentMethod: doplaMethod),
+        expected: const [OrderModel.statusReserved],
+      );
+
+  Future<void> markHandedOver(OrderModel order) => _completeOrder(order,
+      expected: const [OrderModel.statusConfirmed]);
+
+  Future<void> confirmOnlineOrder(OrderModel order) => _completeOrder(order,
+      expected: const [OrderModel.statusPending, OrderModel.statusReserved]);
 
   /// Online тапсырысты аяқтайды: бронь болса қойманы азайтады, sales_history
-  /// жазады, статусты completed қылады, чек нөмірін береді.
+  /// жазады, статусты completed қылады, чек нөмірін береді. [expected] —
+  /// шақырылған жол бойынша нақты рұқсат етілген бастапқы статус(тар).
   Future<void> _completeOrder(OrderModel order,
-      {required bool fromHandover}) async {
-    if (fromHandover && order.status != OrderModel.statusConfirmed) {
-      throw Exception(tr('Оплата ещё не подтверждена администратором', 'Төлемді әкімші әлі растамаған'));
-    }
+      {required List<String> expected}) async {
+    await _claimOrder(order.id, expected, OrderModel.statusCompleted);
     final seller = AppUser.current;
     final receipt = await nextReceiptNumber();
 
@@ -1469,7 +1506,6 @@ class FirestoreService {
     }
 
     await _sb.from('orders').update({
-      'status': OrderModel.statusCompleted,
       'delivered_by_uid': seller.uid,
       'delivered_by_name': seller.name,
       'seller_id': 'онлайн',
@@ -1478,6 +1514,9 @@ class FirestoreService {
       // Аяқталған тапсырыста дедлайн қалмауы керек — әйтпесе клиент экраны
       // оны «мерзімі өтті» деп қате авто-болдырмайды.
       'deadline_at': null,
+      // handOverWithDoplate жолында ғана толтырылады (бронь доплатасы).
+      if (order.inStorePaymentMethod.isNotEmpty)
+        'in_store_payment_method': order.inStorePaymentMethod,
     }).eq('id', order.id);
 
     final promoFactor = order.total > 0 ? order.finalTotal / order.total : 1.0;
@@ -1527,15 +1566,37 @@ class FirestoreService {
     }
   }
 
-  /// Тапсырысты бас тарту + қойманы қалпына келтіру (идемпотентті — stock_restored).
-  Future<void> cancelOnlineOrder(OrderModel order) async {
+  /// Тапсырысты бас тарту + қойманы қалпына келтіру. [actorRole] — кім
+  /// болдырмағаны (admin/seller/system-авто-мерзім) клиентке/басқа тарапқа
+  /// «кім отменил» деп көрсету үшін жазылады (0030 — cancelled_by_*).
+  /// Claim сәтті болмаса (тапсырыс бұрын аяқталған/болдырылған) — ешбір
+  /// қойма/промокод жазбасы жүрмейді (race condition түзетілген).
+  Future<void> cancelOnlineOrder(
+    OrderModel order, {
+    String actorRole = 'admin',
+    String? actorUid,
+    String? actorName,
+  }) async {
+    await _claimOrder(
+      order.id,
+      const [
+        OrderModel.statusPending,
+        OrderModel.statusReserved,
+        OrderModel.statusRejected,
+        OrderModel.statusConfirmed,
+      ],
+      OrderModel.statusCancelled,
+      actorRole: actorRole,
+      actorUid: actorUid ?? AppUser.current.uid,
+      actorName: actorName ?? AppUser.current.name,
+    );
+
     final oRow = await _sb
         .from('orders')
-        .select('stock_restored,promo_counts_usage,promo_id,client_uid')
+        .select('promo_counts_usage,promo_id,client_uid')
         .eq('id', order.id)
         .maybeSingle();
     if (oRow == null) return;
-    if (oRow['stock_restored'] == true) return;
 
     for (final item in order.items) {
       try {
@@ -1565,7 +1626,6 @@ class FirestoreService {
     }
 
     await _sb.from('orders').update({
-      'status': OrderModel.statusCancelled,
       'stock_restored': true,
     }).eq('id', order.id);
 
