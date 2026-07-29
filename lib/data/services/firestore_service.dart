@@ -1322,9 +1322,14 @@ class FirestoreService {
     final num = int.tryParse(code.replaceAll('#', '').trim());
     if (num == null) return null;
     try {
+      // admin_uid бойынша шектелген — order_number бұрын хэштен жасалатын
+      // (ID-дан), сондықтан басқа дүкенде сол сан қайталанып, дұрыс емес
+      // тапсырыс табылуы мүмкін еді. Енді реттік болса да, шектеу сақталады —
+      // сатушы/әкімші тек ӨЗ дүкенінің тапсырысын іздеуі керек.
       final row = await _sb
           .from('orders')
           .select()
+          .eq('admin_uid', _adminUid)
           .eq('order_number', num)
           .limit(1)
           .maybeSingle();
@@ -1479,7 +1484,13 @@ class FirestoreService {
       {required List<String> expected}) async {
     await _claimOrder(order.id, expected, OrderModel.statusCompleted);
     final seller = AppUser.current;
-    final receipt = await nextReceiptNumber();
+    // Онлайн-тапсырыстың чегіне БӨЛЕК санақ бермейміз — тапсырыс клиентке,
+    // әкімшіге, сатушыға әлдеқашан белгілі order_number-ді қайталаймыз, әйтпесе
+    // «неге чекте басқа нөмір» деген түсініксіздік туады (админ мен сатушы
+    // бірдей операцияны екі түрлі санмен көрер еді).
+    final receipt = order.orderNumber > 0
+        ? '#${order.orderNumber.toString().padLeft(5, '0')}'
+        : await nextReceiptNumber();
 
     final priceByBatch = <String, double>{};
     for (final item in order.items) {

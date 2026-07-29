@@ -390,19 +390,14 @@ class ClientService {
     };
   }
 
-  static int _orderNumFromId(String id) {
-    int h = 0;
-    for (final ch in id.runes.take(8)) {
-      final d = ch >= 97
-          ? ch - 87
-          : ch >= 65
-              ? ch - 55
-              : ch >= 48
-                  ? ch - 48
-                  : 0;
-      h = h * 36 + d;
-    }
-    return 10000 + h.abs() % 89000;
+  /// Дүкен бойынша реттік тапсырыс нөмірі (next_counter RPC — receipts/
+  /// return санақтарымен бірдей атомдық схема). Бұрын ID-дан хэшпен
+  /// жасалатын — реттік болмай, әртүрлі дүкендерде сан ҚАЙТАЛАНУЫ мүмкін еді
+  /// (lookupOnlineOrder қате дүкеннің тапсырысын тауып алу қаупі).
+  Future<int> _nextOrderNumber(String adminUid) async {
+    final n = await _sb.rpc('next_counter',
+        params: {'p_owner': adminUid, 'p_name': 'orders'});
+    return (n as num).toInt();
   }
 
   /// Тапсырыс жасайды: қойманы (RPC, oversell қорғауымен) өзгертеді, промокод
@@ -488,7 +483,7 @@ class ClientService {
     final row =
         await _sb.from('orders').insert(placed.toMap()).select('id').single();
     final orderId = row['id'] as String;
-    final orderNumber = _orderNumFromId(orderId);
+    final orderNumber = await _nextOrderNumber(placed.adminUid);
     await _sb
         .from('orders')
         .update({'order_number': orderNumber}).eq('id', orderId);
