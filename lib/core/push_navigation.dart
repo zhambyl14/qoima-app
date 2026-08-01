@@ -184,11 +184,11 @@ Future<void> _openReviewReply(
   if (productId.isEmpty) return;
   final client = ClientService();
   final product = await client.getProductById(user.uid, productId);
-  if (product == null) return;
+  if (product == null || product.storefrontHidden) return;
   final ownerUid = await client.getProductOwnerUid(productId);
   if (ownerUid == null || ownerUid.isEmpty) return;
   final store = await client.getStoreByAdminUid(ownerUid);
-  if (store == null) return;
+  if (store == null || !store.isPublished || store.isBlocked) return;
   nav.push(MaterialPageRoute(
       builder: (_) => ClientProductDetail(product: product, store: store)));
 }

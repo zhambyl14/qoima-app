@@ -45,9 +45,14 @@ const kShadowGreen = [
 ];
 
 // ── Typography ────────────────────────────────────────────────────────────────
+// Атауы тарихи «manrope» болып қалды (мыңдаған шақыру орны бар), бірақ
+// қаріп ІШКІ түрде Inter-ге ауыстырылды: Manrope-тің қазақ әріптері
+// (ә і ң ғ ү ұ қ ө) орыс/латын әріптерімен салыстырғанда әлсіз көрінетін —
+// Inter-дің кеңейтілген кириллица жиынтығы бұл әріптерді әлдеқайда сапалы
+// жобалайды, ал жалпы стилі (геометриялық sans) Manrope-қа жақын қалады.
 TextStyle manrope(double size, FontWeight weight,
         {Color color = cInk, double? letterSpacing, double? height}) =>
-    GoogleFonts.manrope(
+    GoogleFonts.inter(
       fontSize: size,
       fontWeight: weight,
       color: color,

@@ -686,6 +686,8 @@ class _Step1 extends StatefulWidget {
 class _Step1State extends State<_Step1> {
   final _searchCtrl = TextEditingController();
   String _query = '';
+  // null = «Барлығы» (санат бойынша сүзгі жоқ).
+  String? _categoryKey;
 
   @override
   void dispose() {
@@ -694,9 +696,15 @@ class _Step1State extends State<_Step1> {
   }
 
   List<ProductModel> _filter(List<ProductModel> all) {
-    if (_query.isEmpty) return all;
+    var result = all;
+    if (_categoryKey != null) {
+      result = result
+          .where((p) => p.effectiveCategoryKey == _categoryKey)
+          .toList();
+    }
+    if (_query.isEmpty) return result;
     final q = _query.toLowerCase();
-    return all
+    return result
         .where((p) =>
             p.name.toLowerCase().contains(q) ||
             p.brand.toLowerCase().contains(q) ||
@@ -806,6 +814,33 @@ class _Step1State extends State<_Step1> {
                       const EdgeInsets.symmetric(horizontal: 4, vertical: 13),
                 ),
               ),
+            ),
+          ),
+
+          // ── Санат бойынша сүзгі — таңдалғанда тек сол санаттың тауарлары
+          // көрсетіледі (іздеуді жеңілдетеді). ──────────────────────────────
+          SizedBox(
+            height: 34,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              children: [
+                _CategoryChip(
+                  label: tr('Все', 'Барлығы'),
+                  selected: _categoryKey == null,
+                  onTap: () => setState(() => _categoryKey = null),
+                ),
+                const SizedBox(width: 8),
+                for (final c in kCategories) ...[
+                  _CategoryChip(
+                    label: c.short,
+                    iconKind: c.iconKey,
+                    selected: _categoryKey == c.key,
+                    onTap: () => setState(() => _categoryKey = c.key),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+              ],
             ),
           ),
 
@@ -1501,6 +1536,47 @@ class _ToggleBtn extends StatelessWidget {
                   fontWeight: FontWeight.w600,
                   fontSize: 13,
                   color: active ? Colors.white : cInk2)),
+        ),
+      );
+}
+
+// ── Санат чипі (make_sale іздеу сүзгісі) ───────────────────────────────────────
+class _CategoryChip extends StatelessWidget {
+  final String label;
+  final String? iconKind;
+  final bool selected;
+  final VoidCallback onTap;
+  const _CategoryChip({
+    required this.label,
+    this.iconKind,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          decoration: BoxDecoration(
+            color: selected ? cGreen : Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: selected ? cGreen : cLine),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            if (iconKind != null) ...[
+              CategoryIcon(
+                kind: iconKind!,
+                size: 14,
+                color: selected ? Colors.white : cInk2,
+              ),
+              const SizedBox(width: 5),
+            ],
+            Text(label,
+                style: manrope(12.5, FontWeight.w700,
+                    color: selected ? Colors.white : cInk2)),
+          ]),
         ),
       );
 }

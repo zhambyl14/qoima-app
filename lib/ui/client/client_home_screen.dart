@@ -1,16 +1,20 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/app_user.dart';
+import '../../core/browsing_signals.dart';
 import '../../data/models/store_model.dart';
 import '../guest/guest_shell.dart';
 import '../../data/models/product_model.dart';
 import '../../data/models/batch_model.dart';
 import '../../data/models/banner_model.dart';
 import '../../data/services/client_service.dart';
+import '../../data/services/notifications_service.dart';
 import '../../data/repositories/banner_repository.dart';
 import '../../theme/qoima_design.dart';
+import '../shared/notifications_screen.dart';
 import '../shared/skeletons.dart';
 import 'client_product_card.dart';
 import 'client_product_detail.dart';
@@ -128,6 +132,16 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
   // Соңғы build-тегі сүзілген топ саны — _hasMore үшін (қайта есептемей).
   int _filteredCount = 0;
 
+  // Таңдаулылар — бір ортақ жазылым (әр карточка өз жазылымын ашпайды).
+  List<String> _favoriteIds = [];
+  StreamSubscription<List<String>>? _favSub;
+
+  // «Ұсынылады сізге» негізгі реті: сессия сайын бір рет араластырылады
+  // (ешқашан «жаңасы үстінде» болмайды) — build() сайын өзгермеу үшін мұнда
+  // бір рет сақталады. Жеке қалау сигналы болса — үстіне ілінеді.
+  final int _shuffleSeed = DateTime.now().millisecondsSinceEpoch;
+  Timer? _searchSignalDebounce;
+
   // Қала сүзгісі: null = бүкіл Қазақстан (әдепкі). Таңдау сақталады.
   static const _kCityPrefKey = 'client_home_city_filter';
   String? _cityFilter;
@@ -214,8 +228,34 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                 : b.main.ratingCount.compareTo(a.main.ratingCount);
           });
       }
+    } else if (_searchQuery.isEmpty) {
+      // Әдепкі («Ұсынылады сізге»): дүкендер/желі ретімен АРАЛАСПАЙДЫ —
+      // сессия сайын бір рет араластырылады (ешқашан «жаңасы үстінде» емес),
+      // содан кейін клиенттің қарау/іздеу тарихына сай санат/бренд
+      // басымдығы бар топтар алдыға шығады.
+      groups = _personalizedOrder(groups);
     }
     return groups;
+  }
+
+  List<ProductGroup> _personalizedOrder(List<ProductGroup> groups) {
+    final shuffled = List<ProductGroup>.from(groups)..shuffle(Random(_shuffleSeed));
+    final catAffinity = BrowsingSignalsService.instance.categoryAffinity();
+    final brandAffinity = BrowsingSignalsService.instance.brandAffinity();
+    if (catAffinity.isEmpty && brandAffinity.isEmpty) return shuffled;
+
+    int score(ProductGroup g) =>
+        (catAffinity[g.main.effectiveCategoryKey] ?? 0) * 2 +
+        (brandAffinity[g.main.brand] ?? 0);
+
+    // Индекспен байланыстырып сорттаймыз — List.sort тұрақты (stable) емес,
+    // тең ұпайлылар араластырылған реттен шықпауы керек.
+    final indexed = List.generate(shuffled.length, (i) => i);
+    indexed.sort((ai, bi) {
+      final c = score(shuffled[bi]).compareTo(score(shuffled[ai]));
+      return c != 0 ? c : ai.compareTo(bi);
+    });
+    return indexed.map((i) => shuffled[i]).toList();
   }
 
   bool get _hasMore => _searchQuery.isEmpty && _displayCount < _filteredCount;
@@ -227,6 +267,46 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
     _scrollCtrl.addListener(_onScroll);
     // Дүкен жасырылса/ашылса — тізімді қайта жүктейміз.
     ClientService.hiddenStoresVersion.addListener(_onHiddenStoresChanged);
+    _favSub = _service.watchFavoriteIds().listen((ids) {
+      if (mounted) setState(() => _favoriteIds = ids);
+    });
+    BrowsingSignalsService.instance.preload().then((_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  void _toggleFavorite(ProductModel p) async {
+    final user = context.read<AppUser>();
+    if (user.uid.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(tr('Войдите, чтобы добавить в избранное',
+            'Таңдаулыға қосу үшін кіріңіз')),
+        behavior: SnackBarBehavior.floating,
+      ));
+      return;
+    }
+    final isFav = _favoriteIds.contains(p.id);
+    try {
+      if (isFav) {
+        await _service.removeFavorite(p.id);
+      } else {
+        final store = _productStoreMap[p.id];
+        final batches = _pairs
+            .firstWhere((pr) => pr.product.id == p.id,
+                orElse: () => (product: p, batches: const <BatchModel>[]))
+            .batches;
+        final price =
+            batches.isNotEmpty ? batches.first.sellingPrice : 0.0;
+        await _service.addFavorite(
+          productId: p.id,
+          productName: p.name,
+          imageUrl: p.images.isNotEmpty ? p.images.first : '',
+          adminUid: store?.adminUid ?? '',
+          storeName: store?.storeName ?? '',
+          price: price,
+        );
+      }
+    } catch (_) {}
   }
 
   Future<void> _restoreCityFilter() async {
@@ -263,9 +343,35 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
   @override
   void dispose() {
     ClientService.hiddenStoresVersion.removeListener(_onHiddenStoresChanged);
+    _favSub?.cancel();
+    _searchSignalDebounce?.cancel();
     _scrollCtrl.dispose();
     _searchCtrl.dispose();
     super.dispose();
+  }
+
+  // Іздеу тоқтағаннан кейін (жазу аяқталған сәтте) — нәтиженің басым
+  // категориясын жеңіл сигнал ретінде жазамыз. build() ішінде емес, осында —
+  // әр rebuild-те емес, пайдаланушы шынымен іздегенде ғана жазылады.
+  void _onSearchChanged(String q) {
+    setState(() {
+      _searchQuery = q.trim();
+      _displayCount = 20;
+    });
+    _searchSignalDebounce?.cancel();
+    if (_searchQuery.isEmpty) return;
+    _searchSignalDebounce = Timer(const Duration(milliseconds: 700), () {
+      final matches =
+          _allGroups.where((g) => productGroupMatches(g, _searchQuery)).toList();
+      if (matches.isEmpty) return;
+      final counts = <String, int>{};
+      for (final g in matches) {
+        final k = g.main.effectiveCategoryKey;
+        counts[k] = (counts[k] ?? 0) + 1;
+      }
+      final top = counts.entries.reduce((a, b) => a.value >= b.value ? a : b);
+      BrowsingSignalsService.instance.recordSearchCategory(top.key);
+    });
   }
 
   void _onScroll() {
@@ -397,14 +503,16 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                       ],
                     ),
                   ),
-                  QHeaderBtn(Icons.notifications_none_rounded,
-                      onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(tr('Уведомления — скоро', 'Хабарламалар — жақында')),
-                              behavior: SnackBarBehavior.floating,
-                              duration: Duration(seconds: 2),
-                            ),
-                          )),
+                  StreamBuilder<int>(
+                    stream: NotificationsService().watchUnreadCount(),
+                    builder: (_, snap) => QHeaderBtn(
+                      Icons.notifications_none_rounded,
+                      badge: snap.data ?? 0,
+                      onTap: () => Navigator.push(context,
+                          MaterialPageRoute(
+                              builder: (_) => const NotificationsScreen())),
+                    ),
+                  ),
                 ]),
               ),
               // Search row + фильтр батырмасы
@@ -428,10 +536,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                             controller: _searchCtrl,
                             cursorColor: cGreen,
                             textAlignVertical: TextAlignVertical.center,
-                            onChanged: (q) => setState(() {
-                              _searchQuery = q.trim();
-                              _displayCount = 20;
-                            }),
+                            onChanged: _onSearchChanged,
                             style:
                                 manrope(14.5, FontWeight.w600, color: cInk),
                             decoration: InputDecoration(
@@ -628,17 +733,22 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                                         delegate:
                                             SliverChildBuilderDelegate(
                                           (_, i) {
+                                            final variantId = cards[i]
+                                                .group
+                                                .variants[cards[i].index]
+                                                .id;
                                             return ProductGroupCard(
-                                              key: ValueKey(cards[i]
-                                                  .group
-                                                  .variants[cards[i].index]
-                                                  .id),
+                                              key: ValueKey(variantId),
                                               group: cards[i].group,
                                               initialIndex: cards[i].index,
                                               batchesByProductId: batchesById,
                                               storeByProductId: storeById,
                                               tone: i % 5,
                                               onTap: _openProduct,
+                                              isFavorite: _favoriteIds
+                                                  .contains(variantId),
+                                              onToggleFavorite:
+                                                  _toggleFavorite,
                                             );
                                           },
                                           childCount: cards.length,
@@ -766,6 +876,8 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
       ProductModel p, List<ProductModel> variants) async {
     final store = _productStoreMap[p.id];
     if (store == null) return;
+    BrowsingSignalsService.instance
+        .recordView(categoryKey: p.effectiveCategoryKey, brand: p.brand);
     final buyNow = await Navigator.push<bool>(
       context,
       MaterialPageRoute(

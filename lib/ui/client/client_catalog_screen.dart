@@ -1,4 +1,7 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../core/app_user.dart';
 import '../../data/models/product_model.dart';
 import '../../data/models/batch_model.dart';
 import '../../data/models/store_model.dart';
@@ -41,6 +44,9 @@ class _ClientCatalogScreenState extends State<ClientCatalogScreen> {
   final _searchCtrl = TextEditingController();
   String _query = '';
 
+  List<String> _favoriteIds = [];
+  StreamSubscription<List<String>>? _favSub;
+
   // ── L1: негізгі категория. keys → ProductModel.effectiveCategoryKey-пен сай.
   static const List<_MainCatDef> _mainCats = [
     _MainCatDef('Обувь', ['shoes'], '👟', Color(0xFFE3F2FD), Color(0xFF90CAF9)),
@@ -71,6 +77,9 @@ class _ClientCatalogScreenState extends State<ClientCatalogScreen> {
     _loadAll();
     // Дүкен жасырылса/ашылса — каталогты қайта жүктейміз.
     ClientService.hiddenStoresVersion.addListener(_onHiddenStoresChanged);
+    _favSub = _service.watchFavoriteIds().listen((ids) {
+      if (mounted) setState(() => _favoriteIds = ids);
+    });
   }
 
   void _onHiddenStoresChanged() {
@@ -80,8 +89,43 @@ class _ClientCatalogScreenState extends State<ClientCatalogScreen> {
   @override
   void dispose() {
     ClientService.hiddenStoresVersion.removeListener(_onHiddenStoresChanged);
+    _favSub?.cancel();
     _searchCtrl.dispose();
     super.dispose();
+  }
+
+  void _toggleFavorite(ProductModel p) async {
+    final user = context.read<AppUser>();
+    if (user.uid.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(tr('Войдите, чтобы добавить в избранное',
+            'Таңдаулыға қосу үшін кіріңіз')),
+        behavior: SnackBarBehavior.floating,
+      ));
+      return;
+    }
+    final isFav = _favoriteIds.contains(p.id);
+    try {
+      if (isFav) {
+        await _service.removeFavorite(p.id);
+      } else {
+        final store = _productStoreMap[p.id];
+        final batches = _pairs
+            .firstWhere((pr) => pr.product.id == p.id,
+                orElse: () => (product: p, batches: const <BatchModel>[]))
+            .batches;
+        final price =
+            batches.isNotEmpty ? batches.first.sellingPrice : 0.0;
+        await _service.addFavorite(
+          productId: p.id,
+          productName: p.name,
+          imageUrl: p.images.isNotEmpty ? p.images.first : '',
+          adminUid: store?.adminUid ?? '',
+          storeName: store?.storeName ?? '',
+          price: price,
+        );
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadAll() async {
@@ -474,15 +518,20 @@ class _ClientCatalogScreenState extends State<ClientCatalogScreen> {
               mainAxisSpacing: 12,
             ),
             itemCount: cards.length,
-            itemBuilder: (_, i) => ProductGroupCard(
-              key: ValueKey(cards[i].group.variants[cards[i].index].id),
-              group: cards[i].group,
-              initialIndex: cards[i].index,
-              batchesByProductId: batchesById,
-              storeByProductId: storeById,
-              tone: i % 5,
-              onTap: _openProduct,
-            ),
+            itemBuilder: (_, i) {
+              final variantId = cards[i].group.variants[cards[i].index].id;
+              return ProductGroupCard(
+                key: ValueKey(variantId),
+                group: cards[i].group,
+                initialIndex: cards[i].index,
+                batchesByProductId: batchesById,
+                storeByProductId: storeById,
+                tone: i % 5,
+                onTap: _openProduct,
+                isFavorite: _favoriteIds.contains(variantId),
+                onToggleFavorite: _toggleFavorite,
+              );
+            },
           ),
         ),
       ],

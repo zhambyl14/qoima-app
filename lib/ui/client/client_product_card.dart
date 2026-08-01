@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:provider/provider.dart';
 import '../../data/models/product_model.dart';
 import '../../data/models/batch_model.dart';
@@ -24,6 +25,11 @@ class ProductGroupCard extends StatefulWidget {
   final void Function(ProductModel selected, List<ProductModel> variants) onTap;
   // false — жылдам «+» (себетке қосу) батырмасы жасырылады (иесінің preview-і).
   final bool quickAddEnabled;
+  // Ағымдағы вариант таңдаулыда ма (ата-экран бір ортақ watchFavoriteIds()
+  // жазылымынан есептейді — әр карточка өз жазылымын ашпайды).
+  final bool isFavorite;
+  // null = таңдаулы өшірулі (мыс. гость — басқанда логинге шақыру көрсетіледі).
+  final void Function(ProductModel)? onToggleFavorite;
 
   const ProductGroupCard({
     super.key,
@@ -34,6 +40,8 @@ class ProductGroupCard extends StatefulWidget {
     required this.onTap,
     this.initialIndex = 0,
     this.quickAddEnabled = true,
+    this.isFavorite = false,
+    this.onToggleFavorite,
   });
 
   @override
@@ -98,6 +106,55 @@ class _ProductGroupCardState extends State<ProductGroupCard> {
     );
   }
 
+  // Ағымдағы товар себетте бар ма (нақты бір өлшеммен) — солай болса «+»
+  // орнына сол өлшем көрсетіледі. >1 бөлек өлшем болса — жай жасыл нүкте.
+  Widget _buildQuickAddButton() {
+    final cart = context.watch<CartProvider>();
+    final sizesInCart =
+        cart.items.where((i) => i.productId == _product.id).map((i) => i.size).toSet();
+    final singleSize = sizesInCart.length == 1 ? sizesInCart.first : null;
+
+    return GestureDetector(
+      onTap: _quickAdd,
+      child: Container(
+        constraints: const BoxConstraints(minWidth: 32),
+        height: 32,
+        padding: singleSize != null
+            ? const EdgeInsets.symmetric(horizontal: 9)
+            : EdgeInsets.zero,
+        decoration: BoxDecoration(
+          color: cGreen,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Center(
+          child: singleSize != null
+              ? Text(singleSize,
+                  style: manrope(13, FontWeight.w800, color: Colors.white))
+              : Stack(clipBehavior: Clip.none, children: [
+                  const Padding(
+                    padding: EdgeInsets.all(7),
+                    child: Icon(Icons.add_rounded,
+                        color: Colors.white, size: 18),
+                  ),
+                  if (sizesInCart.isNotEmpty)
+                    Positioned(
+                      top: -2,
+                      right: -2,
+                      child: Container(
+                        width: 9,
+                        height: 9,
+                        decoration: const BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                ]),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final variantCount = _variants.length;
@@ -154,15 +211,27 @@ class _ProductGroupCardState extends State<ProductGroupCard> {
               Positioned(
                 top: 7,
                 right: 7,
-                child: Container(
-                  width: 28,
-                  height: 28,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.9),
-                    shape: BoxShape.circle,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    widget.onToggleFavorite?.call(_product);
+                  },
+                  child: Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.9),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      widget.isFavorite
+                          ? Icons.favorite_rounded
+                          : Icons.favorite_border_rounded,
+                      size: 14,
+                      color: widget.isFavorite ? cRed : cInk3,
+                    ),
                   ),
-                  child: const Icon(Icons.favorite_border_rounded,
-                      size: 14, color: cInk3),
                 ),
               ),
               // 3+ нұсқа болса — «{n} түс» бейджі (суреттің астыңғы оң бұрышы)
@@ -253,20 +322,7 @@ class _ProductGroupCardState extends State<ProductGroupCard> {
                     ],
                   ),
                 ),
-                if (widget.quickAddEnabled)
-                  GestureDetector(
-                    onTap: _quickAdd,
-                    child: Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: cGreen,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Icon(Icons.add_rounded,
-                          color: Colors.white, size: 18),
-                    ),
-                  ),
+                if (widget.quickAddEnabled) _buildQuickAddButton(),
               ],
             ),
           ],

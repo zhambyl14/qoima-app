@@ -534,25 +534,25 @@ class _BankBadge extends StatelessWidget {
         onTap: _open,
         borderRadius: BorderRadius.circular(20),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
             border: Border.all(color: cLine),
           ),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
             Container(
-              width: 16,
-              height: 16,
+              width: 24,
+              height: 24,
               alignment: Alignment.center,
               decoration: BoxDecoration(
                   color: bankColor(bankId), shape: BoxShape.circle),
               child: Text(
                 name.isNotEmpty ? name[0].toUpperCase() : '?',
-                style: manrope(9, FontWeight.w800, color: Colors.white),
+                style: manrope(12, FontWeight.w800, color: Colors.white),
               ),
             ),
-            const SizedBox(width: 5),
-            Text(name, style: manrope(11, FontWeight.w800, color: cInk)),
+            const SizedBox(width: 7),
+            Text(name, style: manrope(13, FontWeight.w800, color: cInk)),
           ]),
         ),
       ),

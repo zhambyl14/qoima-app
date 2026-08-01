@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../core/locale_context.dart';
+import '../../core/lang.dart';
 import '../../theme/qoima_design.dart';
 
 /// Логин экранының маршрут аты — тіркелу ағынынан «Войти» сілтемесі осы
@@ -373,7 +374,12 @@ class AuthWizardHeader extends StatelessWidget {
 // ── Қате қорабы ───────────────────────────────────────────────────────────────
 class AuthErrorBox extends StatelessWidget {
   final String message;
-  const AuthErrorBox(this.message, {super.key});
+  // Болса — қате мәтінінің астында invitación батырма (мыс. «аккаунт
+  // табылмады» қатесінде «Тіркелу» батырмасы) көрсетіледі.
+  final String? actionLabel;
+  final VoidCallback? onAction;
+  const AuthErrorBox(this.message,
+      {super.key, this.actionLabel, this.onAction});
 
   @override
   Widget build(BuildContext context) => Container(
@@ -383,13 +389,80 @@ class AuthErrorBox extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: cRed.withValues(alpha: 0.3)),
         ),
-        child: Row(children: [
-          const Icon(Icons.error_outline, color: cRed, size: 18),
-          const SizedBox(width: 8),
-          Expanded(
-              child: Text(message,
-                  style: manrope(13, FontWeight.w500, color: cRed))),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            const Icon(Icons.error_outline, color: cRed, size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+                child: Text(message,
+                    style: manrope(13, FontWeight.w500, color: cRed))),
+          ]),
+          if (actionLabel != null && onAction != null) ...[
+            const SizedBox(height: 10),
+            GestureDetector(
+              onTap: onAction,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                decoration: BoxDecoration(
+                  color: cRed,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Text(actionLabel!,
+                      style: manrope(13, FontWeight.w800,
+                          color: Colors.white)),
+                  const SizedBox(width: 4),
+                  const Icon(Icons.arrow_forward_rounded,
+                      color: Colors.white, size: 15),
+                ]),
+              ),
+            ),
+          ],
         ]),
+      );
+}
+
+// ── «Жаңа қолданушысыз ба?» тіркелуге шақыратын баннер ────────────────────────
+// Логин формасының үстінде — қолданушы телефон/құпиясөз енгізіп, қате алудан
+// БҰРЫН тіркелу жолын көрсетеді (жаңа қолданушылар аккаунты жоқ екенін
+// білместен кіруге тырысады деген мәселені алдын алу үшін).
+class RegisterNudgeBanner extends StatelessWidget {
+  final VoidCallback onTap;
+  const RegisterNudgeBanner({super.key, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: cGreenTint,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: cGreen.withValues(alpha: 0.3)),
+          ),
+          child: Row(children: [
+            Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.person_add_alt_1_rounded,
+                  color: cGreen, size: 18),
+            ),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Text(
+                  tr('Впервые в Qoima? Создайте аккаунт за пару минут',
+                      'Qoima-да алғаш рет пе? Бірнеше минутта аккаунт ашыңыз'),
+                  style: manrope(12.5, FontWeight.w700, color: cGreenDeep)),
+            ),
+            const SizedBox(width: 6),
+            const Icon(Icons.chevron_right_rounded,
+                color: cGreenDeep, size: 20),
+          ]),
+        ),
       );
 }
 

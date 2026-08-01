@@ -23,6 +23,20 @@ class PaymentCardSettings {
   bool get isConfigured => bankQrs.isNotEmpty;
 }
 
+/// Профильдегі «Байланыс» карточкасының мәндері — superadmin «Реквизиты»
+/// экранында өзгертеді (app_settings кестесі, payment реквизиттерімен бірдей
+/// конвенция: оқу — кез келген авторизацияланған, жазу — тек superadmin).
+class ContactSettings {
+  final String whatsapp; // тек телефон нөмірі (wa.me сілтемесі үшін)
+  final String telegram; // username, @ таңбасынсыз
+  final String instagram; // username, @ таңбасынсыз
+  const ContactSettings({
+    this.whatsapp = '',
+    this.telegram = '',
+    this.instagram = '',
+  });
+}
+
 class AppSettingsService {
   final SupabaseClient _sb = Supabase.instance.client;
 
@@ -32,6 +46,9 @@ class AppSettingsService {
   static const _kKaspi = 'payment_kaspi_link';
   static const _kBankQrs = 'payment_bank_qrs';
   static const _kMode = 'payment_mode';
+  static const _kWhatsapp = 'contact_whatsapp';
+  static const _kTelegram = 'contact_telegram';
+  static const _kInstagram = 'contact_instagram';
 
   /// Төлем режимі: 'platform' — бәрі модератор картасына (әдепкі);
   /// 'store' — әр тапсырыс сол дүкеннің картасына (толтырмаса — fallback
@@ -82,6 +99,31 @@ class AppSettingsService {
     final now = DateTime.now().toIso8601String();
     await _sb.from('app_settings').upsert([
       {'key': _kBankQrs, 'value': jsonEncode(card.bankQrs), 'updated_at': now},
+    ]);
+  }
+
+  Future<ContactSettings> getContactSettings() async {
+    final rows = await _sb
+        .from('app_settings')
+        .select('key,value')
+        .inFilter('key', [_kWhatsapp, _kTelegram, _kInstagram]);
+    final map = {
+      for (final r in rows) r['key'] as String: (r['value'] as String? ?? '')
+    };
+    return ContactSettings(
+      whatsapp: map[_kWhatsapp] ?? '',
+      telegram: map[_kTelegram] ?? '',
+      instagram: map[_kInstagram] ?? '',
+    );
+  }
+
+  /// Тек superadmin (RLS: app_settings_write).
+  Future<void> saveContactSettings(ContactSettings c) async {
+    final now = DateTime.now().toIso8601String();
+    await _sb.from('app_settings').upsert([
+      {'key': _kWhatsapp, 'value': c.whatsapp, 'updated_at': now},
+      {'key': _kTelegram, 'value': c.telegram, 'updated_at': now},
+      {'key': _kInstagram, 'value': c.instagram, 'updated_at': now},
     ]);
   }
 }

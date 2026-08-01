@@ -21,20 +21,36 @@ class _PaymentSettingsScreenState extends State<PaymentSettingsScreen> {
   bool _loading = true;
   bool _saving = false;
 
+  final _waCtrl = TextEditingController();
+  final _tgCtrl = TextEditingController();
+  final _igCtrl = TextEditingController();
+
   @override
   void initState() {
     super.initState();
     _load();
   }
 
+  @override
+  void dispose() {
+    _waCtrl.dispose();
+    _tgCtrl.dispose();
+    _igCtrl.dispose();
+    super.dispose();
+  }
+
   Future<void> _load() async {
     try {
       final card = await _service.getPaymentCard();
       final mode = await _service.getPaymentMode();
+      final contacts = await _service.getContactSettings();
       if (!mounted) return;
       setState(() {
         _bankQrs = Map.of(card.bankQrs);
         _mode = mode;
+        _waCtrl.text = contacts.whatsapp;
+        _tgCtrl.text = contacts.telegram;
+        _igCtrl.text = contacts.instagram;
         _loading = false;
       });
     } catch (_) {
@@ -47,6 +63,11 @@ class _PaymentSettingsScreenState extends State<PaymentSettingsScreen> {
     try {
       await _service.savePaymentCard(PaymentCardSettings(bankQrs: _bankQrs));
       await _service.savePaymentMode(_mode);
+      await _service.saveContactSettings(ContactSettings(
+        whatsapp: _waCtrl.text.trim(),
+        telegram: _tgCtrl.text.trim().replaceFirst('@', ''),
+        instagram: _igCtrl.text.trim().replaceFirst('@', ''),
+      ));
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(tr('Реквизиты сохранены ✓', 'Реквизиттер сақталды ✓')),
@@ -146,6 +167,35 @@ class _PaymentSettingsScreenState extends State<PaymentSettingsScreen> {
                       initial: _bankQrs,
                       onChanged: (m) => _bankQrs = m,
                     ),
+                    const SizedBox(height: 28),
+                    Text(tr('Контакты приложения', 'Қолданба байланысы'),
+                        style: manrope(13, FontWeight.w800, color: cInk)),
+                    const SizedBox(height: 4),
+                    Text(
+                        tr('Профиль экранындағы «Байланыс» карточкасында клиенттерге/сатушыларға көрінеді.',
+                            'Профиль экранындағы «Байланыс» карточкасында клиенттерге/сатушыларға көрінеді.'),
+                        style: manrope(12, FontWeight.w500, color: cInk3)),
+                    const SizedBox(height: 12),
+                    _ContactField(
+                      icon: Icons.chat_rounded,
+                      label: 'WhatsApp',
+                      hint: '+7 700 000 00 00',
+                      controller: _waCtrl,
+                    ),
+                    const SizedBox(height: 10),
+                    _ContactField(
+                      icon: Icons.send_rounded,
+                      label: 'Telegram',
+                      hint: 'username',
+                      controller: _tgCtrl,
+                    ),
+                    const SizedBox(height: 10),
+                    _ContactField(
+                      icon: Icons.camera_alt_rounded,
+                      label: 'Instagram',
+                      hint: 'username',
+                      controller: _igCtrl,
+                    ),
                     const SizedBox(height: 24),
                     QPrimaryButton(
                       label: tr('Сохранить', 'Сақтау'),
@@ -159,6 +209,50 @@ class _PaymentSettingsScreenState extends State<PaymentSettingsScreen> {
     );
   }
 
+}
+
+class _ContactField extends StatelessWidget {
+  final IconData icon;
+  final String label, hint;
+  final TextEditingController controller;
+  const _ContactField({
+    required this.icon,
+    required this.label,
+    required this.hint,
+    required this.controller,
+  });
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        decoration: BoxDecoration(
+          color: cSurface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: cLine),
+        ),
+        child: Row(children: [
+          Icon(icon, size: 18, color: cInk3),
+          const SizedBox(width: 10),
+          SizedBox(
+            width: 78,
+            child: Text(label,
+                style: manrope(13, FontWeight.w700, color: cInk)),
+          ),
+          Expanded(
+            child: TextField(
+              controller: controller,
+              style: manrope(14, FontWeight.w600, color: cInk),
+              decoration: InputDecoration(
+                hintText: hint,
+                hintStyle: manrope(13, FontWeight.w500, color: cInk3),
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+            ),
+          ),
+        ]),
+      );
 }
 
 class _ModeOption extends StatelessWidget {

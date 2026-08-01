@@ -7,8 +7,10 @@ import '../../core/l10n_ext.dart';
 import '../../data/models/order_model.dart';
 import '../../data/services/auth_service.dart';
 import '../../data/services/client_service.dart';
+import '../../data/services/notifications_service.dart';
 import '../../core/order_helpers.dart';
 import '../../theme/qoima_design.dart';
+import '../shared/notifications_screen.dart';
 import 'favorites_screen.dart';
 import 'addresses_screen.dart';
 import 'hidden_stores_screen.dart';
@@ -110,15 +112,16 @@ class ClientProfileScreen extends StatelessWidget {
                     MaterialPageRoute(builder: (_) => const AddressesScreen())),
               ),
               const SizedBox(height: 10),
-              _MenuItem(
-                icon: Icons.notifications_outlined,
-                tone: 'amber',
-                title: tr('Уведомления', 'Хабарламалар'),
-                value: tr('Включены', 'Қосылған'),
-                onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(tr('Уведомления — скоро', 'Хабарламалар — жақында')),
-                      behavior: SnackBarBehavior.floating,
-                      duration: Duration(seconds: 2)),
+              StreamBuilder<int>(
+                stream: NotificationsService().watchUnreadCount(),
+                builder: (_, snap) => _MenuItem(
+                  icon: Icons.notifications_outlined,
+                  tone: 'amber',
+                  title: tr('Уведомления', 'Хабарламалар'),
+                  value: (snap.data ?? 0) > 0 ? '${snap.data}' : null,
+                  onTap: () => Navigator.push(context,
+                      MaterialPageRoute(
+                          builder: (_) => const NotificationsScreen())),
                 ),
               ),
               const SizedBox(height: 10),

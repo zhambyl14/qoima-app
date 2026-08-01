@@ -267,7 +267,7 @@ class QoimaApp extends StatelessWidget {
       title: 'Qoima',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.theme.copyWith(
-        textTheme: GoogleFonts.manropeTextTheme(AppTheme.theme.textTheme),
+        textTheme: GoogleFonts.interTextTheme(AppTheme.theme.textTheme),
         scaffoldBackgroundColor: const Color(0xFFF1F4F3),
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF00A862),

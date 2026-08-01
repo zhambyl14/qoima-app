@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/app_user.dart';
@@ -42,18 +43,60 @@ class _StorePublicScreenState extends State<StorePublicScreen> {
   bool _unavailable = false;
   String _query = '';
 
+  List<String> _favoriteIds = [];
+  StreamSubscription<List<String>>? _favSub;
+
   StoreModel get store => widget.store;
 
   @override
   void initState() {
     super.initState();
     _load();
+    if (!widget.previewMode) {
+      _favSub = _service.watchFavoriteIds().listen((ids) {
+        if (mounted) setState(() => _favoriteIds = ids);
+      });
+    }
   }
 
   @override
   void dispose() {
+    _favSub?.cancel();
     _searchCtrl.dispose();
     super.dispose();
+  }
+
+  void _toggleFavorite(ProductModel p) async {
+    final user = context.read<AppUser>();
+    if (user.uid.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(tr('Войдите, чтобы добавить в избранное',
+            'Таңдаулыға қосу үшін кіріңіз')),
+        behavior: SnackBarBehavior.floating,
+      ));
+      return;
+    }
+    final isFav = _favoriteIds.contains(p.id);
+    try {
+      if (isFav) {
+        await _service.removeFavorite(p.id);
+      } else {
+        final batches = _pairs
+            .firstWhere((pr) => pr.product.id == p.id,
+                orElse: () => (product: p, batches: const <BatchModel>[]))
+            .batches;
+        final price =
+            batches.isNotEmpty ? batches.first.sellingPrice : 0.0;
+        await _service.addFavorite(
+          productId: p.id,
+          productName: p.name,
+          imageUrl: p.images.isNotEmpty ? p.images.first : '',
+          adminUid: store.adminUid,
+          storeName: store.storeName,
+          price: price,
+        );
+      }
+    } catch (_) {}
   }
 
   Future<void> _load() async {
@@ -356,19 +399,26 @@ class _StorePublicScreenState extends State<StorePublicScreen> {
                             mainAxisSpacing: 12,
                           ),
                           delegate: SliverChildBuilderDelegate(
-                            (_, i) => ProductGroupCard(
-                              key: ValueKey(cards[i]
+                            (_, i) {
+                              final variantId = cards[i]
                                   .group
                                   .variants[cards[i].index]
-                                  .id),
-                              group: cards[i].group,
-                              initialIndex: cards[i].index,
-                              batchesByProductId: batchesById,
-                              storeByProductId: storeById,
-                              tone: i % 5,
-                              onTap: _openProduct,
-                              quickAddEnabled: !widget.previewMode,
-                            ),
+                                  .id;
+                              return ProductGroupCard(
+                                key: ValueKey(variantId),
+                                group: cards[i].group,
+                                initialIndex: cards[i].index,
+                                batchesByProductId: batchesById,
+                                storeByProductId: storeById,
+                                tone: i % 5,
+                                onTap: _openProduct,
+                                quickAddEnabled: !widget.previewMode,
+                                isFavorite: _favoriteIds.contains(variantId),
+                                onToggleFavorite: widget.previewMode
+                                    ? null
+                                    : _toggleFavorite,
+                              );
+                            },
                             childCount: cards.length,
                           ),
                         ),

@@ -42,6 +42,14 @@ Future<void> openTelegram(String username) async {
   }
 }
 
+/// Instagram профилін ашады (username — @ таңбасынсыз, мыс. 'qoima.kz').
+Future<void> openInstagram(String username) async {
+  final uri = Uri.parse('https://instagram.com/$username');
+  if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+    throw Exception(tr('Не удалось открыть Instagram', 'Instagram ашылмады'));
+  }
+}
+
 /// Открывает WhatsApp с предзаполненным сообщением.
 /// Очищает номер от +, -, пробелов; заменяет ведущую «8» на «7».
 Future<void> openWhatsApp(String phone, String message) async {

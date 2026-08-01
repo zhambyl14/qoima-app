@@ -7,9 +7,13 @@ import '../../core/contact_utils.dart';
 import '../../core/locale_context.dart';
 import '../../core/l10n_ext.dart';
 import '../../data/models/models.dart';
+import '../../data/services/app_settings_service.dart';
 import '../../data/services/auth_service.dart';
 import '../../data/services/firestore_service.dart';
+import '../../data/services/notifications_service.dart';
 import '../../theme/qoima_design.dart';
+import '../shared/notifications_screen.dart';
+import '../admin/products/products_screen.dart';
 import '../admin/settings/sellers_screen.dart';
 import '../admin/settings/warehouses_screen.dart';
 import '../../data/repositories/my_store_repository.dart';
@@ -59,15 +63,16 @@ class ProfileScreen extends StatelessWidget {
                   if (isAdmin)
                     Align(
                       alignment: Alignment.centerRight,
-                      child: StreamBuilder<List<Map<String, dynamic>>>(
-                        stream: service.watchPendingRequests(),
+                      child: StreamBuilder<int>(
+                        stream: NotificationsService().watchUnreadCount(),
                         builder: (_, snap) {
-                          final count = snap.data?.length ?? 0;
+                          final count = snap.data ?? 0;
                           return GestureDetector(
                             onTap: () => Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                    builder: (_) => const SellersScreen())),
+                                    builder: (_) =>
+                                        const NotificationsScreen())),
                             child: Stack(clipBehavior: Clip.none, children: [
                               Container(
                                   padding: const EdgeInsets.all(8),
@@ -280,6 +285,10 @@ class ProfileScreen extends StatelessWidget {
                 title: tr('Мой склад', 'Менің қоймам'),
                 subtitle: warehouseName.isNotEmpty ? warehouseName : null,
                 value: warehouseName.isNotEmpty ? tr('Привязан', 'Байланған') : null,
+                onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const ProductsScreen(readOnly: true))),
               ),
               const SizedBox(height: 8),
               QMenuItem(
@@ -314,29 +323,6 @@ class ProfileScreen extends StatelessWidget {
                     ? l.kazakh
                     : l.russian,
                 onTap: () => _showLanguageDialog(context),
-              ),
-              const SizedBox(height: 8),
-              QMenuItem(
-                icon: Icons.info_outline_rounded,
-                tone: 'ink',
-                title: l.about,
-                subtitle: l.appVersion,
-                onTap: () => showDialog(
-                  context: context,
-                  builder: (ctx) => AlertDialog(
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20)),
-                    title: const Text('Qoima',
-                        style: TextStyle(fontWeight: FontWeight.w700)),
-                    content: Text(tr(
-                        'Версия 2.3\n© 2024 Qoima', 'Нұсқа 2.3\n© 2024 Qoima')),
-                    actions: [
-                      TextButton(
-                          onPressed: () => Navigator.pop(ctx),
-                          child: const Text('OK')),
-                    ],
-                  ),
-                ),
               ),
               const SizedBox(height: 8),
               QMenuItem(
@@ -468,28 +454,6 @@ class ProfileScreen extends StatelessWidget {
                       : l.russian,
               onTap: () => _showLanguageDialog(context),
             ),
-            const SizedBox(height: 8),
-            _MenuItem(
-              icon: Icons.info_outline_rounded,
-              color: cGreen,
-              title: l.about,
-              subtitle: l.appVersion,
-              onTap: () => showDialog(
-                    context: context,
-                    builder: (ctx) => AlertDialog(
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20)),
-                      title: const Text('Qoima',
-                          style: TextStyle(fontWeight: FontWeight.w700)),
-                      content: Text(tr('Версия 2.3\n© 2024 Qoima', 'Нұсқа 2.3\n© 2024 Qoima')),
-                      actions: [
-                        TextButton(
-                            onPressed: () => Navigator.pop(ctx),
-                            child: const Text('OK')),
-                      ],
-                    ),
-                  ),
-            ),
             const SizedBox(height: 16),
 
             // ── Байланыс / Контакты ──────────────────────────────────
@@ -614,11 +578,18 @@ class _ContactCard extends StatefulWidget {
 
 class _ContactCardState extends State<_ContactCard> {
   bool _expanded = false;
+  ContactSettings _contacts = const ContactSettings();
 
-  static const _phone = '87474005347';
-  static const _tgUser = 'zhambyl_magzhan';
   static String get _waMsg =>
       tr('Здравствуйте! Я обращаюсь по поводу приложения Qoima.', 'Сәлеметсіз бе! Мен Qoima қолданбасы бойынша хабарласып тұрмын.');
+
+  @override
+  void initState() {
+    super.initState();
+    AppSettingsService().getContactSettings().then((c) {
+      if (mounted) setState(() => _contacts = c);
+    });
+  }
 
   static void _showErr(ScaffoldMessengerState messenger, String text) {
     messenger.showSnackBar(SnackBar(
@@ -673,59 +644,70 @@ class _ContactCardState extends State<_ContactCard> {
             ]),
           ),
 
-          // ── Дереккөздер — тек ашылғанда ────────────────────────────────
+          // ── Дереккөздер — тек ашылғанда (superadmin «Реквизиты»-де
+          // орнатқандары ғана көрінеді — бос болса тайл жасырылады) ───────
           if (_expanded) ...[
             const SizedBox(height: 14),
-            _ContactTile(
-              icon: Icons.phone_rounded,
-              iconColor: cBlue,
-              bgColor: cBlueTint,
-              label: l.contactPhone,
-              value: _phone,
-              actionLabel: tr('Звонок', 'Қоңырау'),
-              onTap: () async {
-                final messenger = ScaffoldMessenger.of(context);
-                try {
-                  await makePhoneCall(_phone);
-                } catch (_) {
-                  _showErr(messenger, tr('Приложение телефона не найдено', 'Телефон қосымшасы табылмады'));
-                }
-              },
-            ),
-            const SizedBox(height: 10),
-            _ContactTile(
-              icon: Icons.send_rounded,
-              iconColor: const Color(0xFF229ED9),
-              bgColor: const Color(0xFFE8F5FD),
-              label: l.contactTelegram,
-              value: '@$_tgUser',
-              actionLabel: 'Telegram',
-              onTap: () async {
-                final messenger = ScaffoldMessenger.of(context);
-                try {
-                  await openTelegram(_tgUser);
-                } catch (_) {
-                  _showErr(messenger, tr('Приложение Telegram не найдено', 'Telegram қосымшасы табылмады'));
-                }
-              },
-            ),
-            const SizedBox(height: 10),
-            _ContactTile(
-              icon: Icons.chat_rounded,
-              iconColor: const Color(0xFF25D366),
-              bgColor: const Color(0xFFEAFBEE),
-              label: 'WhatsApp',
-              value: _phone,
-              actionLabel: 'WhatsApp',
-              onTap: () async {
-                final messenger = ScaffoldMessenger.of(context);
-                try {
-                  await openWhatsApp(_phone, _waMsg);
-                } catch (_) {
-                  _showErr(messenger, tr('Приложение WhatsApp не найдено', 'WhatsApp қосымшасы табылмады'));
-                }
-              },
-            ),
+            if (_contacts.whatsapp.isNotEmpty) ...[
+              _ContactTile(
+                icon: Icons.chat_rounded,
+                iconColor: const Color(0xFF25D366),
+                bgColor: const Color(0xFFEAFBEE),
+                label: 'WhatsApp',
+                value: _contacts.whatsapp,
+                actionLabel: 'WhatsApp',
+                onTap: () async {
+                  final messenger = ScaffoldMessenger.of(context);
+                  try {
+                    await openWhatsApp(_contacts.whatsapp, _waMsg);
+                  } catch (_) {
+                    _showErr(messenger, tr('Приложение WhatsApp не найдено', 'WhatsApp қосымшасы табылмады'));
+                  }
+                },
+              ),
+              const SizedBox(height: 10),
+            ],
+            if (_contacts.telegram.isNotEmpty) ...[
+              _ContactTile(
+                icon: Icons.send_rounded,
+                iconColor: const Color(0xFF229ED9),
+                bgColor: const Color(0xFFE8F5FD),
+                label: l.contactTelegram,
+                value: '@${_contacts.telegram}',
+                actionLabel: 'Telegram',
+                onTap: () async {
+                  final messenger = ScaffoldMessenger.of(context);
+                  try {
+                    await openTelegram(_contacts.telegram);
+                  } catch (_) {
+                    _showErr(messenger, tr('Приложение Telegram не найдено', 'Telegram қосымшасы табылмады'));
+                  }
+                },
+              ),
+              const SizedBox(height: 10),
+            ],
+            if (_contacts.instagram.isNotEmpty)
+              _ContactTile(
+                icon: Icons.camera_alt_rounded,
+                iconColor: const Color(0xFFC13584),
+                bgColor: const Color(0xFFFCE7F3),
+                label: 'Instagram',
+                value: '@${_contacts.instagram}',
+                actionLabel: 'Instagram',
+                onTap: () async {
+                  final messenger = ScaffoldMessenger.of(context);
+                  try {
+                    await openInstagram(_contacts.instagram);
+                  } catch (_) {
+                    _showErr(messenger, tr('Приложение Instagram не найдено', 'Instagram қосымшасы табылмады'));
+                  }
+                },
+              ),
+            if (_contacts.whatsapp.isEmpty &&
+                _contacts.telegram.isEmpty &&
+                _contacts.instagram.isEmpty)
+              Text(tr('Контакты пока не настроены', 'Байланыс әзірге орнатылмаған'),
+                  style: manrope(13, FontWeight.w500, color: cInk3)),
           ],
         ]),
       ),
