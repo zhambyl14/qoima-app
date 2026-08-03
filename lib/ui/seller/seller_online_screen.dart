@@ -801,9 +801,11 @@ class _OrderCardState extends State<_OrderCard> {
       );
     }
 
-    final shortId = o.id.length > 6
-        ? o.id.substring(0, 6).toUpperCase()
-        : o.id.toUpperCase();
+    // Клиент пен админ көретін реттік нөмірмен сәйкес болу үшін — id-дің
+    // бөлігі емес, orderNumber (00021 түрінде) көрсетеміз.
+    final shortId = o.orderNumber > 0
+        ? o.orderNumber.toString().padLeft(5, '0')
+        : (o.id.length > 6 ? o.id.substring(0, 6).toUpperCase() : o.id.toUpperCase());
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),

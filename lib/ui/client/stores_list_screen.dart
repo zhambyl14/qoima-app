@@ -46,7 +46,14 @@ class _StoresListScreenState extends State<StoresListScreen> {
       final all = results[0] as List<StoreModel>;
       final hidden = results[1] as Set<String>;
       setState(() {
-        _stores = all.where((s) => !hidden.contains(s.adminUid)).toList()
+        // Онлайн-витрина қосулы (isPublished) болса да, барлық қоймасы
+        // витринадан өшірулі («Склады витрины») дүкенде көрсетер тауар
+        // жоқ — басты беттегі рекомендация тізімі сияқты осындай дүкенді
+        // жасырамыз (әйтпесе бос дүкенге кіруге болатын сәйкессіздік болады).
+        _stores = all
+            .where((s) =>
+                !hidden.contains(s.adminUid) && s.visibleWarehouseIds.isNotEmpty)
+            .toList()
           ..sort((a, b) => a.storeName.toLowerCase().compareTo(
               b.storeName.toLowerCase()));
         _loading = false;

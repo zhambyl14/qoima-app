@@ -13,7 +13,7 @@ import '../../data/services/firestore_service.dart';
 import '../../data/services/notifications_service.dart';
 import '../../theme/qoima_design.dart';
 import '../shared/notifications_screen.dart';
-import '../admin/products/products_screen.dart';
+import '../seller/seller_shop_membership_screen.dart';
 import '../admin/settings/sellers_screen.dart';
 import '../admin/settings/warehouses_screen.dart';
 import '../../data/repositories/my_store_repository.dart';
@@ -282,13 +282,13 @@ class ProfileScreen extends StatelessWidget {
               QMenuItem(
                 icon: Icons.storefront_outlined,
                 tone: 'blue',
-                title: tr('Мой склад', 'Менің қоймам'),
+                title: tr('Мой магазин', 'Менің дүкенім'),
                 subtitle: warehouseName.isNotEmpty ? warehouseName : null,
-                value: warehouseName.isNotEmpty ? tr('Привязан', 'Байланған') : null,
+                value: tr('Открыть', 'Ашу'),
                 onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(
-                        builder: (_) => const ProductsScreen(readOnly: true))),
+                        builder: (_) => const SellerShopMembershipScreen())),
               ),
               const SizedBox(height: 8),
               QMenuItem(

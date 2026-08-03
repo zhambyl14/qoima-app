@@ -78,6 +78,38 @@ class CartProvider extends ChangeNotifier {
     if (_items.isEmpty) LocalNotificationService.instance.cancelCartReminder();
   }
 
+  /// Осы товардың (кез келген өлшемдегі) себеттегі жолын табады — карточканың
+  /// «+» жылдам батырмасы бір өлшем ғана ұстайды (ауыстыру/жою үшін).
+  CartItemModel? findByProduct(String productId) {
+    for (final i in _items) {
+      if (i.productId == productId) return i;
+    }
+    return null;
+  }
+
+  void removeByProductAndSize(String productId, String size) {
+    final idx = _items
+        .indexWhere((e) => e.productId == productId && e.size == size);
+    if (idx >= 0) removeAt(idx);
+  }
+
+  // ── Тапсырысқа таңдау (Wildberries/Kaspi стилі чекбокс) ──────────────────
+  void toggleSelected(int index) {
+    if (index < 0 || index >= _items.length) return;
+    _items[index] =
+        _items[index].copyWith(selected: !_items[index].selected);
+    notifyListeners();
+    _persist();
+  }
+
+  void setAllSelected(bool value) {
+    for (var i = 0; i < _items.length; i++) {
+      _items[i] = _items[i].copyWith(selected: value);
+    }
+    notifyListeners();
+    _persist();
+  }
+
   void decrementAt(int index) {
     if (index < 0 || index >= _items.length) return;
     final item = _items[index];
@@ -105,6 +137,19 @@ class CartProvider extends ChangeNotifier {
     notifyListeners();
     _persist();
     LocalNotificationService.instance.cancelCartReminder();
+  }
+
+  /// Тапсырыс сәтті болған соң тек ТАПСЫРЫСҚА кірген жолдарды алып тастайды —
+  /// таңдалмаған қалған товарлар себетте қалады (Wildberries/Kaspi стилі).
+  void removeItems(Iterable<CartItemModel> toRemove) {
+    final keys = toRemove
+        .map((i) => '${i.productId}_${i.batchId}_${i.size}')
+        .toSet();
+    _items.removeWhere(
+        (i) => keys.contains('${i.productId}_${i.batchId}_${i.size}'));
+    notifyListeners();
+    _persist();
+    if (_items.isEmpty) LocalNotificationService.instance.cancelCartReminder();
   }
 }
 

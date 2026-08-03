@@ -167,11 +167,27 @@ class _ActiveTab extends StatelessWidget {
             ],
           ));
         }
-        return ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: sellers.length,
-          itemBuilder: (_, i) =>
-              _ActiveSellerCard(seller: sellers[i], service: service),
+        return StreamBuilder<List<Map<String, dynamic>>>(
+          stream: service.watchLeaveRequests(),
+          builder: (_, leaveSnap) {
+            final leaveRequests = leaveSnap.data ?? [];
+            return ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: sellers.length,
+              itemBuilder: (_, i) {
+                final seller = sellers[i];
+                Map<String, dynamic>? leaveRequest;
+                for (final r in leaveRequests) {
+                  if (r['sellerId'] == seller['uid']) {
+                    leaveRequest = r;
+                    break;
+                  }
+                }
+                return _ActiveSellerCard(
+                    seller: seller, service: service, leaveRequest: leaveRequest);
+              },
+            );
+          },
         );
       },
     );
@@ -181,7 +197,9 @@ class _ActiveTab extends StatelessWidget {
 class _ActiveSellerCard extends StatelessWidget {
   final Map<String, dynamic> seller;
   final FirestoreService service;
-  const _ActiveSellerCard({required this.seller, required this.service});
+  final Map<String, dynamic>? leaveRequest;
+  const _ActiveSellerCard(
+      {required this.seller, required this.service, this.leaveRequest});
 
   @override
   Widget build(BuildContext context) {
@@ -201,11 +219,17 @@ class _ActiveSellerCard extends StatelessWidget {
       decoration: BoxDecoration(
           color: cSurface,
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: cLine),
+          border: Border.all(
+              color: leaveRequest != null
+                  ? cAmber.withValues(alpha: 0.5)
+                  : cLine,
+              width: leaveRequest != null ? 1.5 : 1),
           boxShadow: kShadowSm),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-        leading: Container(
+      child: Column(children: [
+        ListTile(
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          leading: Container(
             width: 44,
             height: 44,
             decoration: BoxDecoration(
@@ -304,7 +328,118 @@ class _ActiveSellerCard extends StatelessWidget {
                 ])),
           ],
         ),
+        ),
+        if (leaveRequest != null)
+          _LeaveRequestBanner(
+            name: name,
+            requestId: leaveRequest!['id'] as String? ?? '',
+            uid: uid,
+            service: service,
+          ),
+      ]),
+    );
+  }
+}
+
+// ── Owner-ге сатушының шығу сұранысын мақұлдау/бас тарту ────────────────────
+class _LeaveRequestBanner extends StatelessWidget {
+  final String name;
+  final String requestId;
+  final String uid;
+  final FirestoreService service;
+  const _LeaveRequestBanner(
+      {required this.name,
+      required this.requestId,
+      required this.uid,
+      required this.service});
+
+  Future<void> _approve(BuildContext context) async {
+    final ok = await showDialog<bool>(
+        context: context,
+        builder: (_) => AlertDialog(
+              shape:
+                  RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              title: Text(tr('Одобрить выход?', 'Шығуды мақұлдау керек пе?')),
+              content: Text(tr(
+                  '«$name» будет отключён от магазина и выйдет из аккаунта.',
+                  '«$name» дүкеннен ажыратылады және аккаунттан шығады.')),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: Text(tr('Отмена', 'Болдырмау'))),
+                ElevatedButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: cGreen, foregroundColor: Colors.white),
+                    child: Text(tr('Одобрить', 'Мақұлдау'))),
+              ],
+            ));
+    if (ok == true) await service.removeSeller(uid);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: cAmberTint,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: cAmber.withValues(alpha: 0.35)),
       ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Icon(Icons.logout_rounded, size: 16, color: Color(0xFFD97706)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+                tr('Сотрудник запросил выход из магазина',
+                    'Қызметкер дүкеннен шығуды сұрады'),
+                style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFFD97706))),
+          ),
+        ]),
+        const SizedBox(height: 8),
+        Row(children: [
+          Expanded(
+            child: GestureDetector(
+              onTap: () => _approve(context),
+              child: Container(
+                alignment: Alignment.center,
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                decoration: BoxDecoration(
+                    color: cGreen, borderRadius: BorderRadius.circular(8)),
+                child: Text(tr('Одобрить', 'Мақұлдау'),
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700)),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: GestureDetector(
+              onTap: () => service.rejectLeaveRequest(requestId),
+              child: Container(
+                alignment: Alignment.center,
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: cLine)),
+                child: Text(tr('Отклонить', 'Бас тарту'),
+                    style: const TextStyle(
+                        color: cInk2,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700)),
+              ),
+            ),
+          ),
+        ]),
+      ]),
     );
   }
 }

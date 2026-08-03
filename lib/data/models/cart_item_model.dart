@@ -11,6 +11,9 @@ class CartItemModel {
   final String imageUrl;
   final String warehouseId;
   final String warehouseAddress;
+  // Себетте «тапсырысқа таңдалды ма» (Wildberries/Kaspi стилі — чекбокс).
+  // Әдепкі true: бұрынғы тапсырыс беру логикасы бәрін алады.
+  final bool selected;
 
   const CartItemModel({
     required this.productId,
@@ -25,6 +28,7 @@ class CartItemModel {
     required this.imageUrl,
     required this.warehouseId,
     this.warehouseAddress = '',
+    this.selected = true,
   });
 
   factory CartItemModel.fromJson(Map<String, dynamic> json) => CartItemModel(
@@ -40,6 +44,7 @@ class CartItemModel {
         imageUrl: json['imageUrl'] as String? ?? '',
         warehouseId: json['warehouseId'] as String? ?? '',
         warehouseAddress: json['warehouseAddress'] as String? ?? '',
+        selected: json['selected'] as bool? ?? true,
       );
 
   Map<String, dynamic> toJson() => {
@@ -55,6 +60,7 @@ class CartItemModel {
         'imageUrl': imageUrl,
         'warehouseId': warehouseId,
         'warehouseAddress': warehouseAddress,
+        'selected': selected,
       };
 
   CartItemModel copyWith({
@@ -70,6 +76,7 @@ class CartItemModel {
     String? imageUrl,
     String? warehouseId,
     String? warehouseAddress,
+    bool? selected,
   }) =>
       CartItemModel(
         productId: productId ?? this.productId,
@@ -84,6 +91,7 @@ class CartItemModel {
         imageUrl: imageUrl ?? this.imageUrl,
         warehouseId: warehouseId ?? this.warehouseId,
         warehouseAddress: warehouseAddress ?? this.warehouseAddress,
+        selected: selected ?? this.selected,
       );
 
   double get subtotal => price * qty;

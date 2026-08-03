@@ -100,7 +100,10 @@ class AuthService {
   }) async {
     final email = await emailForPhone(phoneNumber);
     if (email == null || email.isEmpty) {
-      throw AuthFailure(tr('Аккаунт не найден', 'Аккаунт табылмады'), code: 'user-not-found');
+      // Қауіпсіздік: нөмірдің тіркелген-тіркелмегенін ашпаймыз — қате пароль
+      // қатесімен бірдей жалпы хабарлама («enumeration» шабуылынан қорғау).
+      throw AuthFailure(tr('Неверный номер или пароль', 'Нөмір немесе құпиясөз қате'),
+          code: 'wrong-password');
     }
     try {
       await _sb.auth.signInWithPassword(email: email, password: password);

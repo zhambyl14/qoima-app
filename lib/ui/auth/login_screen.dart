@@ -26,7 +26,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
   bool _isLoading = false;
   String? _errorMessage;
-  String? _errorCode;
 
   @override
   void dispose() {
@@ -40,21 +39,18 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() {
         _errorMessage =
             tr('Введите номер телефона полностью', 'Телефон нөмірін толық енгізіңіз');
-        _errorCode = null;
       });
       return;
     }
     if (_passwordCtrl.text.isEmpty) {
       setState(() {
         _errorMessage = tr('Введите пароль', 'Құпиясөзді енгізіңіз');
-        _errorCode = null;
       });
       return;
     }
     setState(() {
       _isLoading = true;
       _errorMessage = null;
-      _errorCode = null;
     });
     try {
       await _authService.loginWithPhonePassword(
@@ -65,16 +61,11 @@ class _LoginScreenState extends State<LoginScreen> {
       // Сәтті — реактивті gate (main.dart) рөл бойынша дұрыс экранға ауыстырады.
       if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
     } on AuthFailure catch (e) {
-      setState(() {
-        _errorMessage = e.message;
-        _errorCode = e.code;
-      });
+      setState(() => _errorMessage = e.message);
     } catch (_) {
       if (mounted) {
-        setState(() {
-          _errorMessage = tr('Неизвестная ошибка', 'Белгісіз қате');
-          _errorCode = null;
-        });
+        setState(() =>
+            _errorMessage = tr('Неизвестная ошибка', 'Белгісіз қате'));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -119,7 +110,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: Image.asset('assets/images/logo.png',
                           width: 92, height: 92, fit: BoxFit.cover),
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 10),
                     Text('Qoima',
                         style: manrope(34, FontWeight.w800,
                             color: Colors.white, letterSpacing: -0.8)),
@@ -163,8 +154,6 @@ class _LoginScreenState extends State<LoginScreen> {
                       style: manrope(12.5, FontWeight.w600, color: cGreen)),
                 ),
               ]),
-              const SizedBox(height: 16),
-              RegisterNudgeBanner(onTap: _goToRegister),
               const SizedBox(height: 18),
 
               AuthField(
@@ -206,14 +195,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
               if (_errorMessage != null) ...[
                 const SizedBox(height: 14),
-                AuthErrorBox(
-                  _errorMessage!,
-                  actionLabel: _errorCode == 'user-not-found'
-                      ? tr('Регистрация', 'Тіркелу')
-                      : null,
-                  onAction:
-                      _errorCode == 'user-not-found' ? _goToRegister : null,
-                ),
+                AuthErrorBox(_errorMessage!),
               ],
 
               const SizedBox(height: 22),

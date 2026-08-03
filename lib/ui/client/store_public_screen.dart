@@ -105,9 +105,16 @@ class _StorePublicScreenState extends State<StorePublicScreen> {
       // бет, тауар карточкасы) — иесі дүкенді витринадан жасырған/блоктаған
       // болса, соны осы жерде қайта тексеріп барып қана тауарды жүктейміз.
       // Иенің өзі preview режимінде өз дүкенін бұл тексеруден тыс көреді.
+      var visibleWarehouseIds = store.visibleWarehouseIds;
       if (!widget.previewMode) {
         final fresh = await _service.getStoreByAdminUid(store.adminUid);
-        if (fresh == null || !fresh.isPublished || fresh.isBlocked) {
+        // visibleWarehouseIds бос — барлық қойма витринадан өшірулі: клиентке
+        // көрсетер тауар жоқ, дүкенді сол «магазин недоступен» экранымен
+        // жабамыз (тізімде де жасырылады, [[stores_list_screen]]).
+        if (fresh == null ||
+            !fresh.isPublished ||
+            fresh.isBlocked ||
+            fresh.visibleWarehouseIds.isEmpty) {
           if (mounted) {
             setState(() {
               _unavailable = true;
@@ -116,10 +123,11 @@ class _StorePublicScreenState extends State<StorePublicScreen> {
           }
           return;
         }
+        visibleWarehouseIds = fresh.visibleWarehouseIds;
       }
       final results = await Future.wait([
         _service.getStoreProductsWithBatches(
-            store.adminUid, store.visibleWarehouseIds),
+            store.adminUid, visibleWarehouseIds),
         _service.getHiddenStoreIds(),
       ]);
       if (!mounted) return;

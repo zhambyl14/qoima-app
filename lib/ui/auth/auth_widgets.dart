@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../core/locale_context.dart';
-import '../../core/lang.dart';
 import '../../theme/qoima_design.dart';
 
 /// Логин экранының маршрут аты — тіркелу ағынынан «Войти» сілтемесі осы
@@ -420,49 +419,6 @@ class AuthErrorBox extends StatelessWidget {
             ),
           ],
         ]),
-      );
-}
-
-// ── «Жаңа қолданушысыз ба?» тіркелуге шақыратын баннер ────────────────────────
-// Логин формасының үстінде — қолданушы телефон/құпиясөз енгізіп, қате алудан
-// БҰРЫН тіркелу жолын көрсетеді (жаңа қолданушылар аккаунты жоқ екенін
-// білместен кіруге тырысады деген мәселені алдын алу үшін).
-class RegisterNudgeBanner extends StatelessWidget {
-  final VoidCallback onTap;
-  const RegisterNudgeBanner({super.key, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) => GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            color: cGreenTint,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: cGreen.withValues(alpha: 0.3)),
-          ),
-          child: Row(children: [
-            Container(
-              padding: const EdgeInsets.all(7),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(Icons.person_add_alt_1_rounded,
-                  color: cGreen, size: 18),
-            ),
-            const SizedBox(width: 11),
-            Expanded(
-              child: Text(
-                  tr('Впервые в Qoima? Создайте аккаунт за пару минут',
-                      'Qoima-да алғаш рет пе? Бірнеше минутта аккаунт ашыңыз'),
-                  style: manrope(12.5, FontWeight.w700, color: cGreenDeep)),
-            ),
-            const SizedBox(width: 6),
-            const Icon(Icons.chevron_right_rounded,
-                color: cGreenDeep, size: 20),
-          ]),
-        ),
       );
 }
 

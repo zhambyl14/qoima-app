@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -5,6 +6,7 @@ import '../admin/products/products_screen.dart';
 import '../profile/profile_screen.dart';
 import 'sales/sales_screen.dart';
 import 'seller_online_screen.dart';
+import '../../data/services/auth_service.dart';
 import '../../data/services/firestore_service.dart';
 import '../../theme/qoima_design.dart';
 
@@ -17,6 +19,55 @@ class SellerShell extends StatefulWidget {
 
 class _SellerShellState extends State<SellerShell> {
   int _index = 0;
+  StreamSubscription<bool>? _removalSub;
+  bool _handlingRemoval = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Owner сатушыны шығарды (тікелей «Удалить» немесе шығу сұранысын
+    // мақұлдау арқылы) — ағымдағы сессияда бұл реактивті емес (тек келесі
+    // кіруде жаңарады), сондықтан осында тыңдап, мәжбүрлі логаут жасаймыз.
+    _removalSub = FirestoreService().watchOwnRemoval().listen((removed) {
+      if (removed && !_handlingRemoval) {
+        _handlingRemoval = true;
+        _handleRemoved();
+      }
+    });
+  }
+
+  Future<void> _handleRemoved() async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Text(tr('Вы удалены из магазина', 'Сіз дүкеннен шығарылдыңыз'),
+            style: manrope(16, FontWeight.w800, color: cInk)),
+        content: Text(
+            tr(
+                'Владелец подтвердил ваш выход из магазина. Сейчас вы будете выведены из аккаунта.',
+                'Дүкен иесі сіздің шығуыңызды растады. Қазір аккаунттан шығасыз.'),
+            style: manrope(13.5, FontWeight.w500, color: cInk2, height: 1.4)),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: cGreen, foregroundColor: Colors.white),
+            child: Text(tr('Понятно', 'Түсінікті')),
+          ),
+        ],
+      ),
+    );
+    await AuthService().signOut();
+  }
+
+  @override
+  void dispose() {
+    _removalSub?.cancel();
+    super.dispose();
+  }
 
   static const List<_TabDef> _tabs = [
     _TabDef(Icons.inventory_2_outlined, Icons.inventory_2_rounded, 'Склад'),

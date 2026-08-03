@@ -93,6 +93,16 @@ class _ProductGroupCardState extends State<ProductGroupCard> {
     final sortedSizes = available.keys.toList()
       ..sort((a, b) => (int.tryParse(a) ?? 0).compareTo(int.tryParse(b) ?? 0));
 
+    // Осы товардың себетте нақ БІР өлшемі бар ма — солай болса ашылған
+    // парақшада сол өлшем алдын ала таңдаулы тұрады («+» батырмасында
+    // көрсетілгенмен сәйкес).
+    final cart = context.read<CartProvider>();
+    final sizesInCart = cart.items
+        .where((i) => i.productId == _product.id)
+        .map((i) => i.size)
+        .toSet();
+    final initialSize = sizesInCart.length == 1 ? sizesInCart.first : null;
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -102,6 +112,7 @@ class _ProductGroupCardState extends State<ProductGroupCard> {
         price: _price,
         sortedSizes: sortedSizes,
         available: {for (final e in available.entries) e.key: e.value},
+        initialSize: initialSize,
       ),
     );
   }
@@ -123,13 +134,20 @@ class _ProductGroupCardState extends State<ProductGroupCard> {
             ? const EdgeInsets.symmetric(horizontal: 9)
             : EdgeInsets.zero,
         decoration: BoxDecoration(
-          color: cGreen,
+          // Себетте бар күй (нақты бір өлшем) — қанық жасыл + белгі, «+»
+          // әдепкі күйден анық ажыратылу үшін (бұрын екеуі бір түсте еді).
+          color: singleSize != null ? cGreenDeep : cGreen,
           borderRadius: BorderRadius.circular(10),
         ),
         child: Center(
           child: singleSize != null
-              ? Text(singleSize,
-                  style: manrope(13, FontWeight.w800, color: Colors.white))
+              ? Row(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(Icons.check_rounded,
+                      color: Colors.white, size: 13),
+                  const SizedBox(width: 3),
+                  Text(singleSize,
+                      style: manrope(13, FontWeight.w800, color: Colors.white)),
+                ])
               : Stack(clipBehavior: Clip.none, children: [
                   const Padding(
                     padding: EdgeInsets.all(7),
@@ -377,6 +395,9 @@ class _SizePickerSheet extends StatefulWidget {
   final double price;
   final List<String> sortedSizes;
   final Map<String, ({int qty, BatchModel batch})> available;
+  // Осы товардың себетте қазір тұрған жалғыз өлшемі (болса) — ашылғанда
+  // сол чип таңдаулы боп көрінеді әрі қайта басса себеттен алынады.
+  final String? initialSize;
 
   const _SizePickerSheet({
     required this.product,
@@ -384,6 +405,7 @@ class _SizePickerSheet extends StatefulWidget {
     required this.price,
     required this.sortedSizes,
     required this.available,
+    this.initialSize,
   });
 
   @override
@@ -394,6 +416,34 @@ class _SizePickerSheetState extends State<_SizePickerSheet> {
   final _service = ClientService();
   String? _selected;
   bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = widget.initialSize;
+  }
+
+  // Себетте бар өлшемді қайта бассаң — таңдаудан босатпайды, ТІКЕЛЕЙ
+  // себеттен алып тастайды (Wildberries стиліндегі toggle-off).
+  void _onSizeTap(String size) {
+    if (size == widget.initialSize && size == _selected) {
+      _removeFromCart();
+      return;
+    }
+    setState(() => _selected = size);
+  }
+
+  void _removeFromCart() {
+    final cart = context.read<CartProvider>();
+    cart.removeByProductAndSize(widget.product.id, widget.initialSize!);
+    Navigator.pop(context);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(tr('${widget.product.name} удалён из корзины', '${widget.product.name} себеттен өшірілді')),
+      backgroundColor: cInk2,
+      behavior: SnackBarBehavior.floating,
+      duration: const Duration(seconds: 2),
+    ));
+  }
 
   Future<void> _confirm() async {
     if (_selected == null || _saving) return;
@@ -415,6 +465,12 @@ class _SizePickerSheetState extends State<_SizePickerSheet> {
             widget.store.adminUid, entry.batch.warehouseId);
         if (wh != null && (wh.address ?? '').isNotEmpty) address = wh.address!;
       } catch (_) {}
+    }
+
+    // «+» жылдам қосу — бір товарға бір ғана өлшем ұстайды: басқа өлшем
+    // таңдалса, ескісін ауыстырады (қосымша жол қоспайды).
+    if (widget.initialSize != null && widget.initialSize != size) {
+      cart.removeByProductAndSize(widget.product.id, widget.initialSize!);
     }
 
     cart.addItem(CartItemModel(
@@ -495,8 +551,9 @@ class _SizePickerSheetState extends State<_SizePickerSheet> {
           runSpacing: 9,
           children: widget.sortedSizes.map((size) {
             final sel = _selected == size;
+            final inCart = size == widget.initialSize;
             return GestureDetector(
-              onTap: () => setState(() => _selected = size),
+              onTap: () => _onSizeTap(size),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 150),
                 width: 56,
@@ -507,19 +564,45 @@ class _SizePickerSheetState extends State<_SizePickerSheet> {
                   border: Border.all(
                       color: sel ? cGreen : cLine, width: 1.5),
                 ),
-                child: Center(
-                  child: Text(size,
-                      style: manrope(15.5, FontWeight.w800,
-                          color: sel ? cGreen : cInk)),
-                ),
+                child: Stack(clipBehavior: Clip.none, children: [
+                  Center(
+                    child: Text(size,
+                        style: manrope(15.5, FontWeight.w800,
+                            color: sel ? cGreen : cInk)),
+                  ),
+                  if (inCart)
+                    Positioned(
+                      top: -5,
+                      right: -5,
+                      child: Container(
+                        width: 16,
+                        height: 16,
+                        decoration: const BoxDecoration(
+                            color: cGreenDeep, shape: BoxShape.circle),
+                        child: const Icon(Icons.check_rounded,
+                            color: Colors.white, size: 11),
+                      ),
+                    ),
+                ]),
               ),
             );
           }).toList(),
         ),
+        if (widget.initialSize != null) ...[
+          const SizedBox(height: 10),
+          Text(
+              tr('Этот размер уже в корзине — нажмите ещё раз, чтобы убрать',
+                  'Бұл өлшем себетте бар — алып тастау үшін қайта басыңыз'),
+              style: manrope(11.5, FontWeight.w500, color: cInk3)),
+        ],
         const SizedBox(height: 20),
         QPrimaryButton(
           label: tr('Добавить в корзину', 'Себетке қосу'),
-          onPressed: (_selected != null && !_saving) ? _confirm : null,
+          onPressed: (_selected != null &&
+                  _selected != widget.initialSize &&
+                  !_saving)
+              ? _confirm
+              : null,
           height: 52,
           icon: const Icon(Icons.shopping_cart_outlined,
               color: Colors.white, size: 18),

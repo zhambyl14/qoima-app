@@ -49,6 +49,13 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
   String _itemKey(CartItemModel item) =>
       '${item.productId}_${item.batchId}_${item.size}';
 
+  // ── Тапсырысқа кіретін жолдар (Wildberries/Kaspi стилі чекбокс) ─────────────
+  // Чекбокспен таңдалған ЖӘНЕ қолжетімді (unavailable емес) товарлар ғана
+  // қорытындыға/тапсырысқа кіреді — таңдалмағаны себетте қала береді.
+  List<CartItemModel> _checkoutItems(CartProvider cart) => cart.items
+      .where((i) => i.selected && !_unavailableKeys.contains(_itemKey(i)))
+      .toList();
+
   // Позиции магазина, к которому применён промокод
   List<CartItemModel> _promoItems(List<CartItemModel> items) {
     final p = _appliedPromo;
@@ -84,14 +91,16 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
       _promoError = null;
     });
     try {
-      // Пробуем по каждому магазину в корзине — берём первый подходящий
-      final admins = cart.items.map((i) => i.adminUid).toSet();
+      // Пробуем по каждому магазину в корзине — берём первый подходящий.
+      // Тек тапсырысқа таңдалған товарлар бойынша (чекбокс).
+      final checkoutItems = _checkoutItems(cart);
+      final admins = checkoutItems.map((i) => i.adminUid).toSet();
       PromoResult? success;
       String? firstError;
       String okAdmin = '';
       for (final adminUid in admins) {
         final items =
-            cart.items.where((i) => i.adminUid == adminUid).toList();
+            checkoutItems.where((i) => i.adminUid == adminUid).toList();
         final res = await _service.validatePromo(
           adminUid: adminUid,
           code: code,
@@ -260,7 +269,8 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
   Future<void> _showPaymentConfirmation() async {
     final cart = context.read<CartProvider>();
     final appUser = context.read<AppUser>();
-    if (cart.items.isEmpty) return;
+    final checkoutItems = _checkoutItems(cart);
+    if (checkoutItems.isEmpty) return;
     if (_orderType == null) return; // алу тәсілі таңдалмаған
 
     if (_orderType == OrderModel.typeDelivery &&
@@ -272,8 +282,8 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
       return;
     }
 
-    final subtotal = cart.total;
-    final promoDiscount = _promoDiscount(cart.items);
+    final subtotal = checkoutItems.fold<double>(0, (s, i) => s + i.subtotal);
+    final promoDiscount = _promoDiscount(checkoutItems);
     final total = (subtotal - promoDiscount).clamp(0.0, subtotal);
     final deposit = _depositFor(total);
 
@@ -289,8 +299,8 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
         promoCode: _appliedPromo?.code ?? '',
         total: total,
         deposit: deposit,
-        kazpost: _allStoresInMyCity(cart.items) == false,
-        warehouseAddress: _warehouseAddress(cart.items),
+        kazpost: _allStoresInMyCity(checkoutItems) == false,
+        warehouseAddress: _warehouseAddress(checkoutItems),
         deliveryAddress: _addressCtrl.text.trim(),
       ),
     );
@@ -301,9 +311,15 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
     try {
       await _checkAvailability();
       if (!mounted) return;
-      if (_unavailableKeys.isNotEmpty) {
-        final badItems = cart.items
-            .where((i) => _unavailableKeys.contains(_itemKey(i)))
+      // Растаудан кейін қайта тексереміз — таңдалған товарлардың бірі осы
+      // аралықта қолжетімсіз болып қалуы мүмкін (тек ТАҢДАЛҒАНДАРЫ бөгейді,
+      // себеттегі басқа/таңдалмаған товар кедергі жасамайды).
+      final stillGood = _checkoutItems(cart);
+      final droppedKeys = checkoutItems.map(_itemKey).toSet()
+        ..removeAll(stillGood.map(_itemKey).toSet());
+      if (droppedKeys.isNotEmpty) {
+        final badItems = checkoutItems
+            .where((i) => droppedKeys.contains(_itemKey(i)))
             .map((i) => '«${i.productName}»')
             .join(', ');
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -317,7 +333,7 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
       }
 
       final Map<String, List<CartItemModel>> byWarehouse = {};
-      for (final item in cart.items) {
+      for (final item in stillGood) {
         byWarehouse.putIfAbsent(item.warehouseId, () => []).add(item);
       }
 
@@ -325,7 +341,7 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
       // Учёт used_count ведёт ровно один суб-заказ (usageOwner), отмена которого
       // вернёт счётчик ровно один раз.
       final promo = _appliedPromo;
-      final totalPromoDiscount = _promoDiscount(cart.items);
+      final totalPromoDiscount = _promoDiscount(stillGood);
       final promoShares = <String, double>{}; // warehouseId → скидка ₸
       String usageOwnerWh = '';
       if (promo != null && totalPromoDiscount > 0) {
@@ -399,7 +415,9 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
       }
 
       if (!mounted) return;
-      cart.clear();
+      // Тек тапсырысқа кеткен товарлар өшеді — таңдалмаған қалғаны себетте
+      // қалады (Wildberries/Kaspi стилі).
+      cart.removeItems(stillGood);
       _appliedPromo = null;
       _appliedAdminUid = '';
       _promoCtrl.clear();
@@ -449,6 +467,13 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
   Widget build(BuildContext context) {
     final cart = context.watch<CartProvider>();
     final itemCount = cart.items.length;
+    final checkoutItems = _checkoutItems(cart);
+    // «Барлығын таңдау» — қолжетімді (unavailable емес) товарлардың бәрі
+    // таңдалған ба (Wildberries/Kaspi стиліндегі шапка чекбоксы).
+    final selectableItems =
+        cart.items.where((i) => !_unavailableKeys.contains(_itemKey(i))).toList();
+    final allSelected = selectableItems.isNotEmpty &&
+        selectableItems.every((i) => i.selected);
 
     return Scaffold(
       backgroundColor: cBg,
@@ -503,6 +528,25 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
               : ListView(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
                   children: [
+                    // «Барлығын таңдау» — тек 2+ таңдай алатын товар болғанда
+                    // көрсетеміз (бір товарда мағынасы жоқ).
+                    if (selectableItems.length > 1)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () => cart.setAllSelected(!allSelected),
+                          child: Row(children: [
+                            _CartCheckbox(value: allSelected),
+                            const SizedBox(width: 10),
+                            Text(
+                                allSelected
+                                    ? tr('Все товары выбраны', 'Барлық тауар таңдалды')
+                                    : tr('Выбрать все', 'Барлығын таңдау'),
+                                style: manrope(13, FontWeight.w600, color: cInk2)),
+                          ]),
+                        ),
+                      ),
                     // Cart items
                     ...cart.items.asMap().entries.map((entry) {
                       final i = entry.key;
@@ -511,6 +555,7 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                         item: item,
                         isUnavailable:
                             _unavailableKeys.contains(_itemKey(item)),
+                        onToggleSelected: () => cart.toggleSelected(i),
                         onDecrement: () {
                           cart.decrementAt(i);
                           _checkAvailability();
@@ -569,7 +614,7 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                         OrderModel.typeDelivery,
                         Icons.local_shipping_outlined,
                         tr('Доставка', 'Жеткізу'),
-                        _deliverySubtitle(cart.items),
+                        _deliverySubtitle(checkoutItems),
                         'amber',
                       ),
                     ].map((t) {
@@ -636,7 +681,7 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                     // Pickup address info (тек алу тәсілі таңдалғанда)
                     if (_orderType != null &&
                         _orderType != OrderModel.typeDelivery &&
-                        _warehouseAddress(cart.items).isNotEmpty) ...[
+                        _warehouseAddress(checkoutItems).isNotEmpty) ...[
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
@@ -649,7 +694,7 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                           const SizedBox(width: 8),
                           Expanded(
                               child: Text(
-                            tr('Получение: ${_warehouseAddress(cart.items)}', 'Алу: ${_warehouseAddress(cart.items)}'),
+                            tr('Получение: ${_warehouseAddress(checkoutItems)}', 'Алу: ${_warehouseAddress(checkoutItems)}'),
                             style: manrope(12, FontWeight.w500,
                                 color: cGreenDeep),
                           )),
@@ -767,7 +812,7 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                     _PromoField(
                       controller: _promoCtrl,
                       applied: _appliedPromo,
-                      discount: _promoDiscount(cart.items),
+                      discount: _promoDiscount(checkoutItems),
                       error: _promoError,
                       loading: _applyingPromo,
                       onApply: _applyPromo,
@@ -818,11 +863,27 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                   border: Border(top: BorderSide(color: cLine)),
                 ),
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  if (checkoutItems.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(children: [
+                        const Icon(Icons.info_outline, size: 15, color: cAmber),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                              tr('Выберите хотя бы 1 товар для заказа',
+                                  'Тапсырыс үшін кемінде 1 тауар таңдаңыз'),
+                              style: manrope(12, FontWeight.w600, color: cAmber)),
+                        ),
+                      ]),
+                    ),
                   Builder(builder: (_) {
-                    final promoDiscount = _promoDiscount(cart.items);
-                    final productSavings = _productSavings(cart.items);
-                    final finalTotal =
-                        (cart.total - promoDiscount).clamp(0.0, cart.total);
+                    final checkoutTotal = checkoutItems.fold<double>(
+                        0, (s, i) => s + i.subtotal);
+                    final promoDiscount = _promoDiscount(checkoutItems);
+                    final productSavings = _productSavings(checkoutItems);
+                    final finalTotal = (checkoutTotal - promoDiscount)
+                        .clamp(0.0, checkoutTotal);
                     return Column(children: [
                       if (productSavings > 0)
                         _SummaryLine(tr('Скидка по акции', 'Акция бойынша жеңілдік'),
@@ -869,7 +930,7 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                     isLoading: _isLoading,
                     onPressed: (_isLoading ||
                             _orderType == null ||
-                            _unavailableKeys.isNotEmpty)
+                            checkoutItems.isEmpty)
                         ? null
                         : _onCheckoutPressed,
                     height: 54,
@@ -915,12 +976,14 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
 class _CartItemCard extends StatelessWidget {
   final CartItemModel item;
   final bool isUnavailable;
+  final VoidCallback onToggleSelected;
   final VoidCallback onDecrement;
   final VoidCallback onIncrement;
   final VoidCallback onRemove;
   const _CartItemCard({
     required this.item,
     required this.isUnavailable,
+    required this.onToggleSelected,
     required this.onDecrement,
     required this.onIncrement,
     required this.onRemove,
@@ -928,6 +991,9 @@ class _CartItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Тапсырысқа таңдалмаған/қолжетімсіз позиция сәл көмескі көрінеді —
+    // чекбокс күйінің көзге бірден түсуі үшін (Wildberries/Kaspi стилі).
+    final dimmed = isUnavailable || !item.selected;
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(11),
@@ -940,11 +1006,21 @@ class _CartItemCard extends StatelessWidget {
         boxShadow: kShadowSm,
       ),
       child: Row(children: [
+        if (!isUnavailable) ...[
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onToggleSelected,
+            child: Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: _CartCheckbox(value: item.selected),
+            ),
+          ),
+        ],
         SizedBox(
           width: 72,
           height: 72,
           child: Opacity(
-            opacity: isUnavailable ? 0.55 : 1.0,
+            opacity: dimmed ? 0.55 : 1.0,
             child: QShoeImage(
               imageUrl: item.imageUrl.isNotEmpty ? item.imageUrl : null,
               height: 72,
@@ -1011,6 +1087,27 @@ class _CartItemCard extends StatelessWidget {
       ]),
     );
   }
+}
+
+// ── Себет чекбоксы (Wildberries/Kaspi стилі — тапсырысқа таңдау) ────────────────
+class _CartCheckbox extends StatelessWidget {
+  final bool value;
+  const _CartCheckbox({required this.value});
+
+  @override
+  Widget build(BuildContext context) => AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        width: 22,
+        height: 22,
+        decoration: BoxDecoration(
+          color: value ? cGreen : Colors.transparent,
+          borderRadius: BorderRadius.circular(7),
+          border: Border.all(color: value ? cGreen : cLine, width: 2),
+        ),
+        child: value
+            ? const Icon(Icons.check_rounded, color: Colors.white, size: 14)
+            : null,
+      );
 }
 
 // ── Quantity button ────────────────────────────────────────────────────────────

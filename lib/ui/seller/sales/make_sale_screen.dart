@@ -819,11 +819,16 @@ class _Step1State extends State<_Step1> {
 
           // ── Санат бойынша сүзгі — таңдалғанда тек сол санаттың тауарлары
           // көрсетіледі (іздеуді жеңілдетеді). ──────────────────────────────
+          // МАҢЫЗДЫ: ListView-дің padding-і горизонталь тізімде cross-axis
+          // (тік) шегініс болып саналады — bottom:8 биіктікті 34-тен 26-ға
+          // дейін қысқартып, чиптің өз ішкі padding-імен (7+7) қоса контент
+          // сыймай, төменгі жағы кесіліп көрінетін. Сол себепті горизонталь
+          // шегіністі ғана қалдырамыз, тік бос орынды сыртқа шығарамыз.
           SizedBox(
             height: 34,
             child: ListView(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               children: [
                 _CategoryChip(
                   label: tr('Все', 'Барлығы'),
@@ -843,6 +848,7 @@ class _Step1State extends State<_Step1> {
               ],
             ),
           ),
+          const SizedBox(height: 8),
 
           // ── Empty search result ──────────────────────────────────────────
           if (products.isEmpty)

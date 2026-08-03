@@ -1087,6 +1087,71 @@ class FirestoreService {
         'p_warehouse_id': warehouseId,
       });
 
+  // ── Дүкеннен шығу сұранысы (seller → owner мақұлдауын күтеді) ────────────
+  // join_requests-тегі бар (seller,admin) жолын қайта пайдаланамыз — жаңа
+  // кесте/RPC қажет емес, RLS сатушыға өз жолын update етуге рұқсат береді
+  // (joinreq_update: admin_uid = auth.uid() OR seller_uid = auth.uid()).
+  Future<void> requestLeaveShop() async {
+    final uid = _sb.auth.currentUser!.id;
+    await _sb
+        .from('join_requests')
+        .update({'status': 'leave_pending'})
+        .eq('seller_uid', uid)
+        .eq('admin_uid', _ownerUid);
+  }
+
+  Future<void> cancelLeaveRequest() async {
+    final uid = _sb.auth.currentUser!.id;
+    await _sb
+        .from('join_requests')
+        .update({'status': 'approved'})
+        .eq('seller_uid', uid)
+        .eq('admin_uid', _ownerUid);
+  }
+
+  /// Owner жағы: сатушының шығу сұранысын қабылдамай, қайта 'approved' етеді.
+  Future<void> rejectLeaveRequest(String requestId) async {
+    await _sb
+        .from('join_requests')
+        .update({'status': 'approved'})
+        .eq('id', requestId);
+  }
+
+  /// Ағымдағы сатушының join_requests статусы (leave_pending/approved/removed/...).
+  Stream<String?> watchOwnJoinRequestStatus() {
+    final uid = _sb.auth.currentUser?.id ?? '';
+    if (uid.isEmpty) return Stream.value(null);
+    return _sb
+        .from('join_requests')
+        .stream(primaryKey: ['id'])
+        .eq('seller_uid', uid)
+        .map((rows) {
+          final mine =
+              rows.where((d) => d['admin_uid'] == AppUser.current.ownerUid);
+          return mine.isEmpty ? null : mine.first['status'] as String?;
+        });
+  }
+
+  /// Owner сатушыны шығарған соң ('removed') true — SellerShell мәжбүрлі
+  /// логаут үшін тыңдайды: owner_id/join_status ағымдағы сессияда реактивті
+  /// емес (тек келесі кіруде _loadSession арқылы жаңарады).
+  Stream<bool> watchOwnRemoval() =>
+      watchOwnJoinRequestStatus().map((status) => status == 'removed');
+
+  Stream<List<Map<String, dynamic>>> watchLeaveRequests() => _sb
+      .from('join_requests')
+      .stream(primaryKey: ['id'])
+      .eq('admin_uid', _adminUid)
+      .map((rows) => rows
+          .where((d) => d['status'] == 'leave_pending')
+          .map((d) => {
+                'id': d['id'],
+                'sellerId': d['seller_uid'],
+                'sellerName': d['seller_name'],
+                'sellerEmail': d['seller_email'],
+              })
+          .toList());
+
   Stream<List<Map<String, dynamic>>> watchActiveSellers() => _sb
       .from('users')
       .stream(primaryKey: ['id'])
