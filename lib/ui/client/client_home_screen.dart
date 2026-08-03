@@ -11,10 +11,8 @@ import '../../data/models/product_model.dart';
 import '../../data/models/batch_model.dart';
 import '../../data/models/banner_model.dart';
 import '../../data/services/client_service.dart';
-import '../../data/services/notifications_service.dart';
 import '../../data/repositories/banner_repository.dart';
 import '../../theme/qoima_design.dart';
-import '../shared/notifications_screen.dart';
 import '../shared/skeletons.dart';
 import 'client_product_card.dart';
 import 'client_product_detail.dart';
@@ -516,16 +514,6 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                             style: manrope(24, FontWeight.w800,
                                 color: Colors.white, letterSpacing: -0.5)),
                       ],
-                    ),
-                  ),
-                  StreamBuilder<int>(
-                    stream: NotificationsService().watchUnreadCount(),
-                    builder: (_, snap) => QHeaderBtn(
-                      Icons.notifications_none_rounded,
-                      badge: snap.data ?? 0,
-                      onTap: () => Navigator.push(context,
-                          MaterialPageRoute(
-                              builder: (_) => const NotificationsScreen())),
                     ),
                   ),
                 ]),

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../core/app_user.dart';
 import '../../data/models/product_model.dart';
 import '../../data/models/batch_model.dart';
+import '../../data/models/category_data.dart';
 import '../../data/models/store_model.dart';
 import '../../data/services/client_service.dart';
 import '../../theme/qoima_design.dart';
@@ -15,8 +16,9 @@ import 'client_shell.dart';
 
 import '../../core/lang.dart';
 import '../shared/error_view.dart';
-/// Универсальный fashion-каталог, 3 уровня выбора (как маркетплейс):
-/// L1 — категория (Обувь / Одежда / …) → L2 — кому → L3 — тип товара → товары.
+/// Универсальный каталог маркетплейса, до 4 уровней выбора:
+/// L1 — категория ([kCategories] — тауар қосу экранындағы тізіммен БІРДЕЙ) →
+/// L2 — кому (тек киім/аяқ киім категорияларында) → L3 — тип товара → товары.
 /// Уровни управляются ЛОКАЛЬНЫМ состоянием (Navigator.push ЕМЕС).
 class ClientCatalogScreen extends StatefulWidget {
   const ClientCatalogScreen({super.key});
@@ -36,7 +38,8 @@ class _ClientCatalogScreenState extends State<ClientCatalogScreen> {
   Object? _error;
 
   // Деңгейлер: _cat==null → L1; _aud==null → L2; _type==null → L3; әйтпесе L4.
-  _MainCatDef? _cat;
+  // `_aud == ''` — «кому» деңгейі аттап кетілді (hasAudience false категориясы).
+  CategoryData? _cat;
   String? _aud;
   String? _type;
 
@@ -47,17 +50,9 @@ class _ClientCatalogScreenState extends State<ClientCatalogScreen> {
   List<String> _favoriteIds = [];
   StreamSubscription<List<String>>? _favSub;
 
-  // ── L1: негізгі категория. keys → ProductModel.effectiveCategoryKey-пен сай.
-  static const List<_MainCatDef> _mainCats = [
-    _MainCatDef('Обувь', ['shoes'], '👟', Color(0xFFE3F2FD), Color(0xFF90CAF9)),
-    _MainCatDef('Одежда', ['tshirt', 'outer', 'pants', 'dress'], '👕',
-        Color(0xFFF3E5F5), Color(0xFFCE93D8)),
-    _MainCatDef('Головные уборы', ['caps'], '🧢', Color(0xFFFFF3E0),
-        Color(0xFFFFCC80)),
-    _MainCatDef('Аксессуары', ['acc'], '🎒', Color(0xFFE8F5E9),
-        Color(0xFFA5D6A7)),
-    _MainCatDef('Спорт', ['sport'], '🏃', Color(0xFFFFEBEE), Color(0xFFEF9A9A)),
-  ];
+  // ── L1: негізгі категория — БІР ҒАНА шындық көзі [kCategories].
+  // Тауар қосу экранындағы «Категория товара» тізімі мен каталог әрдайым
+  // сәйкес келуі үшін бөлек тізім ҰСТАЛМАЙДЫ.
 
   // ── L2: кому. value → ProductModel.category-мен сай.
   static const List<_AudienceDef> _audiences = [
@@ -193,11 +188,12 @@ class _ClientCatalogScreenState extends State<ClientCatalogScreen> {
   }
 
   // ── Сәйкестік ────────────────────────────────────────────────────────────
-  bool _inCat(ProductModel p, _MainCatDef m) =>
-      m.keys.contains(p.effectiveCategoryKey);
+  bool _inCat(ProductModel p, CategoryData c) => p.effectiveCategoryKey == c.key;
 
   // «Детские» — ұл/қыз бөлінісін де қамтиды (легаси товарлар үшін).
+  // Бос `aud` — «кому» деңгейі жоқ категория: бәрі сәйкес келеді.
   bool _matchAud(ProductModel p, String aud) {
+    if (aud.isEmpty) return true;
     if (aud == 'Детские') return p.category.startsWith('Детские');
     return p.category == aud;
   }
@@ -205,20 +201,20 @@ class _ClientCatalogScreenState extends State<ClientCatalogScreen> {
   List<ProductGroup> get _allGroups =>
       groupProducts(_pairs.map((e) => e.product).toList());
 
-  int _catCount(_MainCatDef m) =>
-      _allGroups.where((g) => _inCat(g.main, m)).length;
+  int _catCount(CategoryData c) =>
+      _allGroups.where((g) => _inCat(g.main, c)).length;
 
-  int _audCount(_MainCatDef m, String aud) => _allGroups
-      .where((g) => _inCat(g.main, m) && _matchAud(g.main, aud))
+  int _audCount(CategoryData c, String aud) => _allGroups
+      .where((g) => _inCat(g.main, c) && _matchAud(g.main, aud))
       .length;
 
   /// Тип товара тізімі — нақты тауарлардан динамикалық жинаймыз (админ не қосса,
   /// сол көрінеді). Бос тип «Другое» деп көрсетіледі.
-  List<String> _typesFor(_MainCatDef m, String aud) {
+  List<String> _typesFor(CategoryData c, String aud) {
     final seen = <String>{};
     final out = <String>[];
     for (final g in _allGroups) {
-      if (_inCat(g.main, m) && _matchAud(g.main, aud)) {
+      if (_inCat(g.main, c) && _matchAud(g.main, aud)) {
         final t = g.main.type.trim();
         if (seen.add(t)) out.add(t);
       }
@@ -227,9 +223,9 @@ class _ClientCatalogScreenState extends State<ClientCatalogScreen> {
     return out;
   }
 
-  int _typeCount(_MainCatDef m, String aud, String type) => _allGroups
+  int _typeCount(CategoryData c, String aud, String type) => _allGroups
       .where((g) =>
-          _inCat(g.main, m) &&
+          _inCat(g.main, c) &&
           _matchAud(g.main, aud) &&
           g.main.type.trim() == type)
       .length;
@@ -260,15 +256,23 @@ class _ClientCatalogScreenState extends State<ClientCatalogScreen> {
     _query = '';
   }
 
+  /// Категорияны ашу. «Кому» деңгейі жоқ категорияларда (техника, азық-түлік…)
+  /// бірден тауар түріне өтеміз — `_aud` бос жол күйінде қалады.
+  void _openCat(CategoryData c) => setState(() {
+        _cat = c;
+        _aud = c.hasAudience ? null : '';
+      });
+
   void _back() {
     setState(() {
       if (_type != null) {
         _type = null; // L4 → L3
         _clearSearch();
-      } else if (_aud != null) {
+      } else if (_aud != null && (_cat?.hasAudience ?? false)) {
         _aud = null; // L3 → L2
-      } else if (_cat != null) {
-        _cat = null; // L2 → L1
+      } else {
+        _cat = null; // L2/L3 → L1
+        _aud = null;
       }
     });
   }
@@ -280,11 +284,11 @@ class _ClientCatalogScreenState extends State<ClientCatalogScreen> {
     final isL3 = _aud != null && _type == null;
 
     final title = isL1
-        ? 'Каталог'
+        ? tr('Каталог', 'Каталог')
         : isL2
-            ? trValue(_cat!.label)
+            ? _cat!.name
             : isL3
-                ? _audLabel(_aud!)
+                ? (_aud!.isEmpty ? _cat!.name : _audLabel(_aud!))
                 : (_type!.isEmpty ? tr('Другое', 'Басқа') : trValue(_type!));
 
     return Scaffold(
@@ -352,26 +356,26 @@ class _ClientCatalogScreenState extends State<ClientCatalogScreen> {
   }
 
   // ── LEVEL 1: категория grid ─────────────────────────────────────────────
+  // Бір жолда 3 плитка, фон түсі ЖОҚ — тек тауар фотосы (маркетплейс стилі).
   Widget _buildCategoryGrid() {
     return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 24),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 0.92,
-        crossAxisSpacing: 14,
-        mainAxisSpacing: 14,
+        crossAxisCount: 3,
+        childAspectRatio: 0.80,
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
       ),
-      itemCount: _mainCats.length,
+      itemCount: kCategories.length,
       itemBuilder: (_, i) {
-        final c = _mainCats[i];
+        final c = kCategories[i];
         final count = _catCount(c);
-        return _GradientTile(
-          emoji: c.emoji,
-          label: trValue(c.label),
-          subtitle: _loadingProducts && count == 0 ? '...' : tr('$count товаров', '$count тауар'),
-          g1: c.g1,
-          g2: c.g2,
-          onTap: () => setState(() => _cat = c),
+        return _CategoryPhotoTile(
+          category: c,
+          subtitle: _loadingProducts && count == 0
+              ? '...'
+              : tr('$count товаров', '$count тауар'),
+          onTap: () => _openCat(c),
         );
       },
     );
@@ -436,16 +440,13 @@ class _ClientCatalogScreenState extends State<ClientCatalogScreen> {
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 10),
             child: Row(children: [
-              Container(
-                width: 58,
-                height: 58,
-                decoration: BoxDecoration(
-                  color: cBg,
-                  borderRadius: BorderRadius.circular(15),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(15),
+                child: SizedBox(
+                  width: 58,
+                  height: 58,
+                  child: _CategoryThumb(category: cat),
                 ),
-                child: Center(
-                    child: Text(cat.emoji,
-                        style: const TextStyle(fontSize: 26))),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -644,15 +645,94 @@ class _GradientTile extends StatelessWidget {
   }
 }
 
-// ── Tile data ──────────────────────────────────────────────────────────────────
-class _MainCatDef {
-  final String label;
-  final List<String> keys; // ProductModel.effectiveCategoryKey-пен сай
-  final String emoji;
-  final Color g1, g2;
-  const _MainCatDef(this.label, this.keys, this.emoji, this.g1, this.g2);
+// ── L1 плиткасы: тек фото (фон түсі жоқ) + астында атауы ──────────────────────
+class _CategoryPhotoTile extends StatelessWidget {
+  final CategoryData category;
+  final String subtitle;
+  final VoidCallback onTap;
+  const _CategoryPhotoTile({
+    required this.category,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Stack(fit: StackFit.expand, children: [
+          _CategoryThumb(category: category),
+          // Атау кез келген фотода оқылуы үшін — төменгі қара градиент.
+          const DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0x00000000), Color(0xD9000000)],
+                stops: [0.42, 1],
+              ),
+            ),
+          ),
+          Positioned(
+            left: 8,
+            right: 8,
+            bottom: 8,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(category.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: manrope(11.5, FontWeight.w800,
+                        color: Colors.white, letterSpacing: -0.2)),
+                const SizedBox(height: 1),
+                Text(subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: manrope(9.5, FontWeight.w600,
+                        color: Colors.white.withValues(alpha: 0.8))),
+              ],
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
 }
 
+/// Категория фотосы. Сурет жоқ/жүктелмесе — тон + иконка fallback-і.
+class _CategoryThumb extends StatelessWidget {
+  final CategoryData category;
+  const _CategoryThumb({required this.category});
+
+  Widget _fallback() {
+    final tone = toneFor(category.tone);
+    return ColoredBox(
+      color: tone.tint,
+      child: Center(
+          child: CategoryIcon(
+              kind: category.iconKey, size: 26, color: tone.deep)),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (category.imageUrl.isEmpty) return _fallback();
+    return Image.network(
+      category.imageUrl,
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) => _fallback(),
+      loadingBuilder: (_, child, progress) =>
+          progress == null ? child : ColoredBox(color: toneFor(category.tone).tint),
+    );
+  }
+}
+
+// ── Tile data ──────────────────────────────────────────────────────────────────
 class _AudienceDef {
   final String label;
   final String value; // ProductModel.category-мен сай

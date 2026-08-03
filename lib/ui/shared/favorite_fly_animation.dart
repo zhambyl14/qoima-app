@@ -32,7 +32,11 @@ void flyToFavorites(BuildContext context, GlobalKey sourceKey,
       start: start,
       end: end,
       imageUrl: imageUrl,
-      onDone: () => entry.remove(),
+      // Анимация біткенде — тек әлі overlay-де тұрса ғана өшіреміз (экран
+      // ауысып кетсе entry.remove() қайта шақырылып, exception бермесін).
+      onDone: () {
+        if (entry.mounted) entry.remove();
+      },
     ),
   );
   overlay.insert(entry);
@@ -77,21 +81,25 @@ class _FlyingFavoriteState extends State<_FlyingFavorite>
   @override
   Widget build(BuildContext context) {
     const size = 46.0;
-    return IgnorePointer(
-      child: AnimatedBuilder(
-        animation: _t,
-        builder: (context, _) {
-          final v = _t.value;
-          final dx = widget.start.dx + (widget.end.dx - widget.start.dx) * v;
-          // Жоғары қарай доғамен ұшады (тегіс сызықтан гөрі көрнекі).
-          final arc = sin(v * pi) * 46;
-          final dy =
-              widget.start.dy + (widget.end.dy - widget.start.dy) * v - arc;
-          final scale = 1.0 - 0.78 * v;
-          final opacity = v < 0.75 ? 1.0 : (1 - v) / 0.25;
-          return Positioned(
-            left: dx - size / 2,
-            top: dy - size / 2,
+    // ⚠️ [Positioned] Overlay-дің Stack-іне ТІКЕЛЕЙ бала болуы керек: арасында
+    // RenderObject жасайтын виджет (IgnorePointer т.б.) тұрса, Flutter
+    // «Incorrect use of ParentDataWidget» лақтырып, бүкіл экран қатып қалады.
+    // Сондықтан IgnorePointer — Positioned-тің ІШІНДЕ.
+    return AnimatedBuilder(
+      animation: _t,
+      builder: (context, _) {
+        final v = _t.value;
+        final dx = widget.start.dx + (widget.end.dx - widget.start.dx) * v;
+        // Жоғары қарай доғамен ұшады (тегіс сызықтан гөрі көрнекі).
+        final arc = sin(v * pi) * 46;
+        final dy =
+            widget.start.dy + (widget.end.dy - widget.start.dy) * v - arc;
+        final scale = 1.0 - 0.78 * v;
+        final opacity = v < 0.75 ? 1.0 : (1 - v) / 0.25;
+        return Positioned(
+          left: dx - size / 2,
+          top: dy - size / 2,
+          child: IgnorePointer(
             child: Opacity(
               opacity: opacity.clamp(0.0, 1.0),
               child: Transform.scale(
@@ -117,9 +125,9 @@ class _FlyingFavoriteState extends State<_FlyingFavorite>
                 ),
               ),
             ),
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 }

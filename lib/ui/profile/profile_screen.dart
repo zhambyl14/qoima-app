@@ -10,9 +10,7 @@ import '../../data/models/models.dart';
 import '../../data/services/app_settings_service.dart';
 import '../../data/services/auth_service.dart';
 import '../../data/services/firestore_service.dart';
-import '../../data/services/notifications_service.dart';
 import '../../theme/qoima_design.dart';
-import '../shared/notifications_screen.dart';
 import '../seller/seller_shop_membership_screen.dart';
 import '../admin/settings/sellers_screen.dart';
 import '../admin/settings/warehouses_screen.dart';
@@ -59,51 +57,6 @@ class ProfileScreen extends StatelessWidget {
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 20, 20, 30),
                 child: Column(children: [
-                  // Bell icon (admin only)
-                  if (isAdmin)
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: StreamBuilder<int>(
-                        stream: NotificationsService().watchUnreadCount(),
-                        builder: (_, snap) {
-                          final count = snap.data ?? 0;
-                          return GestureDetector(
-                            onTap: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                    builder: (_) =>
-                                        const NotificationsScreen())),
-                            child: Stack(clipBehavior: Clip.none, children: [
-                              Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                      color:
-                                          Colors.white.withValues(alpha: 0.15),
-                                      borderRadius: BorderRadius.circular(10)),
-                                  child: const Icon(
-                                      Icons.notifications_outlined,
-                                      color: Colors.white,
-                                      size: 20)),
-                              if (count > 0)
-                                Positioned(
-                                    right: -2,
-                                    top: -2,
-                                    child: Container(
-                                      padding: const EdgeInsets.all(4),
-                                      decoration: const BoxDecoration(
-                                          color: Color(0xFFEF4444),
-                                          shape: BoxShape.circle),
-                                      child: Text('$count',
-                                          style: const TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 9,
-                                              fontWeight: FontWeight.w700)),
-                                    )),
-                            ]),
-                          );
-                        },
-                      ),
-                    ),
                   Container(
                       width: 72,
                       height: 72,

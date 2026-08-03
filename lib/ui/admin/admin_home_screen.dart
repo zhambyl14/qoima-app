@@ -3,10 +3,8 @@ import 'package:provider/provider.dart';
 import '../../core/app_user.dart';
 import '../../data/models/models.dart';
 import '../../data/services/firestore_service.dart';
-import '../../data/services/notifications_service.dart';
 import '../../data/services/return_service.dart';
 import '../../theme/qoima_design.dart';
-import '../shared/notifications_screen.dart';
 import 'settings/sellers_screen.dart';
 import 'settings/warehouses_screen.dart';
 import 'online_orders_screen.dart';
@@ -109,16 +107,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                             ],
                           );
                         },
-                      ),
-                    ),
-                    StreamBuilder<int>(
-                      stream: NotificationsService().watchUnreadCount(),
-                      builder: (_, snap) => QHeaderBtn(
-                        Icons.notifications_outlined,
-                        badge: snap.data ?? 0,
-                        onTap: () => Navigator.push(context,
-                            MaterialPageRoute(
-                                builder: (_) => const NotificationsScreen())),
                       ),
                     ),
                   ]),
