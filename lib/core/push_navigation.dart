@@ -201,7 +201,9 @@ Future<void> _openBanner(
   if (bannerId.isEmpty) return;
   final banner = await BannerRepository().getBannerById(bannerId);
   if (banner == null || !banner.hasStoreLink) return;
-  final store = await ClientService().getStoreByAdminUid(banner.storeAdminUid);
+  // Пуштен ашқанда таңдау парағы жоқ — бірінші сілтелген дүкенге апарамыз.
+  final store =
+      await ClientService().getStoreByAdminUid(banner.storeAdminUids.first);
   if (store == null || !store.isPublished || store.isBlocked) return;
   nav.push(MaterialPageRoute(builder: (_) => StorePublicScreen(store: store)));
 }

@@ -7,6 +7,7 @@ import '../../data/models/batch_model.dart';
 import '../../data/models/cart_item_model.dart';
 import '../../data/services/client_service.dart';
 import '../../theme/qoima_design.dart';
+import '../shared/favorite_fly_animation.dart';
 import 'client_shell.dart';
 import 'report_sheet.dart';
 import 'reviews_section.dart';
@@ -57,6 +58,9 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
   Set<String> _favIds = {};
   bool _togglingFav = false;
   StreamSubscription<List<String>>? _favSub;
+  // Таңдаулыға қосу батырмасының орны — профильге ұшу анимациясының
+  // бастау нүктесі.
+  final GlobalKey _favKey = GlobalKey();
 
   bool get _isFavorite => _favIds.contains(_currentProduct.id);
 
@@ -153,6 +157,7 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
     if (_togglingFav) return;
     setState(() => _togglingFav = true);
     final p = _currentProduct;
+    final adding = !_isFavorite;
     try {
       if (_isFavorite) {
         await _service.removeFavorite(p.id);
@@ -167,6 +172,10 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
           storeName: widget.store.storeName,
           price: price,
         );
+        // Тек ҚОСҚАНДА ұшады — өшіргенде емес.
+        if (adding && mounted) {
+          flyToFavorites(context, _favKey, imageUrl: img);
+        }
       }
     } catch (_) {} finally {
       if (mounted) setState(() => _togglingFav = false);
@@ -621,6 +630,7 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
                             ),
                             const SizedBox(width: 8),
                             _RoundBtn(
+                              key: _favKey,
                               icon: _isFavorite
                                   ? Icons.favorite_rounded
                                   : Icons.favorite_border_rounded,
@@ -696,7 +706,8 @@ class _RoundBtn extends StatelessWidget {
   final Color iconColor;
   final VoidCallback onTap;
   const _RoundBtn(
-      {required this.icon,
+      {super.key,
+      required this.icon,
       this.iconColor = cInk,
       required this.onTap});
 

@@ -8,16 +8,21 @@ class BannerModel {
   final String badge;
   final String gradientStart; // hex, напр. "#C62828"
   final String gradientEnd;
+  // Дайын дизайн-сурет (Cloudinary) — болса, градиент+мәтіннің орнына
+  // осы сурет толық көрсетіледі (баннерде мәтін дизайнда бекітілген деп
+  // саналады).
+  final String imageUrl;
   final int order;
   final bool active;
   final DateTime? startsAt;
   final DateTime? endsAt;
-  // Баннер нақты дүкенге сілтей алады: клиент басқанда сол дүкеннің
-  // каталогы (StorePublicScreen) ашылады. '' = сілтеме жоқ.
-  final String storeAdminUid;
-  final String storeName;
+  // Баннер бір НЕМЕСЕ бірнеше дүкенге сілтей алады: клиент басқанда, бір
+  // дүкен болса — сол дүкен, бірнешеу болса — таңдау парағы ашылады.
+  final List<String> storeAdminUids;
+  final List<String> storeNames;
 
-  bool get hasStoreLink => storeAdminUid.isNotEmpty;
+  bool get hasStoreLink => storeAdminUids.isNotEmpty;
+  bool get hasImage => imageUrl.isNotEmpty;
 
   const BannerModel({
     required this.id,
@@ -28,10 +33,11 @@ class BannerModel {
     required this.gradientEnd,
     required this.order,
     required this.active,
+    this.imageUrl = '',
     this.startsAt,
     this.endsAt,
-    this.storeAdminUid = '',
-    this.storeName = '',
+    this.storeAdminUids = const [],
+    this.storeNames = const [],
   });
 
   static const String _defStart = '#00713F';
@@ -59,6 +65,9 @@ class BannerModel {
         v is String && v.isNotEmpty ? DateTime.tryParse(v) : null;
     String hx(dynamic raw, String fb) =>
         raw is String && raw.trim().isNotEmpty ? raw.trim() : fb;
+    List<String> strList(dynamic raw) => raw is List
+        ? raw.map((e) => e.toString()).where((e) => e.isNotEmpty).toList()
+        : const [];
     return BannerModel(
       id: m['id'] as String? ?? '',
       title: m['title'] as String? ?? '',
@@ -66,12 +75,13 @@ class BannerModel {
       badge: m['badge'] as String? ?? '',
       gradientStart: hx(m['gradient_start'], _defStart),
       gradientEnd: hx(m['gradient_end'], _defEnd),
+      imageUrl: m['image_url'] as String? ?? '',
       order: (m['order'] as num?)?.toInt() ?? 0,
       active: m['active'] as bool? ?? true,
       startsAt: dtn(m['starts_at']),
       endsAt: dtn(m['ends_at']),
-      storeAdminUid: m['store_admin_uid'] as String? ?? '',
-      storeName: m['store_name'] as String? ?? '',
+      storeAdminUids: strList(m['store_admin_uids']),
+      storeNames: strList(m['store_names']),
     );
   }
 
@@ -82,12 +92,13 @@ class BannerModel {
         'badge': badge,
         'gradient_start': gradientStart,
         'gradient_end': gradientEnd,
+        'image_url': imageUrl,
         'order': order,
         'active': active,
         'starts_at': startsAt?.toIso8601String(),
         'ends_at': endsAt?.toIso8601String(),
-        'store_admin_uid': storeAdminUid.isEmpty ? null : storeAdminUid,
-        'store_name': storeName,
+        'store_admin_uids': storeAdminUids,
+        'store_names': storeNames,
       };
 
   BannerModel copyWith({
@@ -97,12 +108,13 @@ class BannerModel {
     String? badge,
     String? gradientStart,
     String? gradientEnd,
+    String? imageUrl,
     int? order,
     bool? active,
     DateTime? startsAt,
     DateTime? endsAt,
-    String? storeAdminUid,
-    String? storeName,
+    List<String>? storeAdminUids,
+    List<String>? storeNames,
   }) =>
       BannerModel(
         id: id ?? this.id,
@@ -111,11 +123,12 @@ class BannerModel {
         badge: badge ?? this.badge,
         gradientStart: gradientStart ?? this.gradientStart,
         gradientEnd: gradientEnd ?? this.gradientEnd,
+        imageUrl: imageUrl ?? this.imageUrl,
         order: order ?? this.order,
         active: active ?? this.active,
         startsAt: startsAt ?? this.startsAt,
         endsAt: endsAt ?? this.endsAt,
-        storeAdminUid: storeAdminUid ?? this.storeAdminUid,
-        storeName: storeName ?? this.storeName,
+        storeAdminUids: storeAdminUids ?? this.storeAdminUids,
+        storeNames: storeNames ?? this.storeNames,
       );
 }

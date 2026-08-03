@@ -10,6 +10,7 @@ class CloudinaryService {
   static const String _uploadPreset = 'qoima_unsigned';
   static const String _folder = 'qoima_products';
   static const String _receiptsFolder = 'qoima_receipts';
+  static const String _bannersFolder = 'qoima_banners';
 
   // Суретті ЖОЮ Supabase Edge Function `cloudinary-cleanup` арқылы жасалады —
   // api_secret серверде (Edge Function → Secrets), клиент аппта ЕШҚАШАН болмайды.
@@ -36,6 +37,13 @@ class CloudinaryService {
     return Future.wait(images.map(
       (bytes) => _upload(bytes, 'product_${DateTime.now().microsecondsSinceEpoch}.jpg'),
     ));
+  }
+
+  /// Баннер суретін жүктеу (XFile) — бөлек қалтаға (`qoima_banners`)
+  Future<String> uploadBanner(XFile xFile) async {
+    final bytes = await xFile.readAsBytes();
+    return _upload(bytes, _resolveFileName(xFile.path),
+        folder: _bannersFolder);
   }
 
   /// Чек жүктеу (XFile, тек фото) — бөлек қалтаға (`qoima_receipts`)

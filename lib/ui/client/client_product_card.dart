@@ -9,6 +9,7 @@ import '../../data/models/category_data.dart';
 import '../../data/services/client_service.dart';
 import '../../theme/qoima_design.dart';
 import '../../theme/qoima_v2.dart';
+import '../shared/favorite_fly_animation.dart';
 import 'client_shell.dart';
 
 import '../../core/lang.dart';
@@ -49,6 +50,10 @@ class ProductGroupCard extends StatefulWidget {
 }
 
 class _ProductGroupCardState extends State<ProductGroupCard> {
+  // Жүрекше батырмасының орны — таңдаулыға қосқанда осыдан профиль табына
+  // қарай ұшатын анимацияның бастау нүктесі.
+  final GlobalKey _favKey = GlobalKey();
+
   // Карточка өз түсінен (initialIndex) басталады. Қолмен ауыстырған түс
   // қайта құру (іздеу/жүктелу) кезінде сақталуы үшін — шақырушы тұрақты
   // ValueKey береді (нұсқаның product id-і), сол арқылы State жоғалмайды.
@@ -233,9 +238,18 @@ class _ProductGroupCardState extends State<ProductGroupCard> {
                   behavior: HitTestBehavior.opaque,
                   onTap: () {
                     HapticFeedback.lightImpact();
+                    final adding = !widget.isFavorite;
                     widget.onToggleFavorite?.call(_product);
+                    // Тек ҚОСҚАНДА ұшады — өшіргенде емес.
+                    if (adding) {
+                      flyToFavorites(context, _favKey,
+                          imageUrl: _product.images.isNotEmpty
+                              ? _product.images.first
+                              : '');
+                    }
                   },
                   child: Container(
+                    key: _favKey,
                     width: 28,
                     height: 28,
                     decoration: BoxDecoration(

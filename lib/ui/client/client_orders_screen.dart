@@ -496,10 +496,12 @@ class _OrderCardState extends State<_OrderCard> {
         padding: const EdgeInsets.all(14),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            // Тапсырыс нөмірі — жай мәтін, «№» белгісімен (чек пиллінен
+            // стилі бөлек, сол сан қайталанса да екеуін шатастырмау үшін).
             Text(
               o.orderNumber > 0
-                  ? '#${o.orderNumber.toString().padLeft(5, '0')}'
-                  : '#—',
+                  ? '${tr('Заказ', 'Тапсырыс')} №${o.orderNumber.toString().padLeft(5, '0')}'
+                  : '${tr('Заказ', 'Тапсырыс')} №—',
               style: manrope(15.5, FontWeight.w800, color: cInk),
             ),
             QPill(
@@ -517,15 +519,27 @@ class _OrderCardState extends State<_OrderCard> {
             ),
           ]),
 
-          // Чек нөмірі (заказ нөмірінен бөлек) — тауар берілгенде беріледі
+          // Чек нөмірі — түсті пилл ретінде, заказ нөмірінің жай мәтін
+          // стилінен ӘДЕЙІ бөлек (форматы да, түсі де) — сан қайталанса да
+          // (себебі онлайн-заказда чек = заказ нөмірі) екеуін шатастырмау үшін.
           if (o.receiptNumber.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Row(children: [
-              const Icon(Icons.receipt_long_outlined, size: 13, color: cInk3),
-              const SizedBox(width: 4),
-              Text('Чек: ${o.receiptNumber}',
-                  style: manrope(12, FontWeight.w600, color: cInk2)),
-            ]),
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: cBlueTint,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.receipt_long_outlined,
+                    size: 13, color: cBlue),
+                const SizedBox(width: 4),
+                Text(
+                  '${tr('Чек', 'Чек')} №${o.receiptNumber.replaceAll('#', '')}',
+                  style: manrope(11.5, FontWeight.w700, color: cBlue),
+                ),
+              ]),
+            ),
           ],
 
           const SizedBox(height: 10),

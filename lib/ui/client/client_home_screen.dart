@@ -115,6 +115,8 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
   final _service = ClientService();
   final _scrollCtrl = ScrollController();
   final _searchCtrl = TextEditingController();
+  final _searchFocus = FocusNode();
+  bool _searchFocused = false;
 
   List<StoreModel> _stores = [];
   // Барлық жарияланған дүкендер (қала сүзгісінсіз) — қала тізімін көрсету үшін.
@@ -273,6 +275,9 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
     BrowsingSignalsService.instance.preload().then((_) {
       if (mounted) setState(() {});
     });
+    _searchFocus.addListener(() {
+      if (mounted) setState(() => _searchFocused = _searchFocus.hasFocus);
+    });
   }
 
   void _toggleFavorite(ProductModel p) async {
@@ -347,6 +352,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
     _searchSignalDebounce?.cancel();
     _scrollCtrl.dispose();
     _searchCtrl.dispose();
+    _searchFocus.dispose();
     super.dispose();
   }
 
@@ -371,7 +377,16 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
       }
       final top = counts.entries.reduce((a, b) => a.value >= b.value ? a : b);
       BrowsingSignalsService.instance.recordSearchCategory(top.key);
+      BrowsingSignalsService.instance.recordSearchQuery(_searchQuery);
     });
+  }
+
+  void _applyRecentSearch(String q) {
+    _searchCtrl.text = q;
+    _searchCtrl.selection =
+        TextSelection.collapsed(offset: _searchCtrl.text.length);
+    _onSearchChanged(q);
+    _searchFocus.unfocus();
   }
 
   void _onScroll() {
@@ -534,6 +549,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                         Expanded(
                           child: TextField(
                             controller: _searchCtrl,
+                            focusNode: _searchFocus,
                             cursorColor: cGreen,
                             textAlignVertical: TextAlignVertical.center,
                             onChanged: _onSearchChanged,
@@ -603,6 +619,58 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                   ),
                 ]),
               ),
+
+              // Соңғы іздегендер — іздеу өрісі бассалғанда әрі бос болғанда
+              // ғана («осыны қарамайсыз ба?» ұсынысы, макс 4, чип басылса
+              // сол сұраныс бірден қолданылады).
+              if (_searchFocused &&
+                  _searchQuery.isEmpty &&
+                  BrowsingSignalsService.instance.recentSearches.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(
+                          tr('Недавние:', 'Соңғы іздегендер:'),
+                          style: manrope(12, FontWeight.w600,
+                              color: Colors.white.withValues(alpha: 0.85)),
+                        ),
+                        for (final q in BrowsingSignalsService
+                            .instance.recentSearches)
+                          GestureDetector(
+                            onTap: () => _applyRecentSearch(q),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 11, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.16),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                    color: Colors.white
+                                        .withValues(alpha: 0.22)),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.history_rounded,
+                                      size: 13, color: Colors.white),
+                                  const SizedBox(width: 5),
+                                  Text(q,
+                                      style: manrope(12, FontWeight.w600,
+                                          color: Colors.white)),
+                                ],
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
 
               // ── Қала таңдау + Дүкендер қатары ───────────────────────────
               Padding(
@@ -945,12 +1013,62 @@ class _BannerCarouselState extends State<BannerCarousel> {
     });
   }
 
-  /// Дүкенге сілтелген баннер: сол дүкеннің каталогын ашады.
-  /// Дүкен жабық/блокталған/жарияланбаған болса — үнсіз ештеңе істемейміз.
+  /// Дүкен(дер)ге сілтелген баннер: біреу болса — тікелей ашады, бірнешеу
+  /// болса — таңдау парағын көрсетеді. Дүкен жабық/блокталған/жарияланбаған
+  /// болса — үнсіз ештеңе істемейміз.
   Future<void> _openStore(BuildContext context, BannerModel b) async {
+    if (b.storeAdminUids.isEmpty) return;
+    if (b.storeAdminUids.length == 1) {
+      await _openSingleStore(context, b.storeAdminUids.first);
+      return;
+    }
+    final chosenUid = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        decoration: const BoxDecoration(
+          color: cSurface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+            width: 36,
+            height: 4,
+            margin: const EdgeInsets.only(bottom: 14),
+            decoration: BoxDecoration(
+                color: cLine, borderRadius: BorderRadius.circular(2)),
+          ),
+          Text(tr('Выберите магазин', 'Дүкенді таңдаңыз'),
+              style: manrope(17, FontWeight.w800, color: cInk)),
+          const SizedBox(height: 12),
+          Flexible(
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                for (var i = 0; i < b.storeAdminUids.length; i++)
+                  ListTile(
+                    leading:
+                        const Icon(Icons.storefront_rounded, color: cGreen),
+                    title: Text(
+                        i < b.storeNames.length ? b.storeNames[i] : '',
+                        style: manrope(14.5, FontWeight.w600, color: cInk)),
+                    onTap: () => Navigator.pop(ctx, b.storeAdminUids[i]),
+                  ),
+              ],
+            ),
+          ),
+        ]),
+      ),
+    );
+    if (chosenUid != null && context.mounted) {
+      await _openSingleStore(context, chosenUid);
+    }
+  }
+
+  Future<void> _openSingleStore(BuildContext context, String uid) async {
     try {
-      final store =
-          await ClientService().getStoreByAdminUid(b.storeAdminUid);
+      final store = await ClientService().getStoreByAdminUid(uid);
       if (store == null ||
           !store.isPublished ||
           store.isBlocked ||
@@ -993,67 +1111,116 @@ class _BannerCarouselState extends State<BannerCarousel> {
                 // Дүкенге сілтелген баннер — басқанда сол дүкеннің каталогы.
                 onTap: b.hasStoreLink ? () => _openStore(context, b) : null,
                 child: Container(
+                  clipBehavior: Clip.antiAlias,
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [b.startColor, b.endColor],
-                    ),
+                    gradient: b.hasImage
+                        ? null
+                        : LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [b.startColor, b.endColor],
+                          ),
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: kShadowSm,
                   ),
-                  padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
-                  child: Row(children: [
-                    Expanded(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (b.badge.isNotEmpty)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.22),
-                                borderRadius: BorderRadius.circular(7),
+                  child: b.hasImage
+                      ? Stack(fit: StackFit.expand, children: [
+                          Image.network(b.imageUrl, fit: BoxFit.cover),
+                          if (b.hasStoreLink)
+                            Positioned(
+                              right: 10,
+                              bottom: 10,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 9, vertical: 5),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.45),
+                                  borderRadius: BorderRadius.circular(9),
+                                ),
+                                child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(tr('В магазин', 'Дүкенге'),
+                                          style: manrope(11, FontWeight.w800,
+                                              color: Colors.white)),
+                                      const Icon(
+                                          Icons.chevron_right_rounded,
+                                          color: Colors.white,
+                                          size: 15),
+                                    ]),
                               ),
-                              child: Text(b.badge,
-                                  style: manrope(10.5, FontWeight.w800,
-                                      color: Colors.white)),
                             ),
-                          if (b.badge.isNotEmpty) const SizedBox(height: 6),
-                          Text(b.title,
-                              style: manrope(17, FontWeight.w800,
-                                  color: Colors.white, letterSpacing: -0.3),
-                              maxLines: 1, overflow: TextOverflow.ellipsis),
-                          if (b.subtitle.isNotEmpty) ...[
-                            const SizedBox(height: 2),
-                            Text(b.subtitle,
-                                style: manrope(12.5, FontWeight.w500,
-                                    color:
-                                        Colors.white.withValues(alpha: 0.9)),
-                                maxLines: 2, overflow: TextOverflow.ellipsis),
-                          ],
-                        ],
-                      ),
-                    ),
-                    if (b.hasStoreLink)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 9, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.22),
-                          borderRadius: BorderRadius.circular(9),
+                        ])
+                      : Padding(
+                          padding:
+                              const EdgeInsets.fromLTRB(18, 14, 18, 14),
+                          child: Row(children: [
+                            Expanded(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment:
+                                    CrossAxisAlignment.start,
+                                children: [
+                                  if (b.badge.isNotEmpty)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 8, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white
+                                            .withValues(alpha: 0.22),
+                                        borderRadius:
+                                            BorderRadius.circular(7),
+                                      ),
+                                      child: Text(b.badge,
+                                          style: manrope(10.5,
+                                              FontWeight.w800,
+                                              color: Colors.white)),
+                                    ),
+                                  if (b.badge.isNotEmpty)
+                                    const SizedBox(height: 6),
+                                  Text(b.title,
+                                      style: manrope(17, FontWeight.w800,
+                                          color: Colors.white,
+                                          letterSpacing: -0.3),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis),
+                                  if (b.subtitle.isNotEmpty) ...[
+                                    const SizedBox(height: 2),
+                                    Text(b.subtitle,
+                                        style: manrope(12.5,
+                                            FontWeight.w500,
+                                            color: Colors.white
+                                                .withValues(alpha: 0.9)),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            if (b.hasStoreLink)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 9, vertical: 5),
+                                decoration: BoxDecoration(
+                                  color:
+                                      Colors.white.withValues(alpha: 0.22),
+                                  borderRadius: BorderRadius.circular(9),
+                                ),
+                                child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(tr('В магазин', 'Дүкенге'),
+                                          style: manrope(11,
+                                              FontWeight.w800,
+                                              color: Colors.white)),
+                                      const Icon(
+                                          Icons.chevron_right_rounded,
+                                          color: Colors.white,
+                                          size: 15),
+                                    ]),
+                              ),
+                          ]),
                         ),
-                        child: Row(mainAxisSize: MainAxisSize.min, children: [
-                          Text(tr('В магазин', 'Дүкенге'),
-                              style: manrope(11, FontWeight.w800,
-                                  color: Colors.white)),
-                          const Icon(Icons.chevron_right_rounded,
-                              color: Colors.white, size: 15),
-                        ]),
-                      ),
-                  ]),
                 ),
               ),
             );

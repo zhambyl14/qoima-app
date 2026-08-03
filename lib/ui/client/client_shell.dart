@@ -8,6 +8,7 @@ import '../../core/lang.dart';
 import '../../theme/qoima_design.dart';
 import '../../data/models/cart_item_model.dart';
 import '../../data/services/local_notification_service.dart';
+import '../shared/favorite_fly_animation.dart';
 import 'client_home_screen.dart';
 import 'client_catalog_screen.dart';
 import 'client_cart_screen.dart';
@@ -253,6 +254,9 @@ class ClientShellState extends State<ClientShell> {
                           clipBehavior: Clip.none,
                           children: [
                             Icon(
+                              // Профиль табы: таңдаулыға қосу анимациясы
+                              // осы иконканың орнына қарай ұшады.
+                              key: i == 3 ? FavoriteFlyTarget.key : null,
                               active ? _tabs[i].activeIcon : _tabs[i].icon,
                               color: active ? cGreen : cInk3,
                               size: 24,

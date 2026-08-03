@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../data/models/banner_model.dart';
 import '../../data/repositories/banner_repository.dart';
+import '../../data/services/cloudinary_service.dart';
 import '../../theme/qoima_design.dart';
 
 import '../../core/lang.dart';
@@ -111,24 +113,29 @@ class _BannerRow extends StatelessWidget {
           boxShadow: kShadowSm,
         ),
         child: Row(children: [
-          // Gradient preview swatch
+          // Сурет болса — сурет, болмаса градиент swatch
           Container(
             width: 52,
             height: 52,
+            clipBehavior: Clip.antiAlias,
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [banner.startColor, banner.endColor],
-              ),
+              gradient: banner.hasImage
+                  ? null
+                  : LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [banner.startColor, banner.endColor],
+                    ),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: banner.badge.isEmpty
-                ? null
-                : Center(
-                    child: Text(banner.badge,
-                        style: manrope(10, FontWeight.w800,
-                            color: Colors.white))),
+            child: banner.hasImage
+                ? Image.network(banner.imageUrl, fit: BoxFit.cover)
+                : (banner.badge.isEmpty
+                    ? null
+                    : Center(
+                        child: Text(banner.badge,
+                            style: manrope(10, FontWeight.w800,
+                                color: Colors.white)))),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -189,12 +196,17 @@ class _BannerEditSheetState extends State<_BannerEditSheet> {
   late bool _active;
   bool _saving = false;
 
-  // Баннер сілтейтін дүкен ('' = сілтеме жоқ) + таңдау тізімі.
-  late String _storeUid;
-  late String _storeName;
+  // Дайын дизайн-сурет: болса градиент+мәтіннің орнына толық көрсетіледі.
+  String _imageUrl = '';
+  XFile? _pickedImage;
+  Uint8List? _pickedImageBytes;
+
+  // Баннер сілтейтін дүкендер (бос = сілтеме жоқ) + барлық жарияланған дүкен.
+  late List<({String uid, String name})> _selectedStores;
   List<({String uid, String name})> _stores = [];
 
   bool get _isNew => widget.banner == null;
+  bool get _hasImage => _pickedImageBytes != null || _imageUrl.isNotEmpty;
 
   @override
   void initState() {
@@ -207,8 +219,15 @@ class _BannerEditSheetState extends State<_BannerEditSheet> {
     _end = TextEditingController(text: b?.gradientEnd ?? '#12C97A');
     _order = TextEditingController(text: (b?.order ?? 0).toString());
     _active = b?.active ?? true;
-    _storeUid = b?.storeAdminUid ?? '';
-    _storeName = b?.storeName ?? '';
+    _imageUrl = b?.imageUrl ?? '';
+    _selectedStores = b == null
+        ? []
+        : List.generate(
+            b.storeAdminUids.length,
+            (i) => (
+                  uid: b.storeAdminUids[i],
+                  name: i < b.storeNames.length ? b.storeNames[i] : '',
+                ));
     _loadStores();
   }
 
@@ -246,22 +265,27 @@ class _BannerEditSheetState extends State<_BannerEditSheet> {
       return;
     }
     setState(() => _saving = true);
-    final base = widget.banner;
-    final banner = BannerModel(
-      id: base?.id ?? '',
-      title: _title.text.trim(),
-      subtitle: _subtitle.text.trim(),
-      badge: _badge.text.trim(),
-      gradientStart: _start.text.trim(),
-      gradientEnd: _end.text.trim(),
-      order: int.tryParse(_order.text.trim()) ?? 0,
-      active: _active,
-      startsAt: base?.startsAt,
-      endsAt: base?.endsAt,
-      storeAdminUid: _storeUid,
-      storeName: _storeName,
-    );
     try {
+      var imageUrl = _imageUrl;
+      if (_pickedImage != null) {
+        imageUrl = await CloudinaryService().uploadBanner(_pickedImage!);
+      }
+      final base = widget.banner;
+      final banner = BannerModel(
+        id: base?.id ?? '',
+        title: _title.text.trim(),
+        subtitle: _subtitle.text.trim(),
+        badge: _badge.text.trim(),
+        gradientStart: _start.text.trim(),
+        gradientEnd: _end.text.trim(),
+        imageUrl: imageUrl,
+        order: int.tryParse(_order.text.trim()) ?? 0,
+        active: _active,
+        startsAt: base?.startsAt,
+        endsAt: base?.endsAt,
+        storeAdminUids: [for (final s in _selectedStores) s.uid],
+        storeNames: [for (final s in _selectedStores) s.name],
+      );
       await widget.repo.saveBanner(banner);
       if (mounted) Navigator.pop(context);
     } catch (e) {
@@ -270,6 +294,25 @@ class _BannerEditSheetState extends State<_BannerEditSheet> {
         _snack(friendlyError(e), cRed);
       }
     }
+  }
+
+  Future<void> _pickImage() async {
+    final picked =
+        await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 90);
+    if (picked == null || !mounted) return;
+    final bytes = await picked.readAsBytes();
+    setState(() {
+      _pickedImage = picked;
+      _pickedImageBytes = bytes;
+    });
+  }
+
+  void _removeImage() {
+    setState(() {
+      _pickedImage = null;
+      _pickedImageBytes = null;
+      _imageUrl = '';
+    });
   }
 
   Future<void> _delete() async {
@@ -314,59 +357,83 @@ class _BannerEditSheetState extends State<_BannerEditSheet> {
     ));
   }
 
-  /// Баннер сілтейтін дүкенді таңдау («Без ссылки» + жарияланған дүкендер).
-  Future<void> _pickStore() async {
-    final picked = await showModalBottomSheet<({String uid, String name})>(
+  /// Баннер сілтейтін дүкендерді таңдау (бірнешеу мүмкін — checklist).
+  Future<void> _pickStores() async {
+    var selected = {for (final s in _selectedStores) s.uid};
+    final picked = await showModalBottomSheet<Set<String>>(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        decoration: const BoxDecoration(
-          color: cSurface,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
-        ),
-        padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(
-            width: 36,
-            height: 4,
-            margin: const EdgeInsets.only(bottom: 14),
-            decoration: BoxDecoration(
-                color: cLine, borderRadius: BorderRadius.circular(2)),
+      isScrollControlled: true,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) => Container(
+          decoration: const BoxDecoration(
+            color: cSurface,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
           ),
-          Text(tr('Магазин для баннера', 'Баннер дүкені'),
-              style: manrope(17, FontWeight.w800, color: cInk)),
-          const SizedBox(height: 12),
-          Flexible(
-            child: ListView(
-              shrinkWrap: true,
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.link_off_rounded, color: cInk3),
-                  title: Text(tr('Без ссылки', 'Сілтемесіз'),
-                      style: manrope(14.5, FontWeight.w600, color: cInk)),
-                  onTap: () => Navigator.pop(ctx, (uid: '', name: '')),
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Container(
+              width: 36,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 14),
+              decoration: BoxDecoration(
+                  color: cLine, borderRadius: BorderRadius.circular(2)),
+            ),
+            Row(children: [
+              Expanded(
+                child: Text(
+                    tr('Магазины для баннера', 'Баннер дүкендері'),
+                    style: manrope(17, FontWeight.w800, color: cInk)),
+              ),
+              if (selected.isNotEmpty)
+                TextButton(
+                  onPressed: () => setSheetState(() => selected = {}),
+                  child: Text(tr('Сбросить', 'Тазалау'),
+                      style: manrope(13, FontWeight.w700, color: cRed)),
                 ),
-                ..._stores.map((s) => ListTile(
-                      leading: const Icon(Icons.storefront_rounded,
-                          color: cGreen),
+            ]),
+            Text(
+                tr('Можно выбрать несколько — клиент увидит выбор магазинов',
+                    'Бірнешеуін таңдауға болады — клиент дүкенді таңдау парағын көреді'),
+                style: manrope(12, FontWeight.w500, color: cInk3)),
+            const SizedBox(height: 10),
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                children: [
+                  for (final s in _stores)
+                    CheckboxListTile(
+                      value: selected.contains(s.uid),
+                      onChanged: (v) => setSheetState(() {
+                        if (v == true) {
+                          selected.add(s.uid);
+                        } else {
+                          selected.remove(s.uid);
+                        }
+                      }),
+                      controlAffinity: ListTileControlAffinity.leading,
+                      activeColor: cGreen,
+                      secondary:
+                          const Icon(Icons.storefront_rounded, color: cGreen),
                       title: Text(s.name,
                           style:
                               manrope(14.5, FontWeight.w600, color: cInk)),
-                      trailing: s.uid == _storeUid
-                          ? const Icon(Icons.check_rounded, color: cGreen)
-                          : null,
-                      onTap: () => Navigator.pop(ctx, s),
-                    )),
-              ],
+                    ),
+                ],
+              ),
             ),
-          ),
-        ]),
+            const SizedBox(height: 10),
+            QPrimaryButton(
+              label: tr('Готово', 'Дайын'),
+              onPressed: () => Navigator.pop(ctx, selected),
+            ),
+          ]),
+        ),
       ),
     );
     if (picked != null && mounted) {
       setState(() {
-        _storeUid = picked.uid;
-        _storeName = picked.name;
+        _selectedStores = _stores.where((s) => picked.contains(s.uid)).toList();
       });
     }
   }
@@ -406,70 +473,128 @@ class _BannerEditSheetState extends State<_BannerEditSheet> {
                   style: manrope(18, FontWeight.w800, color: cInk)),
               const SizedBox(height: 16),
 
-              // Live preview
+              // Live preview — сурет болса сурет, болмаса градиент+мәтін
               Container(
                 height: 96,
+                clipBehavior: Clip.antiAlias,
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [startColor, endColor],
-                  ),
+                  gradient: _hasImage
+                      ? null
+                      : LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [startColor, endColor],
+                        ),
+                  color: _hasImage ? cBg : null,
                   borderRadius: BorderRadius.circular(16),
                 ),
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (_badge.text.trim().isNotEmpty)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.22),
-                          borderRadius: BorderRadius.circular(7),
+                child: _hasImage
+                    ? (_pickedImageBytes != null
+                        ? Image.memory(_pickedImageBytes!, fit: BoxFit.cover)
+                        : Image.network(_imageUrl, fit: BoxFit.cover))
+                    : Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (_badge.text.trim().isNotEmpty)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.22),
+                                  borderRadius: BorderRadius.circular(7),
+                                ),
+                                child: Text(_badge.text.trim(),
+                                    style: manrope(10.5, FontWeight.w800,
+                                        color: Colors.white)),
+                              ),
+                            if (_badge.text.trim().isNotEmpty)
+                              const SizedBox(height: 6),
+                            Text(
+                                _title.text.trim().isEmpty
+                                    ? tr('Заголовок', 'Тақырып')
+                                    : _title.text.trim(),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: manrope(17, FontWeight.w800,
+                                    color: Colors.white, letterSpacing: -0.3)),
+                            if (_subtitle.text.trim().isNotEmpty)
+                              Text(_subtitle.text.trim(),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: manrope(12.5, FontWeight.w500,
+                                      color:
+                                          Colors.white.withValues(alpha: 0.9))),
+                          ],
                         ),
-                        child: Text(_badge.text.trim(),
-                            style: manrope(10.5, FontWeight.w800,
-                                color: Colors.white)),
                       ),
-                    if (_badge.text.trim().isNotEmpty)
-                      const SizedBox(height: 6),
-                    Text(
-                        _title.text.trim().isEmpty
-                            ? tr('Заголовок', 'Тақырып')
-                            : _title.text.trim(),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: manrope(17, FontWeight.w800,
-                            color: Colors.white, letterSpacing: -0.3)),
-                    if (_subtitle.text.trim().isNotEmpty)
-                      Text(_subtitle.text.trim(),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: manrope(12.5, FontWeight.w500,
-                              color: Colors.white.withValues(alpha: 0.9))),
-                  ],
-                ),
               ),
+              const SizedBox(height: 18),
+
+              // ── Дайын дизайн-сурет (Cloudinary) ──────────────────────────
+              Text(tr('Сурет баннера', 'Баннер суреті'),
+                  style: manrope(12.5, FontWeight.w700, color: cInk2)),
+              const SizedBox(height: 6),
+              Text(
+                  tr(
+                      'Рекомендуемый размер: 1200×400 px (соотношение ~3:1). Текст лучше сразу разместить на самом изображении.',
+                      'Ұсынылатын өлшем: 1200×400 px (арақатынасы ~3:1). Мәтінді тікелей суреттің өзіне салсаңыз, дұрысырақ көрінеді.'),
+                  style: manrope(12, FontWeight.w500, color: cInk3, height: 1.35)),
+              const SizedBox(height: 8),
+              Row(children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _pickImage,
+                    icon: const Icon(Icons.image_outlined, size: 18),
+                    label: Text(
+                        _hasImage
+                            ? tr('Заменить фото', 'Фотоны ауыстыру')
+                            : tr('Выбрать фото', 'Фото таңдау'),
+                        style: manrope(13.5, FontWeight.w700)),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: cGreenDeep,
+                      side: const BorderSide(color: cGreen),
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ),
+                if (_hasImage) ...[
+                  const SizedBox(width: 8),
+                  IconButton(
+                    onPressed: _removeImage,
+                    style: IconButton.styleFrom(
+                      backgroundColor: cRedTint,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                    icon: const Icon(Icons.delete_outline_rounded,
+                        color: cRed),
+                  ),
+                ],
+              ]),
               const SizedBox(height: 18),
 
               _field(tr('Заголовок', 'Тақырып'), _title, hint: tr('Мега Скидка!', 'Мега Жеңілдік!')),
               _field(tr('Описание', 'Сипаттама'), _subtitle,
                   hint: tr('До 30% на все товары', 'Барлық тауарларға 30% дейін')),
-              _field(tr('Метка (badge)', 'Белгі (badge)'), _badge, hint: '🔥 11.11'),
-              _hexField(tr('Начало градиента', 'Градиент басы'), _start, startColor),
-              _hexField(tr('Конец градиента', 'Градиент соңы'), _end, endColor),
+              if (!_hasImage) ...[
+                _field(tr('Метка (badge)', 'Белгі (badge)'), _badge, hint: '🔥 11.11'),
+                _hexField(tr('Начало градиента', 'Градиент басы'), _start, startColor),
+                _hexField(tr('Конец градиента', 'Градиент соңы'), _end, endColor),
+              ],
               _field(tr('Порядок (order)', 'Реті (order)'), _order,
                   hint: '0', keyboardType: TextInputType.number),
 
-              // ── Дүкен сілтемесі: клиент баннерді басқанда осы дүкен ашылады
-              Text(tr('Магазин (при нажатии на баннер)', 'Дүкен (баннерді басқанда)'),
+              // ── Дүкен сілтемесі: клиент баннерді басқанда осы дүкен(дер) ашылады
+              Text(tr('Магазины (при нажатии на баннер)', 'Дүкендер (баннерді басқанда)'),
                   style: manrope(12.5, FontWeight.w700, color: cInk2)),
               const SizedBox(height: 6),
               GestureDetector(
-                onTap: _pickStore,
+                onTap: _pickStores,
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                       horizontal: 14, vertical: 13),
@@ -479,20 +604,23 @@ class _BannerEditSheetState extends State<_BannerEditSheet> {
                   ),
                   child: Row(children: [
                     Icon(
-                        _storeUid.isEmpty
+                        _selectedStores.isEmpty
                             ? Icons.link_off_rounded
                             : Icons.storefront_rounded,
                         size: 18,
-                        color: _storeUid.isEmpty ? cInk3 : cGreen),
+                        color: _selectedStores.isEmpty ? cInk3 : cGreen),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                          _storeUid.isEmpty
+                          _selectedStores.isEmpty
                               ? tr('Без ссылки (просто баннер)',
                                   'Сілтемесіз (жай баннер)')
-                              : _storeName,
+                              : _selectedStores.map((s) => s.name).join(', '),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                           style: manrope(14, FontWeight.w600,
-                              color: _storeUid.isEmpty ? cInk3 : cInk)),
+                              color:
+                                  _selectedStores.isEmpty ? cInk3 : cInk)),
                     ),
                     const Icon(Icons.expand_more_rounded,
                         color: cInk3, size: 20),

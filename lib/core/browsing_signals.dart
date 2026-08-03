@@ -12,9 +12,12 @@ class BrowsingSignalsService {
 
   static const _kKey = 'browsing_signals_v1';
   static const _kMaxEntries = 40;
+  static const _kRecentSearchesKey = 'recent_searches_v1';
+  static const _kMaxRecentSearches = 4;
 
   // {'cat': categoryKey, 'brand': brand-not-required, 'w': weight}
   List<Map<String, dynamic>> _signals = [];
+  List<String> _recentSearches = [];
   bool _loaded = false;
 
   /// Экран initState-інде бір рет шақырылады — синхронды affinity есептеу
@@ -28,6 +31,7 @@ class BrowsingSignalsService {
         final list = jsonDecode(raw) as List<dynamic>;
         _signals = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
       }
+      _recentSearches = prefs.getStringList(_kRecentSearchesKey) ?? [];
     } catch (_) {}
     _loaded = true;
   }
@@ -52,6 +56,26 @@ class BrowsingSignalsService {
   /// Іздеу нәтижесінің басым категориясы (салмағы төмен — жанама белгі).
   Future<void> recordSearchCategory(String categoryKey) =>
       _add({'cat': categoryKey, 'brand': '', 'w': 1});
+
+  /// Соңғы іздеген сұраныс — басты беттегі іздеу өрісін бассанда «соңғы
+  /// іздегендер» ұсынысы үшін (ең соңғысы алдыда, көшірмесіз, макс 4).
+  Future<void> recordSearchQuery(String query) async {
+    final q = query.trim();
+    if (q.isEmpty) return;
+    await preload();
+    _recentSearches.removeWhere((e) => e.toLowerCase() == q.toLowerCase());
+    _recentSearches.insert(0, q);
+    if (_recentSearches.length > _kMaxRecentSearches) {
+      _recentSearches = _recentSearches.sublist(0, _kMaxRecentSearches);
+    }
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(_kRecentSearchesKey, _recentSearches);
+    } catch (_) {}
+  }
+
+  /// [preload] шақырылғаннан кейін синхронды қолжетімді соңғы іздеу тізімі.
+  List<String> get recentSearches => List.unmodifiable(_recentSearches);
 
   /// Санат бойынша салмақ қосындысы — [preload] шақырылғаннан кейін синхронды.
   Map<String, int> categoryAffinity() {
