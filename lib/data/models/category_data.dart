@@ -74,7 +74,7 @@ const List<CategoryData> kCategories = [
       sizeLabelKk: 'Өлшем',
       hasAudience: true,
       imageUrl:
-          'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=500&q=75&auto=format&fit=crop',
+          'https://images.unsplash.com/photo-1651013691313-81b822df0044?w=500&q=75&auto=format&fit=crop',
       sizes: ['36', '37', '38', '39', '40', '41', '42', '43', '44', '45']),
   CategoryData(
       key: 'tshirt',
@@ -130,7 +130,7 @@ const List<CategoryData> kCategories = [
       sizeLabelKk: 'Өлшем',
       hasAudience: true,
       imageUrl:
-          'https://images.unsplash.com/photo-1496747611176-843222e1e57c?w=500&q=75&auto=format&fit=crop',
+          'https://images.unsplash.com/photo-1779398969439-99c38b9df638?w=500&q=75&auto=format&fit=crop',
       sizes: ['XS', 'S', 'M', 'L', 'XL']),
   CategoryData(
       key: 'caps',
@@ -291,7 +291,7 @@ const List<CategoryData> kCategories = [
       sizeLabelRu: 'Память',
       sizeLabelKk: 'Жады',
       imageUrl:
-          'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=500&q=75&auto=format&fit=crop',
+          'https://images.unsplash.com/photo-1571053172280-f955a42c3554?w=500&q=75&auto=format&fit=crop',
       sizes: ['64 ГБ', '128 ГБ', '256 ГБ', '512 ГБ', '1 ТБ', _kOneSize]),
   CategoryData(
       key: 'computers',
@@ -304,7 +304,7 @@ const List<CategoryData> kCategories = [
       sizeLabelRu: 'Размер',
       sizeLabelKk: 'Өлшем',
       imageUrl:
-          'https://images.unsplash.com/photo-1525547719571-a2d4ac8945e2?w=500&q=75&auto=format&fit=crop',
+          'https://images.unsplash.com/photo-1587831990711-23ca6441447b?w=500&q=75&auto=format&fit=crop',
       sizes: _kOneSizeOnly),
   CategoryData(
       key: 'appliances',

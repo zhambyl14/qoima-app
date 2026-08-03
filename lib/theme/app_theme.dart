@@ -128,6 +128,17 @@ class AppTheme {
         useMaterial3: true,
         scaffoldBackgroundColor: background,
         fontFamily: 'Roboto',
+        // Material 3-тің Android әдепкі ZoomPageTransitionsBuilder-і жаңа
+        // экранды ҚАРА фон үстінде «үлкейтіп» шығарады — push тапталғанда
+        // (lib/core/push_navigation.dart) қара экран жарқ етіп көрінетін.
+        // Cupertino стилі — жай ғана бүйірден жылжу, қара фон жоқ.
+        pageTransitionsTheme: const PageTransitionsTheme(builders: {
+          TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.windows: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.linux: CupertinoPageTransitionsBuilder(),
+        }),
         colorScheme: ColorScheme.fromSeed(
           seedColor: primary,
           brightness: Brightness.light,
