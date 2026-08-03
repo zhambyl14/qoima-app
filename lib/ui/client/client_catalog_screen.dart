@@ -445,7 +445,9 @@ class _ClientCatalogScreenState extends State<ClientCatalogScreen> {
                 child: SizedBox(
                   width: 58,
                   height: 58,
-                  child: _CategoryThumb(category: cat),
+                  // Стандарт түрде — өз фотосы; админ өзі қосқан түрде сурет
+                  // жоқ → категорияның иконкасы көрсетіледі.
+                  child: _CategoryThumb(category: cat, imageUrl: typeImageUrl(t)),
                 ),
               ),
               const SizedBox(width: 14),
@@ -704,10 +706,15 @@ class _CategoryPhotoTile extends StatelessWidget {
   }
 }
 
-/// Категория фотосы. Сурет жоқ/жүктелмесе — тон + иконка fallback-і.
+/// Категория/түр фотосы. Сурет жоқ немесе жүктелмесе — категорияның тоны +
+/// иконкасы fallback ретінде көрсетіледі (админ өзі қосқан тип товарларда
+/// әрқашан осы иконка көрінеді).
 class _CategoryThumb extends StatelessWidget {
   final CategoryData category;
-  const _CategoryThumb({required this.category});
+
+  /// null — категорияның өз суреті; әйтпесе нақты берілген (мыс. түрдің) URL.
+  final String? imageUrl;
+  const _CategoryThumb({required this.category, this.imageUrl});
 
   Widget _fallback() {
     final tone = toneFor(category.tone);
@@ -721,9 +728,10 @@ class _CategoryThumb extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (category.imageUrl.isEmpty) return _fallback();
+    final url = imageUrl ?? category.imageUrl;
+    if (url.isEmpty) return _fallback();
     return Image.network(
-      category.imageUrl,
+      url,
       fit: BoxFit.cover,
       errorBuilder: (_, __, ___) => _fallback(),
       loadingBuilder: (_, child, progress) =>
