@@ -1,3 +1,8 @@
+// CupertinoPageTransitionsBuilder кейбір Flutter SDK нұсқаларында (мыс. 3.44
+// candidate) material.dart-тан осы файлға көшірілген; екеуін де импорттау SDK
+// нұсқасына тәуелсіз derlenуін қамтамасыз етеді.
+// ignore: unnecessary_import
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 class AppTheme {
