@@ -363,15 +363,17 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       });
                     },
                   ),
-                  label(tr('Кому', 'Кімге')),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: groups
-                        .map((g) => chip(trValue(g), group == g,
-                            () => setS(() => group = g)))
-                        .toList(),
-                  ),
+                  if (categoryByKey(catKey).hasAudience) ...[
+                    label(tr('Кому', 'Кімге')),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: groups
+                          .map((g) => chip(trValue(g), group == g,
+                              () => setS(() => group = g)))
+                          .toList(),
+                    ),
+                  ],
                   label(tr('Цвет', 'Түсі')),
                   Wrap(
                     spacing: 8,

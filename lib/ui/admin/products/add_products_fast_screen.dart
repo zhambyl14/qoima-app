@@ -112,6 +112,8 @@ class _AddProductsFastScreenState extends State<AddProductsFastScreen> {
   };
 
   bool get _isShoes => _categoryKey == 'shoes';
+  bool get _needsAudience =>
+      _categoryKey != null && categoryByKey(_categoryKey).hasAudience;
 
   @override
   void initState() {
@@ -356,7 +358,7 @@ class _AddProductsFastScreenState extends State<AddProductsFastScreen> {
       _err(tr('Выберите категорию', 'Категорияны таңдаңыз'));
       return;
     }
-    if (_targetGroup == null) {
+    if (_needsAudience && _targetGroup == null) {
       _err(tr('Выберите, кому', 'Кімге екенін таңдаңыз'));
       return;
     }
@@ -486,7 +488,7 @@ class _AddProductsFastScreenState extends State<AddProductsFastScreen> {
   // ── Build ─────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    final ready = _categoryKey != null && _targetGroup != null;
+    final ready = _categoryKey != null && (!_needsAudience || _targetGroup != null);
     return PopScope(
       canPop: !_hasUnsavedData(),
       onPopInvokedWithResult: (didPop, _) async {
@@ -675,7 +677,7 @@ class _AddProductsFastScreenState extends State<AddProductsFastScreen> {
             );
           }).toList(),
         ),
-        if (_categoryKey != null) ...[
+        if (_needsAudience) ...[
           const SizedBox(height: 12),
           Text(tr('Кому', 'Кімге'),
               style: manrope(12, FontWeight.w700, color: cInk2)),

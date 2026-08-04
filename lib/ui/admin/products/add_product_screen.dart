@@ -548,7 +548,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
         _err(tr('Выберите тип товара', 'Тауар түрін таңдаңыз'));
         return false;
       }
-      if (_targetGroup == null) {
+      if (categoryByKey(_categoryKey).hasAudience && _targetGroup == null) {
         _err(tr('Выберите, кому предназначен товар', 'Тауар кімге арналғанын таңдаңыз'));
         return false;
       }
@@ -1010,7 +1010,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
           const SizedBox(height: 8),
           _buildTypeDropdown(),
         ],
-        if (_categoryKey != null) ...[
+        if (_categoryKey != null && categoryByKey(_categoryKey).hasAudience) ...[
           const SizedBox(height: 16),
           _Label(tr('Кому *', 'Кімге *')),
           const SizedBox(height: 8),
@@ -2341,7 +2341,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
                       ? '—'
                       : categoryByKey(_categoryKey).name),
               _SummaryRow(label: tr('Тип товара', 'Тауар түрі'), value: _type == null ? '—' : trValue(_type!)),
-              _SummaryRow(label: tr('Кому', 'Кімге'), value: _targetGroup == null ? '—' : trValue(_targetGroup!)),
+              if (_categoryKey != null && categoryByKey(_categoryKey).hasAudience)
+                _SummaryRow(label: tr('Кому', 'Кімге'), value: _targetGroup == null ? '—' : trValue(_targetGroup!)),
               _SummaryRow(
                   label: _selectedColors.length > 1 ? tr('Цвета', 'Түстері') : tr('Цвет', 'Түсі'),
                   value: _selectedColors.isEmpty
