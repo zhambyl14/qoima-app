@@ -88,17 +88,31 @@ class _StoresMapScreenState extends State<StoresMapScreen> {
     }
   }
 
-  // HtmlElementView өз DOM элементін орналастырғанша бір кадр күтеміз.
+  // HtmlElementView-дің DOM элементі беттің НАҚТЫ DOM-ына қашан қосылатыны
+  // бір addPostFrameCallback-пен кепілденбейді (платформа view орналастыру
+  // Flutter web-де қосымша кадр(дар) алуы мүмкін) — сол себепті элемент
+  // РЕАЛ пайда болғанша қысқа аралықпен тексереміз (max ~5 сек).
   void _initMapWhenMounted() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    var attempt = 0;
+    void tryInit() {
       if (_mapReady || !mounted) return;
+      attempt++;
+      if (html.document.getElementById(_containerId) == null) {
+        if (attempt > 50) return; // ~5 сек. күттік, бас тартамыз
+        Future.delayed(const Duration(milliseconds: 100), tryInit);
+        return;
+      }
       final center = _entries.isNotEmpty
           ? [_entries.first.warehouse.lat!, _entries.first.warehouse.lng!]
           : [48.0196, 66.9237];
       final started = jsMapsInit(
               _containerId.toJS, center[0].toJS, center[1].toJS, 4.5.toJS)
           .toDart;
-      if (!started) return;
+      if (!started) {
+        if (attempt > 50) return;
+        Future.delayed(const Duration(milliseconds: 100), tryInit);
+        return;
+      }
       _mapReady = true;
       _setClickHandler((id) {
         final entry = _byId[id];
@@ -115,7 +129,9 @@ class _StoresMapScreenState extends State<StoresMapScreen> {
       if (pointsFlat.isNotEmpty) {
         jsMapsFitBounds(_containerId.toJS, pointsFlat.toJSNumbers);
       }
-    });
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) => tryInit());
   }
 
   void _openInYandexMaps(WarehouseModel wh) {

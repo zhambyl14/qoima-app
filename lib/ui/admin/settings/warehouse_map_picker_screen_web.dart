@@ -45,7 +45,7 @@ class _WarehouseMapPickerScreenState extends State<WarehouseMapPickerScreen> {
       _pickedLat = widget.warehouse.lat;
       _pickedLng = widget.warehouse.lng;
     }
-    WidgetsBinding.instance.addPostFrameCallback((_) => _initMap());
+    _initMapWhenMounted();
   }
 
   @override
@@ -55,13 +55,37 @@ class _WarehouseMapPickerScreenState extends State<WarehouseMapPickerScreen> {
     super.dispose();
   }
 
+  // HtmlElementView-дің DOM элементі беттің НАҚТЫ DOM-ына қашан қосылатыны
+  // бір addPostFrameCallback-пен кепілденбейді — элемент РЕАЛ пайда
+  // болғанша қысқа аралықпен тексереміз (max ~5 сек).
+  void _initMapWhenMounted() {
+    var attempt = 0;
+    void tryInit() {
+      if (_mapReady || !mounted) return;
+      attempt++;
+      if (html.document.getElementById(_containerId) == null) {
+        if (attempt > 50) return;
+        Future.delayed(const Duration(milliseconds: 100), tryInit);
+        return;
+      }
+      _initMap();
+      if (!_mapReady && attempt <= 50) {
+        Future.delayed(const Duration(milliseconds: 100), tryInit);
+      }
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) => tryInit());
+  }
+
   void _initMap() {
     if (_mapReady || !mounted) return;
     final wh = widget.warehouse;
     final lat = wh.lat ?? 43.238293;
     final lng = wh.lng ?? 76.945465;
-    jsMapsInitPicker(_containerId.toJS, lat.toJS, lng.toJS,
-        (wh.hasLocation ? 16 : 11).toJS, wh.hasLocation.toJS);
+    final started = jsMapsInitPicker(_containerId.toJS, lat.toJS, lng.toJS,
+            (wh.hasLocation ? 16 : 11).toJS, wh.hasLocation.toJS)
+        .toDart;
+    if (!started) return;
     _mapReady = true;
     jsMapsSetClickHandler(((JSString payload) {
       final parts = payload.toDart.split('|');
