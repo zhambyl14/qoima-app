@@ -34,7 +34,9 @@ android {
 
     defaultConfig {
         applicationId = "com.jambyl.qoima.qoima"
-        minSdk = flutter.minSdkVersion
+        // Yandex MapKit SDK (дүкендерді картадан көрсету) minSdk 26 талап
+        // етеді — flutter.minSdkVersion әдетте төмен болады.
+        minSdk = maxOf(flutter.minSdkVersion, 26)
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName

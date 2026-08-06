@@ -6,6 +6,7 @@ import '../../data/models/store_model.dart';
 import '../../data/services/client_service.dart';
 import '../../theme/qoima_design.dart';
 import 'store_public_screen.dart';
+import 'stores_map_screen.dart';
 import '../shared/error_view.dart';
 
 /// Дүкендер тізімі — бүкіл Қазақстан бойынша, қала бойынша сүзгімен.
@@ -103,6 +104,13 @@ class _StoresListScreenState extends State<StoresListScreen> {
               : _city!,
           compact: true,
           showBack: true,
+          action: filtered.isEmpty
+              ? null
+              : QHeaderBtn(Icons.map_outlined,
+                  onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => StoresMapScreen(stores: filtered)))),
           bottom: [
             const SizedBox(height: 12),
             SizedBox(
@@ -253,6 +261,13 @@ class _StoreCard extends StatelessWidget {
                       ),
                     ),
                   ]),
+                  if (store.address.trim().isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(store.address.trim(),
+                        style: manrope(11.5, FontWeight.w500, color: cInk3),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis),
+                  ],
                 ]),
           ),
           const Icon(Icons.chevron_right_rounded, color: cInk3, size: 22),

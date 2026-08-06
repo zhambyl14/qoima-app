@@ -7,6 +7,9 @@ class WarehouseModel {
   final DateTime createdAt;
   final int totalPairs;
   final int totalProducts;
+  // Картадағы орны (Yandex MapKit) — null болса, әлі белгіленбеген.
+  final double? lat;
+  final double? lng;
 
   const WarehouseModel({
     required this.id,
@@ -17,7 +20,11 @@ class WarehouseModel {
     required this.createdAt,
     this.totalPairs = 0,
     this.totalProducts = 0,
+    this.lat,
+    this.lng,
   });
+
+  bool get hasLocation => lat != null && lng != null;
 
   /// Supabase `warehouses` жолынан (snake_case бағандар).
   factory WarehouseModel.fromMap(Map<String, dynamic> m) {
@@ -32,6 +39,8 @@ class WarehouseModel {
       createdAt: parse(m['created_at']),
       totalPairs: (m['total_pairs'] as num?)?.toInt() ?? 0,
       totalProducts: (m['total_products'] as num?)?.toInt() ?? 0,
+      lat: (m['lat'] as num?)?.toDouble(),
+      lng: (m['lng'] as num?)?.toDouble(),
     );
   }
 
@@ -43,6 +52,8 @@ class WarehouseModel {
         'is_main': isMain,
         'total_pairs': totalPairs,
         'total_products': totalProducts,
+        'lat': lat,
+        'lng': lng,
       };
 
   WarehouseModel copyWith({
@@ -54,6 +65,8 @@ class WarehouseModel {
     DateTime? createdAt,
     int? totalPairs,
     int? totalProducts,
+    double? lat,
+    double? lng,
   }) =>
       WarehouseModel(
         id: id ?? this.id,
@@ -64,5 +77,7 @@ class WarehouseModel {
         createdAt: createdAt ?? this.createdAt,
         totalPairs: totalPairs ?? this.totalPairs,
         totalProducts: totalProducts ?? this.totalProducts,
+        lat: lat ?? this.lat,
+        lng: lng ?? this.lng,
       );
 }

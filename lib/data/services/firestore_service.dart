@@ -924,6 +924,13 @@ class FirestoreService {
         'note': note?.trim() ?? '',
       }).eq('id', warehouseId);
 
+  Future<void> updateWarehouseLocation({
+    required String warehouseId,
+    required double lat,
+    required double lng,
+  }) =>
+      _sb.from('warehouses').update({'lat': lat, 'lng': lng}).eq('id', warehouseId);
+
   Future<void> deleteWarehouse(String warehouseId) =>
       _sb.from('warehouses').delete().eq('id', warehouseId);
 

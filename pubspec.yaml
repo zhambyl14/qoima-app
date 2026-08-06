@@ -38,6 +38,7 @@ dependencies:
   fl_chart: ^0.68.0
   pdf: ^3.10.8
   printing: ^5.12.0
+  yandex_maps_mapkit_lite: ^4.5.0 # дүкендерді/қоймаларды картадан көрсету
 
 dev_dependencies:
   flutter_test:

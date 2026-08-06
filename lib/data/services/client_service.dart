@@ -209,6 +209,27 @@ class ClientService {
     return rows.map(StoreModel.fromMap).toList();
   }
 
+  /// Берілген дүкен иелерінің (admin_uid) витринада көрінетін, координатасы
+  /// белгіленген қоймалары — «Магазины» картасы үшін. RLS (0036 миграция)
+  /// автоматты түрде тек жарияланған дүкеннің visible_warehouse_ids-тегі
+  /// қоймаларын қайтарады. ownerUid әр белгіні дүкенмен байланыстыру үшін.
+  Future<List<({WarehouseModel warehouse, String ownerUid})>>
+      getMappableWarehouses(List<String> adminUids) async {
+    if (adminUids.isEmpty) return [];
+    final rows = await _sb
+        .from('warehouses')
+        .select()
+        .inFilter('owner_uid', adminUids)
+        .not('lat', 'is', null)
+        .not('lng', 'is', null);
+    return rows
+        .map((m) => (
+              warehouse: WarehouseModel.fromMap(m),
+              ownerUid: m['owner_uid'] as String? ?? '',
+            ))
+        .toList();
+  }
+
   Future<StoreModel?> getStoreByAdminUid(String adminUid) async {
     if (adminUid.isEmpty) return null;
     final row = await _sb

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../data/models/warehouse_model.dart';
 import '../../../data/services/firestore_service.dart';
 import '../../../theme/qoima_design.dart';
+import 'warehouse_map_picker_screen.dart';
 
 import '../../../core/lang.dart';
 import '../../../core/error_text.dart';
@@ -248,6 +249,14 @@ class _WarehouseCard extends StatelessWidget {
               );
               return;
             }
+            if (val == 'map') {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => WarehouseMapPickerScreen(warehouse: wh)),
+              );
+              return;
+            }
             if (val == 'delete' && !wh.isMain) {
               // Қадам 1: растау
               final ok1 = await showDialog<bool>(
@@ -316,6 +325,16 @@ class _WarehouseCard extends StatelessWidget {
                   const Icon(Icons.edit_outlined, size: 16, color: cInk2),
                   const SizedBox(width: 8),
                   Text(tr('Редактировать', 'Өңдеу')),
+                ])),
+            PopupMenuItem(
+                value: 'map',
+                child: Row(children: [
+                  Icon(Icons.location_on_outlined,
+                      size: 16, color: wh.hasLocation ? cGreen : cInk2),
+                  const SizedBox(width: 8),
+                  Text(wh.hasLocation
+                      ? tr('Место на карте', 'Картадағы орны')
+                      : tr('Указать на карте', 'Картадан белгілеу')),
                 ])),
             if (!wh.isMain)
               PopupMenuItem(

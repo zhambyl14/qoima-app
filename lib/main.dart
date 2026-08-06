@@ -28,7 +28,9 @@ import 'core/lang.dart';
 import 'core/warehouse_context.dart';
 import 'core/locale_context.dart';
 import 'core/push_navigation.dart';
+import 'core/yandex_maps_config.dart';
 import 'l10n/app_localizations.dart';
+import 'package:yandex_maps_mapkit_lite/init.dart' as ymk;
 
 /// ҚОСЫМШАНЫҢ ІСКЕ ҚОСЫЛУЫ — ЕҢ МАҢЫЗДЫ ЕРЕЖЕ:
 /// `runApp` бірінші кадрды кешіктірмеу үшін ЕШҚАНДАЙ желі/плагин
@@ -112,6 +114,12 @@ class _QoimaBootState extends State<QoimaBoot> {
       await initializeDateFormatting('ru', null);
       await initializeDateFormatting('kk', null);
     });
+    // Yandex MapKit (Магазины картасы) — міндетті емес, интернет/GPU
+    // мәселесі болса да қосымша ашылуы керек.
+    await _bestEffort(
+      'yandex_mapkit',
+      () => ymk.initMapkit(apiKey: YandexMapsConfig.mapKitApiKey),
+    );
     // Сақталған тіл — алғашқы кадрдан дұрыс тілмен ашылу үшін.
     try {
       _locale = await LocaleContext.loadSaved()
