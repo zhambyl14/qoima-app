@@ -11,6 +11,7 @@ import '../../theme/qoima_design.dart';
 import '../shared/skeletons.dart';
 import 'client_product_card.dart';
 import 'client_product_detail.dart';
+import 'referral_screen.dart';
 import 'report_sheet.dart';
 
 /// Дүкеннің публичті парақшасы: ақпарат + ТЕК осы дүкеннің тауарлары.
@@ -324,8 +325,29 @@ class _StorePublicScreenState extends State<StorePublicScreen> {
                     onSelected: (v) {
                       if (v == 'report') _report();
                       if (v == 'hide') _toggleHide();
+                      if (v == 'referral') {
+                        Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) =>
+                                    ReferralScreen(store: widget.store)));
+                      }
                     },
                     itemBuilder: (_) => [
+                      if (widget.store.referralEnabled)
+                        PopupMenuItem(
+                          value: 'referral',
+                          child: Row(children: [
+                            const Icon(Icons.card_giftcard_rounded,
+                                size: 18, color: cGreen),
+                            const SizedBox(width: 10),
+                            Text(
+                                tr('Пригласи друга · −${widget.store.referralPercent}%',
+                                    'Досыңды шақыр · −${widget.store.referralPercent}%'),
+                                style: manrope(13.5, FontWeight.w700,
+                                    color: cGreenDeep)),
+                          ]),
+                        ),
                       PopupMenuItem(
                         value: 'report',
                         child: Row(children: [

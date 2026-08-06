@@ -14,6 +14,12 @@ class PromoModel {
   final DateTime? endsAt;
   final bool active;
   final DateTime? createdAt;
+  // ── Referral (0044) ────────────────────────────────────────────────────────
+  /// Бос емес болса — бұл клиенттің ЖЕКЕ шақыру коды (оны БАСҚАЛАР қолданады,
+  /// иесінің өзі қолдана алмайды).
+  final String referralOwnerUid;
+  /// Бос емес болса — бұл сыйлық коды, ТЕК осы клиент қолдана алады.
+  final String onlyForUid;
 
   const PromoModel({
     required this.id,
@@ -30,8 +36,12 @@ class PromoModel {
     this.endsAt,
     this.active = true,
     this.createdAt,
+    this.referralOwnerUid = '',
+    this.onlyForUid = '',
   });
 
+  bool get isReferralCode => referralOwnerUid.isNotEmpty;
+  bool get isReferralReward => onlyForUid.isNotEmpty;
   bool get isPercent => type == 'percent';
   bool get isExhausted => maxUses != null && usedCount >= maxUses!;
   bool get isStarted => startsAt == null || !DateTime.now().isBefore(startsAt!);
@@ -72,6 +82,8 @@ class PromoModel {
       endsAt: dtn(m['ends_at']),
       active: m['active'] as bool? ?? true,
       createdAt: dtn(m['created_at']),
+      referralOwnerUid: m['referral_owner_uid'] as String? ?? '',
+      onlyForUid: m['only_for_uid'] as String? ?? '',
     );
   }
 

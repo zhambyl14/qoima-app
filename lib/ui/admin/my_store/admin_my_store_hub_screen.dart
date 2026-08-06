@@ -12,6 +12,7 @@ import 'admin_my_store_discounts_screen.dart';
 import 'admin_reviews_screen.dart';
 import 'admin_store_visibility_screen.dart';
 import 'demand_signals_screen.dart';
+import 'referral_settings_screen.dart';
 import 'store_broadcast_screen.dart';
 import 'ms_widgets.dart';
 import 'storefront_manage_screen.dart';
@@ -166,6 +167,23 @@ class AdminMyStoreHubScreen extends StatelessWidget {
                           subtitle: tr('Push-уведомление о новинках/акциях', 'Жаңалық/акция туралы push'),
                           onTap: () => Navigator.push(context,
                               MaterialPageRoute(builder: (_) => const StoreBroadcastScreen())),
+                        ),
+                        const SizedBox(height: 10),
+                        QMenuItem(
+                          icon: Icons.card_giftcard_outlined, tone: 'amber',
+                          title: tr('Приведи друга', 'Досыңды шақыр'),
+                          subtitle: (store?.referralEnabled ?? false)
+                              ? tr('Включено · −${store?.referralPercent}%',
+                                  'Қосулы · −${store?.referralPercent}%')
+                              : tr('Клиенты приводят новых клиентов',
+                                  'Клиенттер жаңа клиент әкеледі'),
+                          onTap: store == null
+                              ? null
+                              : () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (_) =>
+                                          ReferralSettingsScreen(store: store))),
                         ),
                         const SizedBox(height: 20),
 

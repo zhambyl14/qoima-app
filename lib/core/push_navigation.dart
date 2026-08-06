@@ -83,6 +83,9 @@ Future<void> handlePushOpen(Map<String, dynamic> data) async {
         await _openBackInStock(nav, user, data);
         break;
       case 'store_broadcast':
+      // Referral сыйлығы да сол дүкеннің бетіне апарады (сыйлық промокоды
+      // «Досыңды шақыр» экранында да көрінеді).
+      case 'referral_reward':
         await _openStoreBroadcast(nav, user, data);
         break;
       case 'store_registered':

@@ -398,6 +398,51 @@ class ClientService {
     return 'QM-$code';
   }
 
+  // ── Referral (0044) ────────────────────────────────────────────────────────
+
+  /// Клиенттің осы дүкенде АЯҚТАЛҒАН тапсырысы бар ма — шақыру коды тек
+  /// бірінші тапсырысқа жарамды болуы үшін.
+  Future<bool> _hasCompletedOrderInStore(String adminUid, String clientUid) async {
+    if (clientUid.isEmpty) return false;
+    final rows = await _sb
+        .from('orders')
+        .select('id')
+        .eq('admin_uid', adminUid)
+        .eq('client_uid', clientUid)
+        .eq('status', 'completed')
+        .limit(1);
+    return rows.isNotEmpty;
+  }
+
+  /// Клиенттің осы дүкендегі жеке шақыру коды (жоқ болса жасалады).
+  /// null — дүкенде бағдарлама өшірулі немесе клиент авторизацияланбаған.
+  Future<String?> getMyReferralCode(String adminUid) async {
+    if (_uid.isEmpty) return null;
+    try {
+      final res = await _sb
+          .rpc('get_or_create_referral_code', params: {'p_admin': adminUid});
+      final code = res as String?;
+      return (code == null || code.isEmpty) ? null : code;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Клиентке берілген, әлі қолданылмаған сыйлық промокодтары.
+  Future<List<PromoModel>> getMyReferralRewards() async {
+    if (_uid.isEmpty) return [];
+    final rows = await _sb
+        .from('promos')
+        .select()
+        .eq('only_for_uid', _uid)
+        .eq('active', true)
+        .order('created_at', ascending: false);
+    return rows
+        .map(PromoModel.fromRow)
+        .where((p) => !p.isExhausted && !p.isExpired)
+        .toList();
+  }
+
   // ── Promo codes (client validation) ─────────────────────────────────────────
 
   Future<PromoResult> validatePromo({
@@ -428,6 +473,31 @@ class ClientService {
     }
     if (promo.isExhausted) {
       return PromoResult.fail(tr('Лимит использований исчерпан', 'Қолдану лимиті таусылған'));
+    }
+
+    // ── Referral кодтары (0044) ──────────────────────────────────────────────
+    // Шақыру коды: иесі өзі қолдана алмайды әрі тек СОЛ ДҮКЕНДЕГІ БІРІНШІ
+    // тапсырыста жарамды (әйтпесе бір адам шексіз жеңілдік алар еді).
+    if (promo.isReferralCode) {
+      if (clientUid.isEmpty) {
+        return PromoResult.fail(tr('Войдите, чтобы использовать код друга',
+            'Дос кодын қолдану үшін кіріңіз'));
+      }
+      if (promo.referralOwnerUid == clientUid) {
+        return PromoResult.fail(tr('Нельзя использовать свой же код',
+            'Өз кодыңызды қолдануға болмайды'));
+      }
+      final hasOrder = await _hasCompletedOrderInStore(adminUid, clientUid);
+      if (hasOrder) {
+        return PromoResult.fail(tr(
+            'Код друга действует только на первый заказ в этом магазине',
+            'Дос коды бұл дүкендегі тек бірінші тапсырысқа жарамды'));
+      }
+    }
+    // Сыйлық коды: ТЕК иесіне.
+    if (promo.isReferralReward && promo.onlyForUid != clientUid) {
+      return PromoResult.fail(tr('Этот промокод выдан другому пользователю',
+          'Бұл промокод басқа қолданушыға берілген'));
     }
 
     if (promo.perUserLimit != null && clientUid.isNotEmpty) {

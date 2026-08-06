@@ -34,8 +34,12 @@ class StoreModel {
   // DB триггері жаңартады — 0038; toMap-қа ӘДЕЙІ ЖОҚ).
   final double ratingAvg;
   final int ratingCount;
+  /// «Досыңды шақыр» бағдарламасы (0044): досы да, шақырушы да алатын
+  /// жеңілдік пайызы. 0 = бағдарлама өшірулі.
+  final int referralPercent;
 
   bool get isBlocked => status == 'blocked';
+  bool get referralEnabled => referralPercent > 0;
 
   const StoreModel({
     required this.adminUid,
@@ -66,6 +70,7 @@ class StoreModel {
     this.blockedBy = '',
     this.ratingAvg = 0,
     this.ratingCount = 0,
+    this.referralPercent = 0,
   });
 
   static String generateSlug(String name) => name
@@ -112,6 +117,7 @@ class StoreModel {
       blockedBy: m['blocked_by'] as String? ?? '',
       ratingAvg: (m['rating_avg'] as num?)?.toDouble() ?? 0,
       ratingCount: (m['rating_count'] as num?)?.toInt() ?? 0,
+      referralPercent: (m['referral_percent'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -172,6 +178,7 @@ class StoreModel {
     String? blockedBy,
     double? ratingAvg,
     int? ratingCount,
+    int? referralPercent,
   }) =>
       StoreModel(
         adminUid: adminUid ?? this.adminUid,
@@ -203,5 +210,6 @@ class StoreModel {
         blockedBy: blockedBy ?? this.blockedBy,
         ratingAvg: ratingAvg ?? this.ratingAvg,
         ratingCount: ratingCount ?? this.ratingCount,
+        referralPercent: referralPercent ?? this.referralPercent,
       );
 }
