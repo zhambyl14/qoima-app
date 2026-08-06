@@ -31,8 +31,87 @@
 
   <title>qoima</title>
   <link rel="manifest" href="manifest.json">
-</head>
-<body>
+
+  <!-- Yandex Maps JS API — «Магазины» картасы (тек веб-нұсқада, mobile
+       Android/iOS Yandex MapKit native SDK қолданады, lib/core/map_init_*).
+       Кілт: Yandex Cloud → Developer Dashboard → JavaScript API. -->
+  <script src="https://api-maps.yandex.ru/2.1/?apikey=89893703-17df-49a4-8c4a-7acf0df8e43a&lang=ru_RU" type="text/javascript"></script>
+  <script>
+    // Dart<->ymaps аралық жеңіл көпір: барлық ymaps типтерін dart:js_interop-қа
+    // толық бейнелеудің орнына тар, нақты API беріледі (қате тәуекелі азырақ).
+    window.qoimaMaps = {
+      _maps: {},
+      _clickHandler: null,
+      ready: function () {
+        return new Promise(function (resolve) {
+          if (window.ymaps) { window.ymaps.ready(function () { resolve(true); }); }
+          else { resolve(false); }
+        });
+      },
+      init: function (containerId, lat, lng, zoom) {
+        var el = document.getElementById(containerId);
+        if (!el) return false;
+        var map = new ymaps.Map(containerId, {
+          center: [lat, lng],
+          zoom: zoom,
+          controls: ['zoomControl', 'geolocationControl']
+        });
+        window.qoimaMaps._maps[containerId] = map;
+        return true;
+      },
+      destroy: function (containerId) {
+        var map = window.qoimaMaps._maps[containerId];
+        if (map) { map.destroy(); delete window.qoimaMaps._maps[containerId]; }
+      },
+      setClickHandler: function (fn) { window.qoimaMaps._clickHandler = fn; },
+      addPlacemark: function (containerId, id, lat, lng) {
+        var map = window.qoimaMaps._maps[containerId];
+        if (!map) return;
+        var pm = new ymaps.Placemark([lat, lng], {}, { preset: 'islands#greenDotIcon' });
+        pm.events.add('click', function () {
+          if (window.qoimaMaps._clickHandler) window.qoimaMaps._clickHandler(id);
+        });
+        map.geoObjects.add(pm);
+      },
+      fitBounds: function (containerId, pointsFlat) {
+        var map = window.qoimaMaps._maps[containerId];
+        if (!map) return;
+        var pts = [];
+        for (var i = 0; i < pointsFlat.length; i += 2) { pts.push([pointsFlat[i], pointsFlat[i + 1]]); }
+        if (pts.length === 0) return;
+        if (pts.length === 1) { map.setCenter(pts[0], 14); }
+        else { map.setBounds(pts, { checkZoomRange: true, zoomMargin: 40 }); }
+      },
+      // ── Админ картадан белгі қою (жалғыз, жылжымалы белгі) ──────────────
+      initPicker: function (containerId, lat, lng, zoom, hasInitial) {
+        var el = document.getElementById(containerId);
+        if (!el) return false;
+        var map = new ymaps.Map(containerId, {
+          center: [lat, lng],
+          zoom: zoom,
+          controls: ['zoomControl']
+        });
+        window.qoimaMaps._maps[containerId] = map;
+        var pm = null;
+        function place(coords) {
+          if (pm) { pm.geometry.setCoordinates(coords); }
+          else {
+            pm = new ymaps.Placemark(coords, {}, { preset: 'islands#redDotIcon', draggable: true });
+            map.geoObjects.add(pm);
+            pm.events.add('dragend', function () {
+              var c = pm.geometry.getCoordinates();
+              if (window.qoimaMaps._clickHandler) window.qoimaMaps._clickHandler(containerId + '|' + c[0] + '|' + c[1]);
+            });
+          }
+          if (window.qoimaMaps._clickHandler) window.qoimaMaps._clickHandler(containerId + '|' + coords[0] + '|' + coords[1]);
+        }
+        if (hasInitial) { place([lat, lng]); }
+        map.events.add('click', function (e) { place(e.get('coords')); });
+        return true;
+      }
+    };
+  </script>
+
   <!--
     You can customize the "flutter_bootstrap.js" script.
     This is useful to provide a custom configuration to the Flutter loader

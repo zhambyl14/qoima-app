@@ -6,7 +6,7 @@ import '../../data/models/store_model.dart';
 import '../../data/services/client_service.dart';
 import '../../theme/qoima_design.dart';
 import 'store_public_screen.dart';
-import 'stores_map_screen.dart';
+import 'stores_map_launcher.dart';
 import '../shared/error_view.dart';
 
 /// Дүкендер тізімі — бүкіл Қазақстан бойынша, қала бойынша сүзгімен.

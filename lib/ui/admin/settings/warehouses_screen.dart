@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../data/models/warehouse_model.dart';
 import '../../../data/services/firestore_service.dart';
 import '../../../theme/qoima_design.dart';
-import 'warehouse_map_picker_screen.dart';
+import 'warehouse_map_picker_launcher.dart';
 
 import '../../../core/lang.dart';
 import '../../../core/error_text.dart';
