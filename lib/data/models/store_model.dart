@@ -41,6 +41,14 @@ class StoreModel {
   bool get isBlocked => status == 'blocked';
   bool get referralEnabled => referralPercent > 0;
 
+  /// «TOP дүкен» белгісі: жоғары рейтинг + жеткілікті пікір саны. Клиентке
+  /// таңдауды жеңілдетеді, сатушыны сапаға ынталандырады. Шектер бір жерде
+  /// тұрады — тізім, карта, дүкен беті бәрі осы геттерді қолданады.
+  static const double kTopRatingMin = 4.5;
+  static const int kTopReviewsMin = 10;
+  bool get isTopStore =>
+      ratingCount >= kTopReviewsMin && ratingAvg >= kTopRatingMin;
+
   const StoreModel({
     required this.adminUid,
     required this.storeName,

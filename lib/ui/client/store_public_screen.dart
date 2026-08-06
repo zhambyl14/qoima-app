@@ -288,11 +288,19 @@ class _StorePublicScreenState extends State<StorePublicScreen> {
                   ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: Text(store.storeName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: manrope(20, FontWeight.w800,
-                            color: Colors.white, letterSpacing: -0.4)),
+                    child: Row(children: [
+                      Flexible(
+                        child: Text(store.storeName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: manrope(20, FontWeight.w800,
+                                color: Colors.white, letterSpacing: -0.4)),
+                      ),
+                      if (store.isTopStore) ...[
+                        const SizedBox(width: 7),
+                        const QTopStoreBadge(),
+                      ],
+                    ]),
                   ),
                   // ⋮ — шағымдану / жасыру (preview-де жасырын)
                   if (widget.previewMode)

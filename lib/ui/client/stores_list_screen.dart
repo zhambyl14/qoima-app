@@ -479,12 +479,17 @@ class _StoreCard extends StatelessWidget {
             child: Column(crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(children: [
-                    Expanded(
+                    Flexible(
                       child: Text(store.storeName,
                           style: manrope(14.5, FontWeight.w700, color: cInk),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis),
                     ),
+                    if (store.isTopStore) ...[
+                      const SizedBox(width: 5),
+                      const QTopStoreBadge(compact: true),
+                    ],
+                    const Spacer(),
                     if (store.ratingCount > 0) ...[
                       const SizedBox(width: 6),
                       const Icon(Icons.star_rounded, size: 14, color: Color(0xFFF5A623)),

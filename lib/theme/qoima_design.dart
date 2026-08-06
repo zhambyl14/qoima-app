@@ -122,6 +122,42 @@ class _ToneColors {
   const _ToneColors(this.bg, this.fg);
 }
 
+// ── TOP дүкен белгісі ─────────────────────────────────────────────────────────
+/// Рейтингі жоғары әрі пікірі жеткілікті дүкендерге берілетін белгі
+/// (шектер — StoreModel.isTopStore). Тізім, карта және дүкен бетінде
+/// БІРДЕЙ көріну үшін бір ғана виджет.
+class QTopStoreBadge extends StatelessWidget {
+  /// true — ықшам нұсқа (тек ★ TOP), тізім карточкалары үшін.
+  final bool compact;
+  const QTopStoreBadge({super.key, this.compact = false});
+
+  static const _gold = Color(0xFFB4770A);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+          horizontal: compact ? 6 : 9, vertical: compact ? 2 : 4),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+            colors: [Color(0xFFFFF0CC), cAmberTint],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight),
+        borderRadius: BorderRadius.circular(compact ? 6 : 8),
+        border: Border.all(color: cAmber.withValues(alpha: 0.45)),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(Icons.workspace_premium_rounded,
+            size: compact ? 10.5 : 13, color: _gold),
+        SizedBox(width: compact ? 2 : 4),
+        Text('TOP',
+            style: manrope(compact ? 9.5 : 11, FontWeight.w800, color: _gold)
+                .copyWith(letterSpacing: 0.4)),
+      ]),
+    );
+  }
+}
+
 // ── SecLabel ──────────────────────────────────────────────────────────────────
 class QSecLabel extends StatelessWidget {
   final String label;

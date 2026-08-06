@@ -516,9 +516,17 @@ class _StoreFloatingCard extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(store.storeName,
-                            style: manrope(14.5, FontWeight.w800, color: cInk),
-                            maxLines: 1, overflow: TextOverflow.ellipsis),
+                        Row(children: [
+                          Flexible(
+                            child: Text(store.storeName,
+                                style: manrope(14.5, FontWeight.w800, color: cInk),
+                                maxLines: 1, overflow: TextOverflow.ellipsis),
+                          ),
+                          if (store.isTopStore) ...[
+                            const SizedBox(width: 5),
+                            const QTopStoreBadge(compact: true),
+                          ],
+                        ]),
                         if (store.category.isNotEmpty)
                           Text(trValue(store.category),
                               style: manrope(11.5, FontWeight.w600, color: cInk3),
