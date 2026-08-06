@@ -30,6 +30,10 @@ class StoreModel {
   final String blockReason;
   final DateTime? blockedAt;
   final String blockedBy;
+  // Денормализацияланған рейтинг (product_reviews.admin_uid бойынша,
+  // DB триггері жаңартады — 0038; toMap-қа ӘДЕЙІ ЖОҚ).
+  final double ratingAvg;
+  final int ratingCount;
 
   bool get isBlocked => status == 'blocked';
 
@@ -60,6 +64,8 @@ class StoreModel {
     this.blockReason = '',
     this.blockedAt,
     this.blockedBy = '',
+    this.ratingAvg = 0,
+    this.ratingCount = 0,
   });
 
   static String generateSlug(String name) => name
@@ -104,6 +110,8 @@ class StoreModel {
           ? DateTime.tryParse(m['blocked_at'] as String)
           : null,
       blockedBy: m['blocked_by'] as String? ?? '',
+      ratingAvg: (m['rating_avg'] as num?)?.toDouble() ?? 0,
+      ratingCount: (m['rating_count'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -162,6 +170,8 @@ class StoreModel {
     String? blockReason,
     DateTime? blockedAt,
     String? blockedBy,
+    double? ratingAvg,
+    int? ratingCount,
   }) =>
       StoreModel(
         adminUid: adminUid ?? this.adminUid,
@@ -191,5 +201,7 @@ class StoreModel {
         blockReason: blockReason ?? this.blockReason,
         blockedAt: blockedAt ?? this.blockedAt,
         blockedBy: blockedBy ?? this.blockedBy,
+        ratingAvg: ratingAvg ?? this.ratingAvg,
+        ratingCount: ratingCount ?? this.ratingCount,
       );
 }

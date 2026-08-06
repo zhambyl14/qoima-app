@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../core/lang.dart';
 import '../../theme/qoima_design.dart';
 
@@ -47,16 +46,6 @@ class LegalDocumentsScreen extends StatelessWidget {
                     MaterialPageRoute(
                         builder: (_) =>
                             PrivacyPolicyScreen(forSeller: forSeller))),
-              ),
-              const SizedBox(height: 10),
-              QMenuItem(
-                icon: Icons.map_outlined,
-                tone: 'ink',
-                title: tr('Условия использования Яндекс.Карт', 'Яндекс Карталарды пайдалану шарттары'),
-                subtitle: tr('Карта магазинов работает на технологии Yandex MapKit', 'Дүкендер картасы Yandex MapKit негізінде жұмыс істейді'),
-                onTap: () => launchUrl(
-                    Uri.parse('https://yandex.ru/legal/maps_termsofuse'),
-                    mode: LaunchMode.externalApplication),
               ),
             ],
           ),

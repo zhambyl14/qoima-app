@@ -7,7 +7,7 @@ class WarehouseModel {
   final DateTime createdAt;
   final int totalPairs;
   final int totalProducts;
-  // Картадағы орны (Yandex MapKit) — null болса, әлі белгіленбеген.
+  // Картадағы орны — null болса, әлі белгіленбеген.
   final double? lat;
   final double? lng;
 

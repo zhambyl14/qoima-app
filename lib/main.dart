@@ -28,8 +28,6 @@ import 'core/lang.dart';
 import 'core/warehouse_context.dart';
 import 'core/locale_context.dart';
 import 'core/push_navigation.dart';
-import 'core/map_init_stub.dart'
-    if (dart.library.html) 'core/map_init_web.dart' as maps_init;
 import 'l10n/app_localizations.dart';
 
 /// ҚОСЫМШАНЫҢ ІСКЕ ҚОСЫЛУЫ — ЕҢ МАҢЫЗДЫ ЕРЕЖЕ:
@@ -114,9 +112,6 @@ class _QoimaBootState extends State<QoimaBoot> {
       await initializeDateFormatting('ru', null);
       await initializeDateFormatting('kk', null);
     });
-    // Yandex MapKit (Магазины картасы) — міндетті емес, интернет/GPU
-    // мәселесі болса да қосымша ашылуы керек.
-    await _bestEffort('yandex_mapkit', maps_init.initMapsSdk);
     // Сақталған тіл — алғашқы кадрдан дұрыс тілмен ашылу үшін.
     try {
       _locale = await LocaleContext.loadSaved()

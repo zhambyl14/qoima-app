@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:yandex_maps_mapkit_lite/mapkit.dart' hide Icon, Uri;
-import 'package:yandex_maps_mapkit_lite/yandex_map.dart';
 import '../../../data/models/warehouse_model.dart';
 import '../../../data/services/firestore_service.dart';
 import '../../../theme/qoima_design.dart';
@@ -11,11 +11,12 @@ import '../../../core/error_text.dart';
 
 /// Алматы орталығы — қойманың координатасы әлі белгіленбегенде картаның
 /// бастапқы центрі.
-const _kDefaultCenter = Point(latitude: 43.238293, longitude: 76.945465);
+const _kDefaultCenter = LatLng(43.238293, 76.945465);
 
 /// Админ қойма орнын картадан белгілейді (түртіп): таңдалған нүкте
 /// warehouses.lat/lng-ге сақталады — клиенттің «Магазины» картасында
 /// осы қойма (витринада көрінсе) белгі ретінде шығады.
+/// OpenStreetMap + flutter_map — API кілтсіз, барлық платформада бірдей.
 class WarehouseMapPickerScreen extends StatefulWidget {
   final WarehouseModel warehouse;
   const WarehouseMapPickerScreen({super.key, required this.warehouse});
@@ -25,46 +26,17 @@ class WarehouseMapPickerScreen extends StatefulWidget {
       _WarehouseMapPickerScreenState();
 }
 
-class _WarehouseMapPickerScreenState extends State<WarehouseMapPickerScreen>
-    implements MapInputListener {
+class _WarehouseMapPickerScreenState extends State<WarehouseMapPickerScreen> {
   final _service = FirestoreService();
-  MapWindow? _mapWindow;
-  PlacemarkMapObject? _pin;
-  Point? _picked;
+  LatLng? _picked;
   bool _saving = false;
 
   @override
-  void dispose() {
-    _mapWindow?.map.removeInputListener(this);
-    super.dispose();
-  }
-
-  void _onMapCreated(MapWindow mapWindow) {
-    _mapWindow = mapWindow;
+  void initState() {
+    super.initState();
     final wh = widget.warehouse;
-    final start = wh.hasLocation
-        ? Point(latitude: wh.lat!, longitude: wh.lng!)
-        : _kDefaultCenter;
-    mapWindow.map.move(
-      CameraPosition(start, zoom: wh.hasLocation ? 16 : 11, azimuth: 0, tilt: 0),
-    );
-    mapWindow.map.addInputListener(this);
-    if (wh.hasLocation) {
-      _placePin(start);
-    }
+    if (wh.hasLocation) _picked = LatLng(wh.lat!, wh.lng!);
   }
-
-  void _placePin(Point point) {
-    _pin?.geometry = point;
-    _pin ??= _mapWindow!.map.mapObjects.addPlacemarkWithPoint(point);
-    setState(() => _picked = point);
-  }
-
-  @override
-  void onMapTap(Map map, Point point) => _placePin(point);
-
-  @override
-  void onMapLongTap(Map map, Point point) => _placePin(point);
 
   Future<void> _save() async {
     final p = _picked;
@@ -101,12 +73,13 @@ class _WarehouseMapPickerScreenState extends State<WarehouseMapPickerScreen>
 
   @override
   Widget build(BuildContext context) {
+    final wh = widget.warehouse;
     return Scaffold(
       backgroundColor: cBg,
       body: Column(children: [
         QGradientHeader(
           title: tr('Место на карте', 'Картадағы орын'),
-          subtitle: widget.warehouse.name,
+          subtitle: wh.name,
           showBack: true,
           action: TextButton(
             onPressed: (_picked != null && !_saving) ? _save : null,
@@ -122,7 +95,31 @@ class _WarehouseMapPickerScreenState extends State<WarehouseMapPickerScreen>
         ),
         Expanded(
           child: Stack(children: [
-            YandexMap(onMapCreated: _onMapCreated),
+            FlutterMap(
+              options: MapOptions(
+                initialCenter: _picked ?? (wh.hasLocation
+                    ? LatLng(wh.lat!, wh.lng!)
+                    : _kDefaultCenter),
+                initialZoom: wh.hasLocation ? 16 : 11,
+                onTap: (_, point) => setState(() => _picked = point),
+              ),
+              children: [
+                TileLayer(
+                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  userAgentPackageName: 'kz.qoima.app',
+                ),
+                if (_picked != null)
+                  MarkerLayer(markers: [
+                    Marker(
+                      point: _picked!,
+                      width: 34,
+                      height: 34,
+                      child: const Icon(Icons.location_on_rounded,
+                          color: cRed, size: 34),
+                    ),
+                  ]),
+              ],
+            ),
             Positioned(
               left: 16,
               right: 16,

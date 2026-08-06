@@ -2,6 +2,10 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <!-- Android 13+ push хабарламаларына runtime рұқсат (FCM) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- «Магазины» картасында жақын дүкендерді көрсету үшін (міндетті емес,
+         рұқсат берілмесе де карта ашылады — stores_map_screen.dart) -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <application
         android:label="Qoima"
         android:name="${applicationName}"
