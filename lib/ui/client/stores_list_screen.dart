@@ -12,15 +12,16 @@ import 'store_public_screen.dart';
 import 'stores_map_screen.dart';
 import '../shared/error_view.dart';
 
-typedef _Nearest = ({StoreModel store, WarehouseModel warehouse, double meters});
+enum _SortMode { distance, rating, alpha }
 
 /// Дүкендер тізімі — бүкіл Қазақстан бойынша, қала бойынша сүзгімен.
 /// Клиент өз қаласындағы (немесе кез келген қаладағы) дүкендерді көріп,
 /// әрқайсысының товарларын аша алады (StorePublicScreen).
 ///
 /// Клиенттің «Мой адрес» (профиль → мекенжайлар) бөлімінде картадан
-/// белгіленген нүктесі болса — қазір көрсетіліп тұрған (сүзілген) дүкендер
-/// арасынан ЕҢ ЖАҚЫНын ұсынамыз. Мекенжай/нүкте әлі жоқ болса — қосудың
+/// белгіленген нүктесі болса — тізім ЕҢ ЖАҚЫННАН бастап сұрыпталады, әр
+/// карточкада нақты қашықтығы көрінеді (1 км, 1.2 км, ...). Рейтинг бойынша
+/// сұрыптауға да ауыстыруға болады. Мекенжай әлі жоқ болса — қосудың
 /// пайдасын түсіндіретін кішкентай карточка көрсетеміз.
 class StoresListScreen extends StatefulWidget {
   /// Бастапқы қала сүзгісі (null — барлық қалалар).
@@ -44,6 +45,7 @@ class _StoresListScreenState extends State<StoresListScreen> {
   ({double lat, double lng})? _myPoint;
   Map<String, WarehouseModel> _warehouseByAdmin = {};
   bool _nudgeDismissed = false;
+  _SortMode? _manualSort;
 
   @override
   void initState() {
@@ -116,23 +118,42 @@ class _StoresListScreenState extends State<StoresListScreen> {
     }
   }
 
-  /// Ағымдағы (қала бойынша сүзілген) тізімнен клиентке ең жақын дүкенді
-  /// табады. Мекенжай нүктесі жоқ болса немесе ешбір дүкенде координата
-  /// табылмаса — null.
-  _Nearest? _findNearest(List<StoreModel> filtered) {
+  /// Дүкенге дейінгі қашықтық (метр) — мекенжай нүктесі немесе дүкеннің
+  /// координатасы жоқ болса null.
+  double? _distanceFor(StoreModel s) {
     final my = _myPoint;
-    if (my == null) return null;
-    _Nearest? best;
-    for (final s in filtered) {
-      final wh = _warehouseByAdmin[s.adminUid];
-      if (wh == null || !wh.hasLocation) continue;
-      final meters =
-          Geolocator.distanceBetween(my.lat, my.lng, wh.lat!, wh.lng!);
-      if (best == null || meters < best.meters) {
-        best = (store: s, warehouse: wh, meters: meters);
-      }
+    final wh = _warehouseByAdmin[s.adminUid];
+    if (my == null || wh == null || !wh.hasLocation) return null;
+    return Geolocator.distanceBetween(my.lat, my.lng, wh.lat!, wh.lng!);
+  }
+
+  _SortMode get _effectiveSort =>
+      _manualSort ?? (_myPoint != null ? _SortMode.distance : _SortMode.alpha);
+
+  /// [filtered] (қала бойынша сүзілген, әліпби бойынша сұрыпталған тізім)
+  /// ағымдағы сұрыптау режиміне сай қайта реттеледі. Координатасы/рейтингі
+  /// жоқ дүкендер тізімнің соңына түседі (жойылмайды).
+  List<StoreModel> _applySort(List<StoreModel> filtered) {
+    final sort = _effectiveSort;
+    if (sort == _SortMode.alpha) return filtered;
+    final list = [...filtered];
+    if (sort == _SortMode.distance) {
+      list.sort((a, b) {
+        final da = _distanceFor(a), db = _distanceFor(b);
+        if (da == null && db == null) return 0;
+        if (da == null) return 1;
+        if (db == null) return -1;
+        return da.compareTo(db);
+      });
+    } else if (sort == _SortMode.rating) {
+      list.sort((a, b) {
+        if (a.ratingCount == 0 && b.ratingCount == 0) return 0;
+        if (a.ratingCount == 0) return 1;
+        if (b.ratingCount == 0) return -1;
+        return b.ratingAvg.compareTo(a.ratingAvg);
+      });
     }
-    return best;
+    return list;
   }
 
   /// Дүкені бар қалалар (санымен), клиент қаласы бірінші.
@@ -159,8 +180,10 @@ class _StoresListScreenState extends State<StoresListScreen> {
     final filtered = _city == null
         ? _stores
         : _stores.where((s) => s.city.trim() == _city).toList();
-    final nearest = _findNearest(filtered);
+    final sorted = _applySort(filtered);
     final showNudge = !_loading && _myPoint == null && !_nudgeDismissed;
+    final canSortByRating = _stores.any((s) => s.ratingCount > 0);
+    final showSortRow = _myPoint != null || canSortByRating;
 
     return Scaffold(
       backgroundColor: cBg,
@@ -202,6 +225,41 @@ class _StoresListScreenState extends State<StoresListScreen> {
                 ],
               ),
             ),
+            if (showSortRow) ...[
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 32,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  children: [
+                    if (_myPoint != null)
+                      _SortChip(
+                        icon: Icons.near_me_rounded,
+                        label: tr('Ближе всего', 'Ең жақын'),
+                        selected: _effectiveSort == _SortMode.distance,
+                        onTap: () =>
+                            setState(() => _manualSort = _SortMode.distance),
+                      ),
+                    if (_myPoint != null) const SizedBox(width: 8),
+                    if (canSortByRating)
+                      _SortChip(
+                        icon: Icons.star_rounded,
+                        label: tr('По рейтингу', 'Рейтинг бойынша'),
+                        selected: _effectiveSort == _SortMode.rating,
+                        onTap: () =>
+                            setState(() => _manualSort = _SortMode.rating),
+                      ),
+                    const SizedBox(width: 8),
+                    _SortChip(
+                      icon: Icons.sort_by_alpha_rounded,
+                      label: tr('По алфавиту', 'Әліпби бойынша'),
+                      selected: _effectiveSort == _SortMode.alpha,
+                      onTap: () => setState(() => _manualSort = _SortMode.alpha),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
         Expanded(
@@ -229,34 +287,28 @@ class _StoresListScreenState extends State<StoresListScreen> {
                         ]))
                   : ListView.separated(
                       padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
-                      itemCount: filtered.length + (nearest != null || showNudge ? 1 : 0),
+                      itemCount: sorted.length + (showNudge ? 1 : 0),
                       separatorBuilder: (_, __) => const SizedBox(height: 10),
                       itemBuilder: (_, i) {
-                        final hasBanner = nearest != null || showNudge;
-                        if (hasBanner && i == 0) {
-                          return nearest != null
-                              ? _NearestStoreCard(
-                                  nearest: nearest,
-                                  onTap: () => Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                          builder: (_) => StorePublicScreen(
-                                              store: nearest.store))),
-                                )
-                              : _AddressNudgeCard(
-                                  onAdd: () async {
-                                    await Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                            builder: (_) => const AddressesScreen()));
-                                    _load();
-                                  },
-                                  onDismiss: () =>
-                                      setState(() => _nudgeDismissed = true),
-                                );
+                        if (showNudge && i == 0) {
+                          return _AddressNudgeCard(
+                            onAdd: () async {
+                              await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (_) => const AddressesScreen()));
+                              _load();
+                            },
+                            onDismiss: () =>
+                                setState(() => _nudgeDismissed = true),
+                          );
                         }
-                        final idx = hasBanner ? i - 1 : i;
-                        return _StoreCard(store: filtered[idx]);
+                        final idx = showNudge ? i - 1 : i;
+                        final store = sorted[idx];
+                        return _StoreCard(
+                          store: store,
+                          distanceMeters: _distanceFor(store),
+                        );
                       },
                     ),
         ),
@@ -297,79 +349,35 @@ String _distanceLabel(double meters) => meters < 1000
     ? '${meters.round()} м'
     : '${(meters / 1000).toStringAsFixed(1)} км';
 
-/// Клиентке ең жақын дүкен ұсынысы — тізімнің басында, «Мой адрес»
-/// нүктесі белгіленген болса ғана шығады.
-class _NearestStoreCard extends StatelessWidget {
-  final _Nearest nearest;
+class _SortChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool selected;
   final VoidCallback onTap;
-  const _NearestStoreCard({required this.nearest, required this.onTap});
+  const _SortChip(
+      {required this.icon,
+      required this.label,
+      required this.selected,
+      required this.onTap});
 
   @override
-  Widget build(BuildContext context) {
-    final store = nearest.store;
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(13),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-              colors: [cGreen, cGreenDeep],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight),
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: kShadowSm,
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+          decoration: BoxDecoration(
+            color: selected ? Colors.white : Colors.white.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(9),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(icon, size: 13, color: selected ? cGreen : Colors.white),
+            const SizedBox(width: 4),
+            Text(label,
+                style: manrope(11.5, FontWeight.w700,
+                    color: selected ? cGreen : Colors.white.withValues(alpha: 0.92))),
+          ]),
         ),
-        child: Row(children: [
-          Container(
-            width: 46,
-            height: 46,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.18),
-              borderRadius: BorderRadius.circular(13),
-              image: store.logoUrl.isNotEmpty
-                  ? DecorationImage(
-                      image: NetworkImage(store.logoUrl), fit: BoxFit.cover)
-                  : null,
-            ),
-            child: store.logoUrl.isEmpty
-                ? const Icon(Icons.storefront_rounded, color: Colors.white, size: 22)
-                : null,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                const Icon(Icons.near_me_rounded, size: 13, color: Colors.white),
-                const SizedBox(width: 4),
-                Text(tr('Ближе всего от вас', 'Сізге ең жақыны'),
-                    style: manrope(11.5, FontWeight.w700,
-                        color: Colors.white.withValues(alpha: 0.9))),
-              ]),
-              const SizedBox(height: 2),
-              Text(store.storeName,
-                  style: manrope(15, FontWeight.w800, color: Colors.white),
-                  maxLines: 1, overflow: TextOverflow.ellipsis),
-              if (nearest.warehouse.address?.trim().isNotEmpty ?? false)
-                Text(nearest.warehouse.address!.trim(),
-                    style: manrope(11.5, FontWeight.w500,
-                        color: Colors.white.withValues(alpha: 0.85)),
-                    maxLines: 1, overflow: TextOverflow.ellipsis),
-            ]),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(9),
-            ),
-            child: Text(_distanceLabel(nearest.meters),
-                style: manrope(12, FontWeight.w800, color: Colors.white)),
-          ),
-        ]),
-      ),
-    );
-  }
+      );
 }
 
 /// Мекенжай нүктесі әлі жоқ болғанда — қосудың пайдасын түсіндіретін
@@ -426,7 +434,8 @@ class _AddressNudgeCard extends StatelessWidget {
 
 class _StoreCard extends StatelessWidget {
   final StoreModel store;
-  const _StoreCard({required this.store});
+  final double? distanceMeters;
+  const _StoreCard({required this.store, this.distanceMeters});
 
   @override
   Widget build(BuildContext context) {
@@ -443,7 +452,7 @@ class _StoreCard extends StatelessWidget {
           border: Border.all(color: cLine),
           boxShadow: kShadowSm,
         ),
-        child: Row(children: [
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Container(
             width: 52,
             height: 52,
@@ -464,10 +473,21 @@ class _StoreCard extends StatelessWidget {
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(store.storeName,
-                      style: manrope(14.5, FontWeight.w700, color: cInk),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis),
+                  Row(children: [
+                    Expanded(
+                      child: Text(store.storeName,
+                          style: manrope(14.5, FontWeight.w700, color: cInk),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
+                    ),
+                    if (store.ratingCount > 0) ...[
+                      const SizedBox(width: 6),
+                      const Icon(Icons.star_rounded, size: 14, color: Color(0xFFF5A623)),
+                      const SizedBox(width: 1),
+                      Text(store.ratingAvg.toStringAsFixed(1),
+                          style: manrope(12, FontWeight.w700, color: cInk)),
+                    ],
+                  ]),
                   const SizedBox(height: 3),
                   Row(children: [
                     const Icon(Icons.location_on_outlined,
@@ -485,6 +505,18 @@ class _StoreCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                    if (distanceMeters != null) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: cGreenTint,
+                          borderRadius: BorderRadius.circular(7),
+                        ),
+                        child: Text(_distanceLabel(distanceMeters!),
+                            style: manrope(10.5, FontWeight.w700, color: cGreenDeep)),
+                      ),
+                    ],
                   ]),
                   if (store.address.trim().isNotEmpty) ...[
                     const SizedBox(height: 2),
@@ -495,6 +527,7 @@ class _StoreCard extends StatelessWidget {
                   ],
                 ]),
           ),
+          const SizedBox(width: 4),
           const Icon(Icons.chevron_right_rounded, color: cInk3, size: 22),
         ]),
       ),

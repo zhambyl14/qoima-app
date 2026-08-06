@@ -898,6 +898,25 @@ class FirestoreService {
       ..sort((a, b) => b.favorites.compareTo(a.favorites));
   }
 
+  /// Тауар бойынша барлық уақыттағы ОНЛАЙН сатылым саны (product_id →
+  /// дана) — витрина конверсиясын (қаралым→сатылым) есептеу үшін
+  /// (storefront_manage_screen.dart).
+  Future<Map<String, int>> getOnlineSoldQtyByProduct() async {
+    final rows = await _sb
+        .from('sales_history')
+        .select('product_id,quantity')
+        .eq('owner_uid', _ownerUid)
+        .eq('type', 'sale')
+        .eq('is_online', true);
+    final result = <String, int>{};
+    for (final r in rows) {
+      final pid = r['product_id'] as String?;
+      if (pid == null) continue;
+      result[pid] = (result[pid] ?? 0) + ((r['quantity'] as num?)?.toInt() ?? 0);
+    }
+    return result;
+  }
+
   Future<List<SaleModel>> getSalesForProduct(String productId) async {
     final rows = await _sb
         .from('sales_history')

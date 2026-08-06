@@ -27,6 +27,16 @@ class _StorefrontManageScreenState extends State<StorefrontManageScreen> {
   int _tab = 0; // 0 Все · 1 В витрине · 2 Скрытые
   // Optimistic: серверлік realtime растауын күтпей switch бірден жылжиды.
   final Map<String, bool> _pending = {};
+  // product_id → барлық уақыттағы онлайн сатылым саны (конверсия үшін).
+  Map<String, int> _onlineSold = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _service.getOnlineSoldQtyByProduct().then((m) {
+      if (mounted) setState(() => _onlineSold = m);
+    });
+  }
 
   @override
   void dispose() {
@@ -251,6 +261,7 @@ class _StorefrontManageScreenState extends State<StorefrontManageScreen> {
                             itemBuilder: (_, i) => _Row(
                               product: list[i],
                               hidden: _isHidden(list[i]),
+                              soldQty: _onlineSold[list[i].id] ?? 0,
                               onChanged: (visible) =>
                                   _toggle(list[i], visible),
                             ),
@@ -268,11 +279,18 @@ class _StorefrontManageScreenState extends State<StorefrontManageScreen> {
 class _Row extends StatelessWidget {
   final ProductModel product;
   final bool hidden;
+  final int soldQty;
   final ValueChanged<bool> onChanged;
   const _Row(
       {required this.product,
       required this.hidden,
+      required this.soldQty,
       required this.onChanged});
+
+  /// Конверсия (қаралым→сатылым), %. Қаралым аз болса (<10) статистика
+  /// сенімсіз болғандықтан көрсетілмейді (null).
+  double? get _conversion =>
+      product.viewCount < 10 ? null : soldQty / product.viewCount * 100;
 
   @override
   Widget build(BuildContext context) {
@@ -357,6 +375,14 @@ class _Row extends StatelessWidget {
                       tr('${product.viewCount} просмотров',
                           '${product.viewCount} қаралым'),
                       style: manrope(10.5, FontWeight.w600, color: cInk3)),
+                  if (_conversion != null) ...[
+                    const SizedBox(width: 6),
+                    Text('· ${tr('конверсия', 'конверсия')} ${_conversion!.toStringAsFixed(1)}%',
+                        style: manrope(10.5, FontWeight.w700,
+                            color: _conversion! >= 3
+                                ? cGreen
+                                : (_conversion! >= 1 ? cInk3 : cRed))),
+                  ],
                 ]),
               ],
             ],
