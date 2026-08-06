@@ -11,6 +11,7 @@ import '../promos/promos_screen.dart';
 import 'admin_my_store_discounts_screen.dart';
 import 'admin_reviews_screen.dart';
 import 'admin_store_visibility_screen.dart';
+import 'demand_signals_screen.dart';
 import 'ms_widgets.dart';
 import 'storefront_manage_screen.dart';
 import 'store_data_screen.dart';
@@ -167,6 +168,14 @@ class AdminMyStoreHubScreen extends StatelessWidget {
                           subtitle: tr('Читайте и отвечайте на отзывы', 'Пікірлерді оқып, жауап беріңіз'),
                           onTap: () => Navigator.push(context,
                               MaterialPageRoute(builder: (_) => const AdminReviewsScreen())),
+                        ),
+                        const SizedBox(height: 10),
+                        QMenuItem(
+                          icon: Icons.favorite_outline_rounded, tone: 'red',
+                          title: tr('Спрос клиентов', 'Клиенттер сұранысы'),
+                          subtitle: tr('Что добавляют в избранное', 'Таңдаулыға не қосады'),
+                          onTap: () => Navigator.push(context,
+                              MaterialPageRoute(builder: (_) => const DemandSignalsScreen())),
                         ),
                         const SizedBox(height: 10),
                         QMenuItem(

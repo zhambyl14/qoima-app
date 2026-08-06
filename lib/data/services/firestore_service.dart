@@ -13,6 +13,35 @@ import '../../core/app_user.dart';
 import '../../core/stream_retry.dart';
 
 import '../../core/lang.dart';
+
+/// «Сұраныс сигналы» жолы — getDemandSignals() қайтарады.
+class DemandSignalEntry {
+  final String productId;
+  final String name;
+  final String imageUrl;
+  final bool hidden;
+  final int favorites;
+  final int sold;
+  final int available;
+
+  const DemandSignalEntry({
+    required this.productId,
+    required this.name,
+    required this.imageUrl,
+    required this.hidden,
+    required this.favorites,
+    required this.sold,
+    required this.available,
+  });
+
+  /// Таңдаулыға көп қосылған, бірақ қоймада ЖОҚ — жедел қайта әкелу керек.
+  bool get needsRestock => available <= 0;
+
+  /// Таңдаулыға қосылған, қоймада БАР, бірақ ӘЛІ сатылмаған — баға/фотоны
+  /// тексеру керек болуы мүмкін.
+  bool get notConverting => available > 0 && sold == 0;
+}
+
 /// Деректер сервисі (Supabase). Firestore иерархиясы `users/{adminUid}/...`
 /// Postgres-те owner_uid/admin_uid сыртқы кілттеріне айналды. Атомдық қойма
 /// операциялары RPC арқылы (adjust_batch_sizes, recompute_product_status, ...).
@@ -807,6 +836,66 @@ class FirestoreService {
       (batches[pid] ??= []).add(BatchModel.fromMap(b));
     }
     return (batches, names);
+  }
+
+  /// «Сұраныс сигналы»: әр тауар бойынша таңдаулы (favorites) саны, барлық
+  /// уақыттағы сатылым саны және қазіргі қолжетімді қор — admin осы
+  /// деректен нақты нені қайта әкелу/жарнамалау керегін көреді (viewCount-тан
+  /// айырмашылығы — таңдаулы «сатып алуға дайын» ниетті білдіреді).
+  Future<List<DemandSignalEntry>> getDemandSignals() async {
+    final owner = _ownerUid;
+    final results = await Future.wait([
+      _sb.from('products').select('id,name,images,storefront_hidden').eq('owner_uid', owner),
+      _sb.from('favorites').select('product_id').eq('admin_uid', owner),
+      _sb
+          .from('sales_history')
+          .select('product_id,quantity')
+          .eq('owner_uid', owner)
+          .eq('type', 'sale'),
+      _sb.from('batches').select('product_id,sizes_quantity,reserved_sizes').eq('owner_uid', owner),
+    ]);
+    final products = results[0] as List;
+    final favRows = results[1] as List;
+    final saleRows = results[2] as List;
+    final batchRows = results[3] as List;
+
+    final favCount = <String, int>{};
+    for (final r in favRows) {
+      final pid = r['product_id'] as String?;
+      if (pid == null) continue;
+      favCount[pid] = (favCount[pid] ?? 0) + 1;
+    }
+    final soldQty = <String, int>{};
+    for (final r in saleRows) {
+      final pid = r['product_id'] as String?;
+      if (pid == null) continue;
+      soldQty[pid] = (soldQty[pid] ?? 0) + ((r['quantity'] as num?)?.toInt() ?? 0);
+    }
+    final availQty = <String, int>{};
+    for (final r in batchRows) {
+      final pid = r['product_id'] as String?;
+      if (pid == null) continue;
+      final batch = BatchModel.fromMap(r);
+      availQty[pid] = (availQty[pid] ?? 0) + batch.totalAvailable;
+    }
+
+    return products
+        .map((p) {
+          final id = p['id'] as String;
+          final images = (p['images'] as List?)?.cast<String>() ?? const [];
+          return DemandSignalEntry(
+            productId: id,
+            name: p['name'] as String? ?? '',
+            imageUrl: images.isNotEmpty ? images.first : '',
+            hidden: p['storefront_hidden'] as bool? ?? false,
+            favorites: favCount[id] ?? 0,
+            sold: soldQty[id] ?? 0,
+            available: availQty[id] ?? 0,
+          );
+        })
+        .where((e) => e.favorites > 0)
+        .toList()
+      ..sort((a, b) => b.favorites.compareTo(a.favorites));
   }
 
   Future<List<SaleModel>> getSalesForProduct(String productId) async {
