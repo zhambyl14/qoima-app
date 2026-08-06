@@ -49,6 +49,23 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     super.dispose();
   }
 
+  // Chevron батырмалары арқылы фото ауыстыру. Тікелей setState + jumpToPage
+  // қолданамыз (animateToPage орнына) — ешбір animation/controller-аттач
+  // мәселесіне тәуелді болмау үшін, әрі қате болса үнсіз жұтылмай көрінеді.
+  void _goToPhoto(int index) {
+    if (index < 0 || index >= _images.length) return;
+    try {
+      setState(() => _photoIndex = index);
+      _pageCtrl.jumpToPage(index);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Photo nav error: $e'),
+        backgroundColor: cRed,
+        behavior: SnackBarBehavior.floating,
+      ));
+    }
+  }
+
   // Суреттер жергілікті state-те — өңдеуден кейін бірден жаңарады
   // (widget.product.images өзгермейді). Деталь экраны осыны көрсетеді.
   late List<String> _images = List.of(widget.product.images);
@@ -911,21 +928,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                           bottom: 0,
                           width: 42,
                           child: Center(
-                            child: GestureDetector(
-                              behavior: HitTestBehavior.opaque,
-                              onTap: () => _pageCtrl.previousPage(
-                                  duration: const Duration(milliseconds: 250),
-                                  curve: Curves.easeOut),
-                              child: Container(
-                                width: 34,
-                                height: 34,
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withValues(alpha: 0.4),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(Icons.chevron_left_rounded,
-                                    color: Colors.white, size: 24),
-                              ),
+                            child: _PhotoNavBtn(
+                              icon: Icons.chevron_left_rounded,
+                              onTap: () => _goToPhoto(_photoIndex - 1),
                             ),
                           ),
                         ),
@@ -936,21 +941,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                           bottom: 0,
                           width: 42,
                           child: Center(
-                            child: GestureDetector(
-                              behavior: HitTestBehavior.opaque,
-                              onTap: () => _pageCtrl.nextPage(
-                                  duration: const Duration(milliseconds: 250),
-                                  curve: Curves.easeOut),
-                              child: Container(
-                                width: 34,
-                                height: 34,
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withValues(alpha: 0.4),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(Icons.chevron_right_rounded,
-                                    color: Colors.white, size: 24),
-                              ),
+                            child: _PhotoNavBtn(
+                              icon: Icons.chevron_right_rounded,
+                              onTap: () => _goToPhoto(_photoIndex + 1),
                             ),
                           ),
                         ),
@@ -1579,6 +1572,28 @@ class _GlassIconBtn extends StatelessWidget {
               color: Colors.black.withValues(alpha: 0.4),
               borderRadius: BorderRadius.circular(10)),
           child: Icon(icon, color: Colors.white, size: 18),
+        ),
+      );
+}
+
+// Material+InkWell — GestureDetector-ге қарағанда риппл-анимациясы бар
+// (басылғаны КӨЗБЕН көрінеді — диагностика үшін де пайдалы).
+class _PhotoNavBtn extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  const _PhotoNavBtn({required this.icon, required this.onTap});
+  @override
+  Widget build(BuildContext context) => Material(
+        color: Colors.black.withValues(alpha: 0.4),
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: SizedBox(
+            width: 34,
+            height: 34,
+            child: Icon(icon, color: Colors.white, size: 24),
+          ),
         ),
       );
 }
