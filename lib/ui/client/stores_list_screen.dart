@@ -249,13 +249,6 @@ class _StoresListScreenState extends State<StoresListScreen> {
                         onTap: () =>
                             setState(() => _manualSort = _SortMode.rating),
                       ),
-                    const SizedBox(width: 8),
-                    _SortChip(
-                      icon: Icons.sort_by_alpha_rounded,
-                      label: tr('По алфавиту', 'Әліпби бойынша'),
-                      selected: _effectiveSort == _SortMode.alpha,
-                      onTap: () => setState(() => _manualSort = _SortMode.alpha),
-                    ),
                   ],
                 ),
               ),
@@ -308,6 +301,8 @@ class _StoresListScreenState extends State<StoresListScreen> {
                         return _StoreCard(
                           store: store,
                           distanceMeters: _distanceFor(store),
+                          warehouseAddress:
+                              _warehouseByAdmin[store.adminUid]?.address,
                         );
                       },
                     ),
@@ -435,7 +430,17 @@ class _AddressNudgeCard extends StatelessWidget {
 class _StoreCard extends StatelessWidget {
   final StoreModel store;
   final double? distanceMeters;
-  const _StoreCard({required this.store, this.distanceMeters});
+  final String? warehouseAddress;
+  const _StoreCard(
+      {required this.store, this.distanceMeters, this.warehouseAddress});
+
+  /// Қашықтық есептелген нақты қойма мекенжайы басым (дәл сол жерге дейін
+  /// өлшенген) — жоқ болса дүкеннің жалпы мекенжайына түседі.
+  String get _addressText {
+    final wh = warehouseAddress?.trim() ?? '';
+    if (wh.isNotEmpty) return wh;
+    return store.address.trim();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -518,9 +523,9 @@ class _StoreCard extends StatelessWidget {
                       ),
                     ],
                   ]),
-                  if (store.address.trim().isNotEmpty) ...[
+                  if (_addressText.isNotEmpty) ...[
                     const SizedBox(height: 2),
-                    Text(store.address.trim(),
+                    Text(_addressText,
                         style: manrope(11.5, FontWeight.w500, color: cInk3),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis),
