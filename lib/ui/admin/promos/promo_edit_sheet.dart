@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../data/models/promo_model.dart';
-import '../../../data/models/product_model.dart';
 import '../../../data/services/firestore_service.dart';
 import '../../../theme/qoima_design.dart';
 
@@ -36,15 +35,16 @@ class _PromoEditSheetState extends State<_PromoEditSheet> {
 
   String _type = 'percent';
   String _scope = 'all';
+  // Нақты тауарлар тізімі енді осы sheet-те ЕМЕС — тізім экранындағы
+  // (promos_screen.dart) ашылатын карточкадан суретімен қосылады/алынады
+  // (акциялар — admin_my_store_discounts_screen.dart секілді). Мұнда тек
+  // бар болса сақтап қаламыз (басқа өрісті өңдегенде жоғалтпау үшін).
   Set<String> _productIds = {};
-  String _productQuery = '';
   bool _hasDateRange = false;
   DateTime? _startsAt;
   DateTime? _endsAt;
   bool _saving = false;
   bool _generating = false;
-
-  List<ProductModel> _products = [];
 
   bool get _isEdit => widget.existing != null;
 
@@ -65,14 +65,6 @@ class _PromoEditSheetState extends State<_PromoEditSheet> {
       _endsAt = e.endsAt;
       _hasDateRange = e.startsAt != null || e.endsAt != null;
     }
-    _loadProducts();
-  }
-
-  Future<void> _loadProducts() async {
-    try {
-      final list = _service.cachedProducts ?? await _service.watchProducts().first;
-      if (mounted) setState(() => _products = list);
-    } catch (_) {}
   }
 
   @override
@@ -128,9 +120,6 @@ class _PromoEditSheetState extends State<_PromoEditSheet> {
     if (value <= 0) return _err(tr('Введите размер скидки', 'Жеңілдік мөлшерін енгізіңіз'));
     if (_type == 'percent' && value > 100) {
       return _err(tr('Процент не может быть больше 100', 'Пайыз 100-ден аспауы керек'));
-    }
-    if (_scope == 'products' && _productIds.isEmpty) {
-      return _err(tr('Выберите хотя бы один товар', 'Кемінде бір тауар таңдаңыз'));
     }
 
     setState(() => _saving = true);
@@ -281,81 +270,26 @@ class _PromoEditSheetState extends State<_PromoEditSheet> {
                 ]),
                 if (_scope == 'products') ...[
                   const SizedBox(height: 10),
-                  if (_products.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 8),
-                      child: Center(
-                          child: SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: cGreen))),
-                    )
-                  else ...[
-                    // Поиск товара
-                    TextField(
-                      onChanged: (v) =>
-                          setState(() => _productQuery = v.trim().toLowerCase()),
-                      decoration: InputDecoration(
-                        hintText: tr('Поиск товара (название, бренд, артикул)', 'Тауар іздеу (атауы, бренд, артикул)'),
-                        prefixIcon: Icon(Icons.search_rounded, color: cInk3),
-                      ),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: cGreenTint,
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    const SizedBox(height: 4),
-                    if (_productIds.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 6),
-                        child: Text(tr('Выбрано: ${_productIds.length}', 'Таңдалды: ${_productIds.length}'),
-                            style: manrope(12, FontWeight.w600, color: cGreen)),
+                    child: Row(children: [
+                      const Icon(Icons.info_outline_rounded, color: cGreenDeep, size: 18),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                            _productIds.isEmpty
+                                ? tr('Товары можно добавить (с фото) после сохранения — на карточке промокода в списке.',
+                                    'Тауарларды сақтағаннан кейін (суретімен) тізімдегі промокод карточкасынан қосуға болады.')
+                                : tr('Выбрано товаров: ${_productIds.length}. Управлять списком — на карточке промокода.',
+                                    'Таңдалған тауар: ${_productIds.length}. Тізімді промокод карточкасынан басқарыңыз.'),
+                            style: manrope(12.5, FontWeight.w600, color: cGreenDeep)),
                       ),
-                    const SizedBox(height: 8),
-                    Builder(builder: (_) {
-                      final filtered = _productQuery.isEmpty
-                          ? _products
-                          : _products
-                              .where((p) =>
-                                  p.name.toLowerCase().contains(_productQuery) ||
-                                  p.brand.toLowerCase().contains(_productQuery) ||
-                                  p.articul.toLowerCase().contains(_productQuery))
-                              .toList();
-                      if (filtered.isEmpty) {
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          child: Text(tr('Товары не найдены', 'Тауар табылмады'),
-                              style: manrope(13, FontWeight.w500, color: cInk3)),
-                        );
-                      }
-                      return Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: filtered.map((p) {
-                          final sel = _productIds.contains(p.id);
-                          return GestureDetector(
-                            onTap: () => setState(() {
-                              if (sel) {
-                                _productIds.remove(p.id);
-                              } else {
-                                _productIds.add(p.id);
-                              }
-                            }),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: sel ? cGreen : cSurface,
-                                borderRadius: BorderRadius.circular(10),
-                                border:
-                                    Border.all(color: sel ? cGreen : cLine),
-                              ),
-                              child: Text(p.name,
-                                  style: manrope(12.5, FontWeight.w600,
-                                      color: sel ? Colors.white : cInk)),
-                            ),
-                          );
-                        }).toList(),
-                      );
-                    }),
-                  ],
+                    ]),
+                  ),
                 ],
                 const SizedBox(height: 16),
 

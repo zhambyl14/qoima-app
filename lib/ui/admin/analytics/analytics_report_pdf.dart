@@ -8,9 +8,11 @@ import '../../../data/models/sale_model.dart';
 import '../../../data/services/firestore_service.dart';
 import '../../../theme/qoima_design.dart';
 
-/// Айлық PDF есебін жасап, бөлісу тілқатысуын (WhatsApp т.б.) ашады.
-/// Файл серверде САҚТАЛМАЙДЫ — тек құрылғының уақытша кэшінде (Printing
-/// пакеті өзі басқарады) жасалады да, бөлісілгеннен кейін керек емес.
+/// Айлық PDF есебін жасап, ішкі преview экранына апарады (сол экранда
+/// «Поделиться» батырмасы әрқашан көрінеді — платформа share sheet-іне
+/// тікелей сүйенбейміз, өйткені кейбір Android құрылғыларда ол тікелей PDF
+/// көрсеткішке апарып, «Поделиться» батырмасынсыз қалдыруы мүмкін).
+/// Файл серверде САҚТАЛМАЙДЫ — тек құрылғының уақытша кэшінде.
 Future<void> generateAndShareMonthlyReport({
   required BuildContext context,
   required FirestoreService service,
@@ -30,11 +32,16 @@ Future<void> generateAndShareMonthlyReport({
     final bytes = await _buildReportPdf(
         month: month, sales: sales, prevSales: prevSales);
 
-    if (context.mounted) Navigator.pop(context);
+    if (!context.mounted) return;
+    Navigator.pop(context);
 
     final fname =
         'qoima_${month.year}_${month.month.toString().padLeft(2, '0')}.pdf';
-    await Printing.sharePdf(bytes: bytes, filename: fname);
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+          builder: (_) => _ReportPreviewScreen(bytes: bytes, filename: fname)),
+    );
   } catch (e) {
     if (context.mounted) {
       Navigator.pop(context);
@@ -45,6 +52,52 @@ Future<void> generateAndShareMonthlyReport({
         behavior: SnackBarBehavior.floating,
       ));
     }
+  }
+}
+
+class _ReportPreviewScreen extends StatelessWidget {
+  final Uint8List bytes;
+  final String filename;
+  const _ReportPreviewScreen({required this.bytes, required this.filename});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: cBg,
+      body: Column(children: [
+        Container(
+          decoration: const BoxDecoration(gradient: kGrad),
+          child: SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+              child: Row(children: [
+                GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: const Icon(Icons.chevron_left_rounded,
+                      color: Colors.white, size: 28),
+                ),
+                const SizedBox(width: 10),
+                Text(tr('Отчёт', 'Есеп'),
+                    style: manrope(20, FontWeight.w800, color: Colors.white)),
+              ]),
+            ),
+          ),
+        ),
+        Expanded(
+          child: PdfPreview(
+            build: (format) async => bytes,
+            pdfFileName: filename,
+            allowSharing: true,
+            allowPrinting: true,
+            canChangePageFormat: false,
+            canChangeOrientation: false,
+            canDebug: false,
+            useActions: true,
+          ),
+        ),
+      ]),
+    );
   }
 }
 

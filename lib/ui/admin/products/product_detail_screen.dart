@@ -809,9 +809,12 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
           return CustomScrollView(slivers: [
             // ── Фото ──────────────────────────────────────────────────
             SliverToBoxAdapter(
-              child: GestureDetector(
-                onTap: () => setState(() => _photoExpanded = !_photoExpanded),
-                child: AnimatedContainer(
+              // ЕСКЕРТУ: бұрын мұнда бүкіл фото аймағын media-жаппай ЖАБАТЫН
+              // GestureDetector(onTap: fullscreen toggle) болатын — PageView-дің
+              // көлденең свайпымен бір gesture arena-да тұрып, свайпқа кедергі
+              // келтіруі мүмкін еді. Толық экранға арналған бөлек батырма
+              // (Icons.fullscreen, төменде) бар болғандықтан — енді жойылды.
+              child: AnimatedContainer(
                   duration: const Duration(milliseconds: 350),
                   curve: Curves.easeInOut,
                   height: _photoExpanded
@@ -998,7 +1001,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                         ),
                       ),
                   ]),
-                ),
               ),
             ),
 

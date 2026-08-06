@@ -197,6 +197,40 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
 
                 const SizedBox(height: 12),
 
+                // Мой магазин
+                StreamBuilder<StoreModel?>(
+                  stream: _storeStream,
+                  builder: (_, s) {
+                    final store = s.data;
+                    if (store == null) {
+                      return _QMenuItem(
+                        icon: Icons.storefront_outlined,
+                        tone: 'green',
+                        title: tr('Мой магазин', 'Менің дүкенім'),
+                        sub: tr('Открыть интернет-магазин', 'Интернет-дүкен ашу'),
+                        onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const MyStoreGate())),
+                      );
+                    }
+                    return _QMenuItem(
+                      icon: Icons.storefront_outlined,
+                      tone: store.isPublished ? 'green' : 'ink',
+                      title: tr('Мой магазин', 'Менің дүкенім'),
+                      sub: store.isPublished
+                          ? tr('«${store.storeName}» · онлайн', '«${store.storeName}» · онлайн')
+                          : tr('«${store.storeName}» · офлайн', '«${store.storeName}» · офлайн'),
+                      onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const AdminMyStoreHubScreen())),
+                    );
+                  },
+                ),
+
+                const SizedBox(height: 12),
+
                 // Online orders block
                 StreamBuilder<int>(
                   stream: _onlineCountStream,
@@ -401,40 +435,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                                 color: cInk3, size: 20),
                         ]),
                       ),
-                    );
-                  },
-                ),
-
-                const SizedBox(height: 12),
-
-                // Мой магазин
-                StreamBuilder<StoreModel?>(
-                  stream: _storeStream,
-                  builder: (_, s) {
-                    final store = s.data;
-                    if (store == null) {
-                      return _QMenuItem(
-                        icon: Icons.storefront_outlined,
-                        tone: 'green',
-                        title: tr('Мой магазин', 'Менің дүкенім'),
-                        sub: tr('Открыть интернет-магазин', 'Интернет-дүкен ашу'),
-                        onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => const MyStoreGate())),
-                      );
-                    }
-                    return _QMenuItem(
-                      icon: Icons.storefront_outlined,
-                      tone: store.isPublished ? 'green' : 'ink',
-                      title: tr('Мой магазин', 'Менің дүкенім'),
-                      sub: store.isPublished
-                          ? tr('«${store.storeName}» · онлайн', '«${store.storeName}» · онлайн')
-                          : tr('«${store.storeName}» · офлайн', '«${store.storeName}» · офлайн'),
-                      onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => const AdminMyStoreHubScreen())),
                     );
                   },
                 ),
