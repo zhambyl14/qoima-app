@@ -1178,13 +1178,20 @@ class _OnlineTab extends StatelessWidget {
                   child: CircularProgressIndicator(color: cGreen));
             }
 
-            final allOrders = (snap.data ?? [])
+            final allOnlineOrders = snap.data ?? [];
+            final allOrders = allOnlineOrders
                 .where((o) =>
                     o.createdAt.month == month.month &&
                     o.createdAt.year == month.year)
                 .toList();
 
             final completed = allOrders
+                .where((o) => o.status == OrderModel.statusCompleted)
+                .toList();
+            // Барлық аяқталған тапсырыс (айға қарамай) — тұрақты/жаңа клиент
+            // және үздік клиенттерді есептеу үшін (қосымша сұрау керек емес,
+            // watchOnlineOrders() бәрін бір ағынмен береді).
+            final completedAll = allOnlineOrders
                 .where((o) => o.status == OrderModel.statusCompleted)
                 .toList();
             final cancelled = allOrders
@@ -1200,6 +1207,40 @@ class _OnlineTab extends StatelessWidget {
             final pairsSold = completed.fold<int>(
                 0, (s, o) => s + o.items.fold(0, (a, i) => a + i.qty));
             final margin = revenue - onlineCost;
+
+            // ── Тұрақты vs жаңа клиент (осы ай ішінде сатып алғандар арасынан):
+            // клиенттің ЕҢ АЛҒАШҚЫ аяқталған тапсырысы осы айдан БҰРЫН болса —
+            // тұрақты, әйтпесе — жаңа. Плюс барлық уақыттағы үздік N клиент
+            // (жалпы жұмсаған сомасы бойынша).
+            final firstOrderMonth = <String, DateTime>{};
+            final spendByClient = <String, double>{};
+            final nameByClient = <String, String>{};
+            for (final o in completedAll) {
+              if (o.clientUid.isEmpty) continue;
+              final key = DateTime(o.createdAt.year, o.createdAt.month);
+              final prev = firstOrderMonth[o.clientUid];
+              if (prev == null || key.isBefore(prev)) {
+                firstOrderMonth[o.clientUid] = key;
+              }
+              spendByClient[o.clientUid] =
+                  (spendByClient[o.clientUid] ?? 0) + o.totalWithDelivery;
+              nameByClient[o.clientUid] = o.clientName;
+            }
+            final monthBuyers = completed
+                .map((o) => o.clientUid)
+                .where((id) => id.isNotEmpty)
+                .toSet();
+            final thisMonthKey = DateTime(month.year, month.month);
+            final repeatBuyers = monthBuyers
+                .where((id) =>
+                    firstOrderMonth[id] != null &&
+                    firstOrderMonth[id]!.isBefore(thisMonthKey))
+                .length;
+            final newBuyers = monthBuyers.length - repeatBuyers;
+            final topSpenders = (spendByClient.entries.toList()
+                  ..sort((a, b) => b.value.compareTo(a.value)))
+                .take(5)
+                .toList();
 
             return ListView(
               padding: const EdgeInsets.all(16),
@@ -1322,6 +1363,86 @@ class _OnlineTab extends StatelessWidget {
                           ),
                         ));
                   }(),
+                ],
+                if (monthBuyers.isNotEmpty) ...[
+                  const SizedBox(height: 20),
+                  Text(tr('Постоянные клиенты', 'Тұрақты клиенттер'),
+                      style: const TextStyle(
+                          fontSize: 14, fontWeight: FontWeight.w700, color: cInk)),
+                  const SizedBox(height: 10),
+                  Row(children: [
+                    Expanded(
+                        child: _StatCard(
+                      label: tr('Повторные (в этом месяце)', 'Қайталап келген (осы ай)'),
+                      value: '$repeatBuyers',
+                      icon: Icons.repeat_rounded,
+                      color: cGreen,
+                    )),
+                    const SizedBox(width: 10),
+                    Expanded(
+                        child: _StatCard(
+                      label: tr('Новые (в этом месяце)', 'Жаңа (осы ай)'),
+                      value: '$newBuyers',
+                      icon: Icons.person_add_alt_1_rounded,
+                      color: cBlue,
+                    )),
+                  ]),
+                  if (topSpenders.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    Text(tr('Лучшие клиенты (за всё время)', 'Үздік клиенттер (барлық уақыт)'),
+                        style: const TextStyle(
+                            fontSize: 13, fontWeight: FontWeight.w700, color: cInk)),
+                    const SizedBox(height: 10),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(14),
+                        boxShadow: [
+                          BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.04),
+                              blurRadius: 10,
+                              offset: const Offset(0, 2))
+                        ],
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                      child: Column(
+                        children: topSpenders.asMap().entries.map((entry) {
+                          final i = entry.key;
+                          final e = entry.value;
+                          final name = nameByClient[e.key]?.trim();
+                          return Container(
+                            padding: const EdgeInsets.symmetric(vertical: 11),
+                            decoration: i < topSpenders.length - 1
+                                ? const BoxDecoration(
+                                    border: Border(bottom: BorderSide(color: cLine, width: 1)))
+                                : null,
+                            child: Row(children: [
+                              Container(
+                                width: 26,
+                                height: 26,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                    color: cGreenTint, borderRadius: BorderRadius.circular(8)),
+                                child: Text('${i + 1}',
+                                    style: manrope(11.5, FontWeight.w800, color: cGreenDeep)),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                    (name != null && name.isNotEmpty)
+                                        ? name
+                                        : tr('Покупатель', 'Сатып алушы'),
+                                    style: manrope(13, FontWeight.w600, color: cInk),
+                                    maxLines: 1, overflow: TextOverflow.ellipsis),
+                              ),
+                              Text('${_fmt(e.value)} ₸',
+                                  style: manrope(13, FontWeight.w800, color: cGreen)),
+                            ]),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ],
                 ],
               ],
             );
