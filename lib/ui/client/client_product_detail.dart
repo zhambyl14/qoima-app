@@ -10,6 +10,7 @@ import '../../data/services/client_service.dart';
 import '../../theme/qoima_design.dart';
 import '../shared/favorite_fly_animation.dart';
 import 'client_shell.dart';
+import 'related_products_section.dart';
 import 'report_sheet.dart';
 import 'reviews_section.dart';
 import 'store_public_screen.dart';
@@ -153,6 +154,22 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
       _loading = true;
     });
     _loadBatches();
+  }
+
+  /// «Ұқсас тауарлар» блогынан таңдалған тауарға ауысу. Жаңа экран ашпаймыз
+  /// (стек шексіз өспеуі үшін — түс нұсқасын ауыстырумен бірдей идиома):
+  /// ағымдағы экранның өзін сол тауарға ауыстырамыз.
+  void _openRelated(ProductModel p) {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ClientProductDetail(
+          product: p,
+          store: widget.store,
+          openedFromStore: widget.openedFromStore,
+        ),
+      ),
+    );
   }
 
   Future<void> _toggleFavorite() async {
@@ -622,6 +639,16 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
                         product: _currentProduct,
                         store: widget.store,
                       ),
+
+                      // ── Ұқсас тауарлар (сол дүкеннен) ───────────────
+                      if (!widget.previewMode)
+                        RelatedProductsSection(
+                          key: ValueKey('related_${_currentProduct.id}'),
+                          product: _currentProduct,
+                          store: widget.store,
+                          excludeIds: _variants.map((v) => v.id).toSet(),
+                          onTap: _openRelated,
+                        ),
                         ],
                       ),
                     ),

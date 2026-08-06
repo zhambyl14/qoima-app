@@ -348,6 +348,47 @@ class ClientService {
     return result;
   }
 
+  /// Тауар карточкасының астындағы ұсыныстар: АЛДЫМЕН сол дүкендегі ұқсас
+  /// тауарлар (бірдей категория → бірдей бренд → бірдей тип), содан кейін
+  /// дүкеннің қалған тауарлары. Ағымдағы тауардың өзі мен оның түс нұсқалары
+  /// ([excludeIds]) және қоры таусылғандар шығарылмайды.
+  ///
+  /// getStoreProductsWithBatches()-ті қайта қолданады (бағасы да керек) —
+  /// жаңа RPC/сұраныс схемасы қажет емес.
+  Future<List<({ProductModel product, List<BatchModel> batches})>>
+      getRelatedProducts({
+    required String adminUid,
+    required ProductModel current,
+    required List<String> visibleWarehouseIds,
+    Set<String> excludeIds = const {},
+    int limit = 10,
+  }) async {
+    final all =
+        await getStoreProductsWithBatches(adminUid, visibleWarehouseIds);
+    final skip = {current.id, ...excludeIds};
+    final pool = all.where((e) => !skip.contains(e.product.id)).toList();
+    if (pool.isEmpty) return [];
+
+    int score(ProductModel p) {
+      var s = 0;
+      if (p.effectiveCategoryKey == current.effectiveCategoryKey) s += 4;
+      if (p.brand.isNotEmpty &&
+          p.brand.toLowerCase() == current.brand.toLowerCase()) {
+        s += 2;
+      }
+      if (p.type.isNotEmpty && p.type == current.type) s += 1;
+      return s;
+    }
+
+    pool.sort((a, b) {
+      final d = score(b.product).compareTo(score(a.product));
+      if (d != 0) return d;
+      // Ұқсастығы бірдей болса — рейтингі жоғарысы алда.
+      return b.product.ratingAvg.compareTo(a.product.ratingAvg);
+    });
+    return pool.take(limit).toList();
+  }
+
   // ── Pickup code ────────────────────────────────────────────────────────────
 
   String _generatePickupCode() {
