@@ -79,6 +79,9 @@ Future<void> handlePushOpen(Map<String, dynamic> data) async {
       case 'banner':
         await _openBanner(nav, user, data);
         break;
+      case 'back_in_stock':
+        await _openBackInStock(nav, user, data);
+        break;
       case 'store_registered':
         _openStoreRegistered(nav, user);
         break;
@@ -178,6 +181,23 @@ void _openOrderStatus(
 
 // ── client: дүкен пікірге жауап берді ────────────────────────────────────────
 Future<void> _openReviewReply(
+    NavigatorState nav, AppUser user, Map<String, dynamic> data) async {
+  if (!user.isClient) return;
+  final productId = data['productId'] as String? ?? '';
+  if (productId.isEmpty) return;
+  final client = ClientService();
+  final product = await client.getProductById(user.uid, productId);
+  if (product == null || product.storefrontHidden) return;
+  final ownerUid = await client.getProductOwnerUid(productId);
+  if (ownerUid == null || ownerUid.isEmpty) return;
+  final store = await client.getStoreByAdminUid(ownerUid);
+  if (store == null || !store.isPublished || store.isBlocked) return;
+  nav.push(MaterialPageRoute(
+      builder: (_) => ClientProductDetail(product: product, store: store)));
+}
+
+// ── client: таңдаулыдағы тауар қоймаға қайта келді (0041) ────────────────────
+Future<void> _openBackInStock(
     NavigatorState nav, AppUser user, Map<String, dynamic> data) async {
   if (!user.isClient) return;
   final productId = data['productId'] as String? ?? '';
