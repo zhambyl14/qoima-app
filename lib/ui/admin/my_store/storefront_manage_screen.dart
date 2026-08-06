@@ -348,6 +348,17 @@ class _Row extends StatelessWidget {
                   ]),
                 );
               }),
+              if (!hidden && product.images.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(Icons.visibility_outlined, size: 12, color: cInk3),
+                  const SizedBox(width: 3),
+                  Text(
+                      tr('${product.viewCount} просмотров',
+                          '${product.viewCount} қаралым'),
+                      style: manrope(10.5, FontWeight.w600, color: cInk3)),
+                ]),
+              ],
             ],
           ),
         ),

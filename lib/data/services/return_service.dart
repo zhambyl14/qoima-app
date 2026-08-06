@@ -78,6 +78,15 @@ class ReturnService {
     throw last ?? ReturnException(tr('Не удалось создать возврат', 'Қайтару жасалмады'));
   }
 
+  /// Толық аяқталған (refunded) қайтарулардың фотоларын 1-2 күн өткен соң
+  /// Cloudinary-ден өшіру кезегіне қояды (0035 миграция). Best-effort —
+  /// админ қосымша ашқанда drainOrphans-пен бірге шақырылады.
+  Future<void> sweepReturnedPhotos() async {
+    try {
+      await _sb.rpc('sweep_returned_photos');
+    } catch (_) {}
+  }
+
   // ── CLIENT side ───────────────────────────────────────────────────────────────
 
   Future<ReturnModel> createReturnRequest({

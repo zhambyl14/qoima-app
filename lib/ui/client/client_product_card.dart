@@ -250,8 +250,8 @@ class _ProductGroupCardState extends State<ProductGroupCard> {
                   },
                   child: Container(
                     key: _favKey,
-                    width: 28,
-                    height: 28,
+                    width: 32,
+                    height: 32,
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.9),
                       shape: BoxShape.circle,
@@ -260,7 +260,7 @@ class _ProductGroupCardState extends State<ProductGroupCard> {
                       widget.isFavorite
                           ? Icons.favorite_rounded
                           : Icons.favorite_border_rounded,
-                      size: 14,
+                      size: 18,
                       color: widget.isFavorite ? cRed : cInk3,
                     ),
                   ),

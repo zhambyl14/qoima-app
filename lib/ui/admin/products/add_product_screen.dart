@@ -446,16 +446,104 @@ class _AddProductScreenState extends State<AddProductScreen> {
     await _processPicked(picked);
   }
 
+  // Камерамен бірнеше сурет ретімен түсіру: әр түсірімнен кейін «Тағы фото /
+  // Готово» сұралады (ең көбі _maxImages-ке дейін). Кадрлау (crop) тек СОҢЫНДА,
+  // барлық түсірілген суреттер бойынша бірге жүреді (_processPicked ішінде).
   Future<void> _pickFromCamera() async {
     Navigator.pop(context);
     if (_remainingSlots <= 0) {
       _err(tr('Максимум $_maxImages фото', 'Ең көбі $_maxImages фото'));
       return;
     }
-    final shot = await _imagePicker.pickImage(
-        source: ImageSource.camera, imageQuality: 90);
-    if (shot == null) return;
-    await _processPicked([shot]);
+    final maxShots = _remainingSlots;
+    final shots = <XFile>[];
+    while (shots.length < maxShots) {
+      final shot = await _imagePicker.pickImage(
+          source: ImageSource.camera, imageQuality: 90);
+      if (shot == null) break; // камерадан бас тартты
+      shots.add(shot);
+      if (shots.length >= maxShots) break;
+      if (!mounted) return;
+      final again = await _confirmTakeAnother(shots.length, maxShots);
+      if (!again) break;
+    }
+    if (shots.isEmpty || !mounted) return;
+    await _processPicked(shots);
+  }
+
+  /// «Снято N из M. Сфотографировать ещё или обрезать снятые?» — true = тағы,
+  /// false = тоқтап, түсірілгендерді бірге кадрлауға өту.
+  Future<bool> _confirmTakeAnother(int taken, int max) async {
+    final result = await showModalBottomSheet<bool>(
+      context: context,
+      isDismissible: false,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 16),
+            Icon(Icons.photo_camera_rounded, color: cGreen, size: 34),
+            const SizedBox(height: 10),
+            Text(tr('Снято $taken из $max', '$taken / $max түсірілді'),
+                style: manrope(16, FontWeight.w800, color: cInk)),
+            const SizedBox(height: 4),
+            Text(
+                tr('Сфотографировать ещё или обрезать снятые фото?',
+                    'Тағы түсіресіз бе, әлде түсірілгендерді кесеміз бе?'),
+                textAlign: TextAlign.center,
+                style: manrope(13, FontWeight.w500, color: cInk3)),
+            const SizedBox(height: 18),
+            Row(children: [
+              Expanded(
+                child: SizedBox(
+                  height: 48,
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: cInk2,
+                      side: const BorderSide(color: cLine),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
+                    ),
+                    child: Text(tr('Ещё фото', 'Тағы фото'),
+                        style: manrope(14, FontWeight.w700, color: cInk2)),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: SizedBox(
+                  height: 48,
+                  child: ElevatedButton.icon(
+                    onPressed: () => Navigator.pop(context, false),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: cGreen,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
+                    ),
+                    icon: const Icon(Icons.check_rounded, size: 18),
+                    label: Text(tr('Готово', 'Дайын'),
+                        style: manrope(14, FontWeight.w700,
+                            color: Colors.white)),
+                  ),
+                ),
+              ),
+            ]),
+          ]),
+        ),
+      ),
+    );
+    return result ?? false;
   }
 
   Future<void> _processPicked(List<XFile> picked) async {

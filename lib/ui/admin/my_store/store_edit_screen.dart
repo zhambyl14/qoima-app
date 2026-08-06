@@ -18,7 +18,11 @@ import '../../../core/error_text.dart';
 /// store/main ӨЗГЕРМЕЙДІ — тек модератор approve еткенде қолданылады.
 class StoreEditScreen extends StatefulWidget {
   final StoreModel store;
-  const StoreEditScreen({super.key, required this.store});
+  /// Бас тартылған (rejected) сұраныстан қайта өңдеуге ашылғанда —
+  /// сол сұраныстағы жіберілген мәндермен өрістерді толтыру үшін
+  /// (қайта теруге мәжбүрлемеу, мыс. банк QR-лары жоғалып қалмасын).
+  final List<EditField>? prefillChanges;
+  const StoreEditScreen({super.key, required this.store, this.prefillChanges});
 
   @override
   State<StoreEditScreen> createState() => _StoreEditScreenState();
@@ -27,15 +31,27 @@ class StoreEditScreen extends StatefulWidget {
 class _StoreEditScreenState extends State<StoreEditScreen> {
   final _repo = StoreEditRepository();
 
-  late final _nameCtrl = TextEditingController(text: widget.store.storeName);
-  late final _descCtrl = TextEditingController(text: widget.store.description);
-  late final _ownerNameCtrl = TextEditingController(text: widget.store.ownerName);
-  late final _iinCtrl = TextEditingController(text: widget.store.ownerIin);
-  late final _phoneCtrl = TextEditingController(text: widget.store.phone);
+  late final Map<String, String> _draft = {
+    for (final c in widget.prefillChanges ?? const <EditField>[]) c.field: c.newValue,
+  };
+
+  late final _nameCtrl =
+      TextEditingController(text: _draft['storeName'] ?? widget.store.storeName);
+  late final _descCtrl =
+      TextEditingController(text: _draft['description'] ?? widget.store.description);
+  late final _ownerNameCtrl =
+      TextEditingController(text: _draft['ownerName'] ?? widget.store.ownerName);
+  late final _iinCtrl =
+      TextEditingController(text: _draft['ownerIin'] ?? widget.store.ownerIin);
+  late final _phoneCtrl =
+      TextEditingController(text: _draft['phone'] ?? widget.store.phone);
   final _commentCtrl = TextEditingController();
 
-  late String _city = widget.store.city;
-  late Map<String, String> _bankQrs = Map.of(widget.store.bankQrs);
+  late String _city = _draft['city'] ?? widget.store.city;
+  late Map<String, String> _bankQrs = _draft.containsKey('bankQrs')
+      ? Map<String, String>.from(
+          jsonDecode(_draft['bankQrs']!) as Map)
+      : Map.of(widget.store.bankQrs);
   bool _loading = false;
 
   StoreModel get store => widget.store;

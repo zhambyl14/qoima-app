@@ -27,6 +27,9 @@ class ProductModel {
   // toMap-қа ӘДЕЙІ кірмейді — админ тауарды өңдегенде нөлденіп кетпеуі үшін.
   final double ratingAvg;
   final int ratingCount;
+  // Тауар карточкасын клиент/қонақ ашқан рет саны (increment_product_view RPC
+  // жаңартады). toMap-қа КІРМЕЙДІ — тек RPC арқылы өседі.
+  final int viewCount;
   // true = онлайн-витринадан жасырылған (қоймада қалады). toMap-қа КІРМЕЙДІ —
   // тек setStorefrontHidden арқылы бөлек жаңартылады (өңдеуде жаңылмас үшін).
   final bool storefrontHidden;
@@ -50,6 +53,7 @@ class ProductModel {
     this.season = '',
     this.ratingAvg = 0,
     this.ratingCount = 0,
+    this.viewCount = 0,
     this.storefrontHidden = false,
   });
 
@@ -156,6 +160,7 @@ class ProductModel {
         season: m['season'] as String? ?? '',
         ratingAvg: (m['rating_avg'] as num?)?.toDouble() ?? 0,
         ratingCount: (m['rating_count'] as num?)?.toInt() ?? 0,
+        viewCount: (m['view_count'] as num?)?.toInt() ?? 0,
         storefrontHidden: m['storefront_hidden'] as bool? ?? false,
       );
 
@@ -217,6 +222,7 @@ class ProductModel {
     String? season,
     double? ratingAvg,
     int? ratingCount,
+    int? viewCount,
     bool? storefrontHidden,
   }) {
     return ProductModel(
@@ -238,6 +244,7 @@ class ProductModel {
       season: season ?? this.season,
       ratingAvg: ratingAvg ?? this.ratingAvg,
       ratingCount: ratingCount ?? this.ratingCount,
+      viewCount: viewCount ?? this.viewCount,
       storefrontHidden: storefrontHidden ?? this.storefrontHidden,
     );
   }

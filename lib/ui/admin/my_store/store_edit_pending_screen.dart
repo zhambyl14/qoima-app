@@ -44,12 +44,14 @@ class StoreEditPendingScreen extends StatelessWidget {
     if (context.mounted) Navigator.maybePop(context);
   }
 
-  Future<void> _reEdit(BuildContext context) async {
+  Future<void> _reEdit(BuildContext context, StoreEditRequestModel req) async {
     final store = await FirestoreService().getStore();
     if (!context.mounted || store == null) return;
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (_) => StoreEditScreen(store: store)),
+      MaterialPageRoute(
+          builder: (_) =>
+              StoreEditScreen(store: store, prefillChanges: req.changes)),
     );
   }
 
@@ -143,7 +145,7 @@ class StoreEditPendingScreen extends StatelessWidget {
         QPrimaryButton(
           label: tr('Редактировать заново', 'Қайта өңдеу'),
           icon: const Icon(Icons.edit_outlined, color: Colors.white, size: 19),
-          onPressed: () => _reEdit(context),
+          onPressed: () => _reEdit(context, req),
         ),
         const SizedBox(height: 10),
         _outlineBack(context),

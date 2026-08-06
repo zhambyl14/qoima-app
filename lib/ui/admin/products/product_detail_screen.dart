@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../core/app_user.dart';
@@ -11,7 +12,6 @@ import '../../shared/color_picker_sheet.dart';
 import '../../shared/prompt_text_dialog.dart';
 import '../../widgets/image_crop_screen.dart';
 import '../../../core/color_naming.dart';
-import 'dart:typed_data';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../core/lang.dart';
@@ -26,6 +26,7 @@ class ProductDetailScreen extends StatefulWidget {
 class _ProductDetailScreenState extends State<ProductDetailScreen> {
   final _service = FirestoreService();
   int _photoIndex = 0;
+  final _pageCtrl = PageController();
   bool _photoExpanded = false;
 
   // Онлайн-магазин (жарияланған дүкен) бар ма — жоқ болса «Виден в
@@ -40,6 +41,12 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         setState(() => _storePublished = true);
       }
     }).catchError((_) {});
+  }
+
+  @override
+  void dispose() {
+    _pageCtrl.dispose();
+    super.dispose();
   }
 
   // Суреттер жергілікті state-те — өңдеуден кейін бірден жаңарады
@@ -813,6 +820,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   child: Stack(fit: StackFit.expand, children: [
                     _images.isNotEmpty
                         ? PageView.builder(
+                            controller: _pageCtrl,
+                            physics: const PageScrollPhysics(),
                             itemCount: _images.length,
                             onPageChanged: (i) =>
                                 setState(() => _photoIndex = i),
@@ -822,6 +831,37 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                   errorBuilder: (_, __, ___) => _placeholder(),
                                 ))
                         : _placeholder(),
+                    // Свайптан бөлек — сол/оң жаққа басып та ауыстыруға болады.
+                    if (_images.length > 1) ...[
+                      Positioned(
+                        left: 0,
+                        top: 0,
+                        bottom: 0,
+                        width: 56,
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.translucent,
+                          onTap: _photoIndex > 0
+                              ? () => _pageCtrl.previousPage(
+                                  duration: const Duration(milliseconds: 250),
+                                  curve: Curves.easeOut)
+                              : null,
+                        ),
+                      ),
+                      Positioned(
+                        right: 0,
+                        top: 0,
+                        bottom: 0,
+                        width: 56,
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.translucent,
+                          onTap: _photoIndex < _images.length - 1
+                              ? () => _pageCtrl.nextPage(
+                                  duration: const Duration(milliseconds: 250),
+                                  curve: Curves.easeOut)
+                              : null,
+                        ),
+                      ),
+                    ],
                     Positioned.fill(
                       child: DecoratedBox(
                         decoration: BoxDecoration(
@@ -923,24 +963,40 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                 fontWeight: FontWeight.w700)),
                       ),
                     ),
-                    Positioned(
-                      bottom: 16,
-                      right: 16,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.5),
-                          borderRadius: BorderRadius.circular(8),
+                    if (p.articul.isNotEmpty)
+                      Positioned(
+                        bottom: 16,
+                        right: 16,
+                        child: GestureDetector(
+                          onTap: () {
+                            Clipboard.setData(ClipboardData(text: p.articul));
+                            HapticFeedback.selectionClick();
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                              content: Text(tr('Артикул скопирован', 'Артикул көшірілді')),
+                              behavior: SnackBarBehavior.floating,
+                              backgroundColor: cGreen,
+                            ));
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.5),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(mainAxisSize: MainAxisSize.min, children: [
+                              Text(p.articul,
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 11,
+                                      fontFamily: 'monospace',
+                                      fontWeight: FontWeight.w500)),
+                              const SizedBox(width: 4),
+                              const Icon(Icons.copy_rounded, size: 12, color: Colors.white70),
+                            ]),
+                          ),
                         ),
-                        child: Text(p.articul,
-                            style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 11,
-                                fontFamily: 'monospace',
-                                fontWeight: FontWeight.w500)),
                       ),
-                    ),
                   ]),
                 ),
               ),

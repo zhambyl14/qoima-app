@@ -64,9 +64,10 @@ class FirestoreService {
         .select('id')
         .single();
     final productId = prodRow['id'] as String;
-    final articul = 'QM-${productId.substring(0, 6).toUpperCase()}';
+    // articul — БД трггерінен (products_set_articul_trg, 0035 миграция)
+    // insert кезінде автоматты түрде тағайындалады: реттік санауыш,
+    // қайталанбауға кепілдік береді. Мұнда қайта жазбаймыз.
     await _sb.from('products').update({
-      'articul': articul,
       'status': ProductModel.statusInStock,
     }).eq('id', productId);
 
@@ -408,8 +409,14 @@ class FirestoreService {
   Future<void> setPromoActive(String promoId, bool active) =>
       _sb.from('promos').update({'active': active}).eq('id', promoId);
 
-  Future<void> deletePromo(String promoId) =>
-      _sb.from('promos').delete().eq('id', promoId);
+  Future<void> deletePromo(String promoId) async {
+    final deleted =
+        await _sb.from('promos').delete().eq('id', promoId).select('id');
+    if (deleted.isEmpty) {
+      throw SaleException(
+          tr('Не удалось удалить промокод', 'Промокодты өшіру мүмкін болмады'));
+    }
+  }
 
   Future<void> updatePromo(PromoModel promo) async {
     final code = promo.code.trim().toUpperCase();
@@ -1310,6 +1317,15 @@ class FirestoreService {
 
   Future<void> saveStore(StoreModel store) =>
       _sb.from('stores').upsert({...store.toMap(), 'admin_uid': _adminUid});
+
+  /// Дүкен жолындағы тек берілген өрістерді жаңартады (басқа өрістерді
+  /// ескірген локалды StoreModel-мен қайта жазып жібермеу үшін —
+  /// saveStore толық upsert жасайды, ал бұл нақты өрістерге ғана тиеді).
+  Future<void> updateStoreFields(Map<String, dynamic> fields) =>
+      _sb.from('stores').update({
+        ...fields,
+        'updated_at': DateTime.now().toIso8601String(),
+      }).eq('admin_uid', _adminUid);
 
   // ── Reservations ───────────────────────────────────────────────────────────────
 

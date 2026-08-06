@@ -6,6 +6,7 @@ import '../../../core/warehouse_context.dart';
 import '../../../data/models/models.dart';
 import '../../../data/services/firestore_service.dart';
 import '../../../theme/qoima_design.dart';
+import 'analytics_report_pdf.dart';
 import 'seller_drilldown_screen.dart';
 
 import '../../../core/lang.dart';
@@ -126,21 +127,23 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
     );
   }
 
+  bool _generatingReport = false;
+
+  Future<void> _downloadReport() async {
+    if (_generatingReport) return;
+    setState(() => _generatingReport = true);
+    await generateAndShareMonthlyReport(
+        context: context, service: _service, month: _month);
+    if (mounted) setState(() => _generatingReport = false);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: cBg,
-      body: RefreshIndicator(
-        color: cGreen,
-        onRefresh: () async {
-          await _service.refreshProducts();
-          await _service.refreshSalesHistory();
-        },
-        child: CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          slivers: [
-          SliverToBoxAdapter(
-            child: Container(
+      body: Column(children: [
+          // ── Header (пиннелген — скролл кезінде жоғалмайды/қиылмайды) ─────
+          Container(
               decoration: const BoxDecoration(gradient: kGrad),
               child: SafeArea(
                   bottom: false,
@@ -149,7 +152,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
                     child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Title + calendar btn
+                          // Title + PDF + calendar btn
                           Row(children: [
                             Expanded(
                               child: Column(
@@ -166,6 +169,21 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
                                 ],
                               ),
                             ),
+                            GestureDetector(
+                              onTap: _generatingReport ? null : _downloadReport,
+                              child: _generatingReport
+                                  ? const Padding(
+                                      padding: EdgeInsets.all(9),
+                                      child: SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(
+                                              color: Colors.white,
+                                              strokeWidth: 2)),
+                                    )
+                                  : QHeaderBtn(Icons.download_rounded),
+                            ),
+                            const SizedBox(width: 8),
                             GestureDetector(
                               onTap: _pickMonth,
                               child: QHeaderBtn(
@@ -226,22 +244,27 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
                           ),
                         ]),
                   )),
+          ),
+          // ── Body — тек осы жер скролланады, шапка орнында қалады ─────────
+          Expanded(
+            child: RefreshIndicator(
+              color: cGreen,
+              onRefresh: () async {
+                await _service.refreshProducts();
+                await _service.refreshSalesHistory();
+              },
+              child: TabBarView(
+                controller: _tabCtrl,
+                children: [
+                  _OverviewTab(month: _month, service: _service),
+                  _SellersTab(month: _month),
+                  _WarehousesTab(month: _month),
+                  _OnlineTab(month: _month),
+                ],
+              ),
             ),
           ),
-          SliverFillRemaining(
-            child: TabBarView(
-              controller: _tabCtrl,
-              children: [
-                _OverviewTab(month: _month, service: _service),
-                _SellersTab(month: _month),
-                _WarehousesTab(month: _month),
-                _OnlineTab(month: _month),
-              ],
-            ),
-          ),
-        ],
-      ),
-      ),
+      ]),
     );
   }
 }

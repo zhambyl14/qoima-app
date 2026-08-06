@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../data/models/product_model.dart';
 import '../../data/models/store_model.dart';
@@ -121,6 +122,7 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
     _favSub = _service.watchFavoriteIds().listen((ids) {
       if (mounted) setState(() => _favIds = ids.toSet());
     });
+    _service.incrementProductView(_currentProduct.id);
   }
 
   @override
@@ -155,11 +157,21 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
 
   Future<void> _toggleFavorite() async {
     if (_togglingFav) return;
-    setState(() => _togglingFav = true);
     final p = _currentProduct;
     final adding = !_isFavorite;
+    HapticFeedback.lightImpact();
+    // Оптимистикалық жаңарту — желі/realtime күтпей бірден иконка ауысады;
+    // қате болса төменде қайта артқа қайтарамыз.
+    setState(() {
+      _togglingFav = true;
+      if (adding) {
+        _favIds = {..._favIds, p.id};
+      } else {
+        _favIds = {..._favIds}..remove(p.id);
+      }
+    });
     try {
-      if (_isFavorite) {
+      if (!adding) {
         await _service.removeFavorite(p.id);
       } else {
         final price = _batches.isNotEmpty ? _batches.first.sellingPrice : 0.0;
@@ -173,11 +185,21 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
           price: price,
         );
         // Тек ҚОСҚАНДА ұшады — өшіргенде емес.
-        if (adding && mounted) {
+        if (mounted) {
           flyToFavorites(context, _favKey, imageUrl: img);
         }
       }
-    } catch (_) {} finally {
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          if (adding) {
+            _favIds = {..._favIds}..remove(p.id);
+          } else {
+            _favIds = {..._favIds, p.id};
+          }
+        });
+      }
+    } finally {
       if (mounted) setState(() => _togglingFav = false);
     }
   }
@@ -730,7 +752,8 @@ class _RoundBtn extends StatelessWidget {
 class _SpecRow {
   final String label;
   final String value;
-  const _SpecRow(this.label, this.value);
+  final bool copyable;
+  const _SpecRow(this.label, this.value, {this.copyable = false});
 }
 
 // ── Описание секциясы (ұзын мәтін жиналып тұрады — «Читать далее») ───────────
@@ -825,7 +848,7 @@ class _SpecSection extends StatelessWidget {
       if (product.type.isNotEmpty)     _SpecRow(tr('Тип', 'Түрі'), trValue(product.type)),
       if (product.season.isNotEmpty)   _SpecRow(tr('Сезон', 'Маусым'), trValue(product.season)),
       if (product.country.isNotEmpty)  _SpecRow(tr('Страна', 'Өндірілген ел'), product.country),
-      if (product.articul.isNotEmpty)  _SpecRow('Артикул', product.articul),
+      if (product.articul.isNotEmpty)  _SpecRow('Артикул', product.articul, copyable: true),
     ];
     if (rows.isEmpty) return const SizedBox.shrink();
 
@@ -852,6 +875,22 @@ class _SpecSection extends StatelessWidget {
                       child: Text(rows[i].value,
                           style: manrope(13.5, FontWeight.w700, color: cInk)),
                     ),
+                    if (rows[i].copyable)
+                      GestureDetector(
+                        onTap: () {
+                          Clipboard.setData(ClipboardData(text: rows[i].value));
+                          HapticFeedback.selectionClick();
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                            content: Text(tr('Артикул скопирован', 'Артикул көшірілді')),
+                            behavior: SnackBarBehavior.floating,
+                            backgroundColor: cGreen,
+                          ));
+                        },
+                        child: const Padding(
+                          padding: EdgeInsets.only(left: 6),
+                          child: Icon(Icons.copy_rounded, size: 16, color: cInk3),
+                        ),
+                      ),
                   ]),
                 ),
                 if (i < rows.length - 1)

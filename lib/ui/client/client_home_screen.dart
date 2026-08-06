@@ -289,6 +289,13 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
       return;
     }
     final isFav = _favoriteIds.contains(p.id);
+    // Оптимистикалық жаңарту — желі/realtime жауабын күтпей иконка бірден
+    // ауысады, растау кейін watchFavoriteIds() арқылы келеді.
+    setState(() {
+      _favoriteIds = isFav
+          ? (List.of(_favoriteIds)..remove(p.id))
+          : (List.of(_favoriteIds)..add(p.id));
+    });
     try {
       if (isFav) {
         await _service.removeFavorite(p.id);
@@ -309,7 +316,15 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
           price: price,
         );
       }
-    } catch (_) {}
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _favoriteIds = isFav
+              ? (List.of(_favoriteIds)..add(p.id))
+              : (List.of(_favoriteIds)..remove(p.id));
+        });
+      }
+    }
   }
 
   Future<void> _restoreCityFilter() async {

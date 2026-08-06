@@ -1,8 +1,11 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../core/app_user.dart';
 import '../../../core/l10n_ext.dart';
 import '../../../data/models/order_model.dart';
 import '../../../data/models/return_model.dart';
+import '../../../data/services/cloudinary_service.dart';
 import '../../../data/services/return_service.dart';
 import '../../../theme/qoima_design.dart';
 import 'client_return_status_screen.dart';
@@ -38,6 +41,9 @@ class _ClientReturnFormScreenState extends State<ClientReturnFormScreen> {
 
   ReturnReason _reason = ReturnReason.sizeNotFit;
   final _noteCtrl = TextEditingController();
+  final List<Uint8List> _photos = [];
+  final _imagePicker = ImagePicker();
+  static const int _maxPhotos = 3;
   ReturnPickup _pickup = ReturnPickup.selfBring;
   // Қайтару әдісі = төлем әдісі (таңдау жоқ). Онлайн заказ электронды төленеді →
   // карта. paymentBank бос болса да refundMethodForPayment карта қайтарады.
@@ -80,9 +86,25 @@ class _ClientReturnFormScreenState extends State<ClientReturnFormScreen> {
     }
   }
 
+  Future<void> _pickPhoto(ImageSource source) async {
+    if (_photos.length >= _maxPhotos) return;
+    final shot = await _imagePicker.pickImage(
+        source: source, imageQuality: 85, maxWidth: 1600);
+    if (shot == null) return;
+    final bytes = await shot.readAsBytes();
+    if (mounted) setState(() => _photos.add(bytes));
+  }
+
+  void _removePhoto(int i) => setState(() => _photos.removeAt(i));
+
   Future<void> _submit() async {
     setState(() => _submitting = true);
     try {
+      // Фотолар — тек растап жіберер алдында жүктейміз (тізімнен алып тастауға
+      // болатындай, әр таңдаудан кейін емес).
+      final photoUrls = _photos.isEmpty
+          ? const <String>[]
+          : await CloudinaryService().uploadReturnPhotos(_photos);
       final returned = await ReturnService().createReturnRequest(
         input: ReturnRequestInput(
           adminUid: widget.order.adminUid,
@@ -95,7 +117,7 @@ class _ClientReturnFormScreenState extends State<ClientReturnFormScreen> {
           reasonNote: _noteCtrl.text.trim().isEmpty
               ? null
               : _noteCtrl.text.trim(),
-          photoUrls: const [],
+          photoUrls: photoUrls,
           pickup: _pickup,
           refundMethod: _refundMethod,
         ),
@@ -216,6 +238,10 @@ class _ClientReturnFormScreenState extends State<ClientReturnFormScreen> {
                           noteCtrl: _noteCtrl,
                           onReasonChanged: (r) =>
                               setState(() => _reason = r),
+                          photos: _photos,
+                          maxPhotos: _maxPhotos,
+                          onAddPhoto: _pickPhoto,
+                          onRemovePhoto: _removePhoto,
                           onNext: _next,
                         )
                       : _page == 2
@@ -329,12 +355,20 @@ class _ReasonPage extends StatelessWidget {
   final ReturnReason reason;
   final TextEditingController noteCtrl;
   final ValueChanged<ReturnReason> onReasonChanged;
+  final List<Uint8List> photos;
+  final int maxPhotos;
+  final void Function(ImageSource) onAddPhoto;
+  final void Function(int) onRemovePhoto;
   final VoidCallback onNext;
 
   const _ReasonPage({
     required this.reason,
     required this.noteCtrl,
     required this.onReasonChanged,
+    required this.photos,
+    required this.maxPhotos,
+    required this.onAddPhoto,
+    required this.onRemovePhoto,
     required this.onNext,
   });
 
@@ -404,28 +438,61 @@ class _ReasonPage extends StatelessWidget {
 
             const SizedBox(height: 16),
 
-            // Photos placeholder
+            // Photos
             Text(context.l10n.returnPhotosLabel,
                 style: manrope(13, FontWeight.w600, color: cInk3)),
+            const SizedBox(height: 4),
+            Text(
+                tr('Необязательно · до $maxPhotos фото',
+                    'Міндетті емес · $maxPhotos фотоға дейін'),
+                style: manrope(11.5, FontWeight.w500, color: cInk3)),
             const SizedBox(height: 8),
-            Container(
+            SizedBox(
               height: 90,
-              decoration: BoxDecoration(
-                color: cSurface,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: cLine, style: BorderStyle.solid),
-              ),
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.add_photo_alternate_outlined,
-                        color: cInk3, size: 28),
-                    const SizedBox(height: 4),
-                    Text(tr('Загрузка фото (в планах)', 'Фото жүктеу (жоспарда)'),
-                        style: manrope(12, FontWeight.w500, color: cInk3)),
-                  ],
-                ),
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: [
+                  ...photos.asMap().entries.map((e) => Padding(
+                        padding: const EdgeInsets.only(right: 10),
+                        child: Stack(children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(14),
+                            child: Image.memory(e.value,
+                                width: 90, height: 90, fit: BoxFit.cover),
+                          ),
+                          Positioned(
+                            top: 4,
+                            right: 4,
+                            child: GestureDetector(
+                              onTap: () => onRemovePhoto(e.key),
+                              child: Container(
+                                padding: const EdgeInsets.all(3),
+                                decoration: const BoxDecoration(
+                                    color: Colors.black54,
+                                    shape: BoxShape.circle),
+                                child: const Icon(Icons.close_rounded,
+                                    color: Colors.white, size: 14),
+                              ),
+                            ),
+                          ),
+                        ]),
+                      )),
+                  if (photos.length < maxPhotos)
+                    GestureDetector(
+                      onTap: () => _showPhotoSourceSheet(context),
+                      child: Container(
+                        width: 90,
+                        height: 90,
+                        decoration: BoxDecoration(
+                          color: cSurface,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: cLine),
+                        ),
+                        child: const Icon(Icons.add_photo_alternate_outlined,
+                            color: cInk3, size: 28),
+                      ),
+                    ),
+                ],
               ),
             ),
           ],
@@ -433,6 +500,46 @@ class _ReasonPage extends StatelessWidget {
       ),
       _NextButton(label: tr('Далее', 'Әрі қарай'), onTap: onNext),
     ]);
+  }
+
+  void _showPhotoSourceSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: const Icon(Icons.camera_alt_outlined, color: cGreen),
+              title: Text(tr('Сфотографировать', 'Суретке түсіру')),
+              onTap: () {
+                Navigator.pop(context);
+                onAddPhoto(ImageSource.camera);
+              },
+            ),
+            ListTile(
+              leading:
+                  const Icon(Icons.photo_library_outlined, color: cGreen),
+              title: Text(tr('Из галереи', 'Галереядан')),
+              onTap: () {
+                Navigator.pop(context);
+                onAddPhoto(ImageSource.gallery);
+              },
+            ),
+            const SizedBox(height: 8),
+          ]),
+        ),
+      ),
+    );
   }
 }
 

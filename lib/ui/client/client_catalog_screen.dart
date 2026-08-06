@@ -100,6 +100,11 @@ class _ClientCatalogScreenState extends State<ClientCatalogScreen> {
       return;
     }
     final isFav = _favoriteIds.contains(p.id);
+    setState(() {
+      _favoriteIds = isFav
+          ? (List.of(_favoriteIds)..remove(p.id))
+          : (List.of(_favoriteIds)..add(p.id));
+    });
     try {
       if (isFav) {
         await _service.removeFavorite(p.id);
@@ -120,7 +125,15 @@ class _ClientCatalogScreenState extends State<ClientCatalogScreen> {
           price: price,
         );
       }
-    } catch (_) {}
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _favoriteIds = isFav
+              ? (List.of(_favoriteIds)..add(p.id))
+              : (List.of(_favoriteIds)..remove(p.id));
+        });
+      }
+    }
   }
 
   Future<void> _loadAll() async {

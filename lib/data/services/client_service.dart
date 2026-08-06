@@ -58,9 +58,19 @@ bool productGroupMatches(ProductGroup g, String query) {
     if (s.trim().isNotEmpty) buf.write(' $s');
   }
 
+  // Артикул бойынша тікелей ішкі жол іздеу (typo-tolerant сөз салыстыруынан
+  // бұрын) — код қысқа әрі бос орынсыз, тура сәйкестік жеткілікті.
+  final q = query.trim().toLowerCase();
+  for (final v in g.variants) {
+    if (v.articul.isNotEmpty && v.articul.toLowerCase().contains(q)) {
+      return true;
+    }
+  }
+
   for (final v in g.variants) {
     add(v.name);
     add(v.brand);
+    add(v.articul);
     add(v.type);
     add(trValue(v.type));
     add(v.color);
@@ -143,6 +153,15 @@ class ClientService {
       .delete()
       .eq('client_uid', _uid)
       .eq('product_id', productId);
+
+  /// Тауар карточкасын ашқанда қаралым санағышын +1 өсіреді (гость де,
+  /// клиент те). Қате болса — үнсіз (санақ көрсетілім тәжірибесіне кедергі
+  /// келтірмеуі керек).
+  Future<void> incrementProductView(String productId) async {
+    try {
+      await _sb.rpc('increment_product_view', params: {'p_product': productId});
+    } catch (_) {}
+  }
 
   // ── Addresses ───────────────────────────────────────────────────────────────
 

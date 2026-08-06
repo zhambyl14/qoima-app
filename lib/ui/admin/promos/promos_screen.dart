@@ -6,6 +6,7 @@ import '../../../theme/qoima_design.dart';
 import 'promo_edit_sheet.dart';
 
 import '../../../core/lang.dart';
+import '../../../core/error_text.dart';
 /// Админ-экран управления промокодами магазина.
 class PromosScreen extends StatelessWidget {
   const PromosScreen({super.key});
@@ -203,9 +204,19 @@ class _PromoCard extends StatelessWidget {
               child: Text(tr('Отмена', 'Болдырмау'),
                   style: manrope(14, FontWeight.w600, color: cInk2))),
           TextButton(
-              onPressed: () {
-                service.deletePromo(promo.id);
+              onPressed: () async {
                 Navigator.pop(ctx);
+                try {
+                  await service.deletePromo(promo.id);
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      content: Text(friendlyError(e)),
+                      backgroundColor: cRed,
+                      behavior: SnackBarBehavior.floating,
+                    ));
+                  }
+                }
               },
               child: Text(tr('Удалить', 'Өшіру'),
                   style: manrope(14, FontWeight.w600, color: cRed))),

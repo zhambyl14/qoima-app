@@ -68,10 +68,9 @@ class _AdminStoreVisibilityScreenState
     if (_store == null) return;
     setState(() => _saving = true);
     try {
-      await _service.saveStore(_store!.copyWith(
-        visibleWarehouseIds: _visible.toList(),
-        updatedAt: DateTime.now(),
-      ));
+      await _service.updateStoreFields({
+        'visible_warehouse_ids': _visible.toList(),
+      });
       if (mounted) {
         setState(() => _dirty = false);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(

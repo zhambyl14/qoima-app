@@ -53,11 +53,17 @@ class _ImageCropScreenState extends State<ImageCropScreen> {
     super.dispose();
   }
 
-  // Cover масштабындағы базалық өлшем: кіші қабырға viewport-қа тең.
+  // Cover масштабындағы базалық өлшем әдейі 18%-ға ҮЛКЕНІРЕК алынады
+  // (_overscan): бұрын кіші қабырға viewport-пен ДӘЛ теңеліп, сол осьте
+  // жылжу орны мүлде қалмайтын (мыс. тік фотода — солға/оңға жылжытуға
+  // болмайтын, тек ортасы кесілетін). Артық жиек — жылжыту үшін бос орын;
+  // minScale соған сай төмендетілген — «нақты cover» күйіне де оралуға
+  // болады.
+  static const double _overscan = 1.18;
   double get _baseW =>
-      _imgW! <= _imgH! ? _side : _side * _imgW! / _imgH!;
+      (_imgW! <= _imgH! ? _side : _side * _imgW! / _imgH!) * _overscan;
   double get _baseH =>
-      _imgH! <= _imgW! ? _side : _side * _imgH! / _imgW!;
+      (_imgH! <= _imgW! ? _side : _side * _imgH! / _imgW!) * _overscan;
 
   /// Бірінші layout кезінде суретті центрлейміз.
   void _centerIfNeeded(double side) {
@@ -149,7 +155,7 @@ class _ImageCropScreenState extends State<ImageCropScreen> {
                               transformationController: _tc,
                               constrained: false,
                               boundaryMargin: EdgeInsets.zero,
-                              minScale: 1.0,
+                              minScale: 1 / _overscan,
                               maxScale: 6.0,
                               child: SizedBox(
                                 width: _baseW,
@@ -176,7 +182,7 @@ class _ImageCropScreenState extends State<ImageCropScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 18),
             child: Column(children: [
-              Text(tr('Двигайте и масштабируйте фото — квадрат 1:1', 'Фотоны жылжытып, масштабтаңыз — 1:1 шаршы'),
+              Text(tr('Двигайте фото в любую сторону и масштабируйте — квадрат 1:1', 'Фотоны кез келген жаққа жылжытып, масштабтаңыз — 1:1 шаршы'),
                   style: manrope(12.5, FontWeight.w500,
                       color: Colors.white.withValues(alpha: 0.7))),
               const SizedBox(height: 14),
