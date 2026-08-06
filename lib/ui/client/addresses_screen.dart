@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:provider/provider.dart';
+import '../../core/app_user.dart';
 import '../../data/services/client_service.dart';
 import '../../theme/qoima_design.dart';
+import 'address_map_picker_screen.dart';
 
 import '../../core/lang.dart';
 class AddressesScreen extends StatelessWidget {
@@ -69,6 +73,7 @@ class AddressesScreen extends StatelessWidget {
                   final label = addr['label'] as String? ?? '';
                   final address = addr['address'] as String? ?? '';
                   final id = addr['id'] as String;
+                  final hasGeo = addr['lat'] != null && addr['lng'] != null;
                   return Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                     decoration: BoxDecoration(
@@ -96,6 +101,15 @@ class AddressesScreen extends StatelessWidget {
                                 style: manrope(14, FontWeight.w700, color: cInk)),
                           Text(address,
                               style: manrope(12.5, FontWeight.w500, color: cInk2)),
+                          if (hasGeo) ...[
+                            const SizedBox(height: 3),
+                            Row(mainAxisSize: MainAxisSize.min, children: [
+                              const Icon(Icons.map_rounded, size: 12, color: cGreen),
+                              const SizedBox(width: 3),
+                              Text(tr('Точка на карте указана', 'Картадағы нүкте белгіленген'),
+                                  style: manrope(11, FontWeight.w600, color: cGreen)),
+                            ]),
+                          ],
                         ]),
                       ),
                       GestureDetector(
@@ -141,75 +155,165 @@ class AddressesScreen extends StatelessWidget {
   }
 
   void _showAddDialog(BuildContext context, ClientService service) {
-    final labelCtrl = TextEditingController();
-    final addrCtrl = TextEditingController();
+    final city = context.read<AppUser>().city;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => Padding(
-        padding: EdgeInsets.fromLTRB(
-            16, 16, 16, MediaQuery.of(context).viewInsets.bottom + MediaQuery.of(context).padding.bottom + 16),
-        child: Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Text(tr('Новый адрес', 'Жаңа мекенжай'),
-                style: manrope(17, FontWeight.w800, color: cInk)),
-            const SizedBox(height: 16),
-            TextField(
-              controller: labelCtrl,
-              decoration: InputDecoration(
-                  hintText: tr('Название (Дом, Работа...)', 'Атауы (Үй, Жұмыс...)'),
-                  prefixIcon: Icon(Icons.label_outline)),
-              textCapitalization: TextCapitalization.sentences,
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: addrCtrl,
-              decoration: InputDecoration(
-                  hintText: tr('Полный адрес', 'Толық мекенжай'),
-                  prefixIcon: Icon(Icons.location_on_outlined)),
-              textCapitalization: TextCapitalization.sentences,
-              maxLines: 2,
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: ElevatedButton(
-                onPressed: () async {
-                  if (addrCtrl.text.trim().isEmpty) return;
-                  try {
-                    await service.addAddress(
-                      label: labelCtrl.text,
-                      address: addrCtrl.text,
-                    );
-                    if (context.mounted) Navigator.pop(context);
-                  } catch (_) {
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                        content: Text(tr('Не удалось сохранить адрес', 'Мекенжайды сақтау мүмкін болмады')),
-                        backgroundColor: cRed,
-                        behavior: SnackBarBehavior.floating,
-                      ));
-                    }
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                    backgroundColor: cGreen,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14)),
-                    elevation: 0),
-                child: Text(tr('Сохранить', 'Сақтау'), style: manrope(15, FontWeight.w700)),
-              ),
-            ),
-          ]),
+      builder: (_) => _AddAddressSheet(service: service, initialCity: city),
+    );
+  }
+}
+
+class _AddAddressSheet extends StatefulWidget {
+  final ClientService service;
+  final String initialCity;
+  const _AddAddressSheet({required this.service, required this.initialCity});
+
+  @override
+  State<_AddAddressSheet> createState() => _AddAddressSheetState();
+}
+
+class _AddAddressSheetState extends State<_AddAddressSheet> {
+  final _labelCtrl = TextEditingController();
+  final _addrCtrl = TextEditingController();
+  LatLng? _picked;
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    _labelCtrl.dispose();
+    _addrCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickOnMap() async {
+    final point = await Navigator.push<LatLng>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AddressMapPickerScreen(
+            initialCity: widget.initialCity, initialPoint: _picked),
+      ),
+    );
+    if (point != null && mounted) setState(() => _picked = point);
+  }
+
+  Future<void> _save() async {
+    if (_addrCtrl.text.trim().isEmpty || _saving) return;
+    setState(() => _saving = true);
+    try {
+      await widget.service.addAddress(
+        label: _labelCtrl.text,
+        address: _addrCtrl.text,
+        lat: _picked?.latitude,
+        lng: _picked?.longitude,
+      );
+      if (mounted) Navigator.pop(context);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(tr('Не удалось сохранить адрес', 'Мекенжайды сақтау мүмкін болмады')),
+          backgroundColor: cRed,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+          16, 16, 16, MediaQuery.of(context).viewInsets.bottom + MediaQuery.of(context).padding.bottom + 16),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
         ),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text(tr('Новый адрес', 'Жаңа мекенжай'),
+              style: manrope(17, FontWeight.w800, color: cInk)),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _labelCtrl,
+            decoration: InputDecoration(
+                hintText: tr('Название (Дом, Работа...)', 'Атауы (Үй, Жұмыс...)'),
+                prefixIcon: Icon(Icons.label_outline)),
+            textCapitalization: TextCapitalization.sentences,
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _addrCtrl,
+            decoration: InputDecoration(
+                hintText: tr('Полный адрес', 'Толық мекенжай'),
+                prefixIcon: Icon(Icons.location_on_outlined)),
+            textCapitalization: TextCapitalization.sentences,
+            maxLines: 2,
+          ),
+          const SizedBox(height: 12),
+
+          // ── Картадан нүкте белгілеу (міндетті емес, бірақ ұсынылады) ─────
+          GestureDetector(
+            onTap: _pickOnMap,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
+              decoration: BoxDecoration(
+                color: _picked != null ? cGreenTint : cBg,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                    color: _picked != null ? cGreen.withValues(alpha: 0.4) : cLine),
+              ),
+              child: Row(children: [
+                Icon(_picked != null ? Icons.check_circle_rounded : Icons.map_outlined,
+                    size: 19, color: _picked != null ? cGreen : cInk2),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Text(
+                      _picked != null
+                          ? tr('Точка на карте указана', 'Картадағы нүкте белгіленген')
+                          : tr('Указать точку на карте (рекомендуем)',
+                              'Картадан нүкте белгілеу (ұсынылады)'),
+                      style: manrope(12.5, FontWeight.w700,
+                          color: _picked != null ? cGreenDeep : cInk2)),
+                ),
+                Icon(Icons.chevron_right_rounded,
+                    size: 18, color: _picked != null ? cGreen : cInk3),
+              ]),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Padding(
+            padding: const EdgeInsets.only(left: 4, top: 4),
+            child: Text(
+                tr('Так мы сможем показать вам ближайшие магазины',
+                    'Осылай сізге ең жақын дүкендерді көрсете аламыз'),
+                style: manrope(11, FontWeight.w500, color: cInk3)),
+          ),
+          const SizedBox(height: 16),
+
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: ElevatedButton(
+              onPressed: _saving ? null : _save,
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: cGreen,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                  elevation: 0),
+              child: _saving
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                  : Text(tr('Сохранить', 'Сақтау'), style: manrope(15, FontWeight.w700)),
+            ),
+          ),
+        ]),
       ),
     );
   }

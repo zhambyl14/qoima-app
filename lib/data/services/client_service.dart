@@ -178,17 +178,27 @@ class ClientService {
                     'label': r['label'],
                     'address': r['address'],
                     'createdAt': r['created_at'],
+                    'lat': (r['lat'] as num?)?.toDouble(),
+                    'lng': (r['lng'] as num?)?.toDouble(),
                   })
               .toList());
 
-  Future<String> addAddress(
-      {required String label, required String address}) async {
+  /// [lat]/[lng] — картадан белгіленген нүкте (міндетті емес); белгілі болса
+  /// «Магазины» тізімінде осы мекенжайға ең жақын дүкен ұсынылады.
+  Future<String> addAddress({
+    required String label,
+    required String address,
+    double? lat,
+    double? lng,
+  }) async {
     final row = await _sb
         .from('addresses')
         .insert({
           'client_uid': _uid,
           'label': label.trim(),
           'address': address.trim(),
+          'lat': lat,
+          'lng': lng,
         })
         .select('id')
         .single();
