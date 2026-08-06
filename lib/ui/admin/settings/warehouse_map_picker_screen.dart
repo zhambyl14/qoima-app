@@ -204,13 +204,12 @@ class _WarehouseMapPickerScreenState extends State<WarehouseMapPickerScreen> {
     }
   }
 
-  /// Таңдалған нүктені сыртқы картада ашып тексеру (әмбебап Google Maps
-  /// сілтемесі — API кілт қажет емес, құрылғының карта қосымшасын ашады).
+  /// Таңдалған нүктені сыртқы картада ашып тексеру — 2ГИС (API кілт қажет
+  /// емес, орнатылған болса қосымшаны тікелей ашады).
   Future<void> _openInMaps() async {
     final p = _picked;
     if (p == null) return;
-    final uri = Uri.parse(
-        'https://www.google.com/maps/search/?api=1&query=${p.latitude},${p.longitude}');
+    final uri = Uri.parse('https://2gis.kz/geo/${p.longitude},${p.latitude}');
     try {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } catch (_) {}

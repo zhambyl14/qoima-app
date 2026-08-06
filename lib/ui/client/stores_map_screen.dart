@@ -198,12 +198,11 @@ class _StoresMapScreenState extends State<StoresMapScreen> {
         : '${(meters / 1000).toStringAsFixed(1)} км';
   }
 
-  /// Сыртқы карта қосымшасында ашу (бағыт сілтеу үшін). Әмбебап Google Maps
-  /// сілтемесі: Android/iOS-та орнатылған карта қосымшасын тікелей ашады,
-  /// веб-те сайтта ашылады. API кілт/тіркеу қажет емес (жай сілтеме).
+  /// Сыртқы карта қосымшасында ашу (бағыт сілтеу үшін) — 2ГИС: Android/iOS-та
+  /// орнатылған 2ГИС қосымшасын тікелей ашады (болмаса — веб-сайтта). API
+  /// кілт/тіркеу қажет емес (жай сілтеме).
   Future<void> _openExternalMap(WarehouseModel wh) async {
-    final uri = Uri.parse(
-        'https://www.google.com/maps/search/?api=1&query=${wh.lat},${wh.lng}');
+    final uri = Uri.parse('https://2gis.kz/geo/${wh.lng},${wh.lat}');
     try {
       await launcher.launchUrl(uri, mode: launcher.LaunchMode.externalApplication);
     } catch (_) {}
