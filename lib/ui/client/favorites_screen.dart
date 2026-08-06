@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show HapticFeedback;
+import 'package:shimmer/shimmer.dart';
 import '../../data/models/batch_model.dart';
 import '../../data/models/product_model.dart';
 import '../../data/models/store_model.dart';
@@ -340,6 +341,23 @@ class _FavCardState extends State<_FavCard> {
                         if (dimmed)
                           Text(tr('Нет в наличии', 'Қолда жоқ'),
                               style: manrope(13, FontWeight.w700, color: cInk3))
+                        else if (_loading)
+                          // Батч (скидка бар-жоғы) жүктелгенше баға мүлде
+                          // көрсетілмейді — әйтпесе алдымен қате (ескі
+                          // сақталған) баға жыпылықтап, содан кейін скидка
+                          // бағасына "секіріп" ауысады (керегі жоқ дірілдеу).
+                          Shimmer.fromColors(
+                            baseColor: cLine,
+                            highlightColor: cLine2,
+                            child: Container(
+                              width: 64,
+                              height: 15,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                          )
                         else ...[
                           if (_hasDiscount)
                             Text(money(_basePrice),
