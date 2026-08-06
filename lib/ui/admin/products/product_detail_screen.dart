@@ -834,67 +834,22 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                   errorBuilder: (_, __, ___) => _placeholder(),
                                 ))
                         : _placeholder(),
-                    // Свайптан бөлек — КӨРІНЕТІН sol/оң батырмалар да ауыстырады
-                    // (свайп бір себептен жұмыс істемей қалса да — көмек).
-                    if (_images.length > 1) ...[
-                      if (_photoIndex > 0)
-                        Positioned(
-                          left: 8,
-                          top: 0,
-                          bottom: 0,
-                          child: Center(
-                            child: GestureDetector(
-                              onTap: () => _pageCtrl.previousPage(
-                                  duration: const Duration(milliseconds: 250),
-                                  curve: Curves.easeOut),
-                              child: Container(
-                                width: 34,
-                                height: 34,
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withValues(alpha: 0.4),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(Icons.chevron_left_rounded,
-                                    color: Colors.white, size: 24),
-                              ),
+                    // IgnorePointer — таза декоративті қабат, PageView-дің
+                    // свайпына/астындағы батырмаларға ЕШҚАШАН кедергі жасамауы
+                    // үшін нақты тексерусіз қалдырмаймыз.
+                    const Positioned.fill(
+                      child: IgnorePointer(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.transparent,
+                                Color(0x99000000),
+                              ],
+                              stops: [0.5, 1.0],
                             ),
-                          ),
-                        ),
-                      if (_photoIndex < _images.length - 1)
-                        Positioned(
-                          right: 8,
-                          top: 0,
-                          bottom: 0,
-                          child: Center(
-                            child: GestureDetector(
-                              onTap: () => _pageCtrl.nextPage(
-                                  duration: const Duration(milliseconds: 250),
-                                  curve: Curves.easeOut),
-                              child: Container(
-                                width: 34,
-                                height: 34,
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withValues(alpha: 0.4),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(Icons.chevron_right_rounded,
-                                    color: Colors.white, size: 24),
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                    Positioned.fill(
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Colors.transparent,
-                              Colors.black.withValues(alpha: 0.6)
-                            ],
-                            stops: const [0.5, 1.0],
                           ),
                         ),
                       ),
@@ -944,6 +899,62 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                         ],
                       ]),
                     ),
+                    // Свайптан бөлек — КӨРІНЕТІН сол/оң батырмалар да ауыстырады.
+                    // МАҢЫЗДЫ: градиент-overlay-дан КЕЙІН орналасуы керек (Stack-та
+                    // соңғы элемент — үстіде әрі басылады; бұрын градиенттен БҰРЫН
+                    // тұрғанда астында қалып, түртілмейтін).
+                    if (_images.length > 1) ...[
+                      if (_photoIndex > 0)
+                        Positioned(
+                          left: 8,
+                          top: 0,
+                          bottom: 0,
+                          width: 42,
+                          child: Center(
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: () => _pageCtrl.previousPage(
+                                  duration: const Duration(milliseconds: 250),
+                                  curve: Curves.easeOut),
+                              child: Container(
+                                width: 34,
+                                height: 34,
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.4),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.chevron_left_rounded,
+                                    color: Colors.white, size: 24),
+                              ),
+                            ),
+                          ),
+                        ),
+                      if (_photoIndex < _images.length - 1)
+                        Positioned(
+                          right: 8,
+                          top: 0,
+                          bottom: 0,
+                          width: 42,
+                          child: Center(
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: () => _pageCtrl.nextPage(
+                                  duration: const Duration(milliseconds: 250),
+                                  curve: Curves.easeOut),
+                              child: Container(
+                                width: 34,
+                                height: 34,
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.4),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.chevron_right_rounded,
+                                    color: Colors.white, size: 24),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
                     if (_images.length > 1)
                       Positioned(
                         bottom: 16,
