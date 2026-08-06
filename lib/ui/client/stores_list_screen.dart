@@ -110,7 +110,8 @@ class _StoresListScreenState extends State<StoresListScreen> {
                   onTap: () => Navigator.push(
                       context,
                       MaterialPageRoute(
-                          builder: (_) => StoresMapScreen(stores: filtered)))),
+                          builder: (_) => StoresMapScreen(
+                              stores: filtered, city: _city)))),
           bottom: [
             const SizedBox(height: 12),
             SizedBox(

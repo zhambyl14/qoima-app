@@ -15,11 +15,23 @@ class WarehousesScreen extends StatefulWidget {
 class _WarehousesScreenState extends State<WarehousesScreen> {
   final _service = FirestoreService();
   late Future<int> _stockFuture;
+  // Дүкен қаласы — картадан орын белгілеу сол қаламен шектеледі.
+  String? _storeCity;
 
   @override
   void initState() {
     super.initState();
     _stockFuture = _countStock();
+    _loadStoreCity();
+  }
+
+  Future<void> _loadStoreCity() async {
+    try {
+      final store = await _service.getStore();
+      if (mounted) setState(() => _storeCity = store?.city);
+    } catch (_) {
+      // Қала белгісіз қалса, картада бүкіл ҚР рұқсат етіледі.
+    }
   }
 
   Future<int> _countStock() async {
@@ -77,9 +89,13 @@ class _WarehousesScreenState extends State<WarehousesScreen> {
                               future: _stockFuture,
                               builder: (_, snap) {
                                 final total = snap.data;
-                                final sub = total != null
-                                    ? tr('${warehouses.length} склада · $total шт.', '${warehouses.length} қойма · $total дана')
-                                    : tr('${warehouses.length} склада', '${warehouses.length} қойма');
+                                final city = (_storeCity ?? '').trim();
+                                final sub = [
+                                  if (city.isNotEmpty) city,
+                                  total != null
+                                      ? tr('${warehouses.length} склада · $total шт.', '${warehouses.length} қойма · $total дана')
+                                      : tr('${warehouses.length} склада', '${warehouses.length} қойма'),
+                                ].join(' · ');
                                 return Text(sub,
                                     style: manrope(13, FontWeight.w500,
                                         color: Colors.white.withValues(alpha: 0.78)));
@@ -124,8 +140,10 @@ class _WarehousesScreenState extends State<WarehousesScreen> {
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                 sliver: SliverList(
                   delegate: SliverChildBuilderDelegate(
-                    (_, i) =>
-                        _WarehouseCard(wh: warehouses[i], service: _service),
+                    (_, i) => _WarehouseCard(
+                        wh: warehouses[i],
+                        service: _service,
+                        storeCity: _storeCity),
                     childCount: warehouses.length,
                   ),
                 ),
@@ -171,7 +189,7 @@ class _WarehousesScreenState extends State<WarehousesScreen> {
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (_) => _AddWarehouseSheet(service: svc),
+      builder: (_) => _AddWarehouseSheet(service: svc, storeCity: _storeCity),
     );
   }
 }
@@ -180,7 +198,18 @@ class _WarehousesScreenState extends State<WarehousesScreen> {
 class _WarehouseCard extends StatelessWidget {
   final WarehouseModel wh;
   final FirestoreService service;
-  const _WarehouseCard({required this.wh, required this.service});
+  final String? storeCity;
+  const _WarehouseCard(
+      {required this.wh, required this.service, this.storeCity});
+
+  void _openMapPicker(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+          builder: (_) =>
+              WarehouseMapPickerScreen(warehouse: wh, city: storeCity)),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -191,7 +220,8 @@ class _WarehouseCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(18),
           border: Border.all(color: cLine),
           boxShadow: kShadowSm),
-      child: ListTile(
+      child: Column(children: [
+        ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
         leading: Container(
             width: 46,
@@ -244,16 +274,8 @@ class _WarehouseCard extends StatelessWidget {
                 isScrollControlled: true,
                 shape: const RoundedRectangleBorder(
                     borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-                builder: (_) =>
-                    _AddWarehouseSheet(service: service, existing: wh),
-              );
-              return;
-            }
-            if (val == 'map') {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (_) => WarehouseMapPickerScreen(warehouse: wh)),
+                builder: (_) => _AddWarehouseSheet(
+                    service: service, existing: wh, storeCity: storeCity),
               );
               return;
             }
@@ -326,16 +348,6 @@ class _WarehouseCard extends StatelessWidget {
                   const SizedBox(width: 8),
                   Text(tr('Редактировать', 'Өңдеу')),
                 ])),
-            PopupMenuItem(
-                value: 'map',
-                child: Row(children: [
-                  Icon(Icons.location_on_outlined,
-                      size: 16, color: wh.hasLocation ? cGreen : cInk2),
-                  const SizedBox(width: 8),
-                  Text(wh.hasLocation
-                      ? tr('Место на карте', 'Картадағы орны')
-                      : tr('Указать на карте', 'Картадан белгілеу')),
-                ])),
             if (!wh.isMain)
               PopupMenuItem(
                   value: 'delete',
@@ -347,7 +359,57 @@ class _WarehouseCard extends StatelessWidget {
                   ])),
           ],
         ),
-      ),
+        ),
+
+        // ── Картадағы орны — бөлек батырма (үш нүктенің ішінде емес) ───────
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          child: Material(
+            color: wh.hasLocation ? cGreenTint : cBg,
+            borderRadius: BorderRadius.circular(13),
+            child: InkWell(
+              onTap: () => _openMapPicker(context),
+              borderRadius: BorderRadius.circular(13),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+                child: Row(children: [
+                  Icon(
+                      wh.hasLocation
+                          ? Icons.location_on_rounded
+                          : Icons.add_location_alt_outlined,
+                      size: 19,
+                      color: wh.hasLocation ? cGreen : cInk2),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                            wh.hasLocation
+                                ? tr('Место на карте', 'Картадағы орны')
+                                : tr('Указать на карте', 'Картадан белгілеу'),
+                            style: manrope(13, FontWeight.w700,
+                                color: wh.hasLocation ? cGreenDeep : cInk2)),
+                        Text(
+                            wh.hasLocation
+                                ? tr('Отмечено — клиенты видят на карте',
+                                    'Белгіленген — клиенттер картадан көреді')
+                                : tr('Не отмечено — не виден на карте',
+                                    'Белгіленбеген — картада көрінбейді'),
+                            style: manrope(11, FontWeight.w500,
+                                color: wh.hasLocation ? cGreen : cInk3)),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.chevron_right_rounded,
+                      size: 20, color: wh.hasLocation ? cGreen : cInk3),
+                ]),
+              ),
+            ),
+          ),
+        ),
+      ]),
     );
   }
 }
@@ -356,7 +418,11 @@ class _WarehouseCard extends StatelessWidget {
 class _AddWarehouseSheet extends StatefulWidget {
   final FirestoreService service;
   final WarehouseModel? existing; // null → қосу, әйтпесе → өңдеу
-  const _AddWarehouseSheet({required this.service, this.existing});
+  /// Дүкен қаласы (stores.city) — қойма сол қалада болады деп көрсетіледі
+  /// (өзгертілмейді: қала «Дүкен деректері» бөлімінде ғана ауысады).
+  final String? storeCity;
+  const _AddWarehouseSheet(
+      {required this.service, this.existing, this.storeCity});
   @override
   State<_AddWarehouseSheet> createState() => _AddWarehouseSheetState();
 }
@@ -421,6 +487,59 @@ class _AddWarehouseSheetState extends State<_AddWarehouseSheet> {
                       fontWeight: FontWeight.w700,
                       color: cInk)),
               const SizedBox(height: 16),
+
+              // ── Қала (дүкен деректерінен, өзгертілмейді) ─────────────────
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+                decoration: BoxDecoration(
+                  color: (widget.storeCity ?? '').trim().isNotEmpty
+                      ? cGreenTint
+                      : cAmberTint,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(children: [
+                  Icon(
+                      (widget.storeCity ?? '').trim().isNotEmpty
+                          ? Icons.location_city_rounded
+                          : Icons.warning_amber_rounded,
+                      size: 18,
+                      color: (widget.storeCity ?? '').trim().isNotEmpty
+                          ? cGreen
+                          : cAmber),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                            (widget.storeCity ?? '').trim().isNotEmpty
+                                ? tr('Город: ${widget.storeCity}',
+                                    'Қала: ${widget.storeCity}')
+                                : tr('Город магазина не указан',
+                                    'Дүкен қаласы көрсетілмеген'),
+                            style: manrope(13, FontWeight.w700,
+                                color: (widget.storeCity ?? '').trim().isNotEmpty
+                                    ? cGreenDeep
+                                    : cInk)),
+                        Text(
+                            (widget.storeCity ?? '').trim().isNotEmpty
+                                ? tr('Место на карте можно указать только в этом городе',
+                                    'Картадағы орынды тек осы қалада белгілеуге болады')
+                                : tr('Укажите его в «Данные магазина»',
+                                    'Оны «Дүкен деректері» бөлімінде көрсетіңіз'),
+                            style: manrope(11, FontWeight.w500,
+                                color: (widget.storeCity ?? '').trim().isNotEmpty
+                                    ? cGreen
+                                    : cInk3)),
+                      ],
+                    ),
+                  ),
+                ]),
+              ),
+              const SizedBox(height: 12),
+
               _Field(
                   ctrl: _nameCtrl,
                   label: tr('Название склада *', 'Қойма атауы *'),

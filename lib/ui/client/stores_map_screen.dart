@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -6,6 +7,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart' as launcher;
+import '../../core/kz_cities.dart';
 import '../../data/models/store_model.dart';
 import '../../data/models/warehouse_model.dart';
 import '../../data/services/client_service.dart';
@@ -25,9 +27,16 @@ typedef _Pin = ({StoreModel store, WarehouseModel warehouse});
 /// шығады. Белгіні түрткенде пиннің үстінде қалқымалы карточка ашылады
 /// (2GIS/Yandex стилі), геолокация — толық опционал (рұқсат берілмесе де
 /// карта ашыла береді, тек «менің орным» батырмасы жұмыс істемейді).
+///
+/// [city] берілсе (тізімде қала сүзгісі таңдалған), карта сол қалаға
+/// бекітіледі — камера қаладан шықпайды. Әйтпесе бүкіл Қазақстан бойынша.
 class StoresMapScreen extends StatefulWidget {
   final List<StoreModel> stores;
-  const StoresMapScreen({super.key, required this.stores});
+
+  /// Таңдалған қала сүзгісі (null — бүкіл ҚР).
+  final String? city;
+
+  const StoresMapScreen({super.key, required this.stores, this.city});
 
   @override
   State<StoresMapScreen> createState() => _StoresMapScreenState();
@@ -43,6 +52,27 @@ class _StoresMapScreenState extends State<StoresMapScreen> {
   Offset? _selectedOffset;
   LatLng? _myPos;
   bool _locating = false;
+
+  CityGeo? get _geo => cityGeoOf(widget.city);
+
+  /// Камера шегі: қала таңдалса — сол қаланың айналасы, әйтпесе бүкіл ҚР.
+  LatLngBounds get _cameraBounds {
+    final g = _geo;
+    if (g == null) {
+      return LatLngBounds(
+        const LatLng(kzMinLat, kzMinLng),
+        const LatLng(kzMaxLat, kzMaxLng),
+      );
+    }
+    final padKm = g.radiusKm * 1.6;
+    final dLat = padKm / 111.0;
+    final cosLat = math.cos(g.lat * math.pi / 180).abs().clamp(0.1, 1.0);
+    final dLng = padKm / (111.0 * cosLat);
+    return LatLngBounds(
+      LatLng(g.lat - dLat, g.lng - dLng),
+      LatLng(g.lat + dLat, g.lng + dLng),
+    );
+  }
 
   @override
   void initState() {
@@ -74,15 +104,19 @@ class _StoresMapScreenState extends State<StoresMapScreen> {
         _entries = entries;
         _loading = false;
       });
-      if (entries.isNotEmpty) {
-        WidgetsBinding.instance.addPostFrameCallback((_) => _fitBounds());
-      }
+      WidgetsBinding.instance.addPostFrameCallback((_) => _fitBounds());
     } catch (_) {
       if (mounted) setState(() => _loading = false);
     }
   }
 
   void _fitBounds() {
+    if (_entries.isEmpty) {
+      // Белгі жоқ болса да, қала таңдалса сол қалаға жақындаймыз.
+      final g = _geo;
+      if (g != null) _mapController.move(LatLng(g.lat, g.lng), 11.5);
+      return;
+    }
     if (_entries.length == 1) {
       final wh = _entries.first.warehouse;
       _mapController.move(LatLng(wh.lat!, wh.lng!), 14);
@@ -101,13 +135,22 @@ class _StoresMapScreenState extends State<StoresMapScreen> {
     _updateSelectedOffset();
   }
 
+  /// Таңдалған пиннің экрандағы координатасын қайта есептейді. Карта
+  /// оқиғалары әр кадрда келеді — сол себепті нақты өзгеріс болғанда ғана
+  /// setState шақырамыз (әйтпесе картаны жылжытқанда бүкіл экран қайта
+  /// құрылып, кадр түсіп кетеді).
   void _updateSelectedOffset() {
     final pin = _selected;
     if (pin == null || !mounted) return;
-    setState(() {
-      _selectedOffset = _mapController.camera.latLngToScreenOffset(
-          LatLng(pin.warehouse.lat!, pin.warehouse.lng!));
-    });
+    final next = _mapController.camera.latLngToScreenOffset(
+        LatLng(pin.warehouse.lat!, pin.warehouse.lng!));
+    final prev = _selectedOffset;
+    if (prev != null &&
+        (prev.dx - next.dx).abs() < 0.5 &&
+        (prev.dy - next.dy).abs() < 0.5) {
+      return;
+    }
+    setState(() => _selectedOffset = next);
   }
 
   Future<void> _locateMe() async {
@@ -155,12 +198,20 @@ class _StoresMapScreenState extends State<StoresMapScreen> {
         : '${(meters / 1000).toStringAsFixed(1)} км';
   }
 
-  Future<void> _openInYandexMaps(WarehouseModel wh) async {
+  /// Сыртқы карта қосымшасында ашу (бағыт сілтеу үшін). Әмбебап Google Maps
+  /// сілтемесі: Android/iOS-та орнатылған карта қосымшасын тікелей ашады,
+  /// веб-те сайтта ашылады. API кілт/тіркеу қажет емес (жай сілтеме).
+  Future<void> _openExternalMap(WarehouseModel wh) async {
     final uri = Uri.parse(
-        'https://yandex.ru/maps/?pt=${wh.lng},${wh.lat}&z=17&l=map');
+        'https://www.google.com/maps/search/?api=1&query=${wh.lat},${wh.lng}');
     try {
       await launcher.launchUrl(uri, mode: launcher.LaunchMode.externalApplication);
     } catch (_) {}
+  }
+
+  void _zoom(double delta) {
+    final c = _mapController.camera;
+    _mapController.move(c.center, (c.zoom + delta).clamp(3.0, 18.0));
   }
 
   void _deselect() => setState(() {
@@ -177,17 +228,33 @@ class _StoresMapScreenState extends State<StoresMapScreen> {
           title: tr('Магазины на карте', 'Дүкендер картада'),
           subtitle: _loading
               ? tr('Загрузка…', 'Жүктелуде…')
-              : tr('${_entries.length} на карте', '${_entries.length} картада'),
+              : [
+                  tr('${_entries.length} на карте', '${_entries.length} картада'),
+                  if ((widget.city ?? '').trim().isNotEmpty)
+                    widget.city!.trim()
+                  else
+                    tr('весь Казахстан', 'бүкіл Қазақстан'),
+                ].join(' · '),
           compact: true,
           showBack: true,
         ),
         Expanded(
-          child: Stack(clipBehavior: Clip.none, children: [
+          // LayoutBuilder Stack-тің СЫРТЫНДА: карточканы экран шетіне
+          // қыстыру үшін ені керек, ал Positioned Stack-тің ТІКЕЛЕЙ баласы
+          // болуы міндетті (әйтпесе ParentDataWidget қатесі).
+          child: LayoutBuilder(builder: (context, constraints) {
+          return Stack(clipBehavior: Clip.none, children: [
             FlutterMap(
               mapController: _mapController,
               options: MapOptions(
-                initialCenter: _kDefaultCenter,
-                initialZoom: 4.5,
+                initialCenter: _geo != null
+                    ? LatLng(_geo!.lat, _geo!.lng)
+                    : _kDefaultCenter,
+                initialZoom: _geo != null ? 11.5 : 4.5,
+                minZoom: _geo != null ? 9 : 3.5,
+                maxZoom: 18,
+                cameraConstraint:
+                    CameraConstraint.containCenter(bounds: _cameraBounds),
                 onTap: (_, __) => _deselect(),
               ),
               children: [
@@ -236,51 +303,94 @@ class _StoresMapScreenState extends State<StoresMapScreen> {
                     boxShadow: kShadowSm,
                   ),
                   child: Text(
-                      tr('Для этих магазинов ещё не указано место на карте',
-                          'Бұл дүкендер үшін картадағы орын әлі көрсетілмеген'),
+                      (widget.city ?? '').trim().isNotEmpty
+                          ? tr('В городе ${widget.city} магазины ещё не отметили место на карте',
+                              '${widget.city} қаласындағы дүкендер картадағы орнын әлі белгілемеген')
+                          : tr('Для этих магазинов ещё не указано место на карте',
+                              'Бұл дүкендер үшін картадағы орын әлі көрсетілмеген'),
                       textAlign: TextAlign.center,
                       style: manrope(13.5, FontWeight.w600, color: cInk2)),
                 ),
               ),
             if (_selected != null && _selectedOffset != null)
-              LayoutBuilder(builder: (context, constraints) {
-                return _StoreFloatingCard(
-                  pin: _selected!,
-                  anchor: _selectedOffset!,
-                  maxWidth: constraints.maxWidth,
-                  distanceLabel: _distanceLabel(_selected!.warehouse),
-                  onOpenMaps: () => _openInYandexMaps(_selected!.warehouse),
-                  onViewStore: () {
-                    final store = _selected!.store;
-                    _deselect();
-                    Navigator.push(context,
-                        MaterialPageRoute(builder: (_) => StorePublicScreen(store: store)));
-                  },
-                  onClose: _deselect,
-                );
-              }),
-            Positioned(
-              right: 14,
-              bottom: 14,
-              child: FloatingActionButton.small(
-                heroTag: 'stores-map-locate',
-                onPressed: _locateMe,
-                backgroundColor: cSurface,
-                foregroundColor: cGreen,
-                elevation: 2,
-                child: _locating
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(color: cGreen, strokeWidth: 2))
-                    : const Icon(Icons.my_location_rounded, size: 20),
+              _StoreFloatingCard(
+                pin: _selected!,
+                anchor: _selectedOffset!,
+                maxWidth: constraints.maxWidth,
+                maxHeight: constraints.maxHeight,
+                distanceLabel: _distanceLabel(_selected!.warehouse),
+                onOpenMaps: () => _openExternalMap(_selected!.warehouse),
+                onViewStore: () {
+                  final store = _selected!.store;
+                  _deselect();
+                  Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => StorePublicScreen(store: store)));
+                },
+                onClose: _deselect,
               ),
+            Positioned(
+              right: 12,
+              bottom: 14,
+              child: Column(children: [
+                _MapBtn(icon: Icons.add_rounded, onTap: () => _zoom(1)),
+                const SizedBox(height: 8),
+                _MapBtn(icon: Icons.remove_rounded, onTap: () => _zoom(-1)),
+                const SizedBox(height: 8),
+                if (_entries.isNotEmpty) ...[
+                  _MapBtn(
+                      icon: Icons.zoom_out_map_rounded, onTap: _fitBounds),
+                  const SizedBox(height: 8),
+                ],
+                _MapBtn(
+                  icon: Icons.my_location_rounded,
+                  loading: _locating,
+                  highlighted: _myPos != null,
+                  onTap: _locateMe,
+                ),
+              ]),
             ),
-          ]),
+          ]);
+          }),
         ),
       ]),
     );
   }
+}
+
+class _MapBtn extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  final bool loading;
+  final bool highlighted;
+  const _MapBtn({
+    required this.icon,
+    required this.onTap,
+    this.loading = false,
+    this.highlighted = false,
+  });
+
+  @override
+  Widget build(BuildContext context) => Material(
+        color: cSurface,
+        borderRadius: BorderRadius.circular(12),
+        elevation: 2,
+        child: InkWell(
+          onTap: loading ? null : onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: SizedBox(
+            width: 40,
+            height: 40,
+            child: loading
+                ? const Center(
+                    child: SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                            color: cGreen, strokeWidth: 2)))
+                : Icon(icon, size: 20, color: highlighted ? cGreen : cInk2),
+          ),
+        ),
+      );
 }
 
 class _PinIcon extends StatelessWidget {
@@ -328,6 +438,7 @@ class _StoreFloatingCard extends StatelessWidget {
   final _Pin pin;
   final Offset anchor;
   final double maxWidth;
+  final double maxHeight;
   final String? distanceLabel;
   final VoidCallback onOpenMaps;
   final VoidCallback onViewStore;
@@ -337,6 +448,7 @@ class _StoreFloatingCard extends StatelessWidget {
     required this.pin,
     required this.anchor,
     required this.maxWidth,
+    required this.maxHeight,
     required this.distanceLabel,
     required this.onOpenMaps,
     required this.onViewStore,
@@ -352,8 +464,18 @@ class _StoreFloatingCard extends StatelessWidget {
     var left = anchor.dx - _kCardWidth / 2;
     left = left.clamp(8.0, (maxWidth - _kCardWidth - 8).clamp(8.0, double.infinity));
     var top = anchor.dy - cardHeight - arrowGap;
-    final showBelow = top < 8;
-    if (showBelow) top = anchor.dy + arrowGap + 20;
+    // Жоғарыда орын жетпесе — пиннің АСТЫНА шығарамыз; астында да сыймаса
+    // (өте аласа экран) жоғарыдағы нұсқада қалдырып, шетке қыстырамыз.
+    var showBelow = top < 8;
+    if (showBelow) {
+      final belowTop = anchor.dy + arrowGap + 20;
+      if (belowTop + cardHeight > maxHeight - 8 && anchor.dy > maxHeight / 2) {
+        showBelow = false;
+        top = (maxHeight - cardHeight - 8).clamp(8.0, double.infinity);
+      } else {
+        top = belowTop;
+      }
+    }
 
     return Positioned(
       left: left,
