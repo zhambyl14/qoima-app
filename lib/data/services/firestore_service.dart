@@ -1414,6 +1414,42 @@ class FirestoreService {
   Future<void> saveStore(StoreModel store) =>
       _sb.from('stores').upsert({...store.toMap(), 'admin_uid': _adminUid});
 
+  // ── Дүкеннің жарнама push-ы (0043) ───────────────────────────────────────────
+
+  /// Соңғы жіберілген хабарлама (аптасына 1 рет шектеу — UI-де көрсету үшін,
+  /// нақты шектеу БД триггерінде). null — әлі ешқашан жібермеген.
+  Future<DateTime?> getLastBroadcastAt() async {
+    final row = await _sb
+        .from('store_broadcasts')
+        .select('created_at')
+        .eq('admin_uid', _adminUid)
+        .order('created_at', ascending: false)
+        .limit(1)
+        .maybeSingle();
+    if (row == null) return null;
+    return DateTime.tryParse(row['created_at'] as String? ?? '');
+  }
+
+  Future<List<Map<String, dynamic>>> getBroadcastHistory() async {
+    final rows = await _sb
+        .from('store_broadcasts')
+        .select()
+        .eq('admin_uid', _adminUid)
+        .order('created_at', ascending: false)
+        .limit(20);
+    return List<Map<String, dynamic>>.from(rows);
+  }
+
+  /// Триггер (0043) аптасына 1 реттен жиі жіберсе PostgrestException
+  /// 'broadcast_rate_limited' хабарымен лақтырады — UI сол жолды тексереді.
+  Future<void> sendStoreBroadcast(
+          {required String title, required String body}) =>
+      _sb.from('store_broadcasts').insert({
+        'admin_uid': _adminUid,
+        'title': title.trim(),
+        'body': body.trim(),
+      });
+
   /// Дүкен жолындағы тек берілген өрістерді жаңартады (басқа өрістерді
   /// ескірген локалды StoreModel-мен қайта жазып жібермеу үшін —
   /// saveStore толық upsert жасайды, ал бұл нақты өрістерге ғана тиеді).

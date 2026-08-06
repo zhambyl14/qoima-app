@@ -12,6 +12,7 @@ import 'admin_my_store_discounts_screen.dart';
 import 'admin_reviews_screen.dart';
 import 'admin_store_visibility_screen.dart';
 import 'demand_signals_screen.dart';
+import 'store_broadcast_screen.dart';
 import 'ms_widgets.dart';
 import 'storefront_manage_screen.dart';
 import 'store_data_screen.dart';
@@ -157,6 +158,14 @@ class AdminMyStoreHubScreen extends StatelessWidget {
                           subtitle: tr('Коды со скидкой для клиентов', 'Клиенттерге жеңілдік кодтары'),
                           onTap: () => Navigator.push(context,
                               MaterialPageRoute(builder: (_) => const PromosScreen())),
+                        ),
+                        const SizedBox(height: 10),
+                        QMenuItem(
+                          icon: Icons.campaign_outlined, tone: 'green',
+                          title: tr('Рассылка клиентам', 'Клиенттерге хабарлама'),
+                          subtitle: tr('Push-уведомление о новинках/акциях', 'Жаңалық/акция туралы push'),
+                          onTap: () => Navigator.push(context,
+                              MaterialPageRoute(builder: (_) => const StoreBroadcastScreen())),
                         ),
                         const SizedBox(height: 20),
 

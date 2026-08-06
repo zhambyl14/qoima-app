@@ -82,6 +82,9 @@ Future<void> handlePushOpen(Map<String, dynamic> data) async {
       case 'back_in_stock':
         await _openBackInStock(nav, user, data);
         break;
+      case 'store_broadcast':
+        await _openStoreBroadcast(nav, user, data);
+        break;
       case 'store_registered':
         _openStoreRegistered(nav, user);
         break;
@@ -211,6 +214,17 @@ Future<void> _openBackInStock(
   if (store == null || !store.isPublished || store.isBlocked) return;
   nav.push(MaterialPageRoute(
       builder: (_) => ClientProductDetail(product: product, store: store)));
+}
+
+// ── client: дүкеннің өз жарнама push-ы (0043) ────────────────────────────────
+Future<void> _openStoreBroadcast(
+    NavigatorState nav, AppUser user, Map<String, dynamic> data) async {
+  if (!user.isClient) return;
+  final adminUid = data['adminUid'] as String? ?? '';
+  if (adminUid.isEmpty) return;
+  final store = await ClientService().getStoreByAdminUid(adminUid);
+  if (store == null || !store.isPublished || store.isBlocked) return;
+  nav.push(MaterialPageRoute(builder: (_) => StorePublicScreen(store: store)));
 }
 
 // ── client: жаңа баннер (тек дүкенге сілтейтіндер ашылады) ───────────────────
