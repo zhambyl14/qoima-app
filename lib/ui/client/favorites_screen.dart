@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show HapticFeedback;
+import '../../data/models/batch_model.dart';
 import '../../data/models/product_model.dart';
 import '../../data/models/store_model.dart';
 import '../../data/services/client_service.dart';
@@ -209,11 +210,22 @@ class _FavCard extends StatefulWidget {
 class _FavCardState extends State<_FavCard> {
   ProductModel? _product;
   StoreModel? _store;
+  List<BatchModel> _batches = [];
   bool _loading = true;
   bool _available = false;
 
   String get _adminUid => widget.item['adminUid'] as String? ?? '';
   String get _productId => widget.item['id'] as String? ?? '';
+
+  // Ағымдағы (тірі) баға — скидка белсенді болса соны ескереді. Батч әлі
+  // жүктелмесе/жоқ болса — таңдаулыға қосылған сәттегі сақталған баға.
+  BatchModel? get _priceBatch => _batches.isNotEmpty ? _batches.first : null;
+  bool get _hasDiscount =>
+      _priceBatch != null && hasActiveDiscount(_priceBatch!);
+  double get _basePrice =>
+      _priceBatch?.sellingPrice ?? (widget.item['price'] as num?)?.toDouble() ?? 0.0;
+  double get _livePrice =>
+      _priceBatch != null ? effectivePrice(_priceBatch!) : _basePrice;
 
   @override
   void initState() {
@@ -229,12 +241,13 @@ class _FavCardState extends State<_FavCard> {
           ? null
           : await widget.service.getStoreByAdminUid(_adminUid);
       var available = false;
+      var batches = <BatchModel>[];
       if (product != null &&
           store != null &&
           store.isPublished &&
           !store.isBlocked &&
           product.status == ProductModel.statusInStock) {
-        final batches = await widget.service.getProductBatches(
+        batches = await widget.service.getProductBatches(
             _adminUid, _productId, store.visibleWarehouseIds,
             onlyAvailable: true);
         available = batches.isNotEmpty;
@@ -243,6 +256,7 @@ class _FavCardState extends State<_FavCard> {
       setState(() {
         _product = product;
         _store = store;
+        _batches = batches;
         _available = available;
         _loading = false;
       });
@@ -266,7 +280,6 @@ class _FavCardState extends State<_FavCard> {
   Widget build(BuildContext context) {
     final name = widget.item['productName'] as String? ?? '';
     final store = widget.item['storeName'] as String? ?? '';
-    final price = (widget.item['price'] as num?)?.toDouble() ?? 0.0;
     final img = widget.item['imageUrl'] as String? ?? '';
     final dimmed = !_loading && !_available; // сатылымда емес → сұр, басылмайды
 
@@ -327,10 +340,15 @@ class _FavCardState extends State<_FavCard> {
                         if (dimmed)
                           Text(tr('Нет в наличии', 'Қолда жоқ'),
                               style: manrope(13, FontWeight.w700, color: cInk3))
-                        else
-                          Text(money(price),
-                              style:
-                                  manrope(15, FontWeight.w800, color: cGreen)),
+                        else ...[
+                          if (_hasDiscount)
+                            Text(money(_basePrice),
+                                style: manrope(11.5, FontWeight.w600, color: cInk3)
+                                    .copyWith(decoration: TextDecoration.lineThrough)),
+                          Text(money(_livePrice),
+                              style: manrope(15, FontWeight.w800,
+                                  color: _hasDiscount ? cRed : cGreen)),
+                        ],
                       ]),
                 ),
               ]),
