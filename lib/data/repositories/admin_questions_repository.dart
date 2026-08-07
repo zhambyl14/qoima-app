@@ -41,4 +41,8 @@ class AdminQuestionsRepository {
   Future<void> answer(String questionId, String answerText) => _sb.rpc(
       'answer_product_question',
       params: {'p_question': questionId, 'p_answer': answerText});
+
+  /// Спам/жалған сұрақты толығымен өшіру (RLS: admin_uid = app_owner_uid()).
+  Future<void> deleteQuestion(String questionId) =>
+      _sb.from('product_questions').delete().eq('id', questionId);
 }

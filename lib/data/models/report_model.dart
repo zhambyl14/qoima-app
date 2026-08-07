@@ -107,6 +107,8 @@ String reportTargetLabel(String type) {
       return tr('Магазин', 'Дүкен');
     case 'review':
       return tr('Отзыв', 'Пікір');
+    case 'question':
+      return tr('Вопрос', 'Сұрақ');
     default:
       return tr('Товар', 'Тауар');
   }

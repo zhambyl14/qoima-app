@@ -298,6 +298,17 @@ class ClientService {
     return row == null ? null : StoreModel.fromMap(row);
   }
 
+  /// Бірнеше дүкен иесі бойынша топтық сұраныс (мысалы, «Мои бонусы»
+  /// экранында әр бонустың қай дүкенге тиесілі екенін көрсету үшін).
+  Future<Map<String, StoreModel>> getStoresByAdminUids(
+      List<String> adminUids) async {
+    if (adminUids.isEmpty) return {};
+    final rows =
+        await _sb.from('stores').select().inFilter('admin_uid', adminUids);
+    final stores = rows.map(StoreModel.fromMap).toList();
+    return {for (final s in stores) s.adminUid: s};
+  }
+
   /// ProductModel дүкен иесінің uid-ін алып жүрмейді — push deep-link үшін
   /// (продукттан дүкенге секіру) бөлек сұраймыз.
   Future<String?> getProductOwnerUid(String productId) async {
@@ -890,6 +901,13 @@ class ClientService {
         'client_name': clientName,
         'question': question.trim(),
       });
+
+  /// Өз сұрағын өзгерту (тек жауап берілмеген болса — RLS деңгейінде де).
+  Future<void> updateMyQuestion(String questionId, String question) => _sb
+      .from('product_questions')
+      .update({'question': question.trim()})
+      .eq('id', questionId)
+      .eq('client_uid', _uid);
 
   /// Өз сұрағын өшіру (тек жауап берілмеген болса — RLS деңгейінде де).
   Future<void> deleteMyQuestion(String questionId) => _sb

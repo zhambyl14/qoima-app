@@ -42,8 +42,10 @@ class _ReferralScreenState extends State<ReferralScreen> {
       if (!mounted) return;
       setState(() {
         _code = results[0] as String?;
+        // Тек осы дүкеннің сыйлықтары — басқа дүкендегі бонус мұнда
+        // адаспай, «Менің бонустарым» (профиль) экранында көрінеді.
         _rewards = (results[1] as List<PromoModel>)
-            .where((p) => p.value > 0)
+            .where((p) => p.value > 0 && p.adminUid == widget.store.adminUid)
             .toList();
         _loading = false;
       });

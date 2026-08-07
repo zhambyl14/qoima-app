@@ -36,10 +36,23 @@ class _FiltersSheetState extends State<_FiltersSheet> {
   late bool _onSale = widget.current.onSale;
   late String _sort = widget.current.sort;
 
-  // Дүкен саны 90+ болғанда бүкіл Wrap экранды баса алады — алдымен
-  // шектеулі саны, «Показать все» басқанда ғана қалғаны ашылады.
+  // Дүкен/категория саны көп болғанда бүкіл Wrap экранды баса алады —
+  // алдымен шектеулі саны, «Показать все» басқанда ғана қалғаны ашылады.
   static const int _collapsedLimit = 12;
   bool _showAllStores = false;
+  bool _showAllCategories = false;
+
+  // Тасаланған кезде: алдымен _collapsedLimit саны + бұрын таңдалған кез
+  // келген категория (тізімнен тыс қалса да «жасырынып» қалмауы үшін).
+  List<CategoryData> get _visibleCategories {
+    if (_showAllCategories) return kCategories;
+    final out = <CategoryData>[];
+    for (var i = 0; i < kCategories.length; i++) {
+      final c = kCategories[i];
+      if (i < _collapsedLimit || _categoryKeys.contains(c.key)) out.add(c);
+    }
+    return out;
+  }
   late final _minCtrl = TextEditingController(
       text: widget.current.minPrice?.toStringAsFixed(0) ?? '');
   late final _maxCtrl = TextEditingController(
@@ -139,15 +152,29 @@ class _FiltersSheetState extends State<_FiltersSheet> {
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: kCategories.map((c) {
-                  final sel = _categoryKeys.contains(c.key);
-                  return _Chip(
-                    label: c.short,
-                    selected: sel,
-                    onTap: () => setState(() =>
-                        sel ? _categoryKeys.remove(c.key) : _categoryKeys.add(c.key)),
-                  );
-                }).toList(),
+                children: [
+                  // Тасаланған кезде: алдымен _collapsedLimit саны + бұрын
+                  // таңдалған кез келген категория (тізімнен тыс қалса да
+                  // «жасырынып» қалмауы үшін).
+                  ..._visibleCategories.map((cat) {
+                    final sel = _categoryKeys.contains(cat.key);
+                    return _Chip(
+                      label: cat.short,
+                      selected: sel,
+                      onTap: () => setState(() => sel
+                          ? _categoryKeys.remove(cat.key)
+                          : _categoryKeys.add(cat.key)),
+                    );
+                  }),
+                  if (!_showAllCategories &&
+                      kCategories.length > _collapsedLimit)
+                    _Chip(
+                      label: tr('Показать все (${kCategories.length})',
+                          'Барлығын көрсету (${kCategories.length})'),
+                      selected: false,
+                      onTap: () => setState(() => _showAllCategories = true),
+                    ),
+                ],
               ),
               const SizedBox(height: 18),
 

@@ -14,6 +14,7 @@ class PromoModel {
   final DateTime? endsAt;
   final bool active;
   final DateTime? createdAt;
+  final String adminUid;
   // ── Referral (0044) ────────────────────────────────────────────────────────
   /// Бос емес болса — бұл клиенттің ЖЕКЕ шақыру коды (оны БАСҚАЛАР қолданады,
   /// иесінің өзі қолдана алмайды).
@@ -36,6 +37,7 @@ class PromoModel {
     this.endsAt,
     this.active = true,
     this.createdAt,
+    this.adminUid = '',
     this.referralOwnerUid = '',
     this.onlyForUid = '',
   });
@@ -82,6 +84,7 @@ class PromoModel {
       endsAt: dtn(m['ends_at']),
       active: m['active'] as bool? ?? true,
       createdAt: dtn(m['created_at']),
+      adminUid: m['admin_uid'] as String? ?? '',
       referralOwnerUid: m['referral_owner_uid'] as String? ?? '',
       onlyForUid: m['only_for_uid'] as String? ?? '',
     );

@@ -57,7 +57,7 @@ class _ReviewsSectionState extends State<ReviewsSection> {
   bool _canReview = false;
   bool _expanded = false;
 
-  static const int _collapsedCount = 3;
+  static const int _collapsedCount = 2;
 
   @override
   void initState() {
@@ -104,7 +104,7 @@ class _ReviewsSectionState extends State<ReviewsSection> {
   Future<void> _openWriteSheet() async {
     final user = context.read<AppUser>();
     final existing = _myReview;
-    final saved = await showModalBottomSheet<bool>(
+    final result = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -115,7 +115,16 @@ class _ReviewsSectionState extends State<ReviewsSection> {
         existing: existing,
       ),
     );
-    if (saved == true) _load();
+    if (result != null && mounted) {
+      _load();
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(result == 'deleted'
+            ? tr('Отзыв удалён', 'Пікір өшірілді')
+            : tr('Спасибо за отзыв!', 'Пікіріңізге рахмет!')),
+        backgroundColor: result == 'deleted' ? null : cGreen,
+        behavior: SnackBarBehavior.floating,
+      ));
+    }
   }
 
   @override
@@ -412,6 +421,9 @@ class _WriteReviewSheetState extends State<_WriteReviewSheet> {
   late final _commentCtrl =
       TextEditingController(text: widget.existing?.comment ?? '');
   bool _saving = false;
+  // SnackBar модалдық sheet-тің АРТЫНДА көрсетіледі де, sheet ашық тұрғанда
+  // көрінбей қалады — сол себепті қатені осында, sheet ІШІНДЕ көрсетеміз.
+  String? _error;
 
   @override
   void dispose() {
@@ -421,8 +433,7 @@ class _WriteReviewSheetState extends State<_WriteReviewSheet> {
 
   Future<void> _save() async {
     if (_rating < 1 || _saving) return;
-    setState(() => _saving = true);
-    final messenger = ScaffoldMessenger.of(context);
+    setState(() { _saving = true; _error = null; });
     final navigator = Navigator.of(context);
     try {
       await _service.submitReview(
@@ -432,38 +443,33 @@ class _WriteReviewSheetState extends State<_WriteReviewSheet> {
         rating: _rating,
         comment: _commentCtrl.text,
       );
-      navigator.pop(true);
-      messenger.showSnackBar(SnackBar(
-        content: Text(tr('Спасибо за отзыв!', 'Пікіріңізге рахмет!')),
-        backgroundColor: cGreen,
-        behavior: SnackBarBehavior.floating,
-      ));
+      navigator.pop('saved');
     } catch (_) {
-      if (mounted) setState(() => _saving = false);
-      messenger.showSnackBar(SnackBar(
-        content: Text(tr(
-            'Не удалось сохранить отзыв. Отзыв доступен только покупателям.',
-            'Пікір сақталмады. Пікір тек сатып алушыларға қолжетімді.')),
-        backgroundColor: cRed,
-        behavior: SnackBarBehavior.floating,
-      ));
+      if (mounted) {
+        setState(() {
+          _saving = false;
+          _error = tr(
+              'Не удалось сохранить отзыв. Отзыв доступен только покупателям.',
+              'Пікір сақталмады. Пікір тек сатып алушыларға қолжетімді.');
+        });
+      }
     }
   }
 
   Future<void> _delete() async {
     if (_saving) return;
-    setState(() => _saving = true);
-    final messenger = ScaffoldMessenger.of(context);
+    setState(() { _saving = true; _error = null; });
     final navigator = Navigator.of(context);
     try {
       await _service.deleteMyReview(widget.product.id);
-      navigator.pop(true);
-      messenger.showSnackBar(SnackBar(
-        content: Text(tr('Отзыв удалён', 'Пікір өшірілді')),
-        behavior: SnackBarBehavior.floating,
-      ));
+      navigator.pop('deleted');
     } catch (_) {
-      if (mounted) setState(() => _saving = false);
+      if (mounted) {
+        setState(() {
+          _saving = false;
+          _error = tr('Не удалось удалить отзыв', 'Пікір өшірілмеді');
+        });
+      }
     }
   }
 
@@ -543,6 +549,17 @@ class _WriteReviewSheetState extends State<_WriteReviewSheet> {
               ),
             ),
           ),
+          if (_error != null) ...[
+            const SizedBox(height: 8),
+            Row(children: [
+              const Icon(Icons.error_outline_rounded, size: 15, color: cRed),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(_error!,
+                    style: manrope(12.5, FontWeight.w600, color: cRed)),
+              ),
+            ]),
+          ],
           const SizedBox(height: 12),
           QPrimaryButton(
             label: _saving

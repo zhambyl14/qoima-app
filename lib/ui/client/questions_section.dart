@@ -9,6 +9,7 @@ import '../../data/models/store_model.dart';
 import '../../data/services/client_service.dart';
 import '../../theme/qoima_design.dart';
 import '../auth/login_screen.dart';
+import 'report_sheet.dart';
 
 /// Тауар бойынша «Вопросы и ответы» секциясы (Wildberries үлгісі, детальдің
 /// ішінде). Оқу — барлығына (guest те). Сұрақ қою — кез келген
@@ -30,7 +31,7 @@ class _QuestionsSectionState extends State<QuestionsSection> {
   bool _loading = true;
   bool _expanded = false;
 
-  static const int _collapsedCount = 3;
+  static const int _collapsedCount = 2;
 
   @override
   void initState() {
@@ -47,7 +48,7 @@ class _QuestionsSectionState extends State<QuestionsSection> {
     }
   }
 
-  Future<void> _openAskSheet() async {
+  Future<void> _openAskSheet({ProductQuestionModel? existing}) async {
     final user = context.read<AppUser>();
     if (user.uid.isEmpty) {
       final goLogin = await showDialog<bool>(
@@ -80,7 +81,7 @@ class _QuestionsSectionState extends State<QuestionsSection> {
       return;
     }
 
-    final asked = await showModalBottomSheet<bool>(
+    final saved = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -88,13 +89,58 @@ class _QuestionsSectionState extends State<QuestionsSection> {
         product: widget.product,
         store: widget.store,
         clientName: user.name,
+        existing: existing,
       ),
     );
-    if (asked == true) _load();
+    if (saved == true && mounted) {
+      _load();
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(existing != null
+            ? tr('Вопрос изменён', 'Сұрақ өзгертілді')
+            : tr('Вопрос отправлен', 'Сұрақ жіберілді')),
+        backgroundColor: cGreen,
+        behavior: SnackBarBehavior.floating,
+      ));
+    }
+  }
+
+  Future<void> _deleteMyQuestion(ProductQuestionModel q) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: cSurface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Text(tr('Удалить вопрос?', 'Сұрақты өшіру керек пе?'),
+            style: manrope(16, FontWeight.w800, color: cInk)),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(tr('Отмена', 'Болдырмау'),
+                  style: manrope(14, FontWeight.w600, color: cInk2))),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(tr('Удалить', 'Өшіру'),
+                  style: manrope(14, FontWeight.w700, color: cRed))),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await _service.deleteMyQuestion(q.id);
+      _load();
+    } catch (_) {
+      messenger.showSnackBar(SnackBar(
+        content: Text(tr('Не удалось удалить вопрос', 'Сұрақ өшірілмеді')),
+        backgroundColor: cRed,
+        behavior: SnackBarBehavior.floating,
+      ));
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final myUid = context.watch<AppUser>().uid;
     final shown =
         _expanded ? _questions : _questions.take(_collapsedCount).toList();
 
@@ -131,7 +177,21 @@ class _QuestionsSectionState extends State<QuestionsSection> {
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
               child: Column(children: [
                 for (int i = 0; i < shown.length; i++) ...[
-                  _QuestionTile(question: shown[i]),
+                  _QuestionTile(
+                    question: shown[i],
+                    isMine: shown[i].clientUid == myUid,
+                    onReport: () => showReportSheet(
+                      context,
+                      targetType: 'question',
+                      targetId: shown[i].id,
+                      targetName:
+                          '${widget.product.name} — ${shown[i].clientName}',
+                      adminUid: widget.store.adminUid,
+                      storeName: widget.store.storeName,
+                    ),
+                    onEdit: () => _openAskSheet(existing: shown[i]),
+                    onDelete: () => _deleteMyQuestion(shown[i]),
+                  ),
                   if (i < shown.length - 1) Container(height: 1, color: cLine),
                 ],
               ]),
@@ -190,7 +250,17 @@ class _QuestionsSectionState extends State<QuestionsSection> {
 
 class _QuestionTile extends StatelessWidget {
   final ProductQuestionModel question;
-  const _QuestionTile({required this.question});
+  final bool isMine;
+  final VoidCallback onReport;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+  const _QuestionTile({
+    required this.question,
+    required this.isMine,
+    required this.onReport,
+    required this.onEdit,
+    required this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -198,6 +268,7 @@ class _QuestionTile extends StatelessWidget {
         ? tr('Покупатель', 'Сатып алушы')
         : question.clientName.trim();
     final date = DateFormat('dd.MM.yyyy').format(question.createdAt.toLocal());
+    final canEdit = isMine && !question.hasAnswer;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -218,6 +289,32 @@ class _QuestionTile extends StatelessWidget {
               ],
             ),
           ),
+          if (canEdit) ...[
+            GestureDetector(
+              onTap: onEdit,
+              behavior: HitTestBehavior.opaque,
+              child: const Padding(
+                padding: EdgeInsets.all(4),
+                child: Icon(Icons.edit_outlined, size: 17, color: cInk3),
+              ),
+            ),
+            GestureDetector(
+              onTap: onDelete,
+              behavior: HitTestBehavior.opaque,
+              child: const Padding(
+                padding: EdgeInsets.all(4),
+                child: Icon(Icons.delete_outline_rounded, size: 17, color: cInk3),
+              ),
+            ),
+          ] else if (!isMine)
+            GestureDetector(
+              onTap: onReport,
+              behavior: HitTestBehavior.opaque,
+              child: const Padding(
+                padding: EdgeInsets.all(4),
+                child: Icon(Icons.flag_outlined, size: 17, color: cInk3),
+              ),
+            ),
         ]),
         const SizedBox(height: 8),
         if (question.hasAnswer)
@@ -260,13 +357,18 @@ class _QuestionTile extends StatelessWidget {
   }
 }
 
-// ── Сұрақ қою sheet-і ──────────────────────────────────────────────────────
+// ── Сұрақ қою/өзгерту sheet-і ────────────────────────────────────────────────
 class _AskQuestionSheet extends StatefulWidget {
   final ProductModel product;
   final StoreModel store;
   final String clientName;
-  const _AskQuestionSheet(
-      {required this.product, required this.store, required this.clientName});
+  final ProductQuestionModel? existing;
+  const _AskQuestionSheet({
+    required this.product,
+    required this.store,
+    required this.clientName,
+    this.existing,
+  });
 
   @override
   State<_AskQuestionSheet> createState() => _AskQuestionSheetState();
@@ -274,8 +376,13 @@ class _AskQuestionSheet extends StatefulWidget {
 
 class _AskQuestionSheetState extends State<_AskQuestionSheet> {
   final _service = ClientService();
-  final _ctrl = TextEditingController();
+  late final _ctrl =
+      TextEditingController(text: widget.existing?.question ?? '');
   bool _saving = false;
+  // SnackBar модалдық sheet-тің АРТЫНДА (негізгі беттің Scaffold-ында)
+  // көрсетіледі де, sheet ашық тұрғанда көрінбей қалады — сол себепті
+  // қатені осында, sheet ІШІНДЕ, мәтін ретінде көрсетеміз.
+  String? _error;
 
   @override
   void dispose() {
@@ -285,36 +392,44 @@ class _AskQuestionSheetState extends State<_AskQuestionSheet> {
 
   Future<void> _save() async {
     if (_ctrl.text.trim().isEmpty || _saving) return;
-    setState(() => _saving = true);
-    final messenger = ScaffoldMessenger.of(context);
+    setState(() { _saving = true; _error = null; });
     final navigator = Navigator.of(context);
     try {
-      await _service.askProductQuestion(
-        productId: widget.product.id,
-        adminUid: widget.store.adminUid,
-        clientName: widget.clientName,
-        question: _ctrl.text,
-      );
+      final existing = widget.existing;
+      if (existing != null) {
+        await _service.updateMyQuestion(existing.id, _ctrl.text);
+      } else {
+        await _service.askProductQuestion(
+          productId: widget.product.id,
+          adminUid: widget.store.adminUid,
+          clientName: widget.clientName,
+          question: _ctrl.text,
+        );
+      }
       navigator.pop(true);
-      messenger.showSnackBar(SnackBar(
-        content: Text(tr('Вопрос отправлен', 'Сұрақ жіберілді')),
-        backgroundColor: cGreen,
-        behavior: SnackBarBehavior.floating,
-      ));
-    } catch (_) {
-      if (mounted) setState(() => _saving = false);
-      messenger.showSnackBar(SnackBar(
-        content: Text(tr('Не удалось отправить вопрос',
-            'Сұрақ жіберілмеді')),
-        backgroundColor: cRed,
-        behavior: SnackBarBehavior.floating,
-      ));
+    } catch (e) {
+      final msg = e.toString();
+      final String text;
+      if (msg.contains('question_rate_limit')) {
+        text = tr('Слишком много вопросов за 24 часа. Попробуйте позже.',
+            '24 сағатта тым көп сұрақ жаздыңыз. Кейінірек көріңіз.');
+      } else if (msg.contains('duplicate key') ||
+          msg.contains('23505') ||
+          msg.contains('pending_uidx')) {
+        text = tr(
+            'У вас уже есть вопрос этому продавцу без ответа. Дождитесь ответа, затем спрашивайте снова.',
+            'Сізде осы сатушыға жауап күтіп тұрған сұрағыңыз бар. Жауапты күтіп, содан кейін қайта сұраңыз.');
+      } else {
+        text = tr('Не удалось отправить вопрос', 'Сұрақ жіберілмеді');
+      }
+      if (mounted) setState(() { _saving = false; _error = text; });
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final isEdit = widget.existing != null;
     return Container(
       decoration: const BoxDecoration(
         color: cSurface,
@@ -330,7 +445,10 @@ class _AskQuestionSheetState extends State<_AskQuestionSheet> {
             decoration: BoxDecoration(
                 color: cLine, borderRadius: BorderRadius.circular(2)),
           ),
-          Text(tr('Задать вопрос', 'Сұрақ қою'),
+          Text(
+              isEdit
+                  ? tr('Изменить вопрос', 'Сұрақты өзгерту')
+                  : tr('Задать вопрос', 'Сұрақ қою'),
               style: manrope(17, FontWeight.w800, color: cInk)),
           const SizedBox(height: 4),
           Text(widget.product.name,
@@ -343,7 +461,7 @@ class _AskQuestionSheetState extends State<_AskQuestionSheet> {
             maxLines: 4,
             maxLength: 500,
             autofocus: true,
-            onChanged: (_) => setState(() {}),
+            onChanged: (_) => setState(() => _error = null),
             style: manrope(14, FontWeight.w500, color: cInk),
             cursorColor: cGreen,
             decoration: InputDecoration(
@@ -367,11 +485,24 @@ class _AskQuestionSheetState extends State<_AskQuestionSheet> {
               ),
             ),
           ),
+          if (_error != null) ...[
+            const SizedBox(height: 8),
+            Row(children: [
+              const Icon(Icons.error_outline_rounded, size: 15, color: cRed),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(_error!,
+                    style: manrope(12.5, FontWeight.w600, color: cRed)),
+              ),
+            ]),
+          ],
           const SizedBox(height: 12),
           QPrimaryButton(
             label: _saving
                 ? tr('Отправка...', 'Жіберілуде...')
-                : tr('Отправить вопрос', 'Сұрақты жіберу'),
+                : isEdit
+                    ? tr('Сохранить', 'Сақтау')
+                    : tr('Отправить вопрос', 'Сұрақты жіберу'),
             onPressed: (_ctrl.text.trim().isNotEmpty && !_saving) ? _save : null,
             height: 52,
           ),

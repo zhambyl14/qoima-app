@@ -71,6 +71,47 @@ class _AdminQuestionsScreenState extends State<AdminQuestionsScreen> {
     }
   }
 
+  Future<void> _deleteQuestion(ProductQuestionModel question) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: cSurface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Text(tr('Удалить вопрос?', 'Сұрақты өшіру керек пе?'),
+            style: manrope(16, FontWeight.w800, color: cInk)),
+        content: Text(
+            tr('Например, если это спам или не относится к товару.',
+                'Мысалы, ол спам болса немесе тауарға қатысы болмаса.'),
+            style: manrope(13.5, FontWeight.w500, color: cInk2)),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(tr('Отмена', 'Болдырмау'),
+                  style: manrope(14, FontWeight.w600, color: cInk2))),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(tr('Удалить', 'Өшіру'),
+                  style: manrope(14, FontWeight.w700, color: cRed))),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await _repo.deleteQuestion(question.id);
+      messenger.showSnackBar(SnackBar(
+        content: Text(tr('Вопрос удалён', 'Сұрақ өшірілді')),
+        behavior: SnackBarBehavior.floating,
+      ));
+    } catch (_) {
+      messenger.showSnackBar(SnackBar(
+        content: Text(tr('Не удалось удалить вопрос', 'Сұрақ өшірілмеді')),
+        backgroundColor: cRed,
+        behavior: SnackBarBehavior.floating,
+      ));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -133,6 +174,7 @@ class _AdminQuestionsScreenState extends State<AdminQuestionsScreen> {
                             question: list[i],
                             product: _products[list[i].productId],
                             onAnswer: () => _openAnswerSheet(list[i]),
+                            onDelete: () => _deleteQuestion(list[i]),
                           ),
                         ),
             ),
@@ -176,8 +218,12 @@ class _AdminQuestionCard extends StatelessWidget {
   final ProductQuestionModel question;
   final ({String name, String image})? product;
   final VoidCallback onAnswer;
+  final VoidCallback onDelete;
   const _AdminQuestionCard(
-      {required this.question, required this.product, required this.onAnswer});
+      {required this.question,
+      required this.product,
+      required this.onAnswer,
+      required this.onDelete});
 
   @override
   Widget build(BuildContext context) {
@@ -239,6 +285,15 @@ class _AdminQuestionCard extends StatelessWidget {
               child: Text(tr('Без ответа', 'Жауапсыз'),
                   style: manrope(10, FontWeight.w800, color: cAmber)),
             ),
+          const SizedBox(width: 4),
+          GestureDetector(
+            onTap: onDelete,
+            behavior: HitTestBehavior.opaque,
+            child: const Padding(
+              padding: EdgeInsets.all(4),
+              child: Icon(Icons.delete_outline_rounded, size: 18, color: cInk3),
+            ),
+          ),
         ]),
         const SizedBox(height: 10),
         Text(question.question,

@@ -251,6 +251,8 @@ class _ReportCard extends StatelessWidget {
         return Icons.storefront_outlined;
       case 'review':
         return Icons.rate_review_outlined;
+      case 'question':
+        return Icons.help_outline_rounded;
       default:
         return Icons.inventory_2_outlined;
     }

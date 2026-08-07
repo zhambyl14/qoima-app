@@ -4,6 +4,8 @@ import '../../core/app_user.dart';
 import '../../data/models/models.dart';
 import '../../data/services/firestore_service.dart';
 import '../../data/services/return_service.dart';
+import '../../data/repositories/admin_reviews_repository.dart';
+import '../../data/repositories/admin_questions_repository.dart';
 import '../../theme/qoima_design.dart';
 import 'settings/sellers_screen.dart';
 import 'settings/warehouses_screen.dart';
@@ -23,8 +25,16 @@ class AdminHomeScreen extends StatefulWidget {
 
 class _AdminHomeScreenState extends State<AdminHomeScreen> {
   final _service = FirestoreService();
+  final _reviewsRepo = AdminReviewsRepository();
+  final _questionsRepo = AdminQuestionsRepository();
 
   late final Stream<StoreModel?> _storeStream = _service.watchStore();
+  late final Stream<int> _unansweredReviewsStream = _reviewsRepo
+      .watchStoreReviews()
+      .map((list) => list.where((r) => !r.hasReply).length);
+  late final Stream<int> _unansweredQuestionsStream = _questionsRepo
+      .watchStoreQuestions()
+      .map((list) => list.where((q) => !q.hasAnswer).length);
   late final Stream<List<Map<String, dynamic>>> _pendingStream =
       _service.watchPendingRequests();
   late final Stream<List<Map<String, dynamic>>> _sellersStream =
@@ -214,17 +224,30 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                                 builder: (_) => const MyStoreGate())),
                       );
                     }
-                    return _QMenuItem(
-                      icon: Icons.storefront_outlined,
-                      tone: store.isPublished ? 'green' : 'ink',
-                      title: tr('Мой магазин', 'Менің дүкенім'),
-                      sub: store.isPublished
-                          ? tr('«${store.storeName}» · онлайн', '«${store.storeName}» · онлайн')
-                          : tr('«${store.storeName}» · офлайн', '«${store.storeName}» · офлайн'),
-                      onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => const AdminMyStoreHubScreen())),
+                    // Жауапсыз пікір/сұрақ саны — «Мой магазин» бетінде
+                    // көрінетін ескерту белгісі (badge).
+                    return StreamBuilder<int>(
+                      stream: _unansweredReviewsStream,
+                      builder: (_, rs) => StreamBuilder<int>(
+                        stream: _unansweredQuestionsStream,
+                        builder: (_, qs) {
+                          final unread = (rs.data ?? 0) + (qs.data ?? 0);
+                          return _QMenuItem(
+                            icon: Icons.storefront_outlined,
+                            tone: store.isPublished ? 'green' : 'ink',
+                            title: tr('Мой магазин', 'Менің дүкенім'),
+                            sub: store.isPublished
+                                ? tr('«${store.storeName}» · онлайн', '«${store.storeName}» · онлайн')
+                                : tr('«${store.storeName}» · офлайн', '«${store.storeName}» · офлайн'),
+                            badge: unread > 0 ? '$unread' : null,
+                            onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) =>
+                                        const AdminMyStoreHubScreen())),
+                          );
+                        },
+                      ),
                     );
                   },
                 ),
