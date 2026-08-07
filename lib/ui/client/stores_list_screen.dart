@@ -60,12 +60,18 @@ class _StoresListScreenState extends State<StoresListScreen> {
       final results = await Future.wait([
         _service.getPublishedStores(),
         _service.getHiddenStoreIds(),
-        _service.watchAddresses().first,
       ]);
       if (!mounted) return;
       final all = results[0] as List<StoreModel>;
       final hidden = results[1] as Set<String>;
-      final addresses = results[2] as List<Map<String, dynamic>>;
+      // Мекенжай — тек «ең жақын дүкен» ұсынысы үшін, міндетті емес: гость
+      // немесе желі мәселесі болса да негізгі тізім (қала бойынша сүзгі)
+      // қалыпты жұмыс істеуі керек, сол себепті бөлек, өз алдына қателерін
+      // жұтатын сұраныс.
+      List<Map<String, dynamic>> addresses = const [];
+      try {
+        addresses = await _service.watchAddresses().first;
+      } catch (_) {}
       final stores = all
           .where((s) =>
               !hidden.contains(s.adminUid) && s.visibleWarehouseIds.isNotEmpty)

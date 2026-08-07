@@ -165,8 +165,13 @@ class ClientService {
 
   // ── Addresses ───────────────────────────────────────────────────────────────
 
+  // ЕСКЕРТУ: Stream.empty() ЕМЕС — ол ешбір мән бермей бірден жабылады, сол
+  // себепті .first шақырса (мыс. stores_list_screen.dart) StateError
+  // лақтырады да, гость үшін бүкіл дүкендер тізімі қате экранына түсіп
+  // қалатын (нақты багта табылды — мекенжай жоқ гость үшін де тізім
+  // қалыпты көрінуі керек).
   Stream<List<Map<String, dynamic>>> watchAddresses() => _uid.isEmpty
-      ? const Stream.empty()
+      ? Stream.value(const <Map<String, dynamic>>[])
       : _sb
           .from('addresses')
           .stream(primaryKey: ['id'])
