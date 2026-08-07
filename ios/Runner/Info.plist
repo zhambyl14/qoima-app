@@ -74,6 +74,8 @@
 	<!-- Орналасқан жеріне рұқсат (жақын дүкендерді/қалаңды анықтау үшін) -->
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Жақын дүкендерді және жеткізу аймағын анықтау үшін орналасқан жеріңізге рұқсат қажет</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Жақын дүкендерді және жеткізу аймағын анықтау үшін орналасқан жеріңізге рұқсат қажет</string>
 
 	<!-- Фото галереясы мен файлдарға рұқсат (file_picker / image_picker) -->
 	<key>NSPhotoLibraryUsageDescription</key>
