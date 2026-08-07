@@ -5,6 +5,7 @@ import '../data/repositories/banner_repository.dart';
 import '../data/services/client_service.dart';
 import '../data/services/firestore_service.dart';
 import '../data/services/return_service.dart';
+import '../ui/admin/analytics/analytics_screen.dart';
 import '../ui/admin/my_store/admin_reviews_screen.dart';
 import '../ui/admin/online_orders_screen.dart';
 import '../ui/admin/returns/admin_return_detail_screen.dart';
@@ -80,7 +81,12 @@ Future<void> handlePushOpen(Map<String, dynamic> data) async {
         await _openBanner(nav, user, data);
         break;
       case 'back_in_stock':
+      // Пікір еске салуы да тауар бетіне апарады — сол жерде пікір жазылады.
+      case 'review_reminder':
         await _openBackInStock(nav, user, data);
+        break;
+      case 'daily_digest':
+        _openDailyDigest(nav, user);
         break;
       case 'store_broadcast':
       // Referral сыйлығы да сол дүкеннің бетіне апарады (сыйлық промокоды
@@ -217,6 +223,12 @@ Future<void> _openBackInStock(
   if (store == null || !store.isPublished || store.isBlocked) return;
   nav.push(MaterialPageRoute(
       builder: (_) => ClientProductDetail(product: product, store: store)));
+}
+
+// ── admin: күнделікті қорытынды (0045) → аналитика ──────────────────────────
+void _openDailyDigest(NavigatorState nav, AppUser user) {
+  if (!user.isAdmin) return;
+  nav.push(MaterialPageRoute(builder: (_) => const AnalyticsScreen()));
 }
 
 // ── client: дүкеннің өз жарнама push-ы (0043) ────────────────────────────────

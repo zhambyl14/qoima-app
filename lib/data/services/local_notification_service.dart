@@ -5,6 +5,8 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
+import '../../core/lang.dart';
+
 /// Жергілікті (серверсіз) хабарламалар: «себет тұрып қалды» еске салуы +
 /// PushService-тің foreground FCM хабарламаларын (барлық платформада)
 /// жүйелік баннер ретінде көрсетуі — FCM «notification» пейлоуын OS
@@ -130,20 +132,24 @@ class LocalNotificationService {
       final when = tz.TZDateTime.now(tz.local).add(_reminderDelay);
       await _plugin.zonedSchedule(
         _cartReminderId,
-        'Товары ждут в корзине',
+        tr('Товары ждут в корзине', 'Тауарлар себетте күтіп тұр'),
         itemCount > 1
-            ? 'У вас $itemCount товара в корзине — оформите заказ, пока они в наличии'
-            : 'У вас товар в корзине — оформите заказ, пока он в наличии',
+            ? tr('У вас $itemCount товара в корзине — оформите заказ, пока они в наличии',
+                'Себетіңізде $itemCount тауар бар — қолда барында тапсырыс беріңіз')
+            : tr('У вас товар в корзине — оформите заказ, пока он в наличии',
+                'Себетіңізде тауар бар — қолда барында тапсырыс беріңіз'),
         when,
-        const NotificationDetails(
+        NotificationDetails(
           android: AndroidNotificationDetails(
             'cart_reminder',
-            'Напоминания о корзине',
-            channelDescription: 'Напоминание, если товары остались в корзине',
+            tr('Напоминания о корзине', 'Себет туралы еске салу'),
+            channelDescription: tr(
+                'Напоминание, если товары остались в корзине',
+                'Себетте тауар қалса еске салу'),
             importance: Importance.defaultImportance,
             priority: Priority.defaultPriority,
           ),
-          iOS: DarwinNotificationDetails(),
+          iOS: const DarwinNotificationDetails(),
         ),
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
         uiLocalNotificationDateInterpretation:
