@@ -6,6 +6,7 @@ import '../data/services/client_service.dart';
 import '../data/services/firestore_service.dart';
 import '../data/services/return_service.dart';
 import '../ui/admin/analytics/analytics_screen.dart';
+import '../ui/admin/my_store/admin_questions_screen.dart';
 import '../ui/admin/my_store/admin_reviews_screen.dart';
 import '../ui/admin/online_orders_screen.dart';
 import '../ui/admin/returns/admin_return_detail_screen.dart';
@@ -67,6 +68,12 @@ Future<void> handlePushOpen(Map<String, dynamic> data) async {
         break;
       case 'review':
         _openReview(nav, user, data);
+        break;
+      case 'product_question':
+        _openProductQuestion(nav, user, data);
+        break;
+      case 'question_answer':
+        await _openQuestionAnswer(nav, user, data);
         break;
       case 'join_request':
         _openJoinRequest(nav, user);
@@ -166,6 +173,33 @@ void _openReview(NavigatorState nav, AppUser user, Map<String, dynamic> data) {
   nav.push(MaterialPageRoute(
       builder: (_) =>
           AdminReviewsScreen(productId: productId.isEmpty ? null : productId)));
+}
+
+// ── admin: жаңа сұрақ (Вопросы и ответы) ─────────────────────────────────────
+void _openProductQuestion(
+    NavigatorState nav, AppUser user, Map<String, dynamic> data) {
+  if (!user.isAdmin) return;
+  final productId = data['productId'] as String? ?? '';
+  nav.push(MaterialPageRoute(
+      builder: (_) => AdminQuestionsScreen(
+          productId: productId.isEmpty ? null : productId)));
+}
+
+// ── client: сұраққа жауап берілді ────────────────────────────────────────────
+Future<void> _openQuestionAnswer(
+    NavigatorState nav, AppUser user, Map<String, dynamic> data) async {
+  if (!user.isClient) return;
+  final productId = data['productId'] as String? ?? '';
+  if (productId.isEmpty) return;
+  final client = ClientService();
+  final product = await client.getProductById(user.uid, productId);
+  if (product == null || product.storefrontHidden) return;
+  final ownerUid = await client.getProductOwnerUid(productId);
+  if (ownerUid == null || ownerUid.isEmpty) return;
+  final store = await client.getStoreByAdminUid(ownerUid);
+  if (store == null || !store.isPublished || store.isBlocked) return;
+  nav.push(MaterialPageRoute(
+      builder: (_) => ClientProductDetail(product: product, store: store)));
 }
 
 // ── admin: сатушы қосылу өтінімі ─────────────────────────────────────────────

@@ -6,6 +6,7 @@ import '../models/product_model.dart';
 import '../models/batch_model.dart';
 import '../models/order_model.dart';
 import '../models/review_model.dart';
+import '../models/product_question_model.dart';
 import '../models/warehouse_model.dart';
 import '../models/cart_item_model.dart';
 import '../models/promo_model.dart';
@@ -47,24 +48,14 @@ List<({ProductGroup group, int index})> expandVariantCards(
   return out;
 }
 
-bool productGroupMatches(ProductGroup g, String query) {
-  if (query.trim().isEmpty) return true;
-  // Топтың БАРЛЫҚ нұсқаларының барлық өрісі бір мәтінге жиналады: атауы, бренд,
-  // түр, түс, сипаттама, маусым, «кімге», айырмашылық белгісі. Канондық мәндер
-  // ru + ағымдағы тіл (trValue) түрінде де қосылады — «жасыл кеды» да, «зелёные
-  // кеды» да табылады. Клиенттің сұранысы бос қайтпауы үшін.
+// Топтың БАРЛЫҚ нұсқаларының барлық өрісі бір мәтінге жиналады: атауы, бренд,
+// түр, түс, сипаттама, маусым, «кімге», айырмашылық белгісі. Канондық мәндер
+// ru + ағымдағы тіл (trValue) түрінде де қосылады — «жасыл кеды» да, «зелёные
+// кеды» да табылады.
+String _searchBuffer(ProductGroup g) {
   final buf = StringBuffer();
   void add(String s) {
     if (s.trim().isNotEmpty) buf.write(' $s');
-  }
-
-  // Артикул бойынша тікелей ішкі жол іздеу (typo-tolerant сөз салыстыруынан
-  // бұрын) — код қысқа әрі бос орынсыз, тура сәйкестік жеткілікті.
-  final q = query.trim().toLowerCase();
-  for (final v in g.variants) {
-    if (v.articul.isNotEmpty && v.articul.toLowerCase().contains(q)) {
-      return true;
-    }
   }
 
   for (final v in g.variants) {
@@ -84,14 +75,66 @@ bool productGroupMatches(ProductGroup g, String query) {
     add(trValue(v.material));
     add(v.variantNote);
   }
+  return buf.toString();
+}
+
+bool productGroupMatches(ProductGroup g, String query) {
+  if (query.trim().isEmpty) return true;
+
+  // Артикул бойынша тікелей ішкі жол іздеу (typo-tolerant сөз салыстыруынан
+  // бұрын) — код қысқа әрі бос орынсыз, тура сәйкестік жеткілікті.
+  final q = query.trim().toLowerCase();
+  for (final v in g.variants) {
+    if (v.articul.isNotEmpty && v.articul.toLowerCase().contains(q)) {
+      return true;
+    }
+  }
+
   // Әр сұраныс сөзі кез келген өріске сәйкес келсе жеткілікті (typo-толерантты).
-  return SearchHelper.allWordsMatch(buf.toString(), query);
+  return SearchHelper.allWordsMatch(_searchBuffer(g), query);
 }
 
 int productGroupScore(ProductGroup g, String query) {
   final a = SearchHelper.score(g.main.name, query);
   final b = SearchHelper.score(g.main.brand, query);
-  return a > b ? a : b;
+  final c = SearchHelper.score(g.main.type, query);
+  final d = SearchHelper.score(g.main.color, query);
+  final best = [a, b, c, d].reduce((x, y) => x > y ? x : y);
+  // Категория/түр/түс сәйкестігі атауы/бренд сәйкестігінен төменірек
+  // салмақты — тек тең балл болғанда сұрыптауды тұрақтандыру үшін.
+  return a >= b ? (a * 10 + best) : (b * 10 + best);
+}
+
+/// Каталогтағы/дүкендегі іздеу нәтижесі: [results] — табылған топтар,
+/// [isFallback] — дәл сәйкестік табылмай, «ұқсас» (кез келген сөз сәйкес
+/// келетін) нәтижелерге көшкенін білдіреді (UI-де хинт көрсету үшін).
+typedef ProductSearchResult = ({List<ProductGroup> results, bool isFallback});
+
+/// Сұраныс бойынша топтарды іздейді. Алдымен қатаң режим (барлық сөз
+/// сәйкес келуі керек — [productGroupMatches]); нәтиже бос болса, клиент
+/// «ештеңе табылмады» дегенді көрмеуі үшін босаң режимге көшеміз: кемінде
+/// бір сөзі сәйкес келген топтарды сол сәйкестік санына қарай сұрыптап
+/// («ұқсас тауарлар» ретінде) қайтарамыз.
+ProductSearchResult searchProductGroups(
+    List<ProductGroup> groups, String query) {
+  final q = query.trim();
+  if (q.isEmpty) return (results: groups, isFallback: false);
+
+  final strict = groups.where((g) => productGroupMatches(g, q)).toList()
+    ..sort((a, b) => productGroupScore(b, q).compareTo(productGroupScore(a, q)));
+  if (strict.isNotEmpty) return (results: strict, isFallback: false);
+
+  final scored = <(ProductGroup, int)>[];
+  for (final g in groups) {
+    final n = SearchHelper.matchedWordCount(_searchBuffer(g), q);
+    if (n > 0) scored.add((g, n));
+  }
+  scored.sort((a, b) {
+    final byCount = b.$2.compareTo(a.$2);
+    if (byCount != 0) return byCount;
+    return productGroupScore(b.$1, q).compareTo(productGroupScore(a.$1, q));
+  });
+  return (results: scored.map((e) => e.$1).toList(), isFallback: true);
 }
 
 /// Клиент жағындағы деректер сервисі (Supabase).
@@ -816,6 +859,43 @@ class ClientService {
       .from('product_reviews')
       .delete()
       .eq('product_id', productId)
+      .eq('client_uid', _uid);
+
+  // ── Questions (Wildberries үлгісіндегі «Вопросы и ответы» — сатып алу
+  //    міндетті емес, кез келген авторизацияланған клиент сұрай алады) ────────
+
+  /// Тауар сұрақтары (жаңасы бірінші). Оқу публичті — guest те көреді.
+  Future<List<ProductQuestionModel>> getProductQuestions(
+      String productId) async {
+    if (productId.isEmpty) return [];
+    final rows = await _sb
+        .from('product_questions')
+        .select()
+        .eq('product_id', productId)
+        .order('created_at', ascending: false);
+    return rows.map(ProductQuestionModel.fromMap).toList();
+  }
+
+  /// Жаңа сұрақ қою.
+  Future<void> askProductQuestion({
+    required String productId,
+    required String adminUid,
+    required String clientName,
+    required String question,
+  }) =>
+      _sb.from('product_questions').insert({
+        'product_id': productId,
+        'admin_uid': adminUid,
+        'client_uid': _uid,
+        'client_name': clientName,
+        'question': question.trim(),
+      });
+
+  /// Өз сұрағын өшіру (тек жауап берілмеген болса — RLS деңгейінде де).
+  Future<void> deleteMyQuestion(String questionId) => _sb
+      .from('product_questions')
+      .delete()
+      .eq('id', questionId)
       .eq('client_uid', _uid);
 
   // ── Reports (шағымдар — кез келген авторизацияланған қолданушы) ─────────────

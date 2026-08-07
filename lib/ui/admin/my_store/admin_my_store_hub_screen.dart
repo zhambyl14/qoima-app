@@ -9,6 +9,7 @@ import '../../../data/services/firestore_service.dart';
 import '../../../theme/qoima_design.dart';
 import '../promos/promos_screen.dart';
 import 'admin_my_store_discounts_screen.dart';
+import 'admin_questions_screen.dart';
 import 'admin_reviews_screen.dart';
 import 'admin_store_visibility_screen.dart';
 import 'demand_signals_screen.dart';
@@ -195,6 +196,14 @@ class AdminMyStoreHubScreen extends StatelessWidget {
                           subtitle: tr('Читайте и отвечайте на отзывы', 'Пікірлерді оқып, жауап беріңіз'),
                           onTap: () => Navigator.push(context,
                               MaterialPageRoute(builder: (_) => const AdminReviewsScreen())),
+                        ),
+                        const SizedBox(height: 10),
+                        QMenuItem(
+                          icon: Icons.help_outline_rounded, tone: 'green',
+                          title: tr('Вопросы о товарах', 'Тауар сұрақтары'),
+                          subtitle: tr('Отвечайте на вопросы покупателей', 'Сатып алушы сұрақтарына жауап беріңіз'),
+                          onTap: () => Navigator.push(context,
+                              MaterialPageRoute(builder: (_) => const AdminQuestionsScreen())),
                         ),
                         const SizedBox(height: 10),
                         QMenuItem(

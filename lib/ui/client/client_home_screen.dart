@@ -128,6 +128,8 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
   Object? _errorMessage;
   int _displayCount = 20;
   String _searchQuery = '';
+  // Соңғы іздеу дәл сәйкестік таппай, «ұқсас» fallback-қа көшкенін білдіреді.
+  bool _lastSearchFallback = false;
   ClientFilters _filters = const ClientFilters();
   // Соңғы build-тегі сүзілген топ саны — _hasMore үшін (қайта есептемей).
   int _filteredCount = 0;
@@ -193,11 +195,12 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
     }
 
     if (_searchQuery.isNotEmpty) {
-      final q = _searchQuery;
-      groups = groups.where((g) => productGroupMatches(g, q)).toList()
-        ..sort((a, b) =>
-            productGroupScore(b, q).compareTo(productGroupScore(a, q)));
+      final result = searchProductGroups(groups, _searchQuery);
+      groups = result.results;
+      _lastSearchFallback = result.isFallback;
       // Іздеуде relevance-сорт басым; таңдалған сорт болса — қайта сорттаймыз.
+    } else {
+      _lastSearchFallback = false;
     }
 
     if (f.sort != 'default') {
@@ -789,7 +792,21 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                                         ),
                                       ),
                                     )
-                                  else
+                                  else ...[
+                                    if (_lastSearchFallback)
+                                      SliverToBoxAdapter(
+                                        child: Padding(
+                                          padding: const EdgeInsets.fromLTRB(
+                                              16, 0, 16, 4),
+                                          child: Text(
+                                              tr(
+                                                  'Точных совпадений нет — вот похожие товары',
+                                                  'Дәл сәйкестік табылмады — міне ұқсас тауарлар'),
+                                              style: manrope(12.5,
+                                                  FontWeight.w600,
+                                                  color: cInk3)),
+                                        ),
+                                      ),
                                     SliverPadding(
                                       padding: const EdgeInsets.fromLTRB(
                                           12, 0, 12, 12),
@@ -826,6 +843,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                                         ),
                                       ),
                                     ),
+                                  ],
                                   if (_hasMore)
                                     const SliverToBoxAdapter(
                                       child: Center(

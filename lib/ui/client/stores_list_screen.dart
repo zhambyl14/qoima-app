@@ -7,6 +7,7 @@ import '../../data/models/store_model.dart';
 import '../../data/models/warehouse_model.dart';
 import '../../data/services/client_service.dart';
 import '../../theme/qoima_design.dart';
+import '../auth/login_screen.dart';
 import 'addresses_screen.dart';
 import 'store_public_screen.dart';
 import 'stores_map_screen.dart';
@@ -292,6 +293,53 @@ class _StoresListScreenState extends State<StoresListScreen> {
                         if (showNudge && i == 0) {
                           return _AddressNudgeCard(
                             onAdd: () async {
+                              final user = context.read<AppUser>();
+                              if (user.uid.isEmpty) {
+                                final goLogin = await showDialog<bool>(
+                                  context: context,
+                                  builder: (ctx) => AlertDialog(
+                                    backgroundColor: cSurface,
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(18)),
+                                    title: Text(
+                                        tr('Нужен вход', 'Кіру қажет'),
+                                        style: manrope(16, FontWeight.w800,
+                                            color: cInk)),
+                                    content: Text(
+                                        tr(
+                                            'Чтобы указать адрес, войдите в аккаунт.',
+                                            'Мекенжай белгілеу үшін аккаунтқа кіріңіз.'),
+                                        style: manrope(14, FontWeight.w500,
+                                            color: cInk2)),
+                                    actions: [
+                                      TextButton(
+                                          onPressed: () =>
+                                              Navigator.pop(ctx, false),
+                                          child: Text(
+                                              tr('Отмена', 'Болдырмау'),
+                                              style: manrope(14,
+                                                  FontWeight.w600,
+                                                  color: cInk2))),
+                                      TextButton(
+                                          onPressed: () =>
+                                              Navigator.pop(ctx, true),
+                                          child: Text(tr('Войти', 'Кіру'),
+                                              style: manrope(14,
+                                                  FontWeight.w700,
+                                                  color: cGreen))),
+                                    ],
+                                  ),
+                                );
+                                if (goLogin == true && context.mounted) {
+                                  Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                          builder: (_) =>
+                                              const LoginScreen()));
+                                }
+                                return;
+                              }
                               await Navigator.push(
                                   context,
                                   MaterialPageRoute(

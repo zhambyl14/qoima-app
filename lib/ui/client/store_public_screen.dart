@@ -9,6 +9,7 @@ import '../../data/models/store_model.dart';
 import '../../data/services/client_service.dart';
 import '../../theme/qoima_design.dart';
 import '../shared/skeletons.dart';
+import '../auth/login_screen.dart';
 import 'client_product_card.dart';
 import 'client_product_detail.dart';
 import 'referral_screen.dart';
@@ -240,6 +241,42 @@ class _StorePublicScreenState extends State<StorePublicScreen> {
     }
   }
 
+  Future<void> _openReferral() async {
+    final user = context.read<AppUser>();
+    if (user.uid.isEmpty) {
+      final goLogin = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: cSurface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          title: Text(tr('Нужен вход', 'Кіру қажет'),
+              style: manrope(16, FontWeight.w800, color: cInk)),
+          content: Text(
+              tr('Чтобы пригласить друга, войдите в аккаунт.',
+                  'Досыңды шақыру үшін аккаунтқа кіріңіз.'),
+              style: manrope(14, FontWeight.w500, color: cInk2)),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(tr('Отмена', 'Болдырмау'),
+                    style: manrope(14, FontWeight.w600, color: cInk2))),
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text(tr('Войти', 'Кіру'),
+                    style: manrope(14, FontWeight.w700, color: cGreen))),
+          ],
+        ),
+      );
+      if (goLogin == true && context.mounted) {
+        Navigator.push(
+            context, MaterialPageRoute(builder: (_) => const LoginScreen()));
+      }
+      return;
+    }
+    Navigator.push(context,
+        MaterialPageRoute(builder: (_) => ReferralScreen(store: widget.store)));
+  }
+
   void _report() => showReportSheet(
         context,
         targetType: 'store',
@@ -252,9 +289,8 @@ class _StorePublicScreenState extends State<StorePublicScreen> {
   @override
   Widget build(BuildContext context) {
     final groups = groupProducts(_pairs.map((e) => e.product).toList());
-    final filtered = _query.isEmpty
-        ? groups
-        : groups.where((g) => productGroupMatches(g, _query)).toList();
+    final search = searchProductGroups(groups, _query);
+    final filtered = search.results;
     final cards = expandVariantCards(filtered);
     final batchesById = {for (final pr in _pairs) pr.product.id: pr.batches};
     final storeById = {
@@ -333,29 +369,8 @@ class _StorePublicScreenState extends State<StorePublicScreen> {
                     onSelected: (v) {
                       if (v == 'report') _report();
                       if (v == 'hide') _toggleHide();
-                      if (v == 'referral') {
-                        Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) =>
-                                    ReferralScreen(store: widget.store)));
-                      }
                     },
                     itemBuilder: (_) => [
-                      if (widget.store.referralEnabled)
-                        PopupMenuItem(
-                          value: 'referral',
-                          child: Row(children: [
-                            const Icon(Icons.card_giftcard_rounded,
-                                size: 18, color: cGreen),
-                            const SizedBox(width: 10),
-                            Text(
-                                tr('Пригласи друга · −${widget.store.referralPercent}%',
-                                    'Досыңды шақыр · −${widget.store.referralPercent}%'),
-                                style: manrope(13.5, FontWeight.w700,
-                                    color: cGreenDeep)),
-                          ]),
-                        ),
                       PopupMenuItem(
                         value: 'report',
                         child: Row(children: [
@@ -407,6 +422,9 @@ class _StorePublicScreenState extends State<StorePublicScreen> {
                     : CustomScrollView(slivers: [
                     // Дүкен ақпараты
                     SliverToBoxAdapter(child: _buildStoreInfo()),
+                    // Досыңды шақыр — тікелей көрінетін баннер (⋮ ішінде емес)
+                    if (!widget.previewMode && widget.store.referralEnabled)
+                      SliverToBoxAdapter(child: _buildReferralBanner()),
                     // Іздеу
                     SliverToBoxAdapter(
                       child: Padding(
@@ -425,6 +443,17 @@ class _StorePublicScreenState extends State<StorePublicScreen> {
                         ),
                       ),
                     ),
+                    if (cards.isNotEmpty && search.isFallback)
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                          child: Text(
+                              tr('Точных совпадений нет — вот похожие товары',
+                                  'Дәл сәйкестік табылмады — міне ұқсас тауарлар'),
+                              style: manrope(12.5, FontWeight.w600,
+                                  color: cInk3)),
+                        ),
+                      ),
                     if (cards.isEmpty)
                       SliverToBoxAdapter(
                         child: Padding(
@@ -547,6 +576,45 @@ class _StorePublicScreenState extends State<StorePublicScreen> {
           if (store.phone.isNotEmpty)
             _infoRow(Icons.phone_outlined, store.phone),
         ]),
+      ),
+    );
+  }
+
+  Widget _buildReferralBanner() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: GestureDetector(
+        onTap: _openReferral,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: cGreenTint,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: cGreen.withValues(alpha: 0.25)),
+          ),
+          child: Row(children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(11),
+              ),
+              child: const Icon(Icons.card_giftcard_rounded,
+                  color: cGreenDeep, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                  tr('Пригласи друга · −${store.referralPercent}%',
+                      'Досыңды шақыр · −${store.referralPercent}%'),
+                  style:
+                      manrope(14, FontWeight.w800, color: cGreenDeep)),
+            ),
+            const Icon(Icons.chevron_right_rounded,
+                color: cGreenDeep, size: 20),
+          ]),
+        ),
       ),
     );
   }

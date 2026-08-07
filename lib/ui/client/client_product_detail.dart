@@ -13,6 +13,7 @@ import 'client_shell.dart';
 import 'related_products_section.dart';
 import 'report_sheet.dart';
 import 'reviews_section.dart';
+import 'questions_section.dart';
 import 'store_public_screen.dart';
 
 import '../../core/lang.dart';
@@ -639,6 +640,14 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
                         product: _currentProduct,
                         store: widget.store,
                       ),
+
+                      // ── Вопросы и ответы (сатып алу міндетті емес) ──
+                      if (!widget.previewMode)
+                        QuestionsSection(
+                          key: ValueKey('questions_${_currentProduct.id}'),
+                          product: _currentProduct,
+                          store: widget.store,
+                        ),
 
                       // ── Ұқсас тауарлар (сол дүкеннен) ───────────────
                       if (!widget.previewMode)

@@ -495,9 +495,8 @@ class _ClientCatalogScreenState extends State<ClientCatalogScreen> {
             _matchAud(g.main, aud) &&
             g.main.type.trim() == type)
         .toList();
-    final groups = _query.isEmpty
-        ? base
-        : base.where((g) => productGroupMatches(g, _query)).toList();
+    final search = searchProductGroups(base, _query);
+    final groups = search.results;
     // Әр түс — жеке карточка.
     final cards = expandVariantCards(groups);
     final batchesById = {for (final pr in _pairs) pr.product.id: pr.batches};
@@ -516,6 +515,14 @@ class _ClientCatalogScreenState extends State<ClientCatalogScreen> {
           ),
         )
       else ...[
+        if (search.isFallback)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+            child: Text(
+                tr('Точных совпадений нет — вот похожие товары',
+                    'Дәл сәйкестік табылмады — міне ұқсас тауарлар'),
+                style: manrope(12.5, FontWeight.w600, color: cInk3)),
+          ),
         Align(
           alignment: Alignment.centerLeft,
           child: Padding(

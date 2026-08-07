@@ -112,6 +112,18 @@ class SearchHelper {
     return true;
   }
 
+  /// Сұраныс сөздерінің қаншасы [text]-те табылғанын санайды («ұқсас
+  /// нәтижелер» fallback-ын сұрыптау үшін — дәл сәйкестік табылмағанда).
+  static int matchedWordCount(String text, String query) {
+    final words = query.trim().split(RegExp(r'\s+'));
+    var n = 0;
+    for (final w in words) {
+      if (w.isEmpty) continue;
+      if (wordMatches(text, w)) n++;
+    }
+    return n;
+  }
+
   /// Балл: жоғары = жақсырақ сәйкестік (нәтижелерді сұрыптауға).
   static int score(String text, String query) {
     final tLower = text.toLowerCase();
