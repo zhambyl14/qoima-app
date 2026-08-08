@@ -32,6 +32,25 @@ class CourierInfoBanner extends StatelessWidget {
 
     final blocks = <Widget>[];
 
+    // ── 0) Қалада курьерлік қызмет жоқ — дүкен өзі жеткізеді (0055) ─────────
+    //  Мұнда курьер ЕШҚАШАН келмейді, сондықтан «Курьер іздеудеміз» деп
+    //  жалған үміт бермейміз: дүкен нақты не істеу керегін көреді.
+    if (order.storeDeliversItself) {
+      blocks.add(_box(
+        tone: 'blue',
+        icon: Icons.local_shipping_rounded,
+        title: forStore
+            ? tr('Доставляете вы сами', 'Өзіңіз жеткізесіз')
+            : tr('Магазин доставит сам', 'Дүкен өзі жеткізеді'),
+        subtitle: forStore
+            ? tr('В этом городе курьерской службы нет — свяжитесь с клиентом и согласуйте доставку',
+                'Бұл қалада курьерлік қызмет жоқ — клиентпен байланысып, жеткізуді келісіңіз')
+            : tr('Магазин свяжется с вами и согласует доставку',
+                'Дүкен сізбен байланысып, жеткізуді келіседі'),
+      ));
+      return _wrap(blocks);
+    }
+
     // ── 1) Курьер күйі ───────────────────────────────────────────────────────
     if (!order.hasCourier) {
       if (order.status == OrderModel.statusConfirmed) {
@@ -88,6 +107,10 @@ class CourierInfoBanner extends StatelessWidget {
       blocks.add(_returnLegBlock(context));
     }
 
+    return _wrap(blocks);
+  }
+
+  Widget _wrap(List<Widget> blocks) {
     if (blocks.isEmpty) return const SizedBox.shrink();
     return Column(children: [
       for (var i = 0; i < blocks.length; i++) ...[

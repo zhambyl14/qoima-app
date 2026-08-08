@@ -237,6 +237,49 @@ class _SellerReturnReceiveScreenState
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
             children: [
+              // ── Курьер қайтарымды әкеле жатыр ма? ──────────────────────────
+              //  Курьер тапсырмайынша тауар физикалық түрде дүкенде ЖОҚ —
+              //  «қабылдадым» деп белгілеу қоймаға жалған қалдық қосар еді.
+              if (r.byCourier && r.hasCourier && !alreadyReceived) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: r.courierDelivered ? cGreenTint : cBlueTint,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Row(children: [
+                    Icon(
+                        r.courierDelivered
+                            ? Icons.task_alt_rounded
+                            : Icons.delivery_dining_rounded,
+                        color: r.courierDelivered ? cGreen : cBlue,
+                        size: 19),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                                '${tr('Курьер', 'Курьер')}: ${r.courierName}',
+                                style: manrope(13, FontWeight.w800,
+                                    color: cInk)),
+                            Text(
+                                r.courierDelivered
+                                    ? tr('Привёз возврат — можно принимать',
+                                        'Қайтарымды әкелді — қабылдауға болады')
+                                    : r.courierPickedUp
+                                        ? tr('Забрал у клиента, везёт вам',
+                                            'Клиенттен алды, сізге апара жатыр')
+                                        : tr('Назначен, скоро заберёт у клиента',
+                                            'Тағайындалды, клиенттен жақында алады'),
+                                style: manrope(11.5, FontWeight.w600,
+                                    color: cInk2)),
+                          ]),
+                    ),
+                  ]),
+                ),
+                const SizedBox(height: 14),
+              ],
               // Items summary
               Text(context.l10n.returnItemsSection,
                   style: manrope(13, FontWeight.w700, color: cInk3)
@@ -308,12 +351,40 @@ class _SellerReturnReceiveScreenState
                 ),
 
                 const SizedBox(height: 24),
+                // Курьер әлі жеткізбесе — тауар қолда жоқ, қабылдауға болмайды
+                // (әйтпесе қоймаға шындықта жоқ қалдық қосылар еді).
+                if (r.byCourier && r.hasCourier && !r.courierDelivered) ...[
+                  Container(
+                    padding: const EdgeInsets.all(11),
+                    decoration: BoxDecoration(
+                      color: cAmberTint,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(children: [
+                      const Icon(Icons.hourglass_top_rounded,
+                          color: cAmber, size: 16),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                            tr('Дождитесь курьера — товар ещё не у вас',
+                                'Курьерді күтіңіз — тауар әлі сізде жоқ'),
+                            style: manrope(12, FontWeight.w700, color: cInk2)),
+                      ),
+                    ]),
+                  ),
+                  const SizedBox(height: 12),
+                ],
                 SizedBox(
                   width: double.infinity,
                   height: 52,
                   child: ElevatedButton(
-                    onPressed:
-                        (_receiving || _refunding) ? null : _markReceived,
+                    onPressed: (_receiving ||
+                            _refunding ||
+                            (r.byCourier &&
+                                r.hasCourier &&
+                                !r.courierDelivered))
+                        ? null
+                        : _markReceived,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: cGreen,
                       foregroundColor: Colors.white,

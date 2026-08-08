@@ -46,10 +46,22 @@ class OrderModel {
   final DateTime createdAt;
   final String address;
   final String note;
+  /// Клиент ДҮКЕНГЕ аударатын сома (тауар/депозит + «өлшеп көру»).
+  /// ⚠️ 0053-тен бастап мұнда жеткізу ақысы ЖОҚ — ол курьердікі.
   final double depositAmount;
+  /// Жеткізу ақысы — КУРЬЕРДІКІ. Клиент оны тапсырысты алған сәтте курьерге
+  /// ТІКЕЛЕЙ төлейді, дүкеннің кассасына мүлде тимейді (0053).
   final double deliveryFee;
-  /// «Өлшеп көру» ақысы (0050) — жеткізу ақысынан бөлек есептеледі.
+  /// «Өлшеп көру» ақысы (0050) — ДҮКЕННІҢ қызмет кірісі: екінші жұп оның
+  /// қоймасынан шығады, тәуекел де соныкі. Дүкенге аударылады.
   final double fittingFee;
+  /// Курьер жеткізу ақысын клиенттен нақты алды ма (0053).
+  final bool deliveryFeeCollected;
+  final DateTime? deliveryFeeCollectedAt;
+  /// Жеткізуді КІМ орындайды (0055):
+  ///   'courier' — платформа курьері (қалада қызмет қосулы);
+  ///   'store'   — дүкен өзі жеткізеді/жөнелтеді, шартын клиентпен келіседі.
+  final String deliveryMode;
   final String pickupCode;
   final int orderNumber;
   final String sellerId;
@@ -116,6 +128,9 @@ class OrderModel {
   static const String statusCancelled = 'cancelled';
   static const String statusReturned = 'returned';
 
+  static const String deliveryByCourier = 'courier';
+  static const String deliveryByStore = 'store';
+
   const OrderModel({
     required this.id,
     required this.clientPhone,
@@ -135,6 +150,9 @@ class OrderModel {
     this.depositAmount = 0.0,
     this.deliveryFee = 0.0,
     this.fittingFee = 0.0,
+    this.deliveryFeeCollected = false,
+    this.deliveryFeeCollectedAt,
+    this.deliveryMode = 'courier',
     this.pickupCode = '',
     this.orderNumber = 0,
     this.sellerId = 'онлайн',
@@ -173,11 +191,26 @@ class OrderModel {
 
   double get total => items.fold(0.0, (s, i) => s + i.subtotal);
   double get finalTotal => (total - promoDiscount).clamp(0.0, total);
-  /// Жеткізу + «өлшеп көру» ақысы (клиент осыны төлейді).
-  double get serviceFee => deliveryFee + fittingFee;
-  double get totalWithDelivery => finalTotal + serviceFee;
+
+  // ── АҚША БӨЛІНУІ (0053) — жасырын бап жоқ ───────────────────────────────────
+  //  Клиенттің шығыны ЕКІ бөлек төлемнен тұрады. Оларды қосып бір сан
+  //  көрсетуге БОЛМАЙДЫ: ақшаны әртүрлі адам алады.
+  //
+  //    storeAmount   → ДҮКЕН  (алдын ала аударым + чек)
+  //    courierAmount → КУРЬЕР (тапсырысты алған сәтте, қолма-қол)
+
+  /// Дүкенге тиесілі сома: тауар (промодан кейін) + «өлшеп көру» қызметі.
+  double get storeAmount => finalTotal + fittingFee;
+
+  /// Курьерге тиесілі сома: жеткізу ақысы. Дүкеннің кірісі ЕМЕС.
+  double get courierAmount => deliveryFee;
+
+  /// Клиенттің жалпы шығыны — тек КӨРСЕТУ үшін (екі төлемнің қосындысы).
+  double get clientTotal => storeAmount + courierAmount;
+
+  /// Дүкенде қалатын доплата (тек бронь үшін мағыналы).
   double get remainingAmount =>
-      (finalTotal - depositAmount).clamp(0.0, finalTotal);
+      (storeAmount - depositAmount).clamp(0.0, storeAmount);
 
   bool get isSmartReservation => orderType == typeSmartReservation;
   bool get isClickCollect => orderType == typeClickCollect;
@@ -187,6 +220,11 @@ class OrderModel {
   static const String courierAssigned = 'assigned';
   static const String courierPickedUp = 'picked_up';
   static const String courierDelivered = 'delivered';
+
+  /// Тапсырысты платформа курьері жеткізе ме (қалада қызмет қосулы ма).
+  /// false болса — дүкен өзі жеткізеді/жөнелтеді (0055).
+  bool get byPlatformCourier => isDelivery && deliveryMode != deliveryByStore;
+  bool get storeDeliversItself => isDelivery && deliveryMode == deliveryByStore;
 
   bool get hasCourier => courierUid.isNotEmpty;
   bool get courierOnWay => courierStatus == courierPickedUp;
@@ -235,6 +273,9 @@ class OrderModel {
       depositAmount: (m['deposit_amount'] as num?)?.toDouble() ?? 0,
       deliveryFee: (m['delivery_fee'] as num?)?.toDouble() ?? 0,
       fittingFee: (m['fitting_fee'] as num?)?.toDouble() ?? 0,
+      deliveryFeeCollected: m['delivery_fee_collected'] as bool? ?? false,
+      deliveryFeeCollectedAt: dtn(m['delivery_fee_collected_at']),
+      deliveryMode: m['delivery_mode'] as String? ?? deliveryByCourier,
       pickupCode: m['pickup_code'] as String? ?? '',
       orderNumber: (m['order_number'] as num?)?.toInt() ?? 0,
       sellerId: m['seller_id'] as String? ?? 'онлайн',
@@ -292,6 +333,7 @@ class OrderModel {
         'deposit_amount': depositAmount,
         'delivery_fee': deliveryFee,
         'fitting_fee': fittingFee,
+        'delivery_mode': deliveryMode,
         'pickup_code': pickupCode,
         'order_number': orderNumber,
         'seller_id': sellerId,
@@ -336,6 +378,9 @@ class OrderModel {
     double? depositAmount,
     double? deliveryFee,
     double? fittingFee,
+    bool? deliveryFeeCollected,
+    DateTime? deliveryFeeCollectedAt,
+    String? deliveryMode,
     String? pickupCode,
     int? orderNumber,
     String? sellerId,
@@ -390,6 +435,10 @@ class OrderModel {
         depositAmount: depositAmount ?? this.depositAmount,
         deliveryFee: deliveryFee ?? this.deliveryFee,
         fittingFee: fittingFee ?? this.fittingFee,
+        deliveryFeeCollected: deliveryFeeCollected ?? this.deliveryFeeCollected,
+        deliveryFeeCollectedAt:
+            deliveryFeeCollectedAt ?? this.deliveryFeeCollectedAt,
+        deliveryMode: deliveryMode ?? this.deliveryMode,
         pickupCode: pickupCode ?? this.pickupCode,
         orderNumber: orderNumber ?? this.orderNumber,
         sellerId: sellerId ?? this.sellerId,

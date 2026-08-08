@@ -1202,8 +1202,16 @@ class _OnlineTab extends StatelessWidget {
                 .length;
             final totalCount = allOrders.length;
 
+            // ⚠️ ТҮЗЕТУ (0053): бұрын мұнда `totalWithDelivery` тұрған —
+            // яғни КУРЬЕРДІҢ жеткізу ақысы дүкеннің түсіміне қосылып,
+            // аналитика шындықтан жоғары көрсететін. Енді `storeAmount`:
+            // тауар (промодан кейін) + «өлшеп көру» қызметі. Жеткізу ақысы
+            // дүкеннің кассасына мүлде түспейді.
             final revenue =
-                completed.fold<double>(0, (s, o) => s + o.totalWithDelivery);
+                completed.fold<double>(0, (s, o) => s + o.storeAmount);
+            // Курьерге кеткен ақша — тек мәлімет үшін, түсімге ҚОСЫЛМАЙДЫ.
+            final courierPaid =
+                completed.fold<double>(0, (s, o) => s + o.courierAmount);
             final pairsSold = completed.fold<int>(
                 0, (s, o) => s + o.items.fold(0, (a, i) => a + i.qty));
             final margin = revenue - onlineCost;
@@ -1223,7 +1231,7 @@ class _OnlineTab extends StatelessWidget {
                 firstOrderMonth[o.clientUid] = key;
               }
               spendByClient[o.clientUid] =
-                  (spendByClient[o.clientUid] ?? 0) + o.totalWithDelivery;
+                  (spendByClient[o.clientUid] ?? 0) + o.storeAmount;
               nameByClient[o.clientUid] = o.clientName;
             }
             final monthBuyers = completed
@@ -1251,6 +1259,36 @@ class _OnlineTab extends StatelessWidget {
                   icon: Icons.shopping_cart_rounded,
                   color: cGreen,
                 ),
+                // Курьерге кеткен ақша — АЙҚЫН бөлек көрсетіледі, әйтпесе
+                // «неге сома азайды?» деген сұрақ туады. Бұл дүкеннің
+                // шығыны да, кірісі де емес: клиент курьерге тікелей төлейді.
+                if (courierPaid > 0) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: cBg,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: cLine),
+                    ),
+                    child: Row(children: [
+                      const Icon(Icons.delivery_dining_rounded,
+                          size: 17, color: cAmber),
+                      const SizedBox(width: 9),
+                      Expanded(
+                        child: Text(
+                            tr('Клиенты заплатили курьерам ${_fmt(courierPaid)} ₸ — мимо вашей кассы',
+                                'Клиенттер курьерлерге ${_fmt(courierPaid)} ₸ төледі — сіздің кассаға түспейді'),
+                            style: const TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w600,
+                                color: cInk3)),
+                      ),
+                    ]),
+                  ),
+                ],
                 const SizedBox(height: 10),
                 Row(children: [
                   Expanded(
@@ -1488,7 +1526,8 @@ class _MobileDailyChartState extends State<_MobileDailyChart> {
     }
     for (final o in widget.onlineOrders) {
       if (o.createdAt.month == widget.month.month) {
-        byDay[o.createdAt.day - 1] += o.totalWithDelivery;
+        // Жеткізу ақысы курьердікі — дүкеннің күндік түсіміне кірмейді (0053).
+        byDay[o.createdAt.day - 1] += o.storeAmount;
         qtyByDay[o.createdAt.day - 1] +=
             o.items.fold(0, (a, i) => a + i.qty);
       }

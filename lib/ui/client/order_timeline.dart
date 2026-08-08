@@ -75,6 +75,34 @@ class OrderTimeline extends StatelessWidget {
       return steps;
     }
 
+    // ── Қалада курьерлік қызмет жоқ: дүкен өзі жеткізеді (0055) ────────────
+    //  Курьер қадамдарын көрсету жалған үміт болар еді — ол ешқашан келмейді.
+    if (o.storeDeliversItself) {
+      steps.add(_Step(
+        icon: Icons.local_shipping_rounded,
+        title: tr('Магазин доставит сам', 'Дүкен өзі жеткізеді'),
+        subtitle: completed
+            ? null
+            : tr('Магазин свяжется с вами и согласует доставку',
+                'Дүкен сізбен байланысып, жеткізуді келіседі'),
+        done: completed,
+      ));
+      steps.add(_Step(
+        icon: Icons.check_circle_rounded,
+        title: tr('Заказ у вас', 'Тапсырыс сізде'),
+        done: completed,
+      ));
+      if (cancelled) {
+        steps.add(_Step(
+          icon: Icons.cancel_rounded,
+          title: tr('Заказ отменён', 'Тапсырыс болдырылмады'),
+          done: true,
+          tone: 'red',
+        ));
+      }
+      return steps;
+    }
+
     // ── Жеткізу жолы ────────────────────────────────────────────────────────
     final assigned = o.hasCourier;
     final onWay = o.courierStatus == OrderModel.courierPickedUp ||

@@ -110,6 +110,7 @@ class ReturnService {
           reasonNote: input.reasonNote,
           photoUrls: input.photoUrls,
           pickup: input.pickup,
+          pickupAddress: input.pickupAddress,
           refundMethod: input.refundMethod,
           status: ReturnStatus.requested,
           createdAt: now,
@@ -519,6 +520,8 @@ class ReturnService {
         final date = raw is String ? DateTime.tryParse(raw) : null;
         return d['type'] != 'return' &&
             d['type'] != 'writeoff' &&
+            d['type'] != 'service' && // қызмет кірісі — сатылым емес
+
             date != null &&
             date.isAfter(range.from) &&
             date.isBefore(range.to);

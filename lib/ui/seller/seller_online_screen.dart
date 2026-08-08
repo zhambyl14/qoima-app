@@ -9,6 +9,7 @@ import '../../data/services/firestore_service.dart';
 import '../../theme/qoima_design.dart';
 import '../client/reservation_timer_widget.dart';
 import '../shared/courier_info_banner.dart';
+import '../shared/order_money_card.dart';
 import '../../data/models/return_model.dart';
 import '../../data/services/return_service.dart';
 
@@ -98,21 +99,29 @@ class _SellerOnlineScreenState extends State<SellerOnlineScreen> {
     }
   }
 
+  /// Тапсырыс әлі назар талап ете ме.
+  ///
+  /// ⚠️ Жеткізілген тапсырыс та белсенді бола алады: «өлшеп көру» кезінде
+  /// клиент таңдамаған өлшем курьермен қоймаға қайтып келе жатыр, оны
+  /// сатушы «қабылдадым» деп растауы керек. Растамайынша қойма қалдығы
+  /// шындықты көрсетпейді.
+  static bool _needsAttention(OrderModel o) =>
+      o.status == OrderModel.statusPending ||
+      o.status == OrderModel.statusReserved ||
+      o.status == OrderModel.statusRejected ||
+      o.status == OrderModel.statusConfirmed ||
+      o.returnLegPending;
+
   List<OrderModel> _applyFilter(List<OrderModel> all) {
     switch (_filter) {
       case 'active':
-        return all
-            .where((o) =>
-                o.status == OrderModel.statusPending ||
-                o.status == OrderModel.statusReserved ||
-                o.status == OrderModel.statusRejected ||
-                o.status == OrderModel.statusConfirmed)
-            .toList();
+        return all.where(_needsAttention).toList();
       case 'done':
         return all
             .where((o) =>
-                o.status == OrderModel.statusCompleted ||
-                o.status == OrderModel.statusReturned)
+                (o.status == OrderModel.statusCompleted ||
+                    o.status == OrderModel.statusReturned) &&
+                !o.returnLegPending)
             .toList();
       case 'cancelled':
         return all
@@ -271,14 +280,11 @@ class _SellerOnlineScreenState extends State<SellerOnlineScreen> {
                         .where(
                             (o) => whId.isEmpty || o.warehouseId == whId)
                         .toList();
-                    final active = all
-                        .where((o) =>
-                            o.status == OrderModel.statusReserved ||
-                            o.status == OrderModel.statusPending)
-                        .length;
+                    final active = all.where(_needsAttention).length;
                     final done = all
-                        .where(
-                            (o) => o.status == OrderModel.statusCompleted)
+                        .where((o) =>
+                            o.status == OrderModel.statusCompleted &&
+                            !o.returnLegPending)
                         .length;
                     final cancelled = all
                         .where(
@@ -617,6 +623,10 @@ class _OrderCardState extends State<_OrderCard> {
   }
 
   String get _statusLabel {
+    // Жеткізілсе де, айналымдағы өлшем қоймаға оралмаған — тапсырыс ЖАБЫЛМАҒАН.
+    if (o.returnLegPending) {
+      return tr('Ждём возврат размера', 'Өлшемнің қайтуын күтуде');
+    }
     switch (o.status) {
       case OrderModel.statusPending:
         return tr('На проверке', 'Тексеруде');
@@ -638,6 +648,7 @@ class _OrderCardState extends State<_OrderCard> {
   }
 
   String get _statusTone {
+    if (o.returnLegPending) return 'amber';
     switch (o.status) {
       case OrderModel.statusPending:
       case OrderModel.statusRejected:
@@ -939,32 +950,15 @@ class _OrderCardState extends State<_OrderCard> {
                   value: _payMethodLabel(o.inStorePaymentMethod),
                   valueColor: _payMethodColor(o.inStorePaymentMethod)),
           ] else if (o.isDelivery) ...[
-            _PayRow(
-                label: tr('Сумма товаров', 'Тауар сомасы'),
-                value: '${o.total.toStringAsFixed(0)} ₸'),
-            if (o.promoDiscount > 0)
-              _PayRow(
-                  label: tr('Промокод ${o.promoCode}', 'Промокод ${o.promoCode}'),
-                  value: '−${o.promoDiscount.toStringAsFixed(0)} ₸',
-                  valueColor: cGreen),
-            if (o.deliveryFee > 0)
-              _PayRow(
-                  label: tr('Доставка курьером', 'Курьер жеткізуі'),
-                  value: '${o.deliveryFee.toStringAsFixed(0)} ₸'),
-            if (o.fittingFee > 0)
-              _PayRow(
-                  label: tr('Примерка', 'Өлшеп көру'),
-                  value: '${o.fittingFee.toStringAsFixed(0)} ₸'),
-            _PayRow(
-                label: tr('Итого оплачено', 'Барлығы төленді'),
-                value: '${o.totalWithDelivery.toStringAsFixed(0)} ₸',
-                valueColor: cGreen,
-                bold: true),
-            if (o.paymentBank.isNotEmpty)
+            // Ақшаның толық жіктелуі: дүкенге не тиесілі, курьерге не тиесілі.
+            OrderMoneyCard(order: o, audience: 'store'),
+            if (o.paymentBank.isNotEmpty) ...[
+              const SizedBox(height: 6),
               _PayRow(
                   label: tr('Оплачено через', 'Төлем әдісі'),
                   value: _payMethodLabel(o.paymentBank),
                   valueColor: _payMethodColor(o.paymentBank)),
+            ],
             const SizedBox(height: 10),
             CourierInfoBanner(
               order: o,
@@ -1011,15 +1005,44 @@ class _OrderCardState extends State<_OrderCard> {
           if (_isActive && !_lockedByCourier) ...[
             const SizedBox(height: 12),
 
-            // confirmed → hand over
+            // confirmed → тауарды беру.
+            //
+            // ⚠️ ЖЕТКІЗУ тапсырысын клиентке КУРЬЕР береді. Сатушының ісі —
+            // тапсырысты дайындап, курьер келгенде беру кодын айту. Сондықтан
+            // мұнда басты батырма емес, қосалқы жол ғана тұрады (курьер
+            // табылмай қалған жағдайға).
             if (o.status == OrderModel.statusConfirmed)
-              QPrimaryButton(
-                label: o.isDelivery ? tr('Доставлено', 'Жеткізілді') : tr('Выдать товар', 'Тауар беру'),
-                height: 46,
-                icon: const Icon(Icons.check_circle_outline_rounded,
-                    color: Colors.white, size: 18),
-                onPressed: _handOver,
-              ),
+              // Платформа курьері келетін тапсырысты курьер жабады.
+              if (o.byPlatformCourier)
+                SizedBox(
+                  width: double.infinity,
+                  height: 40,
+                  child: OutlinedButton.icon(
+                    onPressed: _handOver,
+                    icon: const Icon(Icons.person_pin_circle_outlined,
+                        size: 16, color: cInk2),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: cInk2,
+                      side: const BorderSide(color: cLine),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                      padding: EdgeInsets.zero,
+                    ),
+                    label: Text(
+                        tr('Выдал сам, без курьера', 'Курьерсіз өзім бердім'),
+                        style: manrope(12.5, FontWeight.w700, color: cInk2)),
+                  ),
+                )
+              else
+                QPrimaryButton(
+                  label: o.isDelivery
+                      ? tr('Доставлено клиенту', 'Клиентке жеткізілді')
+                      : tr('Выдать товар', 'Тауар беру'),
+                  height: 46,
+                  icon: const Icon(Icons.check_circle_outline_rounded,
+                      color: Colors.white, size: 18),
+                  onPressed: _handOver,
+                ),
 
             // reserved → выдать + доплата (одним шагом)
             if (o.status == OrderModel.statusReserved)

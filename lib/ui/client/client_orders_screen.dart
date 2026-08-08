@@ -17,6 +17,7 @@ import '../../core/lang.dart';
 import '../../core/error_text.dart';
 import '../shared/error_view.dart';
 import '../shared/courier_info_banner.dart';
+import '../shared/order_money_card.dart';
 import 'order_timeline.dart';
 
 class ClientOrdersScreen extends StatefulWidget {
@@ -606,39 +607,11 @@ class _OrderCardState extends State<_OrderCard> {
                 ]),
           ],
 
-          if (o.serviceFee > 0) ...[
-            const SizedBox(height: 6),
-            Container(height: 1, color: cLine2),
-            const SizedBox(height: 6),
-            if (o.deliveryFee > 0)
-              Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(tr('Доставка курьером', 'Курьер жеткізуі'),
-                        style: manrope(12, FontWeight.w500, color: cInk2)),
-                    Text(money(o.deliveryFee),
-                        style: manrope(12, FontWeight.w700, color: cInk)),
-                  ]),
-            if (o.fittingFee > 0)
-              Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(tr('Примерка', 'Өлшеп көру'),
-                        style: manrope(12, FontWeight.w500, color: cInk2)),
-                    Text(money(o.fittingFee),
-                        style: manrope(12, FontWeight.w700, color: cInk)),
-                  ]),
-            Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(tr('Итого оплачено', 'Барлығы төленді'),
-                      style: manrope(12.5, FontWeight.w700, color: cInk)),
-                  Text(money(o.totalWithDelivery),
-                      style: manrope(13, FontWeight.w800, color: cGreen)),
-                ]),
-          ],
-
           if (o.isDelivery) ...[
+            const SizedBox(height: 8),
+            // Ақшаның толық жіктелуі: дүкенге қанша аударылды, курьерге
+            // қанша беріледі. Клиент екі бөлек төлемді анық көреді.
+            OrderMoneyCard(order: o, audience: 'client'),
             const SizedBox(height: 8),
             CourierInfoBanner(order: o),
             const SizedBox(height: 8),

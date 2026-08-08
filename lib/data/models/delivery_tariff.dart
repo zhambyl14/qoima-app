@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 /// Жеткізу тарифі (0050) — superadmin «Реквизиты» экранында өзгертеді,
 /// app_settings-те сақталады, `delivery_tariff()` RPC арқылы оқылады
 /// (қонақ та себетте ақыны көруі керек — сондықтан публичті RPC).
@@ -28,6 +30,12 @@ class DeliveryTariff {
   /// тауар сомасынан ЕШҚАШАН шегерілмейді (0052).
   final double returnFee;
 
+  /// Курьерлік қызмет ІСКЕ ҚОСЫЛҒАН қалалар (0055) — модератор басқарады.
+  ///
+  /// ⚠️ БОС ТІЗІМ = ШЕКТЕУ ЖОҚ (барлық қалада қосулы). Серверде де
+  /// (`courier_city_enabled`) дәл сол ереже — екеуі бір ақиқатты айтуы керек.
+  final List<String> courierCities;
+
   const DeliveryTariff({
     this.baseFee = 690,
     this.reducedFee = 390,
@@ -36,10 +44,34 @@ class DeliveryTariff {
     this.fittingFee = 300,
     this.fittingMaxItems = 2,
     this.returnFee = 1500,
+    this.courierCities = const [],
   });
 
   static double _num(Map<String, String> m, String k, double fallback) =>
       double.tryParse(m[k] ?? '') ?? fallback;
+
+  static List<String> _cities(Map<String, String> m) {
+    final raw = (m['delivery_courier_cities'] ?? '').trim();
+    if (raw.isEmpty) return const [];
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return const [];
+      return decoded
+          .map((e) => e.toString().trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// Осы қалада платформа курьері жұмыс істей ме.
+  bool courierWorksIn(String city) {
+    final c = city.trim().toLowerCase();
+    if (c.isEmpty) return false;
+    if (courierCities.isEmpty) return true; // шектеу қойылмаған
+    return courierCities.any((e) => e.trim().toLowerCase() == c);
+  }
 
   factory DeliveryTariff.fromMap(Map<String, String> m) {
     const d = DeliveryTariff();
@@ -55,6 +87,7 @@ class DeliveryTariff {
           _num(m, 'delivery_fitting_max_items', d.fittingMaxItems.toDouble())
               .round(),
       returnFee: _num(m, 'delivery_return_fee', d.returnFee),
+      courierCities: _cities(m),
     );
   }
 
@@ -66,6 +99,7 @@ class DeliveryTariff {
         'delivery_fitting_fee': fittingFee.toStringAsFixed(0),
         'delivery_fitting_max_items': '$fittingMaxItems',
         'delivery_return_fee': returnFee.toStringAsFixed(0),
+        'delivery_courier_cities': jsonEncode(courierCities),
       };
 
   DeliveryTariff copyWith({
@@ -76,6 +110,7 @@ class DeliveryTariff {
     double? fittingFee,
     int? fittingMaxItems,
     double? returnFee,
+    List<String>? courierCities,
   }) =>
       DeliveryTariff(
         baseFee: baseFee ?? this.baseFee,
@@ -85,6 +120,7 @@ class DeliveryTariff {
         fittingFee: fittingFee ?? this.fittingFee,
         fittingMaxItems: fittingMaxItems ?? this.fittingMaxItems,
         returnFee: returnFee ?? this.returnFee,
+        courierCities: courierCities ?? this.courierCities,
       );
 
   /// Бүкіл тапсырыс сомасына («барлық суб-тапсырыс» қосындысы) қатысты

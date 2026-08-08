@@ -1877,6 +1877,57 @@ class FirestoreService {
         'type': 'sale',
       });
     }
+    // ── Қызмет кірістері (0053) — тауарсыз, quantity = 0 ────────────────────
+    //  Серверлік `courier_complete_order` мұны өзі жазады; бұл жол дүкен
+    //  тапсырысты ӨЗІ берген жағдайға арналған (курьерсіз). Екеуі бір пішімде
+    //  болуы шарт, әйтпесе аналитика екі түрлі сан көрсетеді.
+    final services = <Map<String, dynamic>>[];
+    void addService(String name, double amount) {
+      if (amount <= 0) return;
+      services.add({
+        'owner_uid': order.adminUid,
+        'product_id': null,
+        'batch_id': null,
+        'seller_id': 'онлайн',
+        'seller_name': 'Онлайн',
+        'is_online': true,
+        'order_id': order.id,
+        'delivered_by_name': seller.name,
+        'base_price': amount,
+        'total_price': amount,
+        'discount_amount': 0,
+        'quantity': 0,
+        'selected_size': '',
+        'sizes_sold': <String, int>{},
+        'sale_date': DateTime.now().toIso8601String(),
+        'warehouse_id': order.warehouseId.isEmpty ? null : order.warehouseId,
+        'product_name': name,
+        'purchase_price': 0,
+        'payment_method': payMethod,
+        'deposit_payment_method': depositMethod,
+        'receipt_number': receipt,
+        'type': 'service',
+      });
+    }
+
+    addService('Примерка / Өлшеп көру', order.fittingFee);
+    // Жеткізу ақысы ӘДЕТТЕ курьердікі. Бірақ мұнда курьер жоқ — дүкен өзі
+    // жеткізді, ақыны да өзі алды. Сондықтан ол дүкеннің қызмет кірісі.
+    if (!order.hasCourier) {
+      addService('Доставка магазином / Дүкен жеткізуі', order.deliveryFee);
+      if (order.deliveryFee > 0) {
+        try {
+          await _sb.from('orders').update({
+            'delivery_fee_collected': true,
+            'delivery_fee_collected_at': DateTime.now().toIso8601String(),
+          }).eq('id', order.id);
+        } catch (_) {}
+      }
+    }
+    if (services.isNotEmpty) {
+      await _sb.from('sales_history').insert(services);
+    }
+
     if (sales.isNotEmpty) await _sb.from('sales_history').insert(sales);
 
     for (final pid in order.items.map((i) => i.productId).toSet()) {

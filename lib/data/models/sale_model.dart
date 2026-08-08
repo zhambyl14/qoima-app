@@ -21,7 +21,12 @@ class SaleModel {
   final String paymentMethod;
   final String depositPaymentMethod;
   final String receiptNumber;
-  final String saleType; // 'sale' | 'return' | 'writeoff'
+  /// 'sale' | 'return' | 'writeoff' | 'service'
+  ///
+  /// `service` (0053) — тауарсыз қызмет кірісі («өлшеп көру» ақысы). Қоймадан
+  /// тауар шықпайды, сондықтан quantity = 0 әрі өзіндік құны 0: түсімге кіреді,
+  /// «сатылған дана» санағына кірмейді.
+  final String saleType;
 
   const SaleModel({
     required this.id,
@@ -51,6 +56,8 @@ class SaleModel {
 
   bool get isReturn => saleType == 'return';
   bool get isWriteOff => saleType == 'writeoff';
+  /// Тауарсыз қызмет («өлшеп көру») — түсім бар, тауар қозғалысы жоқ.
+  bool get isService => saleType == 'service';
   bool get hasDiscount => basePrice > totalPrice + 0.5;
 
   double get effectiveDiscountPercent {

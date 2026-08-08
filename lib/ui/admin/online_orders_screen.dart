@@ -10,6 +10,7 @@ import '../../data/services/firestore_service.dart';
 import '../../theme/qoima_design.dart';
 import '../client/reservation_timer_widget.dart';
 import '../shared/courier_info_banner.dart';
+import '../shared/order_money_card.dart';
 import '../shared/prompt_text_dialog.dart';
 
 import '../../core/lang.dart';
@@ -85,21 +86,29 @@ class _OnlineOrdersScreenState extends State<OnlineOrdersScreen> {
     }
   }
 
+  /// Тапсырыс дүкеннің НАЗАРЫН талап ете ме.
+  ///
+  /// ⚠️ Жеткізілген (completed) тапсырыс та белсенді бола алады: «өлшеп көру»
+  /// кезінде клиент таңдамаған өлшем курьермен қоймаға қайтып келе жатыр да,
+  /// оны дүкен «қабылдадым» деп растауы керек. Растамайынша қойма қалдығы
+  /// шындықты көрсетпейді — сондықтан ол «Аяқталды» емес, «Белсенді».
+  static bool _needsAttention(OrderModel o) =>
+      o.status == OrderModel.statusPending ||
+      o.status == OrderModel.statusReserved ||
+      o.status == OrderModel.statusRejected ||
+      o.status == OrderModel.statusConfirmed ||
+      o.returnLegPending;
+
   List<OrderModel> _applyFilter(List<OrderModel> all) {
     switch (_filter) {
       case 'active':
-        return all
-            .where((o) =>
-                o.status == OrderModel.statusPending ||
-                o.status == OrderModel.statusReserved ||
-                o.status == OrderModel.statusRejected ||
-                o.status == OrderModel.statusConfirmed)
-            .toList();
+        return all.where(_needsAttention).toList();
       case 'done':
         return all
             .where((o) =>
-                o.status == OrderModel.statusCompleted ||
-                o.status == OrderModel.statusReturned)
+                (o.status == OrderModel.statusCompleted ||
+                    o.status == OrderModel.statusReturned) &&
+                !o.returnLegPending)
             .toList();
       case 'cancelled':
         return all
@@ -234,14 +243,11 @@ class _OnlineOrdersScreenState extends State<OnlineOrdersScreen> {
                     stream: _ordersStream,
                     builder: (ctx, snap) {
                       final all = snap.data ?? [];
-                      final active = all
-                          .where((o) =>
-                              o.status == OrderModel.statusPending ||
-                              o.status == OrderModel.statusReserved ||
-                              o.status == OrderModel.statusConfirmed)
-                          .length;
+                      final active = all.where(_needsAttention).length;
                       final done = all
-                          .where((o) => o.status == OrderModel.statusCompleted)
+                          .where((o) =>
+                              o.status == OrderModel.statusCompleted &&
+                              !o.returnLegPending)
                           .length;
                       final cancelled = all
                           .where((o) => o.status == OrderModel.statusCancelled)
@@ -498,6 +504,11 @@ class _OrderCardState extends State<_OrderCard> {
   }
 
   String get _statusLabel {
+    // Жеткізілсе де, айналымдағы өлшем әлі қоймаға оралмаған — тапсырыс
+    // ЖАБЫЛМАҒАН. Дүкен оны «Аяқталды» деп ойламауы керек.
+    if (o.returnLegPending) {
+      return tr('Ждём возврат размера', 'Өлшемнің қайтуын күтуде');
+    }
     switch (o.status) {
       case OrderModel.statusPending:
         return o.isAwaitingReview
@@ -521,6 +532,7 @@ class _OrderCardState extends State<_OrderCard> {
   }
 
   Color get _statusColor {
+    if (o.returnLegPending) return cAmber;
     switch (o.status) {
       case OrderModel.statusPending:
         return cAmber;
@@ -1038,34 +1050,16 @@ class _OrderCardState extends State<_OrderCard> {
                                   value: _payMethodLabel(o.inStorePaymentMethod),
                                   valueColor: _payMethodColor(o.inStorePaymentMethod)),
                           ] else if (o.isDelivery) ...[
-                            _PayRow(
-                                label: tr('Сумма товаров', 'Тауар сомасы'),
-                                value: '${o.total.toStringAsFixed(0)} ₸'),
-                            if (o.promoDiscount > 0)
-                              _PayRow(
-                                  label: tr('Промокод ${o.promoCode}',
-                                      'Промокод ${o.promoCode}'),
-                                  value:
-                                      '−${o.promoDiscount.toStringAsFixed(0)} ₸',
-                                  valueColor: cGreen),
-                            if (o.deliveryFee > 0)
-                              _PayRow(
-                                  label: tr('Доставка курьером', 'Курьер жеткізуі'),
-                                  value: '${o.deliveryFee.toStringAsFixed(0)} ₸'),
-                            if (o.fittingFee > 0)
-                              _PayRow(
-                                  label: tr('Примерка', 'Өлшеп көру'),
-                                  value: '${o.fittingFee.toStringAsFixed(0)} ₸'),
-                            _PayRow(
-                                label: tr('Итого к оплате', 'Барлығы төленетіні'),
-                                value: '${o.totalWithDelivery.toStringAsFixed(0)} ₸',
-                                valueColor: cGreen,
-                                bold: true),
-                            if (o.paymentBank.isNotEmpty)
+                            // Ақшаның толық жіктелуі: дүкенге не тиесілі,
+                            // курьерге не тиесілі — бір қарағанда көрінеді.
+                            OrderMoneyCard(order: o, audience: 'store'),
+                            if (o.paymentBank.isNotEmpty) ...[
+                              const SizedBox(height: 6),
                               _PayRow(
                                   label: tr('Оплачено через', 'Төлем әдісі'),
                                   value: _payMethodLabel(o.paymentBank),
                                   valueColor: _payMethodColor(o.paymentBank)),
+                            ],
                             const SizedBox(height: 10),
                             CourierInfoBanner(
                               order: o,
@@ -1246,25 +1240,64 @@ class _OrderCardState extends State<_OrderCard> {
                                         fontWeight: FontWeight.w700)),
                               ),
 
-                            // Confirmed → admin can hand over directly
+                            // Confirmed → тауарды беру.
+                            //
+                            // ⚠️ ЖЕТКІЗУ тапсырысында тауарды клиентке КУРЬЕР
+                            // береді, дүкен емес. Сондықтан мұнда «Выдать
+                            // товар» БАСТЫ батырма болып тұрмайды: дүкеннің
+                            // ісі — курьер келгенде тапсырысты дайындап,
+                            // беру кодын айту. «Өзім жеткіздім» тек курьер
+                            // табылмай қалған жағдайға арналған қосалқы жол.
                             if (o.status == OrderModel.statusConfirmed)
-                              ElevatedButton(
-                                onPressed: _handOver,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: cGreen,
-                                  foregroundColor: Colors.white,
-                                  minimumSize:
-                                      const Size(double.infinity, 44),
-                                  shape: RoundedRectangleBorder(
-                                      borderRadius:
-                                          BorderRadius.circular(10)),
-                                  elevation: 0,
+                              // Платформа курьері келетін тапсырыс — беруді
+                              // курьер жабады. Мұнда тек қосалқы жол қалады.
+                              if (o.byPlatformCourier)
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: OutlinedButton.icon(
+                                    onPressed: _handOver,
+                                    icon: const Icon(
+                                        Icons.person_pin_circle_outlined,
+                                        size: 16),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: cInk2,
+                                      side: const BorderSide(color: cLine),
+                                      shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(10)),
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 10),
+                                    ),
+                                    label: Text(
+                                        tr('Выдал сам, без курьера',
+                                            'Курьерсіз өзім бердім'),
+                                        style: const TextStyle(
+                                            fontSize: 12.5,
+                                            fontWeight: FontWeight.w700)),
+                                  ),
+                                )
+                              else
+                                ElevatedButton(
+                                  onPressed: _handOver,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: cGreen,
+                                    foregroundColor: Colors.white,
+                                    minimumSize:
+                                        const Size(double.infinity, 44),
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(10)),
+                                    elevation: 0,
+                                  ),
+                                  child: Text(
+                                      o.isDelivery
+                                          ? tr('Доставлено клиенту',
+                                              'Клиентке жеткізілді')
+                                          : tr('Выдать товар', 'Тауар беру'),
+                                      style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w700)),
                                 ),
-                                child: Text(tr('Выдать товар', 'Тауар беру'),
-                                    style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w700)),
-                              ),
 
                             const SizedBox(height: 8),
                             SizedBox(

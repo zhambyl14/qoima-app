@@ -294,6 +294,36 @@ class _PaymentInstructionsSheetState extends State<_PaymentInstructionsSheet> {
             ]),
           ),
         ],
+        // Жеткізу ақысы бұл аударымға КІРМЕЙДІ — оны курьер клиенттен өзі
+        // алады. Клиент артық ақша аударып жібермеуі үшін нақты жазамыз.
+        Builder(builder: (_) {
+          final courierFee = widget.orders
+              .fold<double>(0, (s, o) => s + o.deliveryFee);
+          if (courierFee <= 0) return const SizedBox.shrink();
+          return Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: cBg,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.delivery_dining_rounded,
+                    color: cAmber, size: 18),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    tr('Доставка ${money(courierFee)} — курьеру при получении. В этот перевод НЕ входит.',
+                        'Жеткізу ${money(courierFee)} — алғанда курьерге. Бұл аударымға КІРМЕЙДІ.'),
+                    style: manrope(12, FontWeight.w700, color: cInk2),
+                  ),
+                ),
+              ]),
+            ),
+          );
+        }),
         const SizedBox(height: 16),
         if (_loading)
           const Padding(

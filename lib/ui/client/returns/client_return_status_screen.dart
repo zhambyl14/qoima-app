@@ -134,6 +134,47 @@ class _StatusBodyState extends State<_StatusBody> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
             children: [
+              // ── Курьер (0053) — клиент кімнің келетінін әрі қанша төлейтінін
+              //    алдын ала біледі. Бұл ақы қайтарым сомасынан шегерілмейді.
+              if (r.byCourier && r.hasCourier) ...[
+                Container(
+                  padding: const EdgeInsets.all(13),
+                  decoration: BoxDecoration(
+                    color: r.courierDelivered ? cGreenTint : cBlueTint,
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                  child: Row(children: [
+                    Icon(
+                        r.courierDelivered
+                            ? Icons.task_alt_rounded
+                            : Icons.delivery_dining_rounded,
+                        color: r.courierDelivered ? cGreen : cBlue,
+                        size: 20),
+                    const SizedBox(width: 11),
+                    Expanded(
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('${tr('Курьер', 'Курьер')}: ${r.courierName}',
+                                style:
+                                    manrope(13.5, FontWeight.w800, color: cInk)),
+                            Text(
+                                r.courierDelivered
+                                    ? tr('Товар доставлен в магазин',
+                                        'Тауар дүкенге жеткізілді')
+                                    : r.courierPickedUp
+                                        ? tr('Забрал товар, везёт в магазин',
+                                            'Тауарды алды, дүкенге апара жатыр')
+                                        : tr('Скоро приедет за товаром — приготовьте ${money(r.courierFee)} курьеру',
+                                            'Жақында тауар үшін келеді — курьерге ${money(r.courierFee)} дайындаңыз'),
+                                style: manrope(11.5, FontWeight.w600,
+                                    color: cInk2, height: 1.35)),
+                          ]),
+                    ),
+                  ]),
+                ),
+                const SizedBox(height: 16),
+              ],
               // Timeline
               _Sec(context.l10n.returnTimelineTitle),
               _Timeline(ret: r),

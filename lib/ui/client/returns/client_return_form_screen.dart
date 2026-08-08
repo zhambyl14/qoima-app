@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/app_user.dart';
 import '../../../core/l10n_ext.dart';
 import '../../../data/models/delivery_tariff.dart';
@@ -47,6 +48,8 @@ class _ClientReturnFormScreenState extends State<ClientReturnFormScreen> {
   final _imagePicker = ImagePicker();
   static const int _maxPhotos = 3;
   ReturnPickup _pickup = ReturnPickup.selfBring;
+  /// Курьер тауарды алатын мекенжай. Әдепкіде — тапсырыстың жеткізу мекенжайы.
+  late final _addressCtrl = TextEditingController(text: widget.order.address);
   // Қайтару әдісі = төлем әдісі (таңдау жоқ). Онлайн заказ электронды төленеді →
   // карта. paymentBank бос болса да refundMethodForPayment карта қайтарады.
   late final RefundMethod _refundMethod =
@@ -56,6 +59,11 @@ class _ClientReturnFormScreenState extends State<ClientReturnFormScreen> {
   // Курьермен қайтару ақысы — модератор баптайды (app_settings). Әдепкісі
   // DeliveryTariff-те; жүктелгенше сол көрсетіледі.
   double _courierFee = const DeliveryTariff().returnFee;
+
+  /// Дүкеннің қаласында курьерлік қызмет бар ма (0055). Жоқ болса — «курьер
+  /// шақыру» опциясы МҮЛДЕ көрсетілмейді: оны ешкім орындамайды, тапсырыс
+  /// мәңгі ілініп қалар еді. Жүктелгенше жасырып тұрамыз.
+  bool _courierAvailable = false;
 
   List<ReturnItem> get _selectedItems =>
       _itemMap.values.where((e) => e.selected).map((e) => e.item).toList();
@@ -71,14 +79,33 @@ class _ClientReturnFormScreenState extends State<ClientReturnFormScreen> {
   @override
   void initState() {
     super.initState();
-    AppSettingsService().getDeliveryTariff().then((t) {
-      if (mounted) setState(() => _courierFee = t.returnFee);
+    _loadCourierAvailability();
+  }
+
+  Future<void> _loadCourierAvailability() async {
+    final tariff = await AppSettingsService().getDeliveryTariff();
+    var city = '';
+    try {
+      final row = await Supabase.instance.client
+          .from('stores')
+          .select('city')
+          .eq('admin_uid', widget.order.adminUid)
+          .maybeSingle();
+      city = (row?['city'] as String? ?? '').trim();
+    } catch (_) {}
+    if (!mounted) return;
+    setState(() {
+      _courierFee = tariff.returnFee;
+      _courierAvailable = tariff.courierWorksIn(city);
+      // Қызмет жоқ болса — таңдау «өзім әкелемін»-ге қайтарылады.
+      if (!_courierAvailable) _pickup = ReturnPickup.selfBring;
     });
   }
 
   @override
   void dispose() {
     _noteCtrl.dispose();
+    _addressCtrl.dispose();
     super.dispose();
   }
 
@@ -86,6 +113,18 @@ class _ClientReturnFormScreenState extends State<ClientReturnFormScreen> {
     if (_page == 0 && _selectedItems.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(context.l10n.returnSelectItemsHint),
+        backgroundColor: cAmber,
+        behavior: SnackBarBehavior.floating,
+      ));
+      return;
+    }
+    // Мекенжайсыз курьер қайдан алатынын білмейді — бұл қадамнан өткізбейміз.
+    if (_page == 2 &&
+        _pickup == ReturnPickup.courier &&
+        _addressCtrl.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(tr('Укажите адрес, откуда курьер заберёт товар',
+            'Курьер тауарды қайдан алатын мекенжайды жазыңыз')),
         backgroundColor: cAmber,
         behavior: SnackBarBehavior.floating,
       ));
@@ -135,6 +174,9 @@ class _ClientReturnFormScreenState extends State<ClientReturnFormScreen> {
               : _noteCtrl.text.trim(),
           photoUrls: photoUrls,
           pickup: _pickup,
+          pickupAddress: _pickup == ReturnPickup.courier
+              ? _addressCtrl.text.trim()
+              : '',
           refundMethod: _refundMethod,
         ),
       );
@@ -268,6 +310,8 @@ class _ClientReturnFormScreenState extends State<ClientReturnFormScreen> {
                                   setState(() => _pickup = p),
                               onNext: _next,
                               courierFee: _courierFee,
+                              addressCtrl: _addressCtrl,
+                              courierAvailable: _courierAvailable,
                             )
                           : _SummaryPage(
                               items: _selectedItems,
@@ -566,6 +610,10 @@ class _DeliveryPage extends StatelessWidget {
   final ValueChanged<ReturnPickup> onPickupChanged;
   final VoidCallback onNext;
   final double courierFee;
+  /// Курьер тауарды алатын мекенжай — курьерсіз бұл ағын жұмыс істемейді.
+  final TextEditingController addressCtrl;
+  /// Дүкеннің қаласында курьерлік қызмет бар ма (0055).
+  final bool courierAvailable;
 
   const _DeliveryPage({
     required this.pickup,
@@ -573,6 +621,8 @@ class _DeliveryPage extends StatelessWidget {
     required this.onPickupChanged,
     required this.onNext,
     required this.courierFee,
+    required this.addressCtrl,
+    required this.courierAvailable,
   });
 
   @override
@@ -585,7 +635,11 @@ class _DeliveryPage extends StatelessWidget {
             Text(context.l10n.returnPickupLabel,
                 style: manrope(13, FontWeight.w600, color: cInk3)),
             const SizedBox(height: 10),
-            ...ReturnPickup.values.map((p) {
+            // Курьерлік қызмет жоқ қалада «курьер шақыру» опциясы мүлде
+            // көрсетілмейді — оны ешкім орындамайды, сұраныс ілініп қалады.
+            ...ReturnPickup.values
+                .where((p) => p != ReturnPickup.courier || courierAvailable)
+                .map((p) {
               final active = pickup == p;
               final isCourier = p == ReturnPickup.courier;
               return GestureDetector(
@@ -637,6 +691,48 @@ class _DeliveryPage extends StatelessWidget {
                 ),
               );
             }),
+
+            if (!courierAvailable)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Text(
+                    tr('В этом городе курьерской службы нет — привезите товар в магазин или отправьте сами.',
+                        'Бұл қалада курьерлік қызмет жоқ — тауарды дүкенге өзіңіз әкеліңіз немесе жөнелтіңіз.'),
+                    style: manrope(11.5, FontWeight.w600, color: cInk3,
+                        height: 1.35)),
+              ),
+
+            // Курьер қайдан алатынын білуі керек — мекенжайсыз тапсырыс оған
+            // мүлде көрінбейді (RPC-те de-facto орындалмайтын жұмыс болады).
+            if (pickup == ReturnPickup.courier) ...[
+              const SizedBox(height: 6),
+              Text(tr('Откуда забрать', 'Қайдан алу керек'),
+                  style: manrope(13, FontWeight.w600, color: cInk3)),
+              const SizedBox(height: 8),
+              TextField(
+                controller: addressCtrl,
+                maxLines: 2,
+                minLines: 1,
+                style: manrope(13.5, FontWeight.w600, color: cInk),
+                decoration: InputDecoration(
+                  hintText: tr('Адрес: улица, дом, квартира',
+                      'Мекенжай: көше, үй, пәтер'),
+                  hintStyle: manrope(13, FontWeight.w500, color: cInk3),
+                  filled: true,
+                  fillColor: cSurface,
+                  contentPadding: const EdgeInsets.all(14),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: const BorderSide(color: cLine)),
+                  enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: const BorderSide(color: cLine)),
+                  focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: const BorderSide(color: cGreen, width: 1.5)),
+                ),
+              ),
+            ],
 
             const SizedBox(height: 16),
 

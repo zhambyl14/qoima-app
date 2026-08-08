@@ -179,6 +179,29 @@ class ReturnModel {
   final bool? itemConditionOk;
   final List<String> conditionPhotos;
 
+  // ── Курьермен қайтару (0052/0053) ───────────────────────────────────────────
+  //  Барлығын СЕРВЕР басқарады (SECURITY DEFINER RPC) — сондықтан [toRow]-ға
+  //  КІРМЕЙДІ: клиент оларды жаза алмауы керек.
+  final String courierUid;
+  final String courierName;
+  /// '' | assigned | picked_up | delivered
+  final String courierStatus;
+  /// Клиент курьерге ТІКЕЛЕЙ төлейтін ақы. Қайтарылатын тауар сомасынан
+  /// ЕШҚАШАН шегерілмейді.
+  final double courierFee;
+  final bool courierFeeCollected;
+  final DateTime? courierTakenAt;
+  final DateTime? courierDeliveredAt;
+  /// Курьер тауарды АЛАТЫН мекенжай (клиент қайтару сұрағанда енгізеді).
+  final String pickupAddress;
+
+  // ── Тек курьер RPC-і қайтаратын байытылған өрістер (0054) ──────────────────
+  //  Кестеде жоқ — `courier_return_row()` қосады. Курьерге «қайдан алып,
+  //  қайда апарамын» деген сұрақтың жауабы.
+  final String storeName;
+  final String storePhone;
+  final String warehouseAddress;
+
   const ReturnModel({
     required this.id,
     required this.adminUid,
@@ -207,7 +230,24 @@ class ReturnModel {
     this.sellerNote,
     this.itemConditionOk,
     this.conditionPhotos = const [],
+    this.courierUid = '',
+    this.courierName = '',
+    this.courierStatus = '',
+    this.courierFee = 0,
+    this.courierFeeCollected = false,
+    this.courierTakenAt,
+    this.courierDeliveredAt,
+    this.pickupAddress = '',
+    this.storeName = '',
+    this.storePhone = '',
+    this.warehouseAddress = '',
   });
+
+  bool get hasCourier => courierUid.isNotEmpty;
+  bool get courierAssigned => courierStatus == 'assigned';
+  bool get courierPickedUp => courierStatus == 'picked_up';
+  bool get courierDelivered => courierStatus == 'delivered';
+  bool get byCourier => pickup == ReturnPickup.courier;
 
   // ── Firestore ────────────────────────────────────────────────────────────────
 
@@ -258,6 +298,17 @@ class ReturnModel {
         sellerNote: d['seller_note'] as String?,
         itemConditionOk: d['item_condition_ok'] as bool?,
         conditionPhotos: (d['condition_photos'] as List<dynamic>? ?? []).cast<String>(),
+        courierUid: d['courier_uid'] as String? ?? '',
+        courierName: d['courier_name'] as String? ?? '',
+        courierStatus: d['courier_status'] as String? ?? '',
+        courierFee: (d['delivery_fee'] as num?)?.toDouble() ?? 0,
+        courierFeeCollected: d['delivery_fee_collected'] as bool? ?? false,
+        courierTakenAt: _ts(d['courier_taken_at']),
+        courierDeliveredAt: _ts(d['courier_delivered_at']),
+        pickupAddress: d['pickup_address'] as String? ?? '',
+        storeName: d['store_name'] as String? ?? '',
+        storePhone: d['store_phone'] as String? ?? '',
+        warehouseAddress: d['warehouse_address'] as String? ?? '',
       );
 
   /// Supabase `returns` жолынан (snake_case + JSONB items).
@@ -283,6 +334,8 @@ class ReturnModel {
         if (reasonNote != null) 'reason_note': reasonNote,
         'photo_urls': photoUrls,
         'pickup': pickup.name,
+        // Курьер тауарды алатын мекенжай (өзі әкелетін болса — бос).
+        'pickup_address': pickupAddress,
         'refund_method': refundMethod.name,
         'status': status.name,
         'created_at': createdAt.toIso8601String(),
@@ -324,6 +377,17 @@ class ReturnModel {
     String? sellerNote,
     bool? itemConditionOk,
     List<String>? conditionPhotos,
+    String? courierUid,
+    String? courierName,
+    String? courierStatus,
+    double? courierFee,
+    bool? courierFeeCollected,
+    DateTime? courierTakenAt,
+    DateTime? courierDeliveredAt,
+    String? pickupAddress,
+    String? storeName,
+    String? storePhone,
+    String? warehouseAddress,
   }) =>
       ReturnModel(
         id: id ?? this.id,
@@ -353,6 +417,17 @@ class ReturnModel {
         sellerNote: sellerNote ?? this.sellerNote,
         itemConditionOk: itemConditionOk ?? this.itemConditionOk,
         conditionPhotos: conditionPhotos ?? this.conditionPhotos,
+        courierUid: courierUid ?? this.courierUid,
+        courierName: courierName ?? this.courierName,
+        courierStatus: courierStatus ?? this.courierStatus,
+        courierFee: courierFee ?? this.courierFee,
+        courierFeeCollected: courierFeeCollected ?? this.courierFeeCollected,
+        courierTakenAt: courierTakenAt ?? this.courierTakenAt,
+        courierDeliveredAt: courierDeliveredAt ?? this.courierDeliveredAt,
+        pickupAddress: pickupAddress ?? this.pickupAddress,
+        storeName: storeName ?? this.storeName,
+        storePhone: storePhone ?? this.storePhone,
+        warehouseAddress: warehouseAddress ?? this.warehouseAddress,
       );
 }
 
@@ -369,6 +444,8 @@ class ReturnRequestInput {
   final String? reasonNote;
   final List<String> photoUrls;
   final ReturnPickup pickup;
+  /// Курьермен қайтарғанда — курьер тауарды алатын мекенжай (міндетті).
+  final String pickupAddress;
   final RefundMethod refundMethod;
 
   const ReturnRequestInput({
@@ -382,6 +459,7 @@ class ReturnRequestInput {
     this.reasonNote,
     required this.photoUrls,
     required this.pickup,
+    this.pickupAddress = '',
     required this.refundMethod,
   });
 }

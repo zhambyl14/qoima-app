@@ -35,6 +35,9 @@ class _PaymentSettingsScreenState extends State<PaymentSettingsScreen> {
   final _fittingMaxCtrl = TextEditingController();
   final _returnFeeCtrl = TextEditingController();
 
+  /// Курьерлік қызмет іске қосылған қалалар (0055). БОС = барлық қалада.
+  List<String> _courierCities = [];
+
   @override
   void initState() {
     super.initState();
@@ -76,6 +79,7 @@ class _PaymentSettingsScreenState extends State<PaymentSettingsScreen> {
       fittingMaxItems:
           num(_fittingMaxCtrl, d.fittingMaxItems.toDouble()).clamp(1, 5).round(),
       returnFee: num(_returnFeeCtrl, d.returnFee),
+      courierCities: _courierCities,
     );
   }
 
@@ -99,6 +103,7 @@ class _PaymentSettingsScreenState extends State<PaymentSettingsScreen> {
         _fittingCtrl.text = tariff.fittingFee.toStringAsFixed(0);
         _fittingMaxCtrl.text = '${tariff.fittingMaxItems}';
         _returnFeeCtrl.text = tariff.returnFee.toStringAsFixed(0);
+        _courierCities = List.of(tariff.courierCities);
         _loading = false;
       });
     } catch (_) {
@@ -319,6 +324,12 @@ class _PaymentSettingsScreenState extends State<PaymentSettingsScreen> {
                       controller: _returnFeeCtrl,
                       onChanged: () => setState(() {}),
                     ),
+                    const SizedBox(height: 16),
+                    _CourierCitiesEditor(
+                      cities: _courierCities,
+                      onChanged: (list) =>
+                          setState(() => _courierCities = list),
+                    ),
                     const SizedBox(height: 12),
                     _TariffPreview(tariff: _tariffFromFields),
                     const SizedBox(height: 12),
@@ -336,6 +347,147 @@ class _PaymentSettingsScreenState extends State<PaymentSettingsScreen> {
     );
   }
 
+}
+
+/// Курьерлік қызмет ІСКЕ ҚОСЫЛҒАН қалалар (0055).
+///
+/// ҚОСУЛЫ қалада жеткізуді де, возврат тасымалын да платформа курьері
+/// орындайды. Тізімде жоқ қалада курьер мүлде көрінбейді — дүкен тауарды өзі
+/// жеткізеді/жөнелтеді, возратты да клиент өзі әкеледі.
+///
+/// ⚠️ БОС ТІЗІМ = ШЕКТЕУ ЖОҚ (барлық қалада қосулы) — серверде де сол ереже
+/// (`courier_city_enabled`). Екеуі бір ақиқатты айтуы керек.
+class _CourierCitiesEditor extends StatefulWidget {
+  final List<String> cities;
+  final ValueChanged<List<String>> onChanged;
+  const _CourierCitiesEditor({required this.cities, required this.onChanged});
+
+  @override
+  State<_CourierCitiesEditor> createState() => _CourierCitiesEditorState();
+}
+
+class _CourierCitiesEditorState extends State<_CourierCitiesEditor> {
+  final _ctrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  void _add() {
+    final city = _ctrl.text.trim();
+    if (city.isEmpty) return;
+    final exists = widget.cities
+        .any((c) => c.trim().toLowerCase() == city.toLowerCase());
+    if (exists) {
+      _ctrl.clear();
+      return;
+    }
+    widget.onChanged([...widget.cities, city]);
+    _ctrl.clear();
+  }
+
+  void _remove(String city) => widget.onChanged(
+      widget.cities.where((c) => c != city).toList());
+
+  @override
+  Widget build(BuildContext context) {
+    final all = widget.cities.isEmpty;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: cSurface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: cLine),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Icon(Icons.map_rounded, size: 17, color: cGreen),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+                tr('Города с курьерской службой',
+                    'Курьерлік қызмет бар қалалар'),
+                style: manrope(13.5, FontWeight.w800, color: cInk)),
+          ),
+        ]),
+        const SizedBox(height: 6),
+        Text(
+          all
+              ? tr('Список пуст — курьеры работают ВО ВСЕХ городах.',
+                  'Тізім бос — курьерлер БАРЛЫҚ қалада жұмыс істейді.')
+              : tr('Курьеры работают только в этих городах. В остальных магазин доставляет сам, а возврат клиент привозит сам.',
+                  'Курьерлер тек осы қалаларда жұмыс істейді. Қалғанында дүкен өзі жеткізеді, қайтарымды клиент өзі әкеледі.'),
+          style: manrope(11.5, FontWeight.w600, color: cInk3, height: 1.35),
+        ),
+        if (!all) ...[
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: widget.cities
+                .map((c) => Container(
+                      padding: const EdgeInsets.fromLTRB(11, 6, 6, 6),
+                      decoration: BoxDecoration(
+                        color: cGreenTint,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Text(c,
+                            style: manrope(12.5, FontWeight.w700,
+                                color: cGreenDeep)),
+                        const SizedBox(width: 4),
+                        GestureDetector(
+                          onTap: () => _remove(c),
+                          child: const Icon(Icons.close_rounded,
+                              size: 15, color: cGreenDeep),
+                        ),
+                      ]),
+                    ))
+                .toList(),
+          ),
+        ],
+        const SizedBox(height: 12),
+        Row(children: [
+          Expanded(
+            child: TextField(
+              controller: _ctrl,
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => _add(),
+              style: manrope(13.5, FontWeight.w600, color: cInk),
+              decoration: InputDecoration(
+                isDense: true,
+                hintText: tr('Добавить город', 'Қала қосу'),
+                hintStyle: manrope(13, FontWeight.w500, color: cInk3),
+                filled: true,
+                fillColor: cBg,
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          GestureDetector(
+            onTap: _add,
+            child: Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: cGreen,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.add_rounded, color: Colors.white),
+            ),
+          ),
+        ]),
+      ]),
+    );
+  }
 }
 
 class _ContactField extends StatelessWidget {
@@ -503,19 +655,21 @@ class _MoneySplitCard extends StatelessWidget {
               style: manrope(12.5, FontWeight.w800, color: cInk)),
           const SizedBox(height: 8),
           _row(Icons.storefront_rounded, 'green',
-              tr('Стоимость товара', 'Тауар құны'),
-              tr('магазину', 'дүкенге')),
-          _row(Icons.delivery_dining_rounded, 'blue',
-              tr('Доставка', 'Жеткізу'), tr('курьеру', 'курьерге')),
-          _row(Icons.checkroom_rounded, 'amber',
-              tr('Примерка', 'Өлшеп көру'), tr('магазину', 'дүкенге')),
-          _row(Icons.u_turn_left_rounded, 'blue',
+              tr('Товар', 'Тауар'),
+              tr('магазину · переводом', 'дүкенге · аударыммен')),
+          _row(Icons.checkroom_rounded, 'green',
+              tr('Примерка', 'Өлшеп көру'),
+              tr('магазину · переводом', 'дүкенге · аударыммен')),
+          _row(Icons.delivery_dining_rounded, 'amber',
+              tr('Доставка', 'Жеткізу'),
+              tr('курьеру · наличными', 'курьерге · қолма-қол')),
+          _row(Icons.u_turn_left_rounded, 'amber',
               tr('Возврат курьером', 'Курьермен қайтару'),
-              tr('курьеру', 'курьерге')),
+              tr('курьеру · наличными', 'курьерге · қолма-қол')),
           const SizedBox(height: 8),
           Text(
-              tr('Доставка и возврат не входят в выручку магазина. Стоимость возврата НЕ вычитается из суммы, которую возвращают клиенту.',
-                  'Жеткізу мен қайтару дүкеннің түсіміне кірмейді. Қайтару ақысы клиентке қайтарылатын сомадан ШЕГЕРІЛМЕЙДІ.'),
+              tr('Клиент делает ДВА платежа: перевод магазину (товар + примерка) и наличные курьеру (доставка). Деньги курьера через кассу магазина НЕ проходят и в его выручку не попадают. Стоимость возврата НЕ вычитается из суммы, которую возвращают клиенту.',
+                  'Клиент ЕКІ төлем жасайды: дүкенге аударым (тауар + өлшеп көру) және курьерге қолма-қол (жеткізу). Курьердің ақшасы дүкеннің кассасынан ӨТПЕЙДІ әрі оның түсіміне кірмейді. Қайтару ақысы клиентке қайтарылатын сомадан ШЕГЕРІЛМЕЙДІ.'),
               style: manrope(11, FontWeight.w600, color: cInk3, height: 1.4)),
         ]),
       );

@@ -214,7 +214,7 @@ class _SalesScreenState extends State<SalesScreen>
                                     Text(
                                       appUser.isAdmin
                                           ? context.l10n.overviewSub
-                                          : tr('Сегодня · ${monthSales.where((s) { final n = DateTime.now(); return !s.isReturn && !s.isWriteOff && s.saleDate.year == n.year && s.saleDate.month == n.month && s.saleDate.day == n.day; }).length} продаж', 'Бүгін · ${monthSales.where((s) { final n = DateTime.now(); return !s.isReturn && !s.isWriteOff && s.saleDate.year == n.year && s.saleDate.month == n.month && s.saleDate.day == n.day; }).length} сатылым'),
+                                          : tr('Сегодня · ${monthSales.where((s) { final n = DateTime.now(); return !s.isReturn && !s.isWriteOff && !s.isService && s.saleDate.year == n.year && s.saleDate.month == n.month && s.saleDate.day == n.day; }).length} продаж', 'Бүгін · ${monthSales.where((s) { final n = DateTime.now(); return !s.isReturn && !s.isWriteOff && !s.isService && s.saleDate.year == n.year && s.saleDate.month == n.month && s.saleDate.day == n.day; }).length} сатылым'),
                                       style: manrope(13, FontWeight.w500,
                                           color: Colors.white
                                               .withValues(alpha: 0.78)),
@@ -508,12 +508,12 @@ class _SalesBody extends StatelessWidget {
               Text('${_fmtNum(total)} ₸',
                   style: manrope(20, FontWeight.w800, color: cInk)),
               Text(
-                  '${sales.where((s) => !s.isReturn && !s.isWriteOff).length} ${context.l10n.salesSuffix}',
+                  '${sales.where((s) => !s.isReturn && !s.isWriteOff && !s.isService).length} ${context.l10n.salesSuffix}',
                   style: manrope(12, FontWeight.w500, color: cInk3)),
             ])
           else
             Text(
-                tr('Сегодня: ${sales.where((s) => !s.isReturn && !s.isWriteOff && _isToday(s.saleDate)).length} прод.', 'Бүгін: ${sales.where((s) => !s.isReturn && !s.isWriteOff && _isToday(s.saleDate)).length} сат.'),
+                tr('Сегодня: ${sales.where((s) => !s.isReturn && !s.isWriteOff && !s.isService && _isToday(s.saleDate)).length} прод.', 'Бүгін: ${sales.where((s) => !s.isReturn && !s.isWriteOff && !s.isService && _isToday(s.saleDate)).length} сат.'),
                 style: manrope(13, FontWeight.w600, color: cInk2)),
         ]),
       ),
@@ -680,6 +680,10 @@ class _SaleCard extends StatelessWidget {
                   : sale.isWriteOff
                       ? const Icon(Icons.remove_shopping_cart_outlined,
                           color: cRed, size: 19)
+                      // Қызмет кірісі (өлшеп көру / дүкен жеткізуі) — тауар жоқ.
+                      : sale.isService
+                          ? const Icon(Icons.room_service_rounded,
+                              color: cBlue, size: 19)
                       : product.images.isNotEmpty
                       ? ClipRRect(
                           borderRadius: BorderRadius.circular(10),
@@ -688,7 +692,11 @@ class _SaleCard extends StatelessWidget {
                               errorBuilder: (_, __, ___) => const Icon(
                                   Icons.check_rounded, color: cGreen, size: 19)))
                       : const Icon(Icons.check_rounded, color: cGreen, size: 19),
-              tone: (sale.isReturn || sale.isWriteOff) ? 'red' : 'green',
+              tone: (sale.isReturn || sale.isWriteOff)
+                  ? 'red'
+                  : sale.isService
+                      ? 'blue'
+                      : 'green',
               size: 40,
             ),
             const SizedBox(width: 12),
@@ -696,7 +704,7 @@ class _SaleCard extends StatelessWidget {
                 child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                  Text(product.name,
+                  Text(sale.isService ? sale.productName : product.name,
                       style: manrope(13.5, FontWeight.w700, color: cInk),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis),
@@ -706,11 +714,16 @@ class _SaleCard extends StatelessWidget {
                           ? tr('Возврат · $timeStr', 'Қайтару · $timeStr')
                           : sale.isWriteOff
                               ? tr('Списание · ${sale.quantity} шт. · $timeStr', 'Списание · ${sale.quantity} дана · $timeStr')
+                              : sale.isService
+                                  ? tr('Услуга · без товара · $timeStr',
+                                      'Қызмет · тауарсыз · $timeStr')
                               : '${sale.receiptNumber.isNotEmpty ? '${sale.receiptNumber}  ·  ' : ''}${tr('Р', 'Ө')}: ${sale.sizesSold.entries.where((e) => e.value > 0).map((e) => e.key).join(', ')}  ·  $timeStr',
                       style: manrope(12, FontWeight.w500,
                           color: (sale.isReturn || sale.isWriteOff)
                               ? cRed
-                              : cInk3),
+                              : sale.isService
+                                  ? cBlue
+                                  : cInk3),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis),
                   if (warehouseName.isNotEmpty) ...[

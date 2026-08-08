@@ -5,10 +5,12 @@ import '../../core/app_user.dart';
 import '../../core/error_text.dart';
 import '../../core/lang.dart';
 import '../../data/models/order_model.dart';
+import '../../data/models/return_model.dart';
 import '../../data/services/auth_service.dart';
 import '../../data/services/courier_service.dart';
 import '../../theme/qoima_design.dart';
 import 'courier_order_card.dart';
+import 'courier_return_card.dart';
 
 /// Курьердің басты экраны: «Жаңа тапсырыстар» · «Менікі» · «Профиль».
 ///
@@ -28,6 +30,10 @@ class _CourierShellState extends State<CourierShell> {
 
   List<OrderModel> _available = [];
   List<OrderModel> _mine = [];
+  // Возврат та — курьердің жұмысы: клиенттен алып, дүкенге апару. Ол
+  // жеткізумен БІРДЕЙ тізімде тұрады (бұрын мүлде көрінбейтін).
+  List<ReturnModel> _availableReturns = [];
+  List<ReturnModel> _myReturns = [];
   CourierStats _stats = const CourierStats();
   bool _loading = true;
   Timer? _poll;
@@ -54,12 +60,16 @@ class _CourierShellState extends State<CourierShell> {
         _service.getAvailableOrders(),
         _service.getMyOrders(),
         _service.getStats(),
+        _service.getAvailableReturns(),
+        _service.getMyReturns(),
       ]);
       if (!mounted) return;
       setState(() {
         _available = results[0] as List<OrderModel>;
         _mine = results[1] as List<OrderModel>;
         _stats = results[2] as CourierStats;
+        _availableReturns = results[3] as List<ReturnModel>;
+        _myReturns = results[4] as List<ReturnModel>;
         _loading = false;
       });
     } catch (_) {
@@ -94,6 +104,17 @@ class _CourierShellState extends State<CourierShell> {
       .where((o) =>
           o.status == OrderModel.statusConfirmed || o.returnLegPending)
       .toList();
+
+  /// Аяқталмаған возвраттар (клиенттен алу / дүкенге апару).
+  List<ReturnModel> get _activeReturns =>
+      _myReturns.where((r) => !r.courierDelivered).toList();
+
+  /// Қоймаға апарылмаған өлшемдер — курьердің «жабылмаған борышы».
+  List<OrderModel> get _pendingLegs =>
+      _mine.where((o) => o.returnLegPending).toList();
+
+  int get _availableCount => _available.length + _availableReturns.length;
+  int get _activeCount => _activeMine.length + _activeReturns.length;
 
   @override
   Widget build(BuildContext context) {
@@ -137,8 +158,8 @@ class _CourierShellState extends State<CourierShell> {
         destinations: [
           NavigationDestination(
             icon: Badge(
-              isLabelVisible: _available.isNotEmpty,
-              label: Text('${_available.length}'),
+              isLabelVisible: _availableCount > 0,
+              label: Text('$_availableCount'),
               child: const Icon(Icons.inbox_outlined),
             ),
             selectedIcon: const Icon(Icons.inbox_rounded, color: cGreenDeep),
@@ -146,8 +167,8 @@ class _CourierShellState extends State<CourierShell> {
           ),
           NavigationDestination(
             icon: Badge(
-              isLabelVisible: _activeMine.isNotEmpty,
-              label: Text('${_activeMine.length}'),
+              isLabelVisible: _activeCount > 0,
+              label: Text('$_activeCount'),
               child: const Icon(Icons.local_shipping_outlined),
             ),
             selectedIcon:
@@ -164,31 +185,48 @@ class _CourierShellState extends State<CourierShell> {
     );
   }
 
-  // ── Таб 1: бос тапсырыстар ─────────────────────────────────────────────────
+  // ── Таб 1: бос жұмыс (жеткізу + возврат) ───────────────────────────────────
   Widget _buildAvailable() {
-    if (_available.isEmpty) {
+    if (_available.isEmpty && _availableReturns.isEmpty) {
       return _emptyList(
         Icons.inbox_outlined,
         tr('Свободных заказов нет', 'Бос тапсырыс жоқ'),
-        tr('Как только магазин подтвердит оплату — заказ появится здесь',
-            'Дүкен төлемді растаған бойда тапсырыс осында шығады'),
+        tr('Как только магазин подтвердит оплату или возврат — работа появится здесь',
+            'Дүкен төлемді немесе қайтарымды растаған бойда жұмыс осында шығады'),
       );
     }
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
-      children: _available
-          .map((o) => CourierOrderCard(
+      children: [
+        if (_available.isNotEmpty) ...[
+          QSecLabel(tr('Доставки', 'Жеткізулер')),
+          const SizedBox(height: 8),
+          ..._available.map((o) => CourierOrderCard(
                 order: o,
                 onTake: () => _run(() => _service.takeOrder(o.id),
                     tr('Заказ ваш — забирайте со склада', 'Тапсырыс сіздікі — қоймадан алыңыз')),
-              ))
-          .toList(),
+              )),
+          const SizedBox(height: 14),
+        ],
+        // Возврат та — жұмыс. Бұрын курьерге мүлде көрінбейтін.
+        if (_availableReturns.isNotEmpty) ...[
+          QSecLabel(tr('Возвраты — забрать у клиента',
+              'Қайтарымдар — клиенттен алу')),
+          const SizedBox(height: 8),
+          ..._availableReturns.map((r) => CourierReturnCard(
+                ret: r,
+                onTake: () => _run(() => _service.takeReturn(r.id),
+                    tr('Возврат ваш — заберите у клиента',
+                        'Қайтарым сіздікі — клиенттен алыңыз')),
+              )),
+        ],
+      ],
     );
   }
 
-  // ── Таб 2: менің жеткізулерім ──────────────────────────────────────────────
+  // ── Таб 2: менің жұмысым ───────────────────────────────────────────────────
   Widget _buildMine() {
-    if (_mine.isEmpty) {
+    if (_mine.isEmpty && _myReturns.isEmpty) {
       return _emptyList(
         Icons.local_shipping_outlined,
         tr('Пока пусто', 'Әзірге бос'),
@@ -197,10 +235,48 @@ class _CourierShellState extends State<CourierShell> {
       );
     }
     final active = _activeMine;
-    final done = _mine.where((o) => o.status != OrderModel.statusConfirmed);
+    final done = _mine.where((o) =>
+        o.status != OrderModel.statusConfirmed && !o.returnLegPending);
+    final doneReturns = _myReturns.where((r) => r.courierDelivered);
+    final legs = _pendingLegs;
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
       children: [
+        // ── Ең үстінде: қоймаға апарылмаған өлшемдер ────────────────────────
+        //  Бұл миссияның ЕҢ ОҢАЙ ҰМЫТЫЛАТЫН бөлігі — тауар курьерде қалып,
+        //  дүкеннің қоймасы шындықты көрсетпей тұрады. Сондықтан бірінші орында.
+        if (legs.isNotEmpty) ...[
+          Container(
+            padding: const EdgeInsets.all(13),
+            margin: const EdgeInsets.only(bottom: 14),
+            decoration: BoxDecoration(
+              color: cAmberTint,
+              borderRadius: BorderRadius.circular(15),
+              border: Border.all(color: cAmber, width: 1.5),
+            ),
+            child: Row(children: [
+              const Icon(Icons.assignment_return_rounded,
+                  color: cAmber, size: 22),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                          tr('У вас ${legs.length} размер(ов) для склада',
+                              'Сізде қоймаға апаратын ${legs.length} өлшем бар'),
+                          style: manrope(13, FontWeight.w800, color: cInk)),
+                      Text(
+                          tr('Отвезите их продавцу — иначе товар числится потерянным',
+                              'Оларды сатушыға апарыңыз — әйтпесе тауар жоғалған болып саналады'),
+                          style:
+                              manrope(11.5, FontWeight.w600, color: cInk2)),
+                    ]),
+              ),
+            ]),
+          ),
+        ],
         if (active.isNotEmpty) ...[
           QSecLabel(tr('В работе', 'Жұмыста')),
           const SizedBox(height: 8),
@@ -209,21 +285,37 @@ class _CourierShellState extends State<CourierShell> {
                 onPickup: (code) => _run(
                     () => _service.pickupOrder(o.id, code),
                     tr('Забрано со склада', 'Қоймадан алынды')),
-                onDeliver: (swaps) => _run(
-                    () => _service.completeOrder(o.id, swappedIndexes: swaps),
+                onDeliver: (swaps, feeCollected) => _run(
+                    () => _service.completeOrder(o.id,
+                        swappedIndexes: swaps, feeCollected: feeCollected),
                     tr('Доставлено ✓', 'Жеткізілді ✓')),
-                onReturn: (reason) => _run(
-                    () => _service.returnOrder(o.id, reason),
+                onReturn: (reason, feeCollected) => _run(
+                    () => _service.returnOrder(o.id, reason,
+                        feeCollected: feeCollected),
                     tr('Заказ возвращён на склад', 'Тапсырыс қоймаға оралды')),
                 onDrop: () => _run(() => _service.dropOrder(o.id),
                     tr('Заказ освобождён', 'Тапсырыс босатылды')),
               )),
           const SizedBox(height: 14),
         ],
-        if (done.isNotEmpty) ...[
+        if (_activeReturns.isNotEmpty) ...[
+          QSecLabel(tr('Возвраты в работе', 'Жұмыстағы қайтарымдар')),
+          const SizedBox(height: 8),
+          ..._activeReturns.map((r) => CourierReturnCard(
+                ret: r,
+                onPickup: (fee) => _run(
+                    () => _service.pickupReturn(r.id, feeCollected: fee),
+                    tr('Забрано у клиента', 'Клиенттен алынды')),
+                onDeliver: () => _run(() => _service.deliverReturn(r.id),
+                    tr('Сдано в магазин ✓', 'Дүкенге тапсырылды ✓')),
+              )),
+          const SizedBox(height: 14),
+        ],
+        if (done.isNotEmpty || doneReturns.isNotEmpty) ...[
           QSecLabel(tr('История', 'Тарих')),
           const SizedBox(height: 8),
           ...done.map((o) => CourierOrderCard(order: o)),
+          ...doneReturns.map((r) => CourierReturnCard(ret: r)),
         ],
       ],
     );
@@ -289,6 +381,61 @@ class _CourierShellState extends State<CourierShell> {
               tone: 'amber',
               wide: true),
           const SizedBox(height: 12),
+          // ── Ақшаның ТОЛЫҚ жіктелуі: қайдан келгені әр тиынға дейін ────────
+          Container(
+            padding: const EdgeInsets.all(13),
+            decoration: BoxDecoration(
+              color: cSurface,
+              borderRadius: BorderRadius.circular(15),
+              border: Border.all(color: cLine),
+            ),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(tr('Из чего складывается', 'Неден құралады'),
+                  style: manrope(12, FontWeight.w800, color: cInk3)),
+              const SizedBox(height: 8),
+              _MoneyLine(
+                  label: tr('Доставки клиентам', 'Клиенттерге жеткізу'),
+                  value: money(_stats.deliveryFee)),
+              _MoneyLine(
+                  label: tr('Перевозка возвратов', 'Қайтарым тасымалы'),
+                  value: money(_stats.returnFee)),
+              if (_stats.uncollected > 0)
+                _MoneyLine(
+                    label: tr('Клиент не заплатил', 'Клиент төлемеді'),
+                    value: money(_stats.uncollected),
+                    color: cRed),
+              const Divider(height: 16, color: cLine),
+              _MoneyLine(
+                  label: tr('Получено на руки', 'Қолға тигені'),
+                  value: money(_stats.totalFee),
+                  color: cGreen,
+                  bold: true),
+            ]),
+          ),
+          if (_stats.pendingLegs > 0) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: cAmberTint,
+                borderRadius: BorderRadius.circular(13),
+                border: Border.all(color: cAmber.withValues(alpha: 0.6)),
+              ),
+              child: Row(children: [
+                const Icon(Icons.assignment_return_rounded,
+                    color: cAmber, size: 17),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Text(
+                      tr('${_stats.pendingLegs} размер(ов) ещё нужно отвезти на склад',
+                          '${_stats.pendingLegs} өлшемді әлі қоймаға апару керек'),
+                      style: manrope(12, FontWeight.w800, color: cInk)),
+                ),
+              ]),
+            ),
+          ],
+          const SizedBox(height: 10),
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
@@ -298,8 +445,11 @@ class _CourierShellState extends State<CourierShell> {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  tr('Сумма — это оплата доставки и примерки по выполненным заказам. Расчёт с модератором.',
-                      'Сома — орындалған тапсырыстардың жеткізу мен өлшеп көру ақысы. Есеп айырысу модератормен.'),
+                  // ⚠️ ТҮЗЕТУ: бұрын «жеткізу мен өлшеп көру ақысы» деп
+                  // жазылған — «өлшеп көру» ақысы курьердікі ЕМЕС, ол
+                  // дүкеннің қызметі (екінші жұп оның қоймасынан шығады).
+                  tr('Клиент платит вам за доставку напрямую — эти деньги сразу ваши. Товар он оплачивает магазину отдельно, вы к этим деньгам не прикасаетесь.',
+                      'Жеткізу ақысын клиент сізге тікелей төлейді — ол ақша бірден сіздікі. Тауар ақысын ол дүкенге бөлек төлейді, сіз оған тимейсіз.'),
                   style:
                       manrope(11.5, FontWeight.w600, color: cInk3, height: 1.4),
                 ),
@@ -354,6 +504,37 @@ class _CourierShellState extends State<CourierShell> {
               textAlign: TextAlign.center,
               style: manrope(12.5, FontWeight.w600, color: cInk3, height: 1.4)),
         ],
+      );
+}
+
+/// Табыс жіктелуінің бір жолы.
+class _MoneyLine extends StatelessWidget {
+  final String label, value;
+  final Color? color;
+  final bool bold;
+  const _MoneyLine({
+    required this.label,
+    required this.value,
+    this.color,
+    this.bold = false,
+  });
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3),
+        child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          Flexible(
+            child: Text(label,
+                style: manrope(12, FontWeight.w600, color: cInk2),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis),
+          ),
+          const SizedBox(width: 8),
+          Text(value,
+              style: manrope(bold ? 14 : 12.5,
+                  bold ? FontWeight.w800 : FontWeight.w700,
+                  color: color ?? cInk)),
+        ]),
       );
 }
 

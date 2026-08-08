@@ -410,15 +410,26 @@ class _SaleCard extends StatelessWidget {
                   ]),
                   const SizedBox(height: 3),
                 ],
-                // Amount + payment method
+                // Amount + payment method.
+                // «Сома» = ДҮКЕНГЕ тиесілі (тауар + өлшеп көру). Курьердің
+                // жеткізу ақысы бөлек жолда — оны дүкен алмайды (0053).
                 Row(children: [
-                  Text(tr('Сумма', 'Сома'),
+                  Text(tr('Магазину', 'Дүкенге'),
                       style: manrope(12.5, FontWeight.w500, color: cInk2)),
                   const Spacer(),
-                  Text(
-                      money(o.isDelivery ? o.totalWithDelivery : o.finalTotal),
+                  Text(money(o.storeAmount),
                       style: manrope(15, FontWeight.w800, color: cGreen)),
                 ]),
+                if (o.courierAmount > 0) ...[
+                  const SizedBox(height: 3),
+                  Row(children: [
+                    Text(tr('Курьеру', 'Курьерге'),
+                        style: manrope(12.5, FontWeight.w500, color: cInk2)),
+                    const Spacer(),
+                    Text(money(o.courierAmount),
+                        style: manrope(13, FontWeight.w800, color: cAmber)),
+                  ]),
+                ],
                 if (o.isSmartReservation) ...[
                   const SizedBox(height: 3),
                   Row(children: [

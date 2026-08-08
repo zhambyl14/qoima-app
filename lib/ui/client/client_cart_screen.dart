@@ -218,23 +218,35 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
     } catch (_) {}
   }
 
-  double _depositFor(double total) {
-    if (_orderType == OrderModel.typeSmartReservation) {
-      return (total * 0.1).ceilToDouble();
-    }
-    // Самовывоз — тауардың толық бағасы. Жеткізуде оған қызмет ақысы
-    // (курьер + «өлшеп көру») қосылады — клиент бір аударыммен төлейді.
-    return total;
-  }
-
   // ── Жеткізу ақысы (0050) ────────────────────────────────────────────────────
 
-  /// Курьер жеткізетін бе (қала ішінде)? Басқа қалаға — Казпочта, ол аппта
-  /// есептелмейді. Қала белгісіз болса (гость/қала көрсетілмеген) курьер
-  /// жеткізуі деп есептейміз — дүкендердің басым бөлігі бір қалада.
+  /// Тапсырысты ПЛАТФОРМА КУРЬЕРІ жеткізе ме?
+  ///
+  /// Үш шарт бірдей орындалуы керек:
+  ///   1) жеткізу таңдалған;
+  ///   2) барлық дүкен клиенттің қаласында (басқа қалаға курьер бармайды);
+  ///   3) сол қалада курьерлік қызмет ҚОСУЛЫ (модератор шешеді — 0055).
+  ///
+  /// Болмаса — дүкен өзі жеткізеді/жөнелтеді: аппта жеткізу ақысы да,
+  /// «өлшеп көру» де есептелмейді (екеуін де курьер орындайтын).
   bool _isCourierDelivery(List<CartItemModel> items) =>
       _orderType == OrderModel.typeDelivery &&
-      _allStoresInMyCity(items) != false;
+      _allStoresInMyCity(items) != false &&
+      _courierServiceAvailable(items);
+
+  /// Себеттегі БАРЛЫҚ дүкеннің қаласында курьерлік қызмет бар ма (0055).
+  /// Қала белгісіз болса — тарифтегі шектеу бос болғанда ғана рұқсат етеміз,
+  /// әйтпесе қате қалаға курьер жіберіп алмау үшін «жоқ» дейміз.
+  bool _courierServiceAvailable(List<CartItemModel> items) {
+    if (_tariff.courierCities.isEmpty) return true; // шектеу қойылмаған
+    if (items.isEmpty) return true;
+    for (final i in items) {
+      final city = (_storeCityByAdmin[i.adminUid] ?? '').trim();
+      if (city.isEmpty) return false;
+      if (!_tariff.courierWorksIn(city)) return false;
+    }
+    return true;
+  }
 
   /// Себеттегі тауарларды қойма бойынша топтайды (әр қойма — жеке суб-тапсырыс
   /// әрі курьердің жеке соғуы). Реті тұрақты: Map кірістіру ретін сақтайды,
@@ -247,24 +259,106 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
     return map;
   }
 
-  /// Барлық қойма бойынша жеткізу ақысы (бірінші — толық, қалғаны жеңілдікпен).
-  double _deliveryFee(List<CartItemModel> items) {
-    if (!_isCourierDelivery(items)) return 0;
-    final total = (items.fold<double>(0, (s, i) => s + i.subtotal) -
-            _promoDiscount(items))
-        .clamp(0.0, double.infinity);
-    return _tariff.totalFee(
-        orderTotal: total, storeCount: _byWarehouse(items).length);
-  }
+  // ── АҚША ЕСЕБІНІҢ ЖАЛҒЫЗ КӨЗІ ──────────────────────────────────────────────
+  //
+  //  Себет бірнеше дүкеннен тұруы мүмкін, ал әр ҚОЙМА — жеке суб-тапсырыс.
+  //  Ақша да сол бөліністе жүреді:
+  //
+  //    әр суб-тапсырыстың storeAmount  → СОЛ ДҮКЕНГЕ (өз картасына, бөлек)
+  //    әр суб-тапсырыстың courierFee   → СОЛ ЖЕТКІЗУДІ орындайтын КУРЬЕРГЕ
+  //
+  //  ⚠️ Экранда көрсетілетін сан мен базаға жазылатын сан ОСЫ функциядан
+  //  ғана шығады. Бұрын екеуі бөлек саналатын да, көп дүкенді себетте
+  //  айырма пайда болатын (әр қойма бойынша бөлек дөңгелектенген 10% депозит
+  //  жалпы сомадан алынған 10%-ға тең емес).
 
-  /// «Өлшеп көру» ақысы — қосымша өлшем сұралған ӘР ҚОЙМА үшін бір рет
-  /// (курьер сол қоймадан артық жүк алып шығады).
-  double _fittingFee(List<CartItemModel> items) {
-    if (!_isCourierDelivery(items)) return 0;
-    final groups = _byWarehouse(items).values
-        .where((g) => g.any((i) => i.hasAltSize))
-        .length;
-    return _tariff.fittingFee * groups;
+  /// Бір суб-тапсырыстың (бір қойманың) толық ақша есебі.
+  List<_SubOrderPlan> _planSubOrders(List<CartItemModel> items) {
+    final byWarehouse = _byWarehouse(items);
+    if (byWarehouse.isEmpty) return const [];
+
+    final courierDelivery = _isCourierDelivery(items);
+    final totalPromo = _promoDiscount(items);
+    final feeBase =
+        (items.fold<double>(0, (s, i) => s + i.subtotal) - totalPromo)
+            .clamp(0.0, double.infinity);
+
+    // ── Промокод үлесі: тек промокод БЕРІЛГЕН дүкеннің қоймалары арасында ──
+    //  Соңғы қоймаға қалдық беріледі — жиынтық әрқашан totalPromo-ға тең
+    //  болуы үшін (дөңгелектеу тиыны жоғалып кетпейді).
+    final promoShares = <String, double>{};
+    String usageOwnerWh = '';
+    final promo = _appliedPromo;
+    if (promo != null && totalPromo > 0) {
+      final adminWhTotals = <String, double>{};
+      double adminTotal = 0;
+      for (final entry in byWarehouse.entries) {
+        if (entry.value.first.adminUid != _appliedAdminUid) continue;
+        final base = entry.value
+            .where((i) =>
+                promo.scope != 'products' ||
+                promo.productIds.contains(i.productId))
+            .fold<double>(0, (s, i) => s + i.subtotal);
+        if (base <= 0) continue;
+        adminWhTotals[entry.key] = base;
+        adminTotal += base;
+      }
+      if (adminTotal > 0) {
+        final keys = adminWhTotals.keys.toList();
+        usageOwnerWh = keys.first;
+        double assigned = 0;
+        for (var i = 0; i < keys.length; i++) {
+          final share = i == keys.length - 1
+              ? (totalPromo - assigned)
+              : (totalPromo * adminWhTotals[keys[i]]! / adminTotal)
+                  .roundToDouble();
+          promoShares[keys[i]] = share;
+          assigned += share;
+        }
+      }
+    }
+
+    final plans = <_SubOrderPlan>[];
+    var index = 0;
+    for (final entry in byWarehouse.entries) {
+      final whItems = entry.value;
+      final first = whItems.first;
+      final goods = whItems.fold<double>(0, (s, i) => s + i.subtotal);
+      final whPromo = (promoShares[entry.key] ?? 0).clamp(0.0, goods);
+      final goodsFinal = (goods - whPromo).clamp(0.0, goods);
+      // Жеткізу ақысы: бірінші қойма толық тариф, қалғаны жеңілдікпен —
+      // әр қойма курьердің ЖЕКЕ соғуы, сондықтан тегін емес.
+      final courierFee = courierDelivery
+          ? _tariff.feeForSubOrder(orderTotal: feeBase, index: index)
+          : 0.0;
+      // «Өлшеп көру» — қосалқы өлшем сұралған қоймаға ғана, бір рет.
+      final fitting = courierDelivery && whItems.any((i) => i.hasAltSize)
+          ? _tariff.fittingFee
+          : 0.0;
+      // Дүкенге аударылатын сома. Жеткізу ақысы мұнда ЖОҚ — ол курьердікі.
+      final storeAmount = (_orderType == OrderModel.typeSmartReservation
+              ? (goodsFinal * 0.1).ceilToDouble()
+              : goodsFinal) +
+          fitting;
+
+      plans.add(_SubOrderPlan(
+        warehouseId: entry.key,
+        adminUid: first.adminUid,
+        storeName: first.storeName,
+        warehouseAddress: first.warehouseAddress,
+        items: whItems,
+        goods: goods,
+        promoDiscount: whPromo,
+        goodsFinal: goodsFinal,
+        fittingFee: fitting,
+        courierFee: courierFee,
+        storeAmount: storeAmount,
+        isPromoUsageOwner: entry.key == usageOwnerWh && promo != null,
+        courierDelivery: courierDelivery,
+      ));
+      index++;
+    }
+    return plans;
   }
 
   /// Қосымша өлшем сұрауға бола ма (жеткізу + қала ішінде + лимит бітпеген).
@@ -320,8 +414,13 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
 
   String _deliverySubtitle(List<CartItemModel> items) {
     if (_allStoresInMyCity(items) == false) {
-      return tr('В ваш город — Казпочтой после 100% оплаты',
-          'Сіздің қалаға — 100% төлемнен кейін Казпочтамен');
+      return tr('В ваш город — магазин отправит после 100% оплаты',
+          'Сіздің қалаға — 100% төлемнен кейін дүкен жөнелтеді');
+    }
+    // Қалада курьерлік қызмет әлі іске қосылмаған — дүкен өзі жеткізеді.
+    if (!_courierServiceAvailable(items)) {
+      return tr('Магазин доставит сам — стоимость согласуете с ним',
+          'Дүкен өзі жеткізеді — құнын онымен келісесіз');
     }
     if (items.isEmpty) {
       return tr('Курьер по городу — от ${money(_tariff.reducedFee)}',
@@ -332,8 +431,8 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
             .clamp(0.0, double.infinity);
     final fee = _tariff.totalFee(
         orderTotal: total, storeCount: _byWarehouse(items).length);
-    return tr('Курьер привезёт — ${money(fee)}',
-        'Курьер жеткізеді — ${money(fee)}');
+    return tr('Курьер привезёт — ${money(fee)} курьеру при получении',
+        'Курьер жеткізеді — алғанда курьерге ${money(fee)}');
   }
 
   String _warehouseAddress(List<CartItemModel> items) =>
@@ -372,12 +471,11 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
       return;
     }
 
-    final subtotal = checkoutItems.fold<double>(0, (s, i) => s + i.subtotal);
-    final promoDiscount = _promoDiscount(checkoutItems);
-    final total = (subtotal - promoDiscount).clamp(0.0, subtotal);
-    final deliveryFee = _deliveryFee(checkoutItems);
-    final fittingFee = _fittingFee(checkoutItems);
-    final deposit = _depositFor(total) + deliveryFee + fittingFee;
+    // ⚠️ Сандар БІР ЖЕРДЕ есептеледі: экранда көрсетілетін сома мен нақты
+    // жазылатын сома әрқашан бірдей болуы үшін. Бұрын екеуі бөлек саналатын
+    // да, көп дүкенді себетте айырма шығатын (әр қойма үшін бөлек
+    // дөңгелектенген 10% депозит жалпы 10%-бен сәйкеспейтін).
+    final plans = _planSubOrders(checkoutItems);
 
     // Тапсырыс қорытындысы — растау (true) немесе бас тарту (null).
     final confirmed = await showModalBottomSheet<bool>(
@@ -386,14 +484,12 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
       backgroundColor: Colors.transparent,
       builder: (_) => _PaymentSheet(
         orderType: _orderType!,
-        subtotal: subtotal,
-        promoDiscount: promoDiscount,
+        plans: plans,
         promoCode: _appliedPromo?.code ?? '',
-        total: total,
-        deposit: deposit,
-        deliveryFee: deliveryFee,
-        fittingFee: fittingFee,
-        kazpost: _allStoresInMyCity(checkoutItems) == false,
+        // Курьер жоқ (басқа қала немесе қалада қызмет қосылмаған) → дүкен
+        // өзі жеткізеді, шартын клиентпен өзі келіседі.
+        kazpost: _orderType == OrderModel.typeDelivery &&
+            !_isCourierDelivery(checkoutItems),
         warehouseAddress: _warehouseAddress(checkoutItems),
         deliveryAddress: _addressCtrl.text.trim(),
       ),
@@ -426,105 +522,46 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
         return;
       }
 
-      final Map<String, List<CartItemModel>> byWarehouse = {};
-      for (final item in stillGood) {
-        byWarehouse.putIfAbsent(item.warehouseId, () => []).add(item);
-      }
-
-      // ── Промокод: распределяем скидку по суб-заказам нужного магазина ─────
-      // Учёт used_count ведёт ровно один суб-заказ (usageOwner), отмена которого
-      // вернёт счётчик ровно один раз.
+      // ⚠️ Клиент растаған сандармен ДӘЛ сол есеп: жоспар қайта құрылады, ал
+      // тізім өзгермегені жоғарыда тексерілді (droppedKeys бос). Сондықтан
+      // экрандағы сома мен жазылатын сома әрқашан бірдей.
       final promo = _appliedPromo;
-      final totalPromoDiscount = _promoDiscount(stillGood);
-      final promoShares = <String, double>{}; // warehouseId → скидка ₸
-      String usageOwnerWh = '';
-      if (promo != null && totalPromoDiscount > 0) {
-        final adminWhTotals = <String, double>{};
-        double adminTotal = 0;
-        for (final entry in byWarehouse.entries) {
-          if (entry.value.first.adminUid != _appliedAdminUid) continue;
-          // только подходящие по scope позиции участвуют в сумме скидки
-          final base = entry.value
-              .where((i) =>
-                  promo.scope != 'products' ||
-                  promo.productIds.contains(i.productId))
-              .fold<double>(0, (s, i) => s + i.subtotal);
-          if (base <= 0) continue;
-          adminWhTotals[entry.key] = base;
-          adminTotal += base;
-        }
-        if (adminTotal > 0) {
-          final keys = adminWhTotals.keys.toList();
-          usageOwnerWh = keys.first;
-          double assigned = 0;
-          for (var i = 0; i < keys.length; i++) {
-            final share = i == keys.length - 1
-                ? (totalPromoDiscount - assigned)
-                : (totalPromoDiscount * adminWhTotals[keys[i]]! / adminTotal)
-                    .roundToDouble();
-            promoShares[keys[i]] = share;
-            assigned += share;
-          }
-        }
-      }
-
-      // Әр қойма — жеке суб-тапсырыс (pending). Жеткізу ақысы да сол бойынша
-      // бөлінеді: әр қойма — курьердің жеке соғуы, бірақ бірінші ғана толық
-      // тариф төлейді (қалғаны extraStorePercent). Басқа қалаға — Казпочта,
-      // ол аппта есептелмейді (0 қалады, дүкенмен келісіледі).
-      final courierDelivery = _isCourierDelivery(stillGood);
-      final feeBase = (stillGood.fold<double>(0, (s, i) => s + i.subtotal) -
-              totalPromoDiscount)
-          .clamp(0.0, double.infinity);
-
       final placedOrders = <OrderModel>[];
-      var whIndex = 0;
-      for (final entry in byWarehouse.entries) {
-        final whItems = entry.value;
-        final first = whItems.first;
-        final whTotal = whItems.fold<double>(0, (s, i) => s + i.subtotal);
-        final whPromo = (promoShares[entry.key] ?? 0).clamp(0.0, whTotal);
-        final whFinal = (whTotal - whPromo).clamp(0.0, whTotal);
-        final whDelivery = courierDelivery
-            ? _tariff.feeForSubOrder(orderTotal: feeBase, index: whIndex)
-            : 0.0;
-        final whFitting = courierDelivery && whItems.any((i) => i.hasAltSize)
-            ? _tariff.fittingFee
-            : 0.0;
-        whIndex++;
-        final depositAmt = (_orderType == OrderModel.typeSmartReservation
-                ? (whFinal * 0.1).ceilToDouble()
-                : whFinal) +
-            whDelivery +
-            whFitting;
-        final isUsageOwner = entry.key == usageOwnerWh;
+      for (final plan in _planSubOrders(stillGood)) {
         final order = OrderModel(
           id: '',
           clientPhone: appUser.phone,
           clientName: appUser.name,
           clientUid: appUser.uid,
-          adminUid: first.adminUid,
-          storeName: first.storeName,
-          warehouseId: entry.key,
-          warehouseAddress: first.warehouseAddress,
-          // Курьер жеткізуі емес болса (самовывоз/бронь/Казпочта) қосалқы
-          // өлшемді алып тастаймыз — әйтпесе оны ешкім апармаса да қоймада
-          // бекер брондалып қалар еді.
-          items: courierDelivery
-              ? List.from(whItems)
-              : whItems.map((i) => i.copyWith(altSize: '')).toList(),
+          adminUid: plan.adminUid,
+          storeName: plan.storeName,
+          warehouseId: plan.warehouseId,
+          warehouseAddress: plan.warehouseAddress,
+          // Курьер жеткізуі емес болса (самовывоз/бронь/дүкен өзі жеткізеді)
+          // қосалқы өлшемді алып тастаймыз — әйтпесе оны ешкім апармаса да
+          // қоймада бекер брондалып қалар еді.
+          items: plan.courierDelivery
+              ? List.from(plan.items)
+              : plan.items.map((i) => i.copyWith(altSize: '')).toList(),
           status: OrderModel.statusPending,
           orderType: _orderType!,
           createdAt: DateTime.now(),
           address: _addressCtrl.text.trim(),
           note: _noteCtrl.text.trim(),
-          depositAmount: depositAmt,
-          deliveryFee: whDelivery,
-          fittingFee: whFitting,
-          promoId: whPromo > 0 && promo != null ? promo.id : '',
-          promoCode: whPromo > 0 && promo != null ? promo.code : '',
-          promoDiscount: whPromo,
-          promoCountsUsage: isUsageOwner && promo != null,
+          // ДҮКЕНГЕ: тауар/депозит + «өлшеп көру».
+          depositAmount: plan.storeAmount,
+          // КУРЬЕРГЕ: жеткізу ақысы. Дүкеннің кассасына түспейді.
+          deliveryFee: plan.courierFee,
+          fittingFee: plan.fittingFee,
+          // Қалада курьер қызметі жоқ болса — дүкен өзі жеткізеді (0055).
+          deliveryMode: _orderType == OrderModel.typeDelivery &&
+                  !plan.courierDelivery
+              ? OrderModel.deliveryByStore
+              : OrderModel.deliveryByCourier,
+          promoId: plan.promoDiscount > 0 && promo != null ? promo.id : '',
+          promoCode: plan.promoDiscount > 0 && promo != null ? promo.code : '',
+          promoDiscount: plan.promoDiscount,
+          promoCountsUsage: plan.isPromoUsageOwner,
         );
         final placed = await _service.placeOrder(order);
         placedOrders.add(placed);
@@ -1004,8 +1041,19 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                     final productSavings = _productSavings(checkoutItems);
                     final finalTotal = (checkoutTotal - promoDiscount)
                         .clamp(0.0, checkoutTotal);
-                    final deliveryFee = _deliveryFee(checkoutItems);
-                    final fittingFee = _fittingFee(checkoutItems);
+                    // ⚠️ Сандар растау парағындағы және базаға жазылатын
+                    // сандармен ДӘЛ бірдей болуы үшін сол жоспардан алынады.
+                    // Бұрын мұнда бөлек есеп жүретін де, көп қоймалы себетте
+                    // (әр қойма бойынша дөңгелектелген депозит) айырма шығатын.
+                    final plans = _orderType == null
+                        ? const <_SubOrderPlan>[]
+                        : _planSubOrders(checkoutItems);
+                    final deliveryFee =
+                        plans.fold<double>(0, (s, p) => s + p.courierFee);
+                    final fittingFee =
+                        plans.fold<double>(0, (s, p) => s + p.fittingFee);
+                    final storeTotal =
+                        plans.fold<double>(0, (s, p) => s + p.storeAmount);
                     return Column(children: [
                       if (productSavings > 0)
                         _SummaryLine(tr('Скидка по акции', 'Акция бойынша жеңілдік'),
@@ -1015,17 +1063,15 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                             'Промокод ${_appliedPromo?.code ?? ''}',
                             '−${money(promoDiscount)}',
                             color: cGreen),
-                      if (deliveryFee > 0)
-                        _SummaryLine(tr('Доставка курьером', 'Курьер жеткізуі'),
-                            money(deliveryFee), color: cInk2),
                       if (fittingFee > 0)
                         _SummaryLine(tr('Примерка', 'Өлшеп көру'),
                             money(fittingFee), color: cInk2),
                       if (productSavings > 0 ||
                           promoDiscount > 0 ||
-                          deliveryFee > 0 ||
                           fittingFee > 0)
                         const SizedBox(height: 8),
+                      // storeTotal — жоспардан алынған, растау парағындағы
+                      // сомамен дәл бірдей сан.
                       Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
@@ -1034,22 +1080,45 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                                   ? tr('Итого', 'Барлығы')
                                   : _orderType ==
                                           OrderModel.typeSmartReservation
-                                      ? tr('К оплате сейчас (депозит 10%)',
-                                          'Қазір төленетіні (10% депозит)')
-                                      : tr('К оплате', 'Төленетін сома'),
+                                      ? tr('Магазину сейчас (депозит 10%)',
+                                          'Дүкенге қазір (10% депозит)')
+                                      : tr('Магазину переводом',
+                                          'Дүкенге аударыммен'),
                               style: manrope(13.5, FontWeight.w600,
                                   color: cInk2),
                             ),
                             Text(
                               money(_orderType == null
                                   ? finalTotal
-                                  : _depositFor(finalTotal) +
-                                      deliveryFee +
-                                      fittingFee),
+                                  : storeTotal),
                               style:
                                   manrope(20, FontWeight.w800, color: cInk),
                             ),
                           ]),
+                      // Жеткізу ақысы — КУРЬЕРГЕ, бөлек жол. Дүкеннің картасына
+                      // аударылмайды: клиент оны тапсырысты алғанда береді.
+                      if (deliveryFee > 0)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Row(
+                              mainAxisAlignment:
+                                  MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(children: [
+                                  const Icon(Icons.delivery_dining_rounded,
+                                      size: 15, color: cAmber),
+                                  const SizedBox(width: 5),
+                                  Text(
+                                      tr('Курьеру при получении',
+                                          'Курьерге алғанда'),
+                                      style: manrope(12.5, FontWeight.w700,
+                                          color: cAmber)),
+                                ]),
+                                Text(money(deliveryFee),
+                                    style: manrope(14, FontWeight.w800,
+                                        color: cAmber)),
+                              ]),
+                        ),
                     ]);
                   }),
                   const SizedBox(height: 11),
@@ -1103,6 +1172,49 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
     }
     return tr('товаров', 'тауар');
   }
+}
+
+/// Бір қойманың (бір суб-тапсырыстың) ақша есебі — [_planSubOrders] шығарады.
+///
+/// Ақша бөлінісі ҚАТАҢ:
+///   [storeAmount] → дүкеннің картасына аударым (тауар/депозит + «өлшеп көру»)
+///   [courierFee]  → тапсырысты жеткізетін курьерге, қолма-қол
+class _SubOrderPlan {
+  final String warehouseId, adminUid, storeName, warehouseAddress;
+  final List<CartItemModel> items;
+  /// Тауар сомасы (жеңілдіктерден кейін, промокодқа дейін).
+  final double goods;
+  final double promoDiscount;
+  /// Промокодтан кейінгі тауар сомасы.
+  final double goodsFinal;
+  final double fittingFee;
+  /// Курьерге тиесілі жеткізу ақысы (дүкенге ЕШҚАШАН аударылмайды).
+  final double courierFee;
+  /// Дүкенге аударылатын сома.
+  final double storeAmount;
+  /// Осы суб-тапсырыс промокод есептегішін арттыра ма (біреуі ғана).
+  final bool isPromoUsageOwner;
+  final bool courierDelivery;
+
+  const _SubOrderPlan({
+    required this.warehouseId,
+    required this.adminUid,
+    required this.storeName,
+    required this.warehouseAddress,
+    required this.items,
+    required this.goods,
+    required this.promoDiscount,
+    required this.goodsFinal,
+    required this.fittingFee,
+    required this.courierFee,
+    required this.storeAmount,
+    required this.isPromoUsageOwner,
+    required this.courierDelivery,
+  });
+
+  /// Бронь депозитінен кейін дүкенде қалатын доплата.
+  double get remainingInStore =>
+      (goodsFinal + fittingFee - storeAmount).clamp(0.0, double.infinity);
 }
 
 // ── Cart item card ─────────────────────────────────────────────────────────────
@@ -1415,28 +1527,47 @@ class _QtyBtn extends StatelessWidget {
 // нұсқаулығы (payment_instructions_sheet) ашылады.
 class _PaymentSheet extends StatelessWidget {
   final String orderType, warehouseAddress, deliveryAddress, promoCode;
-  final double total, deposit, subtotal, promoDiscount;
-  final double deliveryFee, fittingFee;
+  /// Әр қойманың жеке есебі. Ақша ӘР ДҮКЕНГЕ бөлек барады, сондықтан
+  /// қосылған бір сан жеткіліксіз — клиент нақты кімге қанша төлейтінін
+  /// осы тізімнен көреді.
+  final List<_SubOrderPlan> plans;
   final bool kazpost;
   const _PaymentSheet({
     required this.orderType,
-    required this.subtotal,
-    required this.promoDiscount,
+    required this.plans,
     required this.promoCode,
-    required this.total,
-    required this.deposit,
-    required this.deliveryFee,
-    required this.fittingFee,
     required this.kazpost,
     required this.warehouseAddress,
     required this.deliveryAddress,
   });
+
+  /// Дүкен (adminUid) бойынша топтама — клиент әр дүкенге БІР аударым жасайды,
+  /// сол дүкеннің бірнеше қоймасы болса да.
+  Map<String, List<_SubOrderPlan>> get _byStore {
+    final map = <String, List<_SubOrderPlan>>{};
+    for (final p in plans) {
+      map.putIfAbsent(p.adminUid, () => []).add(p);
+    }
+    return map;
+  }
+
+  double get _subtotal => plans.fold(0.0, (s, p) => s + p.goods);
+  double get _promoDiscount => plans.fold(0.0, (s, p) => s + p.promoDiscount);
+  double get _fittingFee => plans.fold(0.0, (s, p) => s + p.fittingFee);
+  double get _storeTotal => plans.fold(0.0, (s, p) => s + p.storeAmount);
+  double get _courierTotal => plans.fold(0.0, (s, p) => s + p.courierFee);
+  double get _remainingInStore =>
+      plans.fold(0.0, (s, p) => s + p.remainingInStore);
 
   @override
   Widget build(BuildContext context) {
     final isSmartRes = orderType == OrderModel.typeSmartReservation;
     final isDelivery = orderType == OrderModel.typeDelivery;
     final isCC = orderType == OrderModel.typeClickCollect;
+    final stores = _byStore;
+    final multiStore = stores.length > 1;
+    final deliveryFee = _courierTotal;
+    final deposit = _storeTotal;
 
     final String typeLabel = isSmartRes
         ? tr('Бронь', 'Бронь')
@@ -1445,13 +1576,16 @@ class _PaymentSheet extends StatelessWidget {
             : tr('Доставка', 'Жеткізу');
 
     return Container(
+      constraints:
+          BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.9),
       decoration: const BoxDecoration(
         color: cSurface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       padding: EdgeInsets.fromLTRB(
           20, 16, 20, MediaQuery.of(context).viewInsets.bottom + MediaQuery.of(context).padding.bottom + 24),
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
+      child: SingleChildScrollView(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
         Container(
           width: 40, height: 4,
           margin: const EdgeInsets.only(bottom: 20),
@@ -1460,55 +1594,127 @@ class _PaymentSheet extends StatelessWidget {
         ),
         QPill(typeLabel, tone: isSmartRes ? 'blue' : isCC ? 'green' : 'amber'),
         const SizedBox(height: 16),
-        Text(money(deposit),
-            style: manrope(34, FontWeight.w800, color: cInk, letterSpacing: -1)),
-        const SizedBox(height: 4),
-        Text(
-          isSmartRes ? tr('К оплате сейчас (10% депозит)', 'Қазір төленетіні (10% депозит)') : tr('Итого к оплате', 'Барлығы төленетіні'),
-          style: manrope(13, FontWeight.w500, color: cInk2),
-        ),
-        if (isSmartRes) ...[
-          const SizedBox(height: 6),
+        // ⚠️ Көп дүкенде ҮЛКЕН ЖАЛПЫ СОМА КӨРСЕТІЛМЕЙДІ — клиент оны бір
+        // дүкенге толық аударып жіберуі мүмкін. Әр дүкеннің сомасы төменде
+        // бөлек тұрады (payment_instructions_sheet-тегі ережемен бірдей).
+        if (!multiStore) ...[
+          Text(money(deposit),
+              style:
+                  manrope(34, FontWeight.w800, color: cInk, letterSpacing: -1)),
+          const SizedBox(height: 4),
           Text(
-            tr('В магазине: ${money((total - deposit).clamp(0, total))}', 'Дүкенде: ${money((total - deposit).clamp(0, total))}'),
-            style: manrope(13, FontWeight.w500, color: cInk3),
+            isSmartRes
+                ? tr('Магазину сейчас (10% депозит)',
+                    'Дүкенге қазір (10% депозит)')
+                : tr('Переводом магазину', 'Дүкенге аударыммен'),
+            style: manrope(13, FontWeight.w500, color: cInk2),
+          ),
+          if (isSmartRes && _remainingInStore > 0) ...[
+            const SizedBox(height: 6),
+            Text(
+              tr('В магазине: ${money(_remainingInStore)}',
+                  'Дүкенде: ${money(_remainingInStore)}'),
+              style: manrope(13, FontWeight.w500, color: cInk3),
+            ),
+          ],
+        ] else ...[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: cAmberTint,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.info_outline, color: cAmber, size: 18),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  tr('Заказ из ${stores.length} магазинов — каждому платите ОТДЕЛЬНО по его сумме',
+                      '${stores.length} дүкеннен тапсырыс — әрқайсысына өз сомасымен БӨЛЕК төлейсіз'),
+                  style: manrope(12.5, FontWeight.w700,
+                      color: const Color(0xFF92400E)),
+                ),
+              ),
+            ]),
+          ),
+        ],
+        // ── Екі төлем екенін БІРДЕН көрсетеміз (қосылған бір сан ЕМЕС) ──────
+        if (deliveryFee > 0 && !multiStore) ...[
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            decoration: BoxDecoration(
+              color: cAmberTint,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.delivery_dining_rounded, color: cAmber, size: 18),
+              const SizedBox(width: 8),
+              Text(
+                  tr('+ ${money(deliveryFee)} курьеру при получении',
+                      '+ ${money(deliveryFee)} алғанда курьерге'),
+                  style: manrope(13, FontWeight.w800, color: cAmber)),
+            ]),
           ),
         ],
         if (isDelivery) ...[
           const SizedBox(height: 6),
           Text(
             kazpost
-                ? tr('Доставка Казпочтой — согласуете с магазином после оплаты',
-                    'Казпочтамен жеткізу — төлемнен кейін дүкенмен келісесіз')
+                ? tr('Магазин доставит сам или отправит — условия согласуете после оплаты',
+                    'Дүкен өзі жеткізеді немесе жөнелтеді — шартын төлемнен кейін келісесіз')
                 : tr('Курьер заберёт заказ со склада и привезёт вам',
                     'Курьер тапсырысты қоймадан алып, сізге жеткізеді'),
+            textAlign: TextAlign.center,
             style: manrope(13, FontWeight.w500, color: cInk3),
           ),
         ],
         const SizedBox(height: 16),
         Container(height: 1, color: cLine),
         const SizedBox(height: 12),
-        // Подытог → Промокод → Доставка → Примерка → Итого
-        if (promoDiscount > 0 || deliveryFee > 0 || fittingFee > 0) ...[
-          _SummaryLine(tr('Подытог', 'Аралық сома'), money(subtotal), color: cInk2),
-          if (promoDiscount > 0)
-            _SummaryLine(
-                promoCode.isNotEmpty ? 'Промокод $promoCode' : 'Промокод',
-                '−${money(promoDiscount)}',
-                color: cGreen),
-          if (deliveryFee > 0)
-            _SummaryLine(tr('Доставка курьером', 'Курьер жеткізуі'),
-                money(deliveryFee), color: cInk2),
-          if (fittingFee > 0)
-            _SummaryLine(tr('Примерка (запасной размер)',
-                    'Өлшеп көру (қосалқы өлшем)'),
-                money(fittingFee), color: cInk2),
-          _SummaryLine(tr('Итого', 'Барлығы'),
-              money(total + deliveryFee + fittingFee),
-              color: cInk, bold: true),
-          const SizedBox(height: 8),
-        ],
-        // Курьер жол шығынын өтейді — бас тартқанда жеткізу ақысы қайтпайды.
+        // ── Кім не алады: әр дүкен бөлек, курьер бөлек ──────────────────────
+        _SummaryLine(tr('Подытог', 'Аралық сома'), money(_subtotal),
+            color: cInk2),
+        if (_promoDiscount > 0)
+          _SummaryLine(
+              promoCode.isNotEmpty ? 'Промокод $promoCode' : 'Промокод',
+              '−${money(_promoDiscount)}',
+              color: cGreen),
+        if (_fittingFee > 0)
+          _SummaryLine(
+              tr('Примерка (запасной размер)', 'Өлшеп көру (қосалқы өлшем)'),
+              money(_fittingFee),
+              color: cInk2),
+        const SizedBox(height: 8),
+        // ── Дүкендер: әрқайсысы жеке жол ────────────────────────────────────
+        ...stores.entries.map((e) {
+          final list = e.value;
+          final amount = list.fold(0.0, (s, p) => s + p.storeAmount);
+          return _SummaryLine(
+              multiStore
+                  ? tr('«${list.first.storeName}» переводом',
+                      '«${list.first.storeName}» аударыммен')
+                  : tr('Магазину переводом', 'Дүкенге аударыммен'),
+              money(amount),
+              color: cInk,
+              bold: true);
+        }),
+        // ── Курьер: әр қойма — жеке соғу, жеке ақы ──────────────────────────
+        if (deliveryFee > 0)
+          _SummaryLine(
+              plans.where((p) => p.courierFee > 0).length > 1
+                  ? tr('Курьерам наличными (${plans.where((p) => p.courierFee > 0).length} доставки)',
+                      'Курьерлерге қолма-қол (${plans.where((p) => p.courierFee > 0).length} жеткізу)')
+                  : tr('Курьеру наличными при получении',
+                      'Курьерге алғанда қолма-қол'),
+              money(deliveryFee),
+              color: cAmber, bold: true),
+        if (deliveryFee > 0)
+          _SummaryLine(tr('Всего расходов', 'Жалпы шығын'),
+              money(deposit + deliveryFee),
+              color: cInk3),
+        const SizedBox(height: 8),
+        // Жеткізу ақысы курьердің жол шығыны — бас тартқанда қайтпайды.
         // Клиент мұны ТӨЛЕМГЕ ДЕЙІН көруі керек.
         if (deliveryFee > 0) ...[
           Container(
@@ -1522,8 +1728,8 @@ class _PaymentSheet extends StatelessWidget {
               const SizedBox(width: 9),
               Expanded(
                 child: Text(
-                  tr('Если откажетесь от заказа при доставке — стоимость доставки не возвращается.',
-                      'Жеткізу кезінде тапсырыстан бас тартсаңыз — жеткізу ақысы қайтарылмайды.'),
+                  tr('Доставку ${money(deliveryFee)} вы платите курьеру напрямую при получении — магазину её переводить не нужно. Если откажетесь от заказа при доставке, доставка не возвращается.',
+                      'Жеткізу ақысын (${money(deliveryFee)}) тапсырысты алғанда курьерге тікелей төлейсіз — дүкенге аударудың қажеті жоқ. Жеткізу кезінде бас тартсаңыз, бұл ақы қайтарылмайды.'),
                   style: manrope(12, FontWeight.w600, color: cInk2, height: 1.35),
                 ),
               ),
@@ -1569,7 +1775,8 @@ class _PaymentSheet extends StatelessWidget {
           child: Text(tr('Отмена', 'Болдырмау'),
               style: manrope(14, FontWeight.w600, color: cInk3)),
         ),
-      ]),
+        ]),
+      ),
     );
   }
 }

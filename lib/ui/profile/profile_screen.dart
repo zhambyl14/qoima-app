@@ -184,7 +184,7 @@ class ProfileScreen extends StatelessWidget {
                           s.saleDate.year == now.year)
                       .toList();
                   final salesCount =
-                      mySales.where((s) => !s.isReturn && !s.isWriteOff).length;
+                      mySales.where((s) => !s.isReturn && !s.isWriteOff && !s.isService).length;
                   final total =
                       mySales.fold<double>(0, (a, b) => a + b.totalPrice);
                   return Column(
