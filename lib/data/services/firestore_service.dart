@@ -1767,6 +1767,12 @@ class FirestoreService {
   Future<void> markHandedOver(OrderModel order) => _completeOrder(order,
       expected: const [OrderModel.statusConfirmed]);
 
+  /// «Өлшеп көру» кезінде клиент таңдамаған өлшемді курьер қоймаға әкелді —
+  /// дүкен қабылдады (0052). ТЕК осы сәтте қалдық қайта қолжетімді болады:
+  /// оған дейін тауар физикалық түрде курьерде, жолда.
+  Future<void> confirmReturnLeg(OrderModel order) =>
+      _sb.rpc('store_confirm_return_leg', params: {'p_order': order.id});
+
   Future<void> confirmOnlineOrder(OrderModel order) => _completeOrder(order,
       expected: const [OrderModel.statusPending, OrderModel.statusReserved]);
 

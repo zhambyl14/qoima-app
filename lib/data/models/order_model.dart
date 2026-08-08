@@ -1,5 +1,35 @@
 import 'cart_item_model.dart';
 
+/// Курьермен қоймаға қайтып келе жатқан позиция («өлшеп көру» кезінде клиент
+/// таңдамаған өлшем). [fromHold] — ол броньда тұр ма (қосалқы өлшем) әлде
+/// қоймадан алынған ба (негізгі өлшем): қоймаға қайтару жолы соған байланысты.
+class ReturnLegItem {
+  final String productId;
+  final String batchId;
+  final String productName;
+  final String size;
+  final int qty;
+  final bool fromHold;
+
+  const ReturnLegItem({
+    required this.productId,
+    required this.batchId,
+    required this.productName,
+    required this.size,
+    required this.qty,
+    required this.fromHold,
+  });
+
+  factory ReturnLegItem.fromJson(Map<String, dynamic> j) => ReturnLegItem(
+        productId: j['productId'] as String? ?? '',
+        batchId: j['batchId'] as String? ?? '',
+        productName: j['productName'] as String? ?? '',
+        size: j['size'] as String? ?? '',
+        qty: (j['qty'] as num?)?.toInt() ?? 1,
+        fromHold: j['fromHold'] as bool? ?? false,
+      );
+}
+
 class OrderModel {
   final String id;
   final String clientPhone;
@@ -55,6 +85,14 @@ class OrderModel {
   final String courierStatus;
   final DateTime? courierTakenAt;
   final DateTime? courierPickedUpAt;
+
+  // ── Айналымдағы өлшем (0052) ────────────────────────────────────────────────
+  /// «Өлшеп көру» кезінде клиент ТАҢДАМАҒАН өлшем — курьермен қоймаға қайтып
+  /// келе жатыр. Ол қоймаға дүкен «қабылдадым» дегенде ғана оралады, себебі
+  /// физикалық түрде әлі курьерде.
+  final List<ReturnLegItem> returnLeg;
+  /// '' (жоқ) | pending (курьерде) | returned (дүкен қабылдады)
+  final String returnLegStatus;
 
   // ── Промокод (снапшот на момент заказа) ──────────────────────────────────────
   final String promoId;
@@ -125,6 +163,8 @@ class OrderModel {
     this.courierStatus = '',
     this.courierTakenAt,
     this.courierPickedUpAt,
+    this.returnLeg = const [],
+    this.returnLegStatus = '',
     this.promoId = '',
     this.promoCode = '',
     this.promoDiscount = 0.0,
@@ -152,6 +192,11 @@ class OrderModel {
   bool get courierOnWay => courierStatus == courierPickedUp;
   /// «Өлшеп көру» сұралған позициялар бар ма (курьер қосымша өлшем алып барады).
   bool get hasFitting => items.any((i) => i.hasAltSize);
+
+  /// Курьерде қоймаға қайтып бара жатқан өлшем бар ма.
+  bool get returnLegPending => returnLegStatus == 'pending';
+  bool get returnLegDone => returnLegStatus == 'returned';
+  bool get hasReturnLeg => returnLeg.isNotEmpty;
 
   bool get isAwaitingReview => status == statusPending && receiptUrl.isNotEmpty;
   bool get canHandOver => status == statusConfirmed;
@@ -218,6 +263,10 @@ class OrderModel {
       courierStatus: m['courier_status'] as String? ?? '',
       courierTakenAt: dtn(m['courier_taken_at']),
       courierPickedUpAt: dtn(m['courier_picked_up_at']),
+      returnLeg: (m['return_leg'] as List? ?? [])
+          .map((e) => ReturnLegItem.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList(),
+      returnLegStatus: m['return_leg_status'] as String? ?? '',
       promoId: m['promo_id'] as String? ?? '',
       promoCode: m['promo_code'] as String? ?? '',
       promoDiscount: (m['promo_discount'] as num?)?.toDouble() ?? 0,
@@ -315,6 +364,8 @@ class OrderModel {
     String? courierStatus,
     DateTime? courierTakenAt,
     DateTime? courierPickedUpAt,
+    List<ReturnLegItem>? returnLeg,
+    String? returnLegStatus,
     String? promoId,
     String? promoCode,
     double? promoDiscount,
@@ -367,6 +418,8 @@ class OrderModel {
         courierStatus: courierStatus ?? this.courierStatus,
         courierTakenAt: courierTakenAt ?? this.courierTakenAt,
         courierPickedUpAt: courierPickedUpAt ?? this.courierPickedUpAt,
+        returnLeg: returnLeg ?? this.returnLeg,
+        returnLegStatus: returnLegStatus ?? this.returnLegStatus,
         promoId: promoId ?? this.promoId,
         promoCode: promoCode ?? this.promoCode,
         promoDiscount: promoDiscount ?? this.promoDiscount,

@@ -79,6 +79,35 @@ class CourierService {
 
   /// Клиент бас тартты — тауар қоймаға оралады, тапсырыс болдырылмайды.
   /// Жеткізу ақысы қайтарылмайды (клиент себетте келіскен).
+  ///
+  /// ⚠️ «Өлшеп көру» тапсырысында бұл жол ЖОҚ: онда әрқашан бір өлшем
+  /// клиентте қалады, екіншісі қайтады (UI бұл батырманы жасырады).
   Future<void> returnOrder(String orderId, String reason) => _sb.rpc(
       'courier_return_order', params: {'p_order': orderId, 'p_reason': reason});
+
+  // ── Курьермен ҚАЙТАРУ (возврат) — 0052 ─────────────────────────────────────
+  //  Клиент қайтаруды курьермен рәсімдеді. Курьер клиенттен тауарды алып,
+  //  дүкенге жеткізеді. Ақысы курьердікі әрі қайтарылатын тауар сомасынан
+  //  ЕШҚАШАН шегерілмейді.
+
+  List<Map<String, dynamic>> _rows(dynamic res) => res is List
+      ? res.map((r) => Map<String, dynamic>.from(r as Map)).toList()
+      : const [];
+
+  Future<List<Map<String, dynamic>>> getAvailableReturns() async =>
+      _rows(await _sb.rpc('courier_available_returns'));
+
+  Future<List<Map<String, dynamic>>> getMyReturns() async =>
+      _rows(await _sb.rpc('courier_my_returns'));
+
+  Future<void> takeReturn(String returnId) =>
+      _sb.rpc('courier_take_return', params: {'p_return': returnId});
+
+  /// Клиенттен тауарды алды.
+  Future<void> pickupReturn(String returnId) =>
+      _sb.rpc('courier_pickup_return', params: {'p_return': returnId});
+
+  /// Дүкенге тапсырды (одан әрі ақша қайтару дүкен экранында жүреді).
+  Future<void> deliverReturn(String returnId) =>
+      _sb.rpc('courier_deliver_return', params: {'p_return': returnId});
 }

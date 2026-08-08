@@ -661,6 +661,14 @@ class _OrderCardState extends State<_OrderCard> {
       o.status == OrderModel.statusRejected ||
       o.status == OrderModel.statusConfirmed;
 
+  /// Курьер тапсырысты өзіне алды — тауар физикалық түрде оның қолында.
+  /// Сатушы енді оны бере де, болдырмай да алмайды (0052: серверде де
+  /// guard_courier_order_lock триггері бөгейді).
+  bool get _lockedByCourier =>
+      o.hasCourier &&
+      (o.courierStatus == OrderModel.courierAssigned ||
+          o.courierStatus == OrderModel.courierPickedUp);
+
   Future<void> _handOver() async {
     final ok = await showDialog<bool>(
       context: context,
@@ -958,7 +966,23 @@ class _OrderCardState extends State<_OrderCard> {
                   value: _payMethodLabel(o.paymentBank),
                   valueColor: _payMethodColor(o.paymentBank)),
             const SizedBox(height: 10),
-            CourierInfoBanner(order: o, forStore: true),
+            CourierInfoBanner(
+              order: o,
+              forStore: true,
+              onConfirmReturnLeg: () async {
+                try {
+                  await widget.service.confirmReturnLeg(o);
+                  widget.onChanged();
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                        content: Text(friendlyError(e)),
+                        backgroundColor: cRed,
+                        behavior: SnackBarBehavior.floating));
+                  }
+                }
+              },
+            ),
           ] else ...[
             // ⚠️ ТҮЗЕТУ: бұрын `o.total` (промокодқа дейінгі толық сома)
             // көрсетілетін. Енді `o.finalTotal` — deposit_amount-пен сәйкес.
@@ -983,8 +1007,8 @@ class _OrderCardState extends State<_OrderCard> {
                   valueColor: _payMethodColor(o.paymentBank)),
           ],
 
-          // Action buttons
-          if (_isActive) ...[
+          // Action buttons (курьер алып кеткен соң қолжетімсіз)
+          if (_isActive && !_lockedByCourier) ...[
             const SizedBox(height: 12),
 
             // confirmed → hand over

@@ -24,6 +24,10 @@ class DeliveryTariff {
   /// Бір тапсырыста қанша позицияға қосымша өлшем сұрауға болады.
   final int fittingMaxItems;
 
+  /// Курьермен ҚАЙТАРУ (возврат) ақысы. Клиент курьерге төлейді; қайтарылатын
+  /// тауар сомасынан ЕШҚАШАН шегерілмейді (0052).
+  final double returnFee;
+
   const DeliveryTariff({
     this.baseFee = 690,
     this.reducedFee = 390,
@@ -31,6 +35,7 @@ class DeliveryTariff {
     this.extraStorePercent = 50,
     this.fittingFee = 300,
     this.fittingMaxItems = 2,
+    this.returnFee = 1500,
   });
 
   static double _num(Map<String, String> m, String k, double fallback) =>
@@ -49,6 +54,7 @@ class DeliveryTariff {
       fittingMaxItems:
           _num(m, 'delivery_fitting_max_items', d.fittingMaxItems.toDouble())
               .round(),
+      returnFee: _num(m, 'delivery_return_fee', d.returnFee),
     );
   }
 
@@ -59,6 +65,7 @@ class DeliveryTariff {
         'delivery_extra_store_percent': '$extraStorePercent',
         'delivery_fitting_fee': fittingFee.toStringAsFixed(0),
         'delivery_fitting_max_items': '$fittingMaxItems',
+        'delivery_return_fee': returnFee.toStringAsFixed(0),
       };
 
   DeliveryTariff copyWith({
@@ -68,6 +75,7 @@ class DeliveryTariff {
     int? extraStorePercent,
     double? fittingFee,
     int? fittingMaxItems,
+    double? returnFee,
   }) =>
       DeliveryTariff(
         baseFee: baseFee ?? this.baseFee,
@@ -76,6 +84,7 @@ class DeliveryTariff {
         extraStorePercent: extraStorePercent ?? this.extraStorePercent,
         fittingFee: fittingFee ?? this.fittingFee,
         fittingMaxItems: fittingMaxItems ?? this.fittingMaxItems,
+        returnFee: returnFee ?? this.returnFee,
       );
 
   /// Бүкіл тапсырыс сомасына («барлық суб-тапсырыс» қосындысы) қатысты

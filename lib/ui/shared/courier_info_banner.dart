@@ -1,47 +1,53 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../core/lang.dart';
 import '../../data/models/order_model.dart';
 import '../../theme/qoima_design.dart';
 
-/// Жеткізу тапсырысындағы курьер туралы блок — дүкен, сатушы және клиент
+/// Жеткізу тапсырысындағы курьер блогы — дүкен, сатушы және клиент
 /// экрандарында БІРДЕЙ көрінеді (үш жерде қайталанбауы үшін бір виджет).
 ///
-/// [forStore] = true болғанда қойма коды үлкен әрі анық көрсетіледі: курьер
-/// келгенде сатушы дәл осы кодты айтады, курьер оны өз аппына енгізеді —
-/// солай оның қоймаға НАҚТЫ келгені расталады.
+/// [forStore] = true болғанда:
+///   · беру коды (6 сан) үлкен әрі анық көрсетіледі — курьер келгенде дүкен
+///     дәл осы кодты айтады, курьер оны өз аппына енгізеді. Солай курьердің
+///     қоймаға НАҚТЫ келгені расталады. Код админде де, САТУШЫДА да көрінеді:
+///     тапсырысты іс жүзінде беретін адам — сатушы.
+///   · қайтып келе жатқан өлшемді «Қабылдадым» деп белгілеу батырмасы шығады.
 class CourierInfoBanner extends StatelessWidget {
   final OrderModel order;
   final bool forStore;
+  /// Дүкен айналымдағы өлшемді қабылдады (null болса батырма көрінбейді).
+  final Future<void> Function()? onConfirmReturnLeg;
+
   const CourierInfoBanner({
     super.key,
     required this.order,
     this.forStore = false,
+    this.onConfirmReturnLeg,
   });
 
   @override
   Widget build(BuildContext context) {
     if (!order.isDelivery) return const SizedBox.shrink();
 
-    // Курьер әлі алмаған — дүкенге «күтіңіз» деп түсіндіреміз.
+    final blocks = <Widget>[];
+
+    // ── 1) Курьер күйі ───────────────────────────────────────────────────────
     if (!order.hasCourier) {
-      if (order.status != OrderModel.statusConfirmed) {
-        return const SizedBox.shrink();
+      if (order.status == OrderModel.statusConfirmed) {
+        blocks.add(_box(
+          tone: 'amber',
+          icon: Icons.hourglass_top_rounded,
+          title: tr('Ищем курьера', 'Курьер іздеудеміз'),
+          subtitle: tr('Заказ виден свободным курьерам вашего города',
+              'Тапсырыс қалаңыздағы бос курьерлерге көрінеді'),
+        ));
       }
-      return _box(
-        tone: 'amber',
-        icon: Icons.hourglass_top_rounded,
-        title: tr('Ищем курьера', 'Курьер іздеудеміз'),
-        subtitle: tr('Заказ виден свободным курьерам вашего города',
-            'Тапсырыс қалаңыздағы бос курьерлерге көрінеді'),
-      );
-    }
-
-    final onWay = order.courierStatus == OrderModel.courierPickedUp;
-    final delivered = order.courierStatus == OrderModel.courierDelivered;
-
-    return Column(children: [
-      _box(
-        tone: delivered ? 'green' : (onWay ? 'green' : 'blue'),
+    } else {
+      final onWay = order.courierStatus == OrderModel.courierPickedUp;
+      final delivered = order.courierStatus == OrderModel.courierDelivered;
+      blocks.add(_box(
+        tone: delivered || onWay ? 'green' : 'blue',
         icon: delivered
             ? Icons.task_alt_rounded
             : (onWay
@@ -62,67 +68,140 @@ class CourierInfoBanner extends StatelessWidget {
                         'Жақында тапсырыс үшін қоймаға келеді')
                     : tr('Курьер назначен, скоро заберёт заказ',
                         'Курьер тағайындалды, тапсырысты жақында алады')),
-      ),
-      // Қойма коды — тек дүкенге әрі курьер әлі алмаған кезде керек.
-      if (forStore &&
-          order.courierStatus == OrderModel.courierAssigned &&
-          order.pickupCode.isNotEmpty) ...[
-        const SizedBox(height: 8),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            color: cAmberTint,
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Column(children: [
-            Text(tr('Назовите курьеру этот код', 'Курьерге осы кодты айтыңыз'),
-                style: manrope(11.5, FontWeight.w700, color: cAmber)),
-            const SizedBox(height: 4),
-            Text(order.pickupCode,
-                style: manrope(22, FontWeight.w800,
-                    color: cInk, letterSpacing: 2)),
-          ]),
-        ),
-      ],
-      // «Өлшеп көру» — дүкен қосымша өлшемді де дайындауы керек.
-      if (order.hasFitting) ...[
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.all(11),
-          decoration: BoxDecoration(
-            color: cAmberTint,
-            borderRadius: BorderRadius.circular(13),
-          ),
-          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Icon(Icons.checkroom_rounded, color: cAmber, size: 17),
-            const SizedBox(width: 9),
-            Expanded(
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(tr('Примерка — нужен запасной размер',
-                        'Өлшеп көру — қосалқы өлшем керек'),
-                        style: manrope(12, FontWeight.w800, color: cInk)),
-                    const SizedBox(height: 2),
-                    ...order.items.where((i) => i.hasAltSize).map((i) => Text(
-                        '${i.productName}: ${i.size} + ${i.altSize}',
-                        style: manrope(11.5, FontWeight.w600, color: cInk2))),
-                    const SizedBox(height: 2),
-                    Text(
-                        forStore
-                            ? tr('Второй размер вернётся на склад, если не подойдёт',
-                                'Келмесе, екінші өлшем қоймаға оралады')
-                            : tr('Курьер привезёт оба — примерите на месте',
-                                'Курьер екеуін де әкеледі — орнында өлшейсіз'),
-                        style: manrope(11, FontWeight.w600, color: cInk3)),
-                  ]),
-            ),
-          ]),
-        ),
+      ));
+    }
+
+    // ── 2) Беру коды — дүкенге, курьер әлі алмаған кезде ────────────────────
+    if (forStore &&
+        order.courierStatus == OrderModel.courierAssigned &&
+        order.pickupCode.isNotEmpty) {
+      blocks.add(_PickupCodeCard(code: order.pickupCode));
+    }
+
+    // ── 3) «Өлшеп көру» — беруге дейін: екі өлшемді де дайындау ─────────────
+    if (order.hasFitting) {
+      blocks.add(_fittingPrepBlock());
+    }
+
+    // ── 4) Айналымдағы өлшем — қайсысы қалды, қайсысы қайтып келеді ─────────
+    if (order.hasReturnLeg) {
+      blocks.add(_returnLegBlock(context));
+    }
+
+    if (blocks.isEmpty) return const SizedBox.shrink();
+    return Column(children: [
+      for (var i = 0; i < blocks.length; i++) ...[
+        if (i > 0) const SizedBox(height: 8),
+        blocks[i],
       ],
     ]);
   }
+
+  // ── «Өлшеп көру»: екінші өлшемді де қоймадан беру керек ───────────────────
+  Widget _fittingPrepBlock() => Container(
+        padding: const EdgeInsets.all(11),
+        decoration: BoxDecoration(
+          color: cAmberTint,
+          borderRadius: BorderRadius.circular(13),
+        ),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Icon(Icons.checkroom_rounded, color: cAmber, size: 17),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                      tr('Примерка — нужен запасной размер',
+                          'Өлшеп көру — қосалқы өлшем керек'),
+                      style: manrope(12, FontWeight.w800, color: cInk)),
+                  const SizedBox(height: 2),
+                  ...order.items.where((i) => i.hasAltSize).map((i) => Text(
+                      '${i.productName}: ${i.size} + ${i.altSize}',
+                      style: manrope(11.5, FontWeight.w600, color: cInk2))),
+                  const SizedBox(height: 2),
+                  Text(
+                      forStore
+                          ? tr('Один размер останется у клиента, второй курьер вернёт на склад',
+                              'Бір өлшем клиентте қалады, екіншісін курьер қоймаға қайтарады')
+                          : tr('Курьер привезёт оба — примерите и выберете один',
+                              'Курьер екеуін де әкеледі — өлшеп көріп, біреуін таңдайсыз'),
+                      style: manrope(11, FontWeight.w600, color: cInk3)),
+                ]),
+          ),
+        ]),
+      );
+
+  // ── Қайтып келе жатқан өлшем ──────────────────────────────────────────────
+  Widget _returnLegBlock(BuildContext context) {
+    final done = order.returnLegDone;
+    // Клиентте ҚАЛҒАН өлшемдер — курьер свопынан кейін items-те тұр.
+    final kept = order.items.where((i) => i.fittingResolved).toList();
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: done ? cGreenTint : cBlueTint,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(done ? Icons.inventory_rounded : Icons.u_turn_left_rounded,
+              color: done ? cGreen : cBlue, size: 18),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Text(
+                done
+                    ? tr('Второй размер вернулся на склад',
+                        'Екінші өлшем қоймаға оралды')
+                    : tr('Второй размер едет обратно на склад',
+                        'Екінші өлшем қоймаға қайтып келе жатыр'),
+                style: manrope(12.5, FontWeight.w800, color: cInk)),
+          ),
+        ]),
+        const SizedBox(height: 8),
+        // Қайсысы клиентте қалды / қайсысы қайтады — нақты жазылады.
+        ...kept.map((i) => Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(i.productName,
+                        style: manrope(11.5, FontWeight.w700, color: cInk2),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis),
+                    Row(children: [
+                      _sizeTag(i.size, kept_: true),
+                      const SizedBox(width: 6),
+                      _sizeTag(i.returningSize, kept_: false),
+                    ]),
+                  ]),
+            )),
+        if (forStore && !done && onConfirmReturnLeg != null) ...[
+          const SizedBox(height: 10),
+          _ConfirmReturnButton(onConfirm: onConfirmReturnLeg!),
+        ],
+      ]),
+    );
+  }
+
+  Widget _sizeTag(String size, {required bool kept_}) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: kept_ ? cGreen : cInk3,
+          borderRadius: BorderRadius.circular(7),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(kept_ ? Icons.check_rounded : Icons.u_turn_left_rounded,
+              size: 11, color: Colors.white),
+          const SizedBox(width: 3),
+          Text(
+              kept_
+                  ? tr('$size — у клиента', '$size — клиентте')
+                  : tr('$size — возврат', '$size — қайтады'),
+              style: manrope(10.5, FontWeight.w800, color: Colors.white)),
+        ]),
+      );
 
   Widget _box({
     required String tone,
@@ -152,8 +231,7 @@ class CourierInfoBanner extends StatelessWidget {
           child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title,
-                    style: manrope(13, FontWeight.w800, color: cInk)),
+                Text(title, style: manrope(13, FontWeight.w800, color: cInk)),
                 Text(subtitle,
                     style: manrope(11.5, FontWeight.w600, color: cInk2)),
               ]),
@@ -161,4 +239,96 @@ class CourierInfoBanner extends StatelessWidget {
       ]),
     );
   }
+}
+
+// ── Беру коды (6 сан) ─────────────────────────────────────────────────────────
+class _PickupCodeCard extends StatelessWidget {
+  final String code;
+  const _PickupCodeCard({required this.code});
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: () {
+          Clipboard.setData(ClipboardData(text: code));
+          HapticFeedback.lightImpact();
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(SnackBar(
+              content: Text(tr('Код скопирован', 'Код көшірілді')),
+              backgroundColor: cGreen,
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 2),
+            ));
+        },
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+          decoration: BoxDecoration(
+            color: cAmberTint,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: cAmber.withValues(alpha: 0.4)),
+          ),
+          child: Column(children: [
+            Text(tr('Назовите курьеру этот код', 'Курьерге осы кодты айтыңыз'),
+                style: manrope(11.5, FontWeight.w700, color: cAmber)),
+            const SizedBox(height: 5),
+            Text(code,
+                style: manrope(27, FontWeight.w800,
+                    color: cInk, letterSpacing: 7)),
+            const SizedBox(height: 3),
+            Text(
+                tr('Без кода курьер не сможет забрать заказ',
+                    'Кодсыз курьер тапсырысты ала алмайды'),
+                style: manrope(10.5, FontWeight.w600, color: cInk3)),
+          ]),
+        ),
+      );
+}
+
+// ── «Қабылдадым» батырмасы (қайтып келген өлшем) ──────────────────────────────
+class _ConfirmReturnButton extends StatefulWidget {
+  final Future<void> Function() onConfirm;
+  const _ConfirmReturnButton({required this.onConfirm});
+
+  @override
+  State<_ConfirmReturnButton> createState() => _ConfirmReturnButtonState();
+}
+
+class _ConfirmReturnButtonState extends State<_ConfirmReturnButton> {
+  bool _busy = false;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        width: double.infinity,
+        height: 42,
+        child: ElevatedButton.icon(
+          onPressed: _busy
+              ? null
+              : () async {
+                  setState(() => _busy = true);
+                  try {
+                    await widget.onConfirm();
+                  } finally {
+                    if (mounted) setState(() => _busy = false);
+                  }
+                },
+          icon: _busy
+              ? const SizedBox(
+                  width: 15,
+                  height: 15,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: Colors.white))
+              : const Icon(Icons.inventory_2_rounded, size: 17),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: cGreen,
+            foregroundColor: Colors.white,
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12)),
+          ),
+          label: Text(
+              tr('Принял размер на склад', 'Өлшемді қоймаға қабылдадым'),
+              style: manrope(13, FontWeight.w800, color: Colors.white)),
+        ),
+      );
 }

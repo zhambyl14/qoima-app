@@ -19,6 +19,11 @@ class CartItemModel {
   /// бұл өлшем қоймада брондалады да, клиент оны таңдаса своп жасалады.
   /// Тек жеткізуде және сол қаладағы дүкенде мағыналы.
   final String altSize;
+  /// Курьер своп жасағанда толтырылады (0052): клиент қосалқы өлшемді алды,
+  /// ал МЫНАУ — бастапқы тапсырыстағы өлшем (қоймаға қайтарылады).
+  final String swappedFrom;
+  /// Клиент негізгі өлшемді алды — МЫНАУ қайтарылатын қосалқы өлшем.
+  final String returnedSize;
 
   const CartItemModel({
     required this.productId,
@@ -35,6 +40,8 @@ class CartItemModel {
     this.warehouseAddress = '',
     this.selected = true,
     this.altSize = '',
+    this.swappedFrom = '',
+    this.returnedSize = '',
   });
 
   factory CartItemModel.fromJson(Map<String, dynamic> json) => CartItemModel(
@@ -52,6 +59,8 @@ class CartItemModel {
         warehouseAddress: json['warehouseAddress'] as String? ?? '',
         selected: json['selected'] as bool? ?? true,
         altSize: json['altSize'] as String? ?? '',
+        swappedFrom: json['swappedFrom'] as String? ?? '',
+        returnedSize: json['returnedSize'] as String? ?? '',
       );
 
   Map<String, dynamic> toJson() => {
@@ -69,6 +78,8 @@ class CartItemModel {
         'warehouseAddress': warehouseAddress,
         'selected': selected,
         if (altSize.isNotEmpty) 'altSize': altSize,
+        if (swappedFrom.isNotEmpty) 'swappedFrom': swappedFrom,
+        if (returnedSize.isNotEmpty) 'returnedSize': returnedSize,
       };
 
   CartItemModel copyWith({
@@ -102,9 +113,17 @@ class CartItemModel {
         warehouseAddress: warehouseAddress ?? this.warehouseAddress,
         selected: selected ?? this.selected,
         altSize: altSize ?? this.altSize,
+        swappedFrom: swappedFrom,
+        returnedSize: returnedSize,
       );
 
   bool get hasAltSize => altSize.isNotEmpty;
+
+  /// «Өлшеп көру» аяқталған позиция: клиент қай өлшемді алды, қайсысы қайтады.
+  bool get fittingResolved =>
+      swappedFrom.isNotEmpty || returnedSize.isNotEmpty;
+  String get returningSize =>
+      swappedFrom.isNotEmpty ? swappedFrom : returnedSize;
 
   double get subtotal => price * qty;
 

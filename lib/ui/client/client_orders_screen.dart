@@ -17,6 +17,7 @@ import '../../core/lang.dart';
 import '../../core/error_text.dart';
 import '../shared/error_view.dart';
 import '../shared/courier_info_banner.dart';
+import 'order_timeline.dart';
 
 class ClientOrdersScreen extends StatefulWidget {
   final VoidCallback? onBack;
@@ -640,6 +641,8 @@ class _OrderCardState extends State<_OrderCard> {
           if (o.isDelivery) ...[
             const SizedBox(height: 8),
             CourierInfoBanner(order: o),
+            const SizedBox(height: 8),
+            OrderTimeline(order: o),
           ],
 
           if (o.isSmartReservation && o.depositAmount > 0) ...[

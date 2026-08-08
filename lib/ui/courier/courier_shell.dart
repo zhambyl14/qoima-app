@@ -88,8 +88,12 @@ class _CourierShellState extends State<CourierShell> {
     }
   }
 
-  List<OrderModel> get _activeMine =>
-      _mine.where((o) => o.status == OrderModel.statusConfirmed).toList();
+  /// Белсенді миссиялар: әлі жеткізілмегендер + жеткізілсе де клиент
+  /// таңдамаған өлшемі әлі курьерде жүргендер (қоймаға апару керек).
+  List<OrderModel> get _activeMine => _mine
+      .where((o) =>
+          o.status == OrderModel.statusConfirmed || o.returnLegPending)
+      .toList();
 
   @override
   Widget build(BuildContext context) {

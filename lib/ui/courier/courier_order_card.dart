@@ -145,6 +145,57 @@ class CourierOrderCard extends StatelessWidget {
                           'Екі өлшемді де алыңыз — клиент орнында өлшейді'),
                       style: manrope(11.5, FontWeight.w700, color: cAmber)),
                 ],
+                // Миссия әлі бітпеді: клиент таңдамаған өлшемді қоймаға
+                // апару керек. Дүкен «қабылдадым» дегенде ғана жабылады —
+                // сондықтан курьерге бұл еске салғыш ретінде тұрады.
+                if (order.returnLegPending) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(11),
+                    decoration: BoxDecoration(
+                      color: cBlueTint,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.u_turn_left_rounded,
+                              color: cBlue, size: 17),
+                          const SizedBox(width: 9),
+                          Expanded(
+                            child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                      tr('Вернуть на склад',
+                                          'Қоймаға қайтару керек'),
+                                      style: manrope(12, FontWeight.w800,
+                                          color: cInk)),
+                                  ...order.returnLeg.map((r) => Text(
+                                      '${r.productName} · ${r.size} × ${r.qty}',
+                                      style: manrope(11.5, FontWeight.w600,
+                                          color: cInk2))),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                      tr('Магазин подтвердит приём — тогда миссия закроется',
+                                          'Дүкен қабылдағанда миссия жабылады'),
+                                      style: manrope(10.5, FontWeight.w600,
+                                          color: cInk3)),
+                                ]),
+                          ),
+                        ]),
+                  ),
+                ],
+                if (order.returnLegDone) ...[
+                  const SizedBox(height: 10),
+                  Row(children: [
+                    const Icon(Icons.check_circle_rounded,
+                        color: cGreen, size: 16),
+                    const SizedBox(width: 7),
+                    Text(tr('Возврат сдан на склад', 'Қайтарым қоймаға тапсырылды'),
+                        style: manrope(11.5, FontWeight.w700, color: cGreen)),
+                  ]),
+                ],
                 if (!_isDone) ...[
                   const SizedBox(height: 14),
                   _actions(context),
@@ -185,7 +236,11 @@ class CourierOrderCard extends StatelessWidget {
           onPressed: () => _handOver(context),
           height: 46,
         ),
-        if (onReturn != null)
+        // «Өлшеп көру» тапсырысында бас тарту жолы ЖОҚ: клиент екі өлшемнің
+        // біреуін МІНДЕТТІ түрде алады, екіншісі қоймаға қайтады. Сондықтан
+        // мұнда тек примеркасыз тапсырыс үшін ғана бас тарту қалады
+        // (клиент үйде жоқ / байланысқа шықпады деген нақты жағдайлар).
+        if (onReturn != null && !order.hasFitting)
           TextButton(
             onPressed: () => _askReturnReason(context),
             child: Text(tr('Клиент отказался', 'Клиент бас тартты'),
@@ -474,8 +529,8 @@ class _FittingSheetState extends State<_FittingSheet> {
             style: manrope(17, FontWeight.w800, color: cInk)),
         const SizedBox(height: 6),
         Text(
-          tr('Второй размер вернётся на склад. Доплаты нет — цена одинаковая.',
-              'Екінші өлшем қоймаға оралады. Қосымша төлем жоқ — бағасы бірдей.'),
+          tr('Один размер остаётся у клиента, второй вы везёте обратно на склад. Доплаты нет — цена одинаковая.',
+              'Бір өлшем клиентте қалады, екіншісін қоймаға қайтарасыз. Қосымша төлем жоқ — бағасы бірдей.'),
           textAlign: TextAlign.center,
           style: manrope(12.5, FontWeight.w600, color: cInk2, height: 1.4),
         ),

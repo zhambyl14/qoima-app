@@ -450,11 +450,14 @@ class ClientService {
 
   // ── Pickup code ────────────────────────────────────────────────────────────
 
+  /// Тапсырысты беру коды — 6 ТАҢБАЛЫ САН.
+  ///
+  /// Бұрын «QM-A7K2» түрінде еді: курьер қоймада тұрып әріп пен санды
+  /// шатастыратын (O/0, I/1), терген сайын қате шығатын. Сан-код телефон
+  /// пернетақтасында бір қолмен теріледі әрі ауызша айтуға ыңғайлы.
   String _generatePickupCode() {
-    const chars = '0123456789ABCDEFGHJKMNPQRSTUVWXYZ';
     final r = Random.secure();
-    final code = List.generate(4, (_) => chars[r.nextInt(chars.length)]).join();
-    return 'QM-$code';
+    return List.generate(6, (_) => r.nextInt(10)).join();
   }
 
   // ── Referral (0044) ────────────────────────────────────────────────────────

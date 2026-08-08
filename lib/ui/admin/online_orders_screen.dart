@@ -824,6 +824,13 @@ class _OrderCardState extends State<_OrderCard> {
   }
 
 
+  /// Курьер тапсырысты өзіне бекітті/қоймадан алды — дүкен енді оны бере де,
+  /// болдырмай да алмайды (тауар курьерде). Тек курьер жабады.
+  bool get _lockedByCourier =>
+      o.hasCourier &&
+      (o.courierStatus == OrderModel.courierAssigned ||
+          o.courierStatus == OrderModel.courierPickedUp);
+
   @override
   Widget build(BuildContext context) {
     final isActive = o.status == OrderModel.statusPending ||
@@ -1060,7 +1067,25 @@ class _OrderCardState extends State<_OrderCard> {
                                   value: _payMethodLabel(o.paymentBank),
                                   valueColor: _payMethodColor(o.paymentBank)),
                             const SizedBox(height: 10),
-                            CourierInfoBanner(order: o, forStore: true),
+                            CourierInfoBanner(
+                              order: o,
+                              forStore: true,
+                              onConfirmReturnLeg: () async {
+                                try {
+                                  await widget.service.confirmReturnLeg(o);
+                                  widget.onChanged();
+                                } catch (e) {
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                            content: Text(friendlyError(e)),
+                                            backgroundColor: cRed,
+                                            behavior:
+                                                SnackBarBehavior.floating));
+                                  }
+                                }
+                              },
+                            ),
                           ] else ...[
                             // ⚠️ ТҮЗЕТУ: бұрын мұнда `o.total` (промокодқа дейінгі
                             // толық сома) көрсетілетін — админ клиенттің НАҚТЫ
@@ -1090,8 +1115,12 @@ class _OrderCardState extends State<_OrderCard> {
                                   valueColor: _payMethodColor(o.paymentBank)),
                           ],
 
-                          // Action buttons
-                          if (isActive) ...[
+                          // Action buttons.
+                          // ⚠️ Курьер тапсырысты алып кеткен соң дүкен оны
+                          // «Выдать»/«Отменить» ете АЛМАЙДЫ: тауар физикалық
+                          // түрде курьерде. Оны тек курьер жабады (0052 —
+                          // серверде де guard_courier_order_lock триггері бар).
+                          if (isActive && !_lockedByCourier) ...[
                             const SizedBox(height: 12),
 
                             // Pending + чек тіркелді → тексеру/растау/қабылдамау

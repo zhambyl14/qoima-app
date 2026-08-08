@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/app_user.dart';
 import '../../../core/l10n_ext.dart';
+import '../../../data/models/delivery_tariff.dart';
 import '../../../data/models/order_model.dart';
 import '../../../data/models/return_model.dart';
+import '../../../data/services/app_settings_service.dart';
 import '../../../data/services/cloudinary_service.dart';
 import '../../../data/services/return_service.dart';
 import '../../../theme/qoima_design.dart';
@@ -51,14 +53,28 @@ class _ClientReturnFormScreenState extends State<ClientReturnFormScreen> {
       refundMethodForPayment(widget.order.paymentBank);
   bool _submitting = false;
 
-  static const double _courierFee = 1500;
+  // Курьермен қайтару ақысы — модератор баптайды (app_settings). Әдепкісі
+  // DeliveryTariff-те; жүктелгенше сол көрсетіледі.
+  double _courierFee = const DeliveryTariff().returnFee;
 
   List<ReturnItem> get _selectedItems =>
       _itemMap.values.where((e) => e.selected).map((e) => e.item).toList();
 
+  /// ⚠️ Курьер ақысы қайтарылатын сомадан ШЕГЕРІЛМЕЙДІ.
+  ///
+  /// Бұрын шегерілетін: клиент 20 000 ₸-лік тауарды қайтарса 18 500 ₸ алатын.
+  /// Бұл дұрыс емес әрі дау туғызады — тауардың толық құны қайтарылуы керек,
+  /// ал жеткізу қызметі бөлек төленетін жеке қызмет (ақшасы курьерге барады).
   double get _refundTotal =>
-      _selectedItems.fold(0.0, (s, i) => s + i.subtotal) -
-      (_pickup == ReturnPickup.courier ? _courierFee : 0);
+      _selectedItems.fold(0.0, (s, i) => s + i.subtotal);
+
+  @override
+  void initState() {
+    super.initState();
+    AppSettingsService().getDeliveryTariff().then((t) {
+      if (mounted) setState(() => _courierFee = t.returnFee);
+    });
+  }
 
   @override
   void dispose() {
@@ -602,11 +618,18 @@ class _DeliveryPage extends StatelessWidget {
                                   color: active ? cGreenDeep : cInk)),
                           Text(
                             isCourier
-                                ? '${courierFee.toStringAsFixed(0)} ₸'
+                                ? tr('${courierFee.toStringAsFixed(0)} ₸ — оплачивается курьеру',
+                                    '${courierFee.toStringAsFixed(0)} ₸ — курьерге төленеді')
                                 : tr('Бесплатно', 'Тегін'),
                             style: manrope(12, FontWeight.w600,
                                 color: isCourier ? cAmber : cGreen),
                           ),
+                          if (isCourier)
+                            Text(
+                              tr('Из суммы возврата НЕ вычитается',
+                                  'Қайтарым сомасынан ШЕГЕРІЛМЕЙДІ'),
+                              style: manrope(11, FontWeight.w700, color: cGreen),
+                            ),
                         ],
                       ),
                     ),
@@ -745,22 +768,36 @@ class _SummaryPage extends StatelessWidget {
 
             const SizedBox(height: 10),
 
-            // Delivery
+            // Delivery. ⚠️ «−1500 ₸» деп көрсетілмейді: бұл сома қайтарымнан
+            // ШЕГЕРІЛМЕЙДІ, ол курьерге бөлек төленетін жеке қызмет.
             _SummarySection(
               title: context.l10n.returnPickupLabel,
-              child: Row(children: [
-                Expanded(
-                  child: Text(pickup.label(context),
-                      style: manrope(13.5, FontWeight.w600, color: cInk)),
-                ),
-                Text(
-                  isCourier
-                      ? '-${courierFee.toStringAsFixed(0)} ₸'
-                      : tr('Бесплатно', 'Тегін'),
-                  style: manrope(13, FontWeight.w600,
-                      color: isCourier ? cAmber : cGreen),
-                ),
-              ]),
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      Expanded(
+                        child: Text(pickup.label(context),
+                            style:
+                                manrope(13.5, FontWeight.w600, color: cInk)),
+                      ),
+                      Text(
+                        isCourier
+                            ? '${courierFee.toStringAsFixed(0)} ₸'
+                            : tr('Бесплатно', 'Тегін'),
+                        style: manrope(13, FontWeight.w600,
+                            color: isCourier ? cAmber : cGreen),
+                      ),
+                    ]),
+                    if (isCourier)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 3),
+                        child: Text(
+                            tr('Оплачивается курьеру отдельно — из возврата не вычитается',
+                                'Курьерге бөлек төленеді — қайтарымнан шегерілмейді'),
+                            style: manrope(11, FontWeight.w700, color: cGreen)),
+                      ),
+                  ]),
             ),
 
             const SizedBox(height: 10),

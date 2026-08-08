@@ -33,6 +33,7 @@ class _PaymentSettingsScreenState extends State<PaymentSettingsScreen> {
   final _extraCtrl = TextEditingController();
   final _fittingCtrl = TextEditingController();
   final _fittingMaxCtrl = TextEditingController();
+  final _returnFeeCtrl = TextEditingController();
 
   @override
   void initState() {
@@ -51,6 +52,7 @@ class _PaymentSettingsScreenState extends State<PaymentSettingsScreen> {
     _extraCtrl.dispose();
     _fittingCtrl.dispose();
     _fittingMaxCtrl.dispose();
+    _returnFeeCtrl.dispose();
     super.dispose();
   }
 
@@ -73,6 +75,7 @@ class _PaymentSettingsScreenState extends State<PaymentSettingsScreen> {
       fittingFee: num(_fittingCtrl, d.fittingFee),
       fittingMaxItems:
           num(_fittingMaxCtrl, d.fittingMaxItems.toDouble()).clamp(1, 5).round(),
+      returnFee: num(_returnFeeCtrl, d.returnFee),
     );
   }
 
@@ -95,6 +98,7 @@ class _PaymentSettingsScreenState extends State<PaymentSettingsScreen> {
         _extraCtrl.text = '${tariff.extraStorePercent}';
         _fittingCtrl.text = tariff.fittingFee.toStringAsFixed(0);
         _fittingMaxCtrl.text = '${tariff.fittingMaxItems}';
+        _returnFeeCtrl.text = tariff.returnFee.toStringAsFixed(0);
         _loading = false;
       });
     } catch (_) {
@@ -306,8 +310,19 @@ class _PaymentSettingsScreenState extends State<PaymentSettingsScreen> {
                       controller: _fittingMaxCtrl,
                       onChanged: () => setState(() {}),
                     ),
+                    const SizedBox(height: 10),
+                    _NumField(
+                      icon: Icons.u_turn_left_rounded,
+                      label: tr('Возврат курьером', 'Курьермен қайтару'),
+                      suffix: '₸',
+                      hint: '1500',
+                      controller: _returnFeeCtrl,
+                      onChanged: () => setState(() {}),
+                    ),
                     const SizedBox(height: 12),
                     _TariffPreview(tariff: _tariffFromFields),
+                    const SizedBox(height: 12),
+                    const _MoneySplitCard(),
                     const SizedBox(height: 24),
                     QPrimaryButton(
                       label: tr('Сохранить', 'Сақтау'),
@@ -468,6 +483,63 @@ class _TariffPreview extends StatelessWidget {
               style: manrope(12.5, FontWeight.w800, color: cGreenDeep)),
         ]),
       );
+}
+
+/// Ақшаның кімге тиесілі екені — модератор бір қарап есіне түсіруі үшін.
+/// Бұл жүйедегі ЕҢ жиі шатасатын нәрсе, сондықтан баптау экранында тұрады.
+class _MoneySplitCard extends StatelessWidget {
+  const _MoneySplitCard();
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(13),
+        decoration: BoxDecoration(
+          color: cSurface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: cLine),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(tr('Кому какие деньги', 'Қай ақша кімдікі'),
+              style: manrope(12.5, FontWeight.w800, color: cInk)),
+          const SizedBox(height: 8),
+          _row(Icons.storefront_rounded, 'green',
+              tr('Стоимость товара', 'Тауар құны'),
+              tr('магазину', 'дүкенге')),
+          _row(Icons.delivery_dining_rounded, 'blue',
+              tr('Доставка', 'Жеткізу'), tr('курьеру', 'курьерге')),
+          _row(Icons.checkroom_rounded, 'amber',
+              tr('Примерка', 'Өлшеп көру'), tr('магазину', 'дүкенге')),
+          _row(Icons.u_turn_left_rounded, 'blue',
+              tr('Возврат курьером', 'Курьермен қайтару'),
+              tr('курьеру', 'курьерге')),
+          const SizedBox(height: 8),
+          Text(
+              tr('Доставка и возврат не входят в выручку магазина. Стоимость возврата НЕ вычитается из суммы, которую возвращают клиенту.',
+                  'Жеткізу мен қайтару дүкеннің түсіміне кірмейді. Қайтару ақысы клиентке қайтарылатын сомадан ШЕГЕРІЛМЕЙДІ.'),
+              style: manrope(11, FontWeight.w600, color: cInk3, height: 1.4)),
+        ]),
+      );
+
+  Widget _row(IconData icon, String tone, String what, String toWhom) {
+    final color = switch (tone) {
+      'green' => cGreen,
+      'amber' => cAmber,
+      _ => cBlue,
+    };
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 5),
+      child: Row(children: [
+        Icon(icon, size: 15, color: color),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(what,
+              style: manrope(12, FontWeight.w600, color: cInk2)),
+        ),
+        Text('→ $toWhom',
+            style: manrope(12, FontWeight.w800, color: color)),
+      ]),
+    );
+  }
 }
 
 class _ModeOption extends StatelessWidget {
