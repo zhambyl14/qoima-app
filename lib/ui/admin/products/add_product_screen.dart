@@ -1,4 +1,5 @@
-﻿import 'dart:convert';
+﻿import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -15,6 +16,7 @@ import '../../shared/h_scroll_chips.dart';
 import '../../shared/mandatory_warehouse_picker.dart';
 import '../../shared/prompt_text_dialog.dart';
 import '../../widgets/image_crop_screen.dart';
+import 'restock_screen.dart';
 
 import '../../../core/lang.dart';
 class AddProductScreen extends StatefulWidget {
@@ -37,6 +39,19 @@ class _AddProductScreenState extends State<AddProductScreen> {
 
   // Бұрын қолданылған брендтер (ұсыныс чиптері үшін).
   List<String> _brandSuggestions = [];
+
+  // ── «Мұндай тауар бар» күзеті ──────────────────────────────────────────
+  // Нақты қауіп: қоймада «Adidas Samba сары» бар екенін ұмытып, сәл өзгеше
+  // ЖАҢА модельді дәл солай толтыру. Сонда findMatchingProduct дәл сәйкестік
+  // табады да, ол жаңа тауар емес — ЕСКІСІНЕ ПАРТИЯ болып үнсіз кетеді
+  // (қойма, өзіндік құн, аналитика — бәрі араласады). Сондықтан:
+  //   1) толтыру кезінде ұқсастарын суретімен көрсетеміз;
+  //   2) сақтауда дәл сәйкестік табылса — АШЫҚ сұраймыз (үнсіз біріктірмейміз).
+  List<ProductModel> _similar = [];
+  bool _similarDismissed = false;
+  Timer? _similarDebounce;
+  // Нұсқа кілті → админ «иә, бұл повторный завоз» деп растады.
+  final Set<String> _confirmedRestock = {};
 
   String? _type;
   String? _material;
@@ -133,6 +148,32 @@ class _AddProductScreenState extends State<AddProductScreen> {
     super.initState();
     _loadCustomPresets();
     _loadBrands();
+    _nameCtrl.addListener(_scheduleSimilarSearch);
+    _brandCtrl.addListener(_scheduleSimilarSearch);
+  }
+
+  // ── «Мұндай тауар бар» іздеу (терген сайын, кідіріспен) ────────────────
+  void _scheduleSimilarSearch() {
+    _similarDebounce?.cancel();
+    _similarDebounce =
+        Timer(const Duration(milliseconds: 450), _searchSimilar);
+  }
+
+  Future<void> _searchSimilar() async {
+    final name = _nameCtrl.text.trim();
+    if (name.length < 3) {
+      if (_similar.isNotEmpty && mounted) setState(() => _similar = []);
+      return;
+    }
+    try {
+      final found = await _firestoreService.findSimilarProducts(
+        name: name,
+        brand: _brandCtrl.text.trim(),
+        color: _selectedColors.isEmpty ? '' : _baseColor(_selectedColors.first),
+        categoryKey: _categoryKey ?? '',
+      );
+      if (mounted) setState(() => _similar = found);
+    } catch (_) {}
   }
 
   // Бренд ұсыныстары вид товарға (categoryKey) байланысты болады.
@@ -144,6 +185,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
 
   @override
   void dispose() {
+    _similarDebounce?.cancel();
     _nameCtrl.dispose();
     _brandCtrl.dispose();
     _purchaseCtrl.dispose();
@@ -671,6 +713,103 @@ class _AddProductScreenState extends State<AddProductScreen> {
     return true;
   }
 
+  /// Дәл сәйкестік табылды — «бұл повторный завоз ба?» деп АШЫҚ сұраймыз.
+  /// true = иә, ескі карточкаға партия қосамыз; false = жоқ, бөлек тауар
+  /// (сақтау тоқтайды да, админ айырмашылық белгісін жазады).
+  Future<bool> _confirmRestock(String existingId, String variantKey) async {
+    ProductModel? existing;
+    try {
+      existing = await _firestoreService.getProduct(existingId);
+    } catch (_) {}
+    if (!mounted) return false;
+
+    final answer = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(tr('Такой товар уже есть', 'Мұндай тауар бар'),
+            style: manrope(16.5, FontWeight.w800, color: cInk)),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          if (existing != null)
+            Container(
+              padding: const EdgeInsets.all(9),
+              decoration: BoxDecoration(
+                  color: cBg, borderRadius: BorderRadius.circular(13)),
+              child: Row(children: [
+                SizedBox(
+                  width: 52,
+                  height: 52,
+                  child: QShoeImage(
+                    imageUrl: existing.images.isNotEmpty
+                        ? existing.images.first
+                        : null,
+                    height: 52,
+                    tone: existing.id.hashCode % 5,
+                  ),
+                ),
+                const SizedBox(width: 11),
+                Expanded(
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(existing.name,
+                            style:
+                                manrope(13.5, FontWeight.w800, color: cInk),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis),
+                        Text(
+                            [
+                              if (existing.brand.isNotEmpty) existing.brand,
+                              if (existing.color.isNotEmpty)
+                                trValue(existing.color),
+                              if (existing.variantNote.isNotEmpty)
+                                existing.variantNote,
+                            ].join(' · '),
+                            style: manrope(11.5, FontWeight.w600,
+                                color: cInk2)),
+                      ]),
+                ),
+              ]),
+            ),
+          const SizedBox(height: 14),
+          Text(
+              tr('Добавить эту партию к нему как повторный завоз — или это всё-таки другой товар?',
+                  'Осы партияны оған қайта завоз ретінде қосамыз ба — әлде бұл басқа тауар ма?'),
+              style: manrope(13.5, FontWeight.w500, color: cInk2, height: 1.4)),
+        ]),
+        actionsOverflowDirection: VerticalDirection.down,
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(tr('Нет, другой товар', 'Жоқ, басқа тауар'),
+                  style: manrope(13.5, FontWeight.w700, color: cRed))),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: cGreen, foregroundColor: Colors.white),
+              child: Text(tr('Да, повторный завоз', 'Иә, қайта завоз'),
+                  style: manrope(13.5, FontWeight.w800,
+                      color: Colors.white))),
+        ],
+      ),
+    );
+
+    if (answer == true) return true;
+    if (mounted) {
+      // Бөлек тауар болса — оны айырмашылық белгісі ғана ажыратады
+      // (findMatchingProduct variantNote-ты кимлікке қосады).
+      setState(() {
+        _step = 0;
+        _activeColor = variantKey;
+      });
+      _err(tr('Впишите отличие рядом с цветом — тогда это будет отдельный товар',
+          'Түстің қасына айырмашылығын жазыңыз — сонда бөлек тауар болады'));
+    }
+    return false;
+  }
+
   /// Барлық түс варианттарын кезекпен сақтайды. Әр түс — жеке товар
   /// (бар болса — жаңа партия). Қате шыққанда сәтті өткендер _savedColors-та
   /// қалады — «Сохранить» қайта басылғанда дубль жасалмайды.
@@ -706,6 +845,20 @@ class _AddProductScreenState extends State<AddProductScreen> {
           color: colorName,
           variantNote: note,
         );
+
+        // ⚠️ БҰРЫН МҰНДА ҮНСІЗ БІРІГУ БОЛАТЫН: дәл сәйкестік табылса, админнен
+        // сұрамай-ақ ескі карточкаға партия қосылатын. Админ жаңа модельді
+        // ескісіндей толтырып жіберсе (өзгешелігін жазуды ұмытып), екі бөлек
+        // тауар бір карточкаға құйылып, қойма мен өзіндік құн араласатын.
+        // Енді АШЫҚ сұраймыз — бұл шешімді тек адам қабылдай алады.
+        if (existingId != null && !_confirmedRestock.contains(color)) {
+          final isRestock = await _confirmRestock(existingId, color);
+          if (!isRestock) {
+            if (mounted) setState(() => _isLoading = false);
+            return;
+          }
+          _confirmedRestock.add(color);
+        }
 
         final imageUrls = await _cloudinaryService
             .uploadBytesList(_variantImages[color] ?? []);
@@ -1056,6 +1209,129 @@ class _AddProductScreenState extends State<AddProductScreen> {
     }
   }
 
+  // ── «У вас уже есть такой товар» ескертуі ──────────────────────────────
+  //  Ең қауіпті сәт — админ бұрын әкелген ұқсас модельді ұмытып, жаңасын
+  //  дәл солай толтыруы. Сондықтан СУРЕТІМЕН көрсетеміз: көзбен көрген
+  //  админ бірден «а, менде мынау бар ғой» деп есіне алады.
+  Widget _buildSimilarWarning() => Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: cAmberTint,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: cAmber.withValues(alpha: 0.35)),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            const Icon(Icons.help_outline_rounded, color: cAmber, size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                  tr('У вас уже есть похожий товар. Это повторный завоз?',
+                      'Сізде ұқсас тауар бар. Бұл қайта завоз ба?'),
+                  style: manrope(12.5, FontWeight.w800, color: cInk)),
+            ),
+            GestureDetector(
+              onTap: () => setState(() => _similarDismissed = true),
+              child: const Padding(
+                padding: EdgeInsets.only(left: 6),
+                child: Icon(Icons.close_rounded, size: 17, color: cInk3),
+              ),
+            ),
+          ]),
+          const SizedBox(height: 10),
+          ..._similar.map((p) => GestureDetector(
+                onTap: () => _openRestock(p),
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(children: [
+                    SizedBox(
+                      width: 44,
+                      height: 44,
+                      child: QShoeImage(
+                        imageUrl: p.images.isNotEmpty ? p.images.first : null,
+                        height: 44,
+                        tone: p.id.hashCode % 5,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(p.name,
+                                style: manrope(13, FontWeight.w800,
+                                    color: cInk),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis),
+                            Text(
+                                [
+                                  if (p.brand.isNotEmpty) p.brand,
+                                  if (p.color.isNotEmpty) trValue(p.color),
+                                  if (p.variantNote.isNotEmpty) p.variantNote,
+                                ].join(' · '),
+                                style: manrope(11.5, FontWeight.w600,
+                                    color: cInk2),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis),
+                          ]),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 9, vertical: 6),
+                      decoration: BoxDecoration(
+                          color: cGreen,
+                          borderRadius: BorderRadius.circular(9)),
+                      child: Text(tr('Завоз', 'Завоз'),
+                          style: manrope(11.5, FontWeight.w800,
+                              color: Colors.white)),
+                    ),
+                  ]),
+                ),
+              )),
+          Text(
+              tr('Если товар всё-таки другой — впишите отличие в поле у цвета, иначе он сольётся со старым.',
+                  'Тауар шынымен басқа болса — түстің қасындағы өріске айырмашылығын жазыңыз, әйтпесе ол ескісімен бірігіп кетеді.'),
+              style: manrope(11, FontWeight.w600, color: cInk2, height: 1.35)),
+        ]),
+      );
+
+  /// Ұқсас тауарды басқанда — «Повторный завоз» экраны (қосу формасы жабылады:
+  /// админ жаңа карточка емес, ЖАҢА ПАРТИЯ жасағалы жатыр).
+  Future<void> _openRestock(ProductModel p) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(tr('Повторный завоз?', 'Қайта завоз ба?'),
+            style: manrope(16, FontWeight.w800, color: cInk)),
+        content: Text(
+            tr('Откроем оформление новой партии для «${p.name}». Заполненная сейчас форма не сохранится.',
+                '«${p.name}» үшін жаңа партия рәсімдеуін ашамыз. Қазір толтырылған форма сақталмайды.'),
+            style: manrope(13.5, FontWeight.w500, color: cInk2, height: 1.4)),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(tr('Отмена', 'Болдырмау'),
+                  style: manrope(14, FontWeight.w600, color: cInk2))),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: cGreen, foregroundColor: Colors.white),
+              child: Text(tr('Да, завоз', 'Иә, завоз'))),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    Navigator.pushReplacement(context,
+        MaterialPageRoute(builder: (_) => RestockScreen(product: p)));
+  }
+
   // ── Шаг 1: Информация о товаре ────────────────────────────────────────
   Widget _buildStepInfo() =>
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1087,6 +1363,11 @@ class _AddProductScreenState extends State<AddProductScreen> {
                     ))
                 .toList(),
           ),
+        ],
+        // Ұқсас тауарлар — толтырып жатқанда бірден көрінеді.
+        if (_similar.isNotEmpty && !_similarDismissed) ...[
+          const SizedBox(height: 14),
+          _buildSimilarWarning(),
         ],
         const SizedBox(height: 16),
         _Label(tr('Категория товара *', 'Тауар категориясы *')),

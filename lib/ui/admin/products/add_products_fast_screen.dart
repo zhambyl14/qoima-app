@@ -35,6 +35,13 @@ class _ColorPick {
   void dispose() => noteCtrl.dispose();
 }
 
+/// Қоймада дәл сондай тауар табылған жол (растау диалогы үшін).
+class _ExistingMatch {
+  final String rowLabel; // «Adidas Samba · Жёлтый»
+  final ProductModel product;
+  const _ExistingMatch(this.rowLabel, this.product);
+}
+
 /// Бір товар-жолдың күйі.
 class _FastRow {
   final nameCtrl = TextEditingController();
@@ -351,6 +358,106 @@ class _AddProductsFastScreenState extends State<AddProductsFastScreen> {
     if (value != null && mounted) setState(() => r.type = value);
   }
 
+  /// Қоймада ДӘЛ сондай тауар бар жолдарды тауып, админге бір рет көрсетеді.
+  ///
+  /// Бұрын мұндай жолдар сұраусыз ескі карточкаға партия болып қосылатын.
+  /// Қауіп: админ бұрынғы «Adidas Samba сары» бар екенін ұмытып, сәл өзгеше
+  /// ЖАҢА модельді дәл солай толтырса — екеуі бір карточкаға құйылып, қойма
+  /// да, өзіндік құн да, аналитика да бұрмаланады. Ал шешімді тек адам біледі.
+  ///
+  /// true = жалғастыруға болады (не сәйкестік жоқ, не админ растады).
+  Future<bool> _confirmExistingMatches(List<_FastRow> toSave) async {
+    final matches = <_ExistingMatch>[];
+    for (final r in toSave) {
+      for (final cp in r.colors) {
+        final id = await _firestoreService.findMatchingProduct(
+          name: r.nameCtrl.text.trim(),
+          brand: r.brandCtrl.text.trim(),
+          type: r.type ?? '',
+          material: '',
+          category: _targetGroup ?? '',
+          color: cp.color,
+          variantNote: cp.noteCtrl.text.trim(),
+        );
+        if (id == null) continue;
+        final p = await _firestoreService.getProduct(id);
+        if (p == null) continue;
+        matches.add(_ExistingMatch(
+            '${r.nameCtrl.text.trim()} · ${trValue(cp.color)}', p));
+      }
+    }
+    if (matches.isEmpty || !mounted) return matches.isEmpty;
+
+    final ok = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+            tr('${matches.length} поз. уже есть на складе',
+                '${matches.length} поз. қоймада бар'),
+            style: manrope(16, FontWeight.w800, color: cInk)),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                children: matches
+                    .map((m) => Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Row(children: [
+                            SizedBox(
+                              width: 40,
+                              height: 40,
+                              child: QShoeImage(
+                                imageUrl: m.product.images.isNotEmpty
+                                    ? m.product.images.first
+                                    : null,
+                                height: 40,
+                                tone: m.product.id.hashCode % 5,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(m.rowLabel,
+                                  style: manrope(12.5, FontWeight.w700,
+                                      color: cInk),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis),
+                            ),
+                          ]),
+                        ))
+                    .toList(),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+                tr('Они добавятся как повторный завоз (новая партия). Если это другие товары — впишите отличие рядом с цветом.',
+                    'Олар қайта завоз (жаңа партия) болып қосылады. Егер бұл басқа тауарлар болса — түстің қасына айырмашылығын жазыңыз.'),
+                style:
+                    manrope(12.5, FontWeight.w500, color: cInk2, height: 1.4)),
+          ]),
+        ),
+        actionsOverflowDirection: VerticalDirection.down,
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(tr('Проверю', 'Тексеремін'),
+                  style: manrope(13.5, FontWeight.w700, color: cRed))),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: cGreen, foregroundColor: Colors.white),
+              child: Text(tr('Да, завоз', 'Иә, завоз'),
+                  style: manrope(13.5, FontWeight.w800, color: Colors.white))),
+        ],
+      ),
+    );
+    return ok == true;
+  }
+
   // ── Сақтау ────────────────────────────────────────────────────────────────
   Future<void> _save() async {
     if (_isLoading) return;
@@ -395,6 +502,15 @@ class _AddProductsFastScreenState extends State<AddProductsFastScreen> {
     }
 
     setState(() => _isLoading = true);
+    // Қоймада дәл сондай тауар бар жолдар — БІР рет ашық растатамыз.
+    // Жылдам режимде әр жолға диалог шығару мағынасыз, бірақ үнсіз біріктіру
+    // де қауіпті: админ жаңа модельді ескісіндей толтырса, ол жаңа карточка
+    // емес, ЕСКІСІНЕ ПАРТИЯ болып кетеді (қойма мен өзіндік құн араласады).
+    if (!await _confirmExistingMatches(toSave)) {
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
+    if (!mounted) return;
     if (!await ensureWarehouseSelected(context)) {
       if (mounted) setState(() => _isLoading = false);
       return;

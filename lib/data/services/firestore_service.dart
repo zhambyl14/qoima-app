@@ -10,6 +10,7 @@ import '../models/order_model.dart';
 import '../models/promo_model.dart';
 import '../models/revision_model.dart';
 import '../../core/app_user.dart';
+import '../../core/search_helper.dart';
 import '../../core/stream_retry.dart';
 
 import '../../core/lang.dart';
@@ -189,6 +190,66 @@ class FirestoreService {
       }
     }
     return null;
+  }
+
+  /// Дүкеннің барлық тауары (бір реттік оқу). «Повторный завоз» тізімі мен
+  /// қосу формасындағы «ұқсас тауар» ескертуі осыны қолданады.
+  Future<List<ProductModel>> getAllProducts() async {
+    final rows = await _sb
+        .from('products')
+        .select()
+        .eq('owner_uid', _ownerUid)
+        .order('name', ascending: true);
+    return rows.map(ProductModel.fromMap).toList();
+  }
+
+  /// ҰҚСАС (дәл емес) тауарлар — «сізде мұндай тауар бар, бұл повторный завоз
+  /// емес пе?» ескертуі үшін.
+  ///
+  /// [findMatchingProduct]-тан айырмашылығы: ол ДӘЛ сәйкестікті іздейді
+  /// (табылса — үнсіз жаңа партия болады), ал бұл жуықтап табады. Нақты
+  /// қауіп осында: админ бұрын «Adidas Samba сары» бар екенін ұмытып,
+  /// сәл өзгеше жаңа модельді дәл солай толтырса, ол бөлек тауар емес,
+  /// ескісіне партия болып кетеді. Сондықтан админге АЛДЫН АЛА көрсетеміз.
+  Future<List<ProductModel>> findSimilarProducts({
+    required String name,
+    String brand = '',
+    String color = '',
+    String categoryKey = '',
+    int limit = 4,
+  }) async {
+    final q = name.trim();
+    if (q.length < 3) return [];
+    final all = cachedProducts ?? await getAllProducts();
+    final scored = <({ProductModel product, int score})>[];
+    for (final p in all) {
+      if (categoryKey.isNotEmpty && p.effectiveCategoryKey != categoryKey) {
+        continue;
+      }
+      var s = SearchHelper.score(p.name, q);
+      if (s <= 0 &&
+          !SearchHelper.allWordsMatch('${p.name} ${p.brand}', q)) {
+        continue;
+      }
+      if (brand.trim().isNotEmpty &&
+          p.brand.toLowerCase() == brand.trim().toLowerCase()) {
+        s += 30;
+      }
+      if (color.isNotEmpty && p.color == color) s += 20;
+      scored.add((product: p, score: s));
+    }
+    scored.sort((a, b) => b.score.compareTo(a.score));
+    return scored.take(limit).map((e) => e.product).toList();
+  }
+
+  /// Тауардың СОҢҒЫ партиясы (өзіндік құнымен). «Повторный завоз» формасын
+  /// алдын ала толтыру үшін: сол размер линиясы, сол бағалар.
+  Future<BatchModel?> lastBatchWithCost(String productId) async {
+    final batches = await getBatches(productId);
+    if (batches.isEmpty) return null;
+    final last = batches.first; // date_arrived desc
+    final cost = await resolveBatchCost(_ownerUid, last.id);
+    return last.copyWith(purchasePrice: cost);
   }
 
   /// Осы дүкеннің тауарларынан бірегей брендтер (жиілігі бойынша, ең көп қолданылған

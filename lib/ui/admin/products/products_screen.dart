@@ -11,6 +11,7 @@ import '../../shared/skeletons.dart';
 import 'add_product_screen.dart';
 import 'add_products_fast_screen.dart';
 import 'product_detail_screen.dart';
+import 'restock_screen.dart';
 
 import '../../../core/lang.dart';
 enum _SortType { nameAz, nameZa, stockHigh, stockLow }
@@ -272,62 +273,56 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                 ],
                               ),
                             ),
-                            if (!widget.readOnly) ...[
-                              GestureDetector(
-                                onTap: () => Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                        builder: (_) =>
-                                            const AddProductsFastScreen())),
-                                child: Container(
-                                  height: 38,
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 12),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withValues(alpha: 0.16),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        const Icon(Icons.bolt_rounded,
-                                            color: Colors.white, size: 19),
-                                        const SizedBox(width: 4),
-                                        Text(tr('Быстро', 'Жылдам'),
-                                            style: manrope(13, FontWeight.w700,
-                                                color: Colors.white)),
-                                      ]),
+                          ]),
+
+                          // Үш әрекет — жеке қатарда. Тақырыппен бір жолға
+                          // сыймайды («Повторный завоз» қосылғанда атау мен
+                          // қойма сандары қысылып қалатын), сондықтан төменде.
+                          if (!widget.readOnly) ...[
+                            const SizedBox(height: 12),
+                            Row(children: [
+                              Expanded(
+                                child: _HeaderAction(
+                                  icon: Icons.bolt_rounded,
+                                  label: tr('Быстро', 'Жылдам'),
+                                  onTap: () => Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                          builder: (_) =>
+                                              const AddProductsFastScreen())),
                                 ),
                               ),
                               const SizedBox(width: 8),
-                              GestureDetector(
-                                onTap: () => Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                        builder: (_) =>
-                                            const AddProductScreen())),
-                                child: Container(
-                                  height: 38,
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 14),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withValues(alpha: 0.16),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        const Icon(Icons.add_rounded,
-                                            color: Colors.white, size: 20),
-                                        const SizedBox(width: 6),
-                                        Text(tr('Добавить', 'Қосу'),
-                                            style: manrope(13.5, FontWeight.w700,
-                                                color: Colors.white)),
-                                      ]),
+                              // «Повторный завоз» — БАР тауарға жаңа партия.
+                              // Атауын қайта теру қажет емес, сондықтан
+                              // «дәл солай толтырдым деп ойлап, шын мәнінде
+                              // басқа тауарды қосып жіберу» қаупі жоқ.
+                              Expanded(
+                                child: _HeaderAction(
+                                  icon: Icons.replay_rounded,
+                                  label: tr('Завоз', 'Завоз'),
+                                  onTap: () => Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                          builder: (_) =>
+                                              const RestockScreen())),
                                 ),
                               ),
-                            ],
-                          ]),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: _HeaderAction(
+                                  icon: Icons.add_rounded,
+                                  label: tr('Добавить', 'Қосу'),
+                                  filled: true,
+                                  onTap: () => Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                          builder: (_) =>
+                                              const AddProductScreen())),
+                                ),
+                              ),
+                            ]),
+                          ],
 
                           // Current warehouse badge — visible for both admin and seller.
                           const SizedBox(height: 8),
@@ -1110,3 +1105,40 @@ class _SortOption extends StatelessWidget {
   }
 }
 
+
+// ── Тақырыптағы әрекет батырмасы (Быстро · Завоз · Добавить) ─────────────────
+class _HeaderAction extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool filled;
+  final VoidCallback onTap;
+  const _HeaderAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.filled = false,
+  });
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onTap,
+        child: Container(
+          height: 38,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: filled ? 0.28 : 0.16),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(icon, color: Colors.white, size: 18),
+            const SizedBox(width: 5),
+            Flexible(
+              child: Text(label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: manrope(12.5, FontWeight.w700, color: Colors.white)),
+            ),
+          ]),
+        ),
+      );
+}
