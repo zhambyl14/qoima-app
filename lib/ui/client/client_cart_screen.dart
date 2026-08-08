@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/app_user.dart';
 import '../../data/models/cart_item_model.dart';
+import '../../data/models/delivery_tariff.dart';
 import '../../data/models/order_model.dart';
 import '../../data/models/promo_model.dart';
+import '../../data/services/app_settings_service.dart';
 import '../../data/services/client_service.dart';
 import '../../theme/qoima_design.dart';
 import '../auth/auth_widgets.dart';
@@ -40,6 +42,9 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
   // Себеттегі дүкендердің қалалары (adminUid → city) — доставка мәтіні үшін:
   // өз қала = тегін/келісім, басқа қала = Казпочта.
   Map<String, String> _storeCityByAdmin = {};
+
+  // Жеткізу тарифі (0050) — superadmin баптайды, әдепкісі DeliveryTariff-те.
+  DeliveryTariff _tariff = const DeliveryTariff();
 
   // Применённый промокод (привязан к магазину appliedAdminUid)
   PromoModel? _appliedPromo;
@@ -150,6 +155,9 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _checkAvailability());
+    AppSettingsService().getDeliveryTariff().then((t) {
+      if (mounted) setState(() => _tariff = t);
+    });
   }
 
   @override
@@ -214,9 +222,87 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
     if (_orderType == OrderModel.typeSmartReservation) {
       return (total * 0.1).ceilToDouble();
     }
-    // Самовывоз/доставка — тауардың толық бағасы. Казпочта/қала ішіндегі
-    // жеткізуді клиент пен дүкен өзара келіседі (аппта ақы алынбайды).
+    // Самовывоз — тауардың толық бағасы. Жеткізуде оған қызмет ақысы
+    // (курьер + «өлшеп көру») қосылады — клиент бір аударыммен төлейді.
     return total;
+  }
+
+  // ── Жеткізу ақысы (0050) ────────────────────────────────────────────────────
+
+  /// Курьер жеткізетін бе (қала ішінде)? Басқа қалаға — Казпочта, ол аппта
+  /// есептелмейді. Қала белгісіз болса (гость/қала көрсетілмеген) курьер
+  /// жеткізуі деп есептейміз — дүкендердің басым бөлігі бір қалада.
+  bool _isCourierDelivery(List<CartItemModel> items) =>
+      _orderType == OrderModel.typeDelivery &&
+      _allStoresInMyCity(items) != false;
+
+  /// Себеттегі тауарларды қойма бойынша топтайды (әр қойма — жеке суб-тапсырыс
+  /// әрі курьердің жеке соғуы). Реті тұрақты: Map кірістіру ретін сақтайды,
+  /// сондықтан ақы бөлу мен тапсырыс жасау бірдей индекс береді.
+  Map<String, List<CartItemModel>> _byWarehouse(List<CartItemModel> items) {
+    final map = <String, List<CartItemModel>>{};
+    for (final i in items) {
+      map.putIfAbsent(i.warehouseId, () => []).add(i);
+    }
+    return map;
+  }
+
+  /// Барлық қойма бойынша жеткізу ақысы (бірінші — толық, қалғаны жеңілдікпен).
+  double _deliveryFee(List<CartItemModel> items) {
+    if (!_isCourierDelivery(items)) return 0;
+    final total = (items.fold<double>(0, (s, i) => s + i.subtotal) -
+            _promoDiscount(items))
+        .clamp(0.0, double.infinity);
+    return _tariff.totalFee(
+        orderTotal: total, storeCount: _byWarehouse(items).length);
+  }
+
+  /// «Өлшеп көру» ақысы — қосымша өлшем сұралған ӘР ҚОЙМА үшін бір рет
+  /// (курьер сол қоймадан артық жүк алып шығады).
+  double _fittingFee(List<CartItemModel> items) {
+    if (!_isCourierDelivery(items)) return 0;
+    final groups = _byWarehouse(items).values
+        .where((g) => g.any((i) => i.hasAltSize))
+        .length;
+    return _tariff.fittingFee * groups;
+  }
+
+  /// Қосымша өлшем сұрауға бола ма (жеткізу + қала ішінде + лимит бітпеген).
+  bool _canAddFitting(List<CartItemModel> items, CartItemModel item) {
+    if (!_isCourierDelivery(items)) return false;
+    if (item.hasAltSize) return true; // өзгертуге/алып тастауға болады
+    final used = items.where((i) => i.hasAltSize).length;
+    return used < _tariff.fittingMaxItems;
+  }
+
+  /// Қосалқы өлшемді таңдау парағы. Тек СОЛ партияның қолжетімді өлшемдері
+  /// ұсынылады — бағасы бірдей болады да, клиент 39-ды алса ақша қозғалмайды.
+  Future<void> _pickAltSize(int index, CartItemModel item) async {
+    final cart = context.read<CartProvider>();
+    Map<String, int> avail = {};
+    try {
+      avail = await _service.getBatchAvailability(
+          item.adminUid, item.productId, item.batchId);
+    } catch (_) {}
+    if (!mounted) return;
+    final sizes = avail.entries
+        .where((e) => e.key != item.size && e.value >= item.qty)
+        .map((e) => e.key)
+        .toList()
+      ..sort();
+
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _AltSizeSheet(
+        item: item,
+        sizes: sizes,
+        fittingFee: _tariff.fittingFee,
+      ),
+    );
+    if (picked == null || !mounted) return;
+    cart.setAltSize(index, picked == item.altSize ? '' : picked);
   }
 
   /// Себеттегі барлық дүкен клиенттің қаласында ма? (доставка мәтіні үшін)
@@ -233,17 +319,21 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
   }
 
   String _deliverySubtitle(List<CartItemModel> items) {
-    switch (_allStoresInMyCity(items)) {
-      case true:
-        return tr('По вашему городу — бесплатно, согласуете с магазином',
-            'Өз қалаңызда — тегін, дүкенмен келісесіз');
-      case false:
-        return tr('В ваш город — Казпочтой после 100% оплаты',
-            'Сіздің қалаға — 100% төлемнен кейін Казпочтамен');
-      default:
-        return tr('По городу магазина — бесплатно, в другие города — Казпочтой',
-            'Дүкен қаласында — тегін, басқа қалаға — Казпочтамен');
+    if (_allStoresInMyCity(items) == false) {
+      return tr('В ваш город — Казпочтой после 100% оплаты',
+          'Сіздің қалаға — 100% төлемнен кейін Казпочтамен');
     }
+    if (items.isEmpty) {
+      return tr('Курьер по городу — от ${money(_tariff.reducedFee)}',
+          'Қала ішінде курьер — ${money(_tariff.reducedFee)}-ден бастап');
+    }
+    final total =
+        (items.fold<double>(0, (s, i) => s + i.subtotal) - _promoDiscount(items))
+            .clamp(0.0, double.infinity);
+    final fee = _tariff.totalFee(
+        orderTotal: total, storeCount: _byWarehouse(items).length);
+    return tr('Курьер привезёт — ${money(fee)}',
+        'Курьер жеткізеді — ${money(fee)}');
   }
 
   String _warehouseAddress(List<CartItemModel> items) =>
@@ -285,7 +375,9 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
     final subtotal = checkoutItems.fold<double>(0, (s, i) => s + i.subtotal);
     final promoDiscount = _promoDiscount(checkoutItems);
     final total = (subtotal - promoDiscount).clamp(0.0, subtotal);
-    final deposit = _depositFor(total);
+    final deliveryFee = _deliveryFee(checkoutItems);
+    final fittingFee = _fittingFee(checkoutItems);
+    final deposit = _depositFor(total) + deliveryFee + fittingFee;
 
     // Тапсырыс қорытындысы — растау (true) немесе бас тарту (null).
     final confirmed = await showModalBottomSheet<bool>(
@@ -299,6 +391,8 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
         promoCode: _appliedPromo?.code ?? '',
         total: total,
         deposit: deposit,
+        deliveryFee: deliveryFee,
+        fittingFee: fittingFee,
         kazpost: _allStoresInMyCity(checkoutItems) == false,
         warehouseAddress: _warehouseAddress(checkoutItems),
         deliveryAddress: _addressCtrl.text.trim(),
@@ -374,19 +468,35 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
         }
       }
 
-      // Әр қойма — жеке суб-тапсырыс (pending). Жеткізу ақысы аппта
-      // алынбайды: қала ішінде — келісім бойынша, басқа қалаға — Казпочта
-      // (клиент пен дүкен өзара шешеді).
+      // Әр қойма — жеке суб-тапсырыс (pending). Жеткізу ақысы да сол бойынша
+      // бөлінеді: әр қойма — курьердің жеке соғуы, бірақ бірінші ғана толық
+      // тариф төлейді (қалғаны extraStorePercent). Басқа қалаға — Казпочта,
+      // ол аппта есептелмейді (0 қалады, дүкенмен келісіледі).
+      final courierDelivery = _isCourierDelivery(stillGood);
+      final feeBase = (stillGood.fold<double>(0, (s, i) => s + i.subtotal) -
+              totalPromoDiscount)
+          .clamp(0.0, double.infinity);
+
       final placedOrders = <OrderModel>[];
+      var whIndex = 0;
       for (final entry in byWarehouse.entries) {
         final whItems = entry.value;
         final first = whItems.first;
         final whTotal = whItems.fold<double>(0, (s, i) => s + i.subtotal);
         final whPromo = (promoShares[entry.key] ?? 0).clamp(0.0, whTotal);
         final whFinal = (whTotal - whPromo).clamp(0.0, whTotal);
-        final depositAmt = _orderType == OrderModel.typeSmartReservation
-            ? (whFinal * 0.1).ceilToDouble()
-            : whFinal;
+        final whDelivery = courierDelivery
+            ? _tariff.feeForSubOrder(orderTotal: feeBase, index: whIndex)
+            : 0.0;
+        final whFitting = courierDelivery && whItems.any((i) => i.hasAltSize)
+            ? _tariff.fittingFee
+            : 0.0;
+        whIndex++;
+        final depositAmt = (_orderType == OrderModel.typeSmartReservation
+                ? (whFinal * 0.1).ceilToDouble()
+                : whFinal) +
+            whDelivery +
+            whFitting;
         final isUsageOwner = entry.key == usageOwnerWh;
         final order = OrderModel(
           id: '',
@@ -397,14 +507,20 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
           storeName: first.storeName,
           warehouseId: entry.key,
           warehouseAddress: first.warehouseAddress,
-          items: List.from(whItems),
+          // Курьер жеткізуі емес болса (самовывоз/бронь/Казпочта) қосалқы
+          // өлшемді алып тастаймыз — әйтпесе оны ешкім апармаса да қоймада
+          // бекер брондалып қалар еді.
+          items: courierDelivery
+              ? List.from(whItems)
+              : whItems.map((i) => i.copyWith(altSize: '')).toList(),
           status: OrderModel.statusPending,
           orderType: _orderType!,
           createdAt: DateTime.now(),
           address: _addressCtrl.text.trim(),
           note: _noteCtrl.text.trim(),
           depositAmount: depositAmt,
-          deliveryFee: 0.0,
+          deliveryFee: whDelivery,
+          fittingFee: whFitting,
           promoId: whPromo > 0 && promo != null ? promo.id : '',
           promoCode: whPromo > 0 && promo != null ? promo.code : '',
           promoDiscount: whPromo,
@@ -555,6 +671,10 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                         item: item,
                         isUnavailable:
                             _unavailableKeys.contains(_itemKey(item)),
+                        showFitting: item.selected &&
+                            _canAddFitting(checkoutItems, item),
+                        fittingFee: _tariff.fittingFee,
+                        onPickAlt: () => _pickAltSize(i, item),
                         onToggleSelected: () => cart.toggleSelected(i),
                         onDecrement: () {
                           cart.decrementAt(i);
@@ -884,6 +1004,8 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                     final productSavings = _productSavings(checkoutItems);
                     final finalTotal = (checkoutTotal - promoDiscount)
                         .clamp(0.0, checkoutTotal);
+                    final deliveryFee = _deliveryFee(checkoutItems);
+                    final fittingFee = _fittingFee(checkoutItems);
                     return Column(children: [
                       if (productSavings > 0)
                         _SummaryLine(tr('Скидка по акции', 'Акция бойынша жеңілдік'),
@@ -893,7 +1015,16 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                             'Промокод ${_appliedPromo?.code ?? ''}',
                             '−${money(promoDiscount)}',
                             color: cGreen),
-                      if (productSavings > 0 || promoDiscount > 0)
+                      if (deliveryFee > 0)
+                        _SummaryLine(tr('Доставка курьером', 'Курьер жеткізуі'),
+                            money(deliveryFee), color: cInk2),
+                      if (fittingFee > 0)
+                        _SummaryLine(tr('Примерка', 'Өлшеп көру'),
+                            money(fittingFee), color: cInk2),
+                      if (productSavings > 0 ||
+                          promoDiscount > 0 ||
+                          deliveryFee > 0 ||
+                          fittingFee > 0)
                         const SizedBox(height: 8),
                       Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -912,7 +1043,9 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                             Text(
                               money(_orderType == null
                                   ? finalTotal
-                                  : _depositFor(finalTotal)),
+                                  : _depositFor(finalTotal) +
+                                      deliveryFee +
+                                      fittingFee),
                               style:
                                   manrope(20, FontWeight.w800, color: cInk),
                             ),
@@ -976,6 +1109,10 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
 class _CartItemCard extends StatelessWidget {
   final CartItemModel item;
   final bool isUnavailable;
+  /// «Өлшеп көру» чипі көрінсін бе (жеткізу + қала ішінде + лимит бітпеген).
+  final bool showFitting;
+  final double fittingFee;
+  final VoidCallback onPickAlt;
   final VoidCallback onToggleSelected;
   final VoidCallback onDecrement;
   final VoidCallback onIncrement;
@@ -983,6 +1120,9 @@ class _CartItemCard extends StatelessWidget {
   const _CartItemCard({
     required this.item,
     required this.isUnavailable,
+    required this.showFitting,
+    required this.fittingFee,
+    required this.onPickAlt,
     required this.onToggleSelected,
     required this.onDecrement,
     required this.onIncrement,
@@ -1005,7 +1145,8 @@ class _CartItemCard extends StatelessWidget {
         ),
         boxShadow: kShadowSm,
       ),
-      child: Row(children: [
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
         if (!isUnavailable) ...[
           GestureDetector(
             behavior: HitTestBehavior.opaque,
@@ -1084,9 +1225,146 @@ class _CartItemCard extends StatelessWidget {
             ),
             _QtyBtn(icon: Icons.add_rounded, color: cGreen, onTap: onIncrement),
           ]),
+        ]),
+        // ── «Өлшеп көру»: курьер қосалқы өлшемді ҚОСА алып барады ───────────
+        // Мұнда тұрғаны маңызды — клиент дәл сол тауардың өлшемін таңдап
+        // жатқанда «ал 39-ы дұрыс болса ше?» деген ой келеді.
+        if (showFitting) ...[
+          const SizedBox(height: 9),
+          GestureDetector(
+            onTap: onPickAlt,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+              decoration: BoxDecoration(
+                color: item.hasAltSize ? cGreenTint : cBg,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                    color: item.hasAltSize
+                        ? cGreen.withValues(alpha: 0.35)
+                        : cLine),
+              ),
+              child: Row(children: [
+                Icon(
+                    item.hasAltSize
+                        ? Icons.check_circle_rounded
+                        : Icons.add_circle_outline_rounded,
+                    size: 17,
+                    color: item.hasAltSize ? cGreen : cInk3),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    item.hasAltSize
+                        ? tr('Курьер привезёт ещё размер ${item.altSize}',
+                            'Курьер ${item.altSize} өлшемін де әкеледі')
+                        : tr('Привезти ещё один размер на примерку',
+                            'Өлшеп көруге тағы бір өлшем әкелу'),
+                    style: manrope(12, FontWeight.w700,
+                        color: item.hasAltSize ? cGreenDeep : cInk2),
+                  ),
+                ),
+                Text(
+                    item.hasAltSize
+                        ? tr('изменить', 'өзгерту')
+                        : '+${money(fittingFee)}',
+                    style: manrope(11.5, FontWeight.w700, color: cInk3)),
+              ]),
+            ),
+          ),
+        ],
       ]),
     );
   }
+}
+
+// ── Қосалқы өлшемді таңдау парағы («өлшеп көру») ───────────────────────────────
+class _AltSizeSheet extends StatelessWidget {
+  final CartItemModel item;
+  final List<String> sizes;
+  final double fittingFee;
+  const _AltSizeSheet({
+    required this.item,
+    required this.sizes,
+    required this.fittingFee,
+  });
+
+  @override
+  Widget build(BuildContext context) => Container(
+        decoration: const BoxDecoration(
+          color: cSurface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: EdgeInsets.fromLTRB(
+            20, 16, 20, MediaQuery.of(context).padding.bottom + 24),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+            width: 40,
+            height: 4,
+            margin: const EdgeInsets.only(bottom: 18),
+            decoration: BoxDecoration(
+                color: cLine, borderRadius: BorderRadius.circular(2)),
+          ),
+          Text(tr('Запасной размер', 'Қосалқы өлшем'),
+              style: manrope(17, FontWeight.w800, color: cInk)),
+          const SizedBox(height: 6),
+          Text(
+            tr('Курьер привезёт ваш размер ${item.size} и ещё один — примерите на месте. Платите только за одну пару.',
+                'Курьер сіздің ${item.size} өлшеміңізді және тағы бірін әкеледі — орнында өлшеп көресіз. Тек біреуіне ғана төлейсіз.'),
+            textAlign: TextAlign.center,
+            style: manrope(12.5, FontWeight.w600, color: cInk2, height: 1.4),
+          ),
+          const SizedBox(height: 16),
+          if (sizes.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Text(
+                  tr('Других размеров на складе нет',
+                      'Қоймада басқа өлшем жоқ'),
+                  style: manrope(13, FontWeight.w600, color: cInk3)),
+            )
+          else
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              alignment: WrapAlignment.center,
+              children: sizes.map((s) {
+                final selected = s == item.altSize;
+                return GestureDetector(
+                  onTap: () => Navigator.pop(context, s),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 18, vertical: 11),
+                    decoration: BoxDecoration(
+                      color: selected ? cGreen : cBg,
+                      borderRadius: BorderRadius.circular(12),
+                      border:
+                          Border.all(color: selected ? cGreen : cLine, width: 1.5),
+                    ),
+                    child: Text(s,
+                        style: manrope(15, FontWeight.w800,
+                            color: selected ? Colors.white : cInk)),
+                  ),
+                );
+              }).toList(),
+            ),
+          const SizedBox(height: 16),
+          Text(
+            item.hasAltSize
+                ? tr('Нажмите на выбранный размер, чтобы убрать примерку',
+                    'Өлшеп көруді алып тастау үшін таңдалған өлшемді басыңыз')
+                : tr('Услуга: +${money(fittingFee)} к заказу',
+                    'Қызмет: тапсырысқа +${money(fittingFee)}'),
+            textAlign: TextAlign.center,
+            style: manrope(11.5, FontWeight.w600, color: cInk3),
+          ),
+          const SizedBox(height: 10),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(tr('Отмена', 'Болдырмау'),
+                style: manrope(14, FontWeight.w600, color: cInk3)),
+          ),
+        ]),
+      );
 }
 
 // ── Себет чекбоксы (Wildberries/Kaspi стилі — тапсырысқа таңдау) ────────────────
@@ -1138,6 +1416,7 @@ class _QtyBtn extends StatelessWidget {
 class _PaymentSheet extends StatelessWidget {
   final String orderType, warehouseAddress, deliveryAddress, promoCode;
   final double total, deposit, subtotal, promoDiscount;
+  final double deliveryFee, fittingFee;
   final bool kazpost;
   const _PaymentSheet({
     required this.orderType,
@@ -1146,6 +1425,8 @@ class _PaymentSheet extends StatelessWidget {
     required this.promoCode,
     required this.total,
     required this.deposit,
+    required this.deliveryFee,
+    required this.fittingFee,
     required this.kazpost,
     required this.warehouseAddress,
     required this.deliveryAddress,
@@ -1199,22 +1480,56 @@ class _PaymentSheet extends StatelessWidget {
             kazpost
                 ? tr('Доставка Казпочтой — согласуете с магазином после оплаты',
                     'Казпочтамен жеткізу — төлемнен кейін дүкенмен келісесіз')
-                : tr('Доставку согласуете с магазином', 'Жеткізуді дүкенмен келісесіз'),
+                : tr('Курьер заберёт заказ со склада и привезёт вам',
+                    'Курьер тапсырысты қоймадан алып, сізге жеткізеді'),
             style: manrope(13, FontWeight.w500, color: cInk3),
           ),
         ],
         const SizedBox(height: 16),
         Container(height: 1, color: cLine),
         const SizedBox(height: 12),
-        // Подытог → Промокод → Итого
-        if (promoDiscount > 0) ...[
+        // Подытог → Промокод → Доставка → Примерка → Итого
+        if (promoDiscount > 0 || deliveryFee > 0 || fittingFee > 0) ...[
           _SummaryLine(tr('Подытог', 'Аралық сома'), money(subtotal), color: cInk2),
-          _SummaryLine(
-              promoCode.isNotEmpty ? 'Промокод $promoCode' : 'Промокод',
-              '−${money(promoDiscount)}',
-              color: cGreen),
-          _SummaryLine(tr('Итого', 'Барлығы'), money(total), color: cInk, bold: true),
+          if (promoDiscount > 0)
+            _SummaryLine(
+                promoCode.isNotEmpty ? 'Промокод $promoCode' : 'Промокод',
+                '−${money(promoDiscount)}',
+                color: cGreen),
+          if (deliveryFee > 0)
+            _SummaryLine(tr('Доставка курьером', 'Курьер жеткізуі'),
+                money(deliveryFee), color: cInk2),
+          if (fittingFee > 0)
+            _SummaryLine(tr('Примерка (запасной размер)',
+                    'Өлшеп көру (қосалқы өлшем)'),
+                money(fittingFee), color: cInk2),
+          _SummaryLine(tr('Итого', 'Барлығы'),
+              money(total + deliveryFee + fittingFee),
+              color: cInk, bold: true),
           const SizedBox(height: 8),
+        ],
+        // Курьер жол шығынын өтейді — бас тартқанда жеткізу ақысы қайтпайды.
+        // Клиент мұны ТӨЛЕМГЕ ДЕЙІН көруі керек.
+        if (deliveryFee > 0) ...[
+          Container(
+            padding: const EdgeInsets.all(11),
+            decoration: BoxDecoration(
+              color: cAmberTint,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Icon(Icons.info_outline_rounded, color: cAmber, size: 17),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Text(
+                  tr('Если откажетесь от заказа при доставке — стоимость доставки не возвращается.',
+                      'Жеткізу кезінде тапсырыстан бас тартсаңыз — жеткізу ақысы қайтарылмайды.'),
+                  style: manrope(12, FontWeight.w600, color: cInk2, height: 1.35),
+                ),
+              ),
+            ]),
+          ),
+          const SizedBox(height: 12),
         ],
         if (!isDelivery && warehouseAddress.isNotEmpty)
           _InfoRow(Icons.location_on_outlined, tr('Адрес получения', 'Алу мекенжайы'),

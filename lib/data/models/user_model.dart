@@ -3,7 +3,7 @@ class UserModel {
   final String uid;
   final String name;
   final String email;
-  final String role; // 'admin' | 'seller' | 'superadmin'
+  final String role; // 'admin' | 'seller' | 'superadmin' | 'courier'
   final String ownerId; // admin → өз uid; seller → admin uid (немесе '')
   final bool active;
   final DateTime? createdAt;
@@ -23,6 +23,11 @@ class UserModel {
   final DateTime? subscriptionStartedAt;
   final String subscriptionPlan; // '1 ай' | '3 ай' | ... (ақпараттық)
   final String subscriptionNote;
+  // ── Курьер (0051) ───────────────────────────────────────────────────────────
+  /// Курьер жұмыс істейтін қала (тек сол қаладағы дүкендердің тапсырысын көреді).
+  final String city;
+  /// '' (курьер емес) | 'pending' | 'active' | 'blocked' — модератор шешеді.
+  final String courierStatus;
 
   const UserModel({
     required this.uid,
@@ -45,6 +50,8 @@ class UserModel {
     this.subscriptionStartedAt,
     this.subscriptionPlan = '',
     this.subscriptionNote = '',
+    this.city = '',
+    this.courierStatus = '',
   });
 
   // ── Жазылым статусы (клиент жағында есептеледі) ──────────────────────────────
@@ -73,6 +80,9 @@ class UserModel {
   bool get isAdmin => role == 'admin';
   bool get isSeller => role == 'seller';
   bool get isSuperadmin => role == 'superadmin';
+  bool get isCourier => role == 'courier';
+  /// Модератор бекіткен курьер — тапсырыс қабылдай алады.
+  bool get isActiveCourier => isCourier && courierStatus == 'active';
 
   static DateTime? _date(dynamic raw) {
     if (raw is DateTime) return raw;
@@ -102,6 +112,8 @@ class UserModel {
         subscriptionStartedAt: _date(m['subscription_started_at']),
         subscriptionPlan: m['subscription_plan'] as String? ?? '',
         subscriptionNote: m['subscription_note'] as String? ?? '',
+        city: m['city'] as String? ?? '',
+        courierStatus: m['courier_status'] as String? ?? '',
       );
 
   /// Supabase жазу үшін (snake_case; бос uuid → null).

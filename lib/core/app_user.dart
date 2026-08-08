@@ -31,6 +31,8 @@ class AppUser extends ChangeNotifier {
   // Бизнес жазылымының мерзімі (admin → өзі, seller → иесі). null = тағайын-
   // далмаған (ескі иелер) — қолданба шектемейді, модератор қолмен басқарады.
   DateTime? _subscriptionUntil;
+  // Курьер модерациясы (0051): '' | 'pending' | 'active' | 'blocked'.
+  String _courierStatus = '';
 
   String get uid => _uid;
   String get ownerUid => _ownerUid;
@@ -50,11 +52,15 @@ class AppUser extends ChangeNotifier {
   String get blockReason => _blockReason;
   String get blockSource => _blockSource;
   DateTime? get subscriptionUntil => _subscriptionUntil;
+  String get courierStatus => _courierStatus;
 
   bool get isAdmin => _role == 'admin';
   bool get isSeller => _role == 'seller';
   bool get isClient => _role == 'client';
   bool get isSuperadmin => _role == 'superadmin';
+  bool get isCourier => _role == 'courier';
+  /// Модератор бекітті — тапсырыс қабылдай алады.
+  bool get isActiveCourier => isCourier && _courierStatus == 'active';
   bool get isLoaded => _uid.isNotEmpty;
   bool get isShopApproved => _shopStatus == 'approved';
 
@@ -127,6 +133,7 @@ class AppUser extends ChangeNotifier {
     String blockReason = '',
     String blockSource = '',
     DateTime? subscriptionUntil,
+    String courierStatus = '',
   }) {
     _uid = uid;
     _ownerUid = ownerUid;
@@ -146,6 +153,7 @@ class AppUser extends ChangeNotifier {
     _blockReason = blockReason;
     _blockSource = blockSource;
     _subscriptionUntil = subscriptionUntil;
+    _courierStatus = courierStatus;
     notifyListeners();
   }
 
@@ -198,6 +206,7 @@ class AppUser extends ChangeNotifier {
     _blockReason = '';
     _blockSource = '';
     _subscriptionUntil = null;
+    _courierStatus = '';
     notifyListeners();
   }
 }

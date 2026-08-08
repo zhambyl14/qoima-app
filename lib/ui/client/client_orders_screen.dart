@@ -16,6 +16,7 @@ import 'returns/client_returns_history_screen.dart';
 import '../../core/lang.dart';
 import '../../core/error_text.dart';
 import '../shared/error_view.dart';
+import '../shared/courier_info_banner.dart';
 
 class ClientOrdersScreen extends StatefulWidget {
   final VoidCallback? onBack;
@@ -602,6 +603,43 @@ class _OrderCardState extends State<_OrderCard> {
                   Text('−${money(o.promoDiscount)}',
                       style: manrope(12, FontWeight.w700, color: cGreen)),
                 ]),
+          ],
+
+          if (o.serviceFee > 0) ...[
+            const SizedBox(height: 6),
+            Container(height: 1, color: cLine2),
+            const SizedBox(height: 6),
+            if (o.deliveryFee > 0)
+              Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(tr('Доставка курьером', 'Курьер жеткізуі'),
+                        style: manrope(12, FontWeight.w500, color: cInk2)),
+                    Text(money(o.deliveryFee),
+                        style: manrope(12, FontWeight.w700, color: cInk)),
+                  ]),
+            if (o.fittingFee > 0)
+              Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(tr('Примерка', 'Өлшеп көру'),
+                        style: manrope(12, FontWeight.w500, color: cInk2)),
+                    Text(money(o.fittingFee),
+                        style: manrope(12, FontWeight.w700, color: cInk)),
+                  ]),
+            Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(tr('Итого оплачено', 'Барлығы төленді'),
+                      style: manrope(12.5, FontWeight.w700, color: cInk)),
+                  Text(money(o.totalWithDelivery),
+                      style: manrope(13, FontWeight.w800, color: cGreen)),
+                ]),
+          ],
+
+          if (o.isDelivery) ...[
+            const SizedBox(height: 8),
+            CourierInfoBanner(order: o),
           ],
 
           if (o.isSmartReservation && o.depositAmount > 0) ...[

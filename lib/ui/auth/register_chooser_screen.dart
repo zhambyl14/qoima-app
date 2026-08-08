@@ -3,10 +3,11 @@ import '../../core/lang.dart';
 import '../../theme/qoima_design.dart';
 import 'auth_widgets.dart';
 import 'client_register_screen.dart';
+import 'courier_register_screen.dart';
 import 'register_screen.dart';
 
 /// Тіркелудің бастапқы беті: аккаунт түрін таңдау —
-/// Покупатель (клиент) немесе Продавец / магазин.
+/// Покупатель (клиент), Продавец / магазин немесе Курьер.
 class RegisterChooserScreen extends StatelessWidget {
   const RegisterChooserScreen({super.key});
 
@@ -48,6 +49,17 @@ class RegisterChooserScreen extends StatelessWidget {
                       context,
                       MaterialPageRoute(
                           builder: (_) => const RegisterScreen())),
+                ),
+                const SizedBox(height: 16),
+                _RoleCard(
+                  icon: Icons.delivery_dining_outlined,
+                  title: tr('Курьер', 'Курьер'),
+                  subtitle: tr('Доставка заказов по своему городу',
+                      'Өз қалаңызда тапсырыс жеткізу'),
+                  onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const CourierRegisterScreen())),
                 ),
                 const SizedBox(height: 24),
                 Center(

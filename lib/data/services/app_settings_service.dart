@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/banks.dart';
+import '../models/delivery_tariff.dart';
 
 /// Платформа реквизиттері (модератордың банк QR сілтемелері).
 /// Клиент checkout кезінде осы QR-ларды кәдімгі QR-код ретінде көреді;
@@ -124,6 +125,31 @@ class AppSettingsService {
       {'key': _kWhatsapp, 'value': c.whatsapp, 'updated_at': now},
       {'key': _kTelegram, 'value': c.telegram, 'updated_at': now},
       {'key': _kInstagram, 'value': c.instagram, 'updated_at': now},
+    ]);
+  }
+
+  // ── Жеткізу тарифі (0050) ──────────────────────────────────────────────────
+
+  /// Тарифті `delivery_tariff()` RPC арқылы оқимыз — app_settings-тің SELECT
+  /// саясаты `to authenticated`, ал себетті ҚОНАҚ та ашады. Қате болса
+  /// әдепкі тариф қайтады (себет ешқашан ақысыз күйде қалмайды).
+  Future<DeliveryTariff> getDeliveryTariff() async {
+    try {
+      final res = await _sb.rpc('delivery_tariff');
+      if (res is Map) {
+        return DeliveryTariff.fromMap(
+            res.map((k, v) => MapEntry(k.toString(), v?.toString() ?? '')));
+      }
+    } catch (_) {}
+    return const DeliveryTariff();
+  }
+
+  /// Тек superadmin (RLS: app_settings_write).
+  Future<void> saveDeliveryTariff(DeliveryTariff t) async {
+    final now = DateTime.now().toIso8601String();
+    await _sb.from('app_settings').upsert([
+      for (final e in t.toMap().entries)
+        {'key': e.key, 'value': e.value, 'updated_at': now},
     ]);
   }
 }

@@ -1,0 +1,104 @@
+/// Жеткізу тарифі (0050) — superadmin «Реквизиты» экранында өзгертеді,
+/// app_settings-те сақталады, `delivery_tariff()` RPC арқылы оқылады
+/// (қонақ та себетте ақыны көруі керек — сондықтан публичті RPC).
+///
+/// ПРИНЦИП: жеткізу ЕШҚАШАН тегін емес, бірақ арзан. «Тегін жеткізу»
+/// негізсіз бас тартуларды көбейтеді де, жол шығыны жабылмайды.
+class DeliveryTariff {
+  /// Қала ішіндегі базалық ақы.
+  final double baseFee;
+
+  /// Үлкен чекке арналған төмендетілген ақы ([reducedFrom]-нан бастап).
+  final double reducedFee;
+
+  /// Осы сомадан асқанда [reducedFee] қолданылады (0 = өшірулі).
+  final double reducedFrom;
+
+  /// Бір баруда 2-ші, 3-ші дүкеннен алу — базадан пайызбен (әр дүкен = жеке
+  /// қоймаға соғу, сондықтан толық ақы емес, бірақ тегін де емес).
+  final int extraStorePercent;
+
+  /// «Өлшеп көру» қосқаны үшін (курьер қосымша өлшем алып барады).
+  final double fittingFee;
+
+  /// Бір тапсырыста қанша позицияға қосымша өлшем сұрауға болады.
+  final int fittingMaxItems;
+
+  const DeliveryTariff({
+    this.baseFee = 690,
+    this.reducedFee = 390,
+    this.reducedFrom = 15000,
+    this.extraStorePercent = 50,
+    this.fittingFee = 300,
+    this.fittingMaxItems = 2,
+  });
+
+  static double _num(Map<String, String> m, String k, double fallback) =>
+      double.tryParse(m[k] ?? '') ?? fallback;
+
+  factory DeliveryTariff.fromMap(Map<String, String> m) {
+    const d = DeliveryTariff();
+    return DeliveryTariff(
+      baseFee: _num(m, 'delivery_base_fee', d.baseFee),
+      reducedFee: _num(m, 'delivery_reduced_fee', d.reducedFee),
+      reducedFrom: _num(m, 'delivery_reduced_from', d.reducedFrom),
+      extraStorePercent:
+          _num(m, 'delivery_extra_store_percent', d.extraStorePercent.toDouble())
+              .round(),
+      fittingFee: _num(m, 'delivery_fitting_fee', d.fittingFee),
+      fittingMaxItems:
+          _num(m, 'delivery_fitting_max_items', d.fittingMaxItems.toDouble())
+              .round(),
+    );
+  }
+
+  Map<String, String> toMap() => {
+        'delivery_base_fee': baseFee.toStringAsFixed(0),
+        'delivery_reduced_fee': reducedFee.toStringAsFixed(0),
+        'delivery_reduced_from': reducedFrom.toStringAsFixed(0),
+        'delivery_extra_store_percent': '$extraStorePercent',
+        'delivery_fitting_fee': fittingFee.toStringAsFixed(0),
+        'delivery_fitting_max_items': '$fittingMaxItems',
+      };
+
+  DeliveryTariff copyWith({
+    double? baseFee,
+    double? reducedFee,
+    double? reducedFrom,
+    int? extraStorePercent,
+    double? fittingFee,
+    int? fittingMaxItems,
+  }) =>
+      DeliveryTariff(
+        baseFee: baseFee ?? this.baseFee,
+        reducedFee: reducedFee ?? this.reducedFee,
+        reducedFrom: reducedFrom ?? this.reducedFrom,
+        extraStorePercent: extraStorePercent ?? this.extraStorePercent,
+        fittingFee: fittingFee ?? this.fittingFee,
+        fittingMaxItems: fittingMaxItems ?? this.fittingMaxItems,
+      );
+
+  /// Бүкіл тапсырыс сомасына («барлық суб-тапсырыс» қосындысы) қатысты
+  /// бір баруға түсетін базалық ақы.
+  double feeForTotal(double orderTotal) =>
+      (reducedFrom > 0 && orderTotal >= reducedFrom) ? reducedFee : baseFee;
+
+  /// Суб-тапсырыстың (әр қойма — жеке тапсырыс) үлесі. Бірінші қойма толық
+  /// ақы төлейді, қалғаны [extraStorePercent] пайызбен.
+  ///
+  /// Бүтінге дейін дөңгелектенеді — клиентке «345,5 ₸» көрсетілмеуі үшін.
+  double feeForSubOrder({required double orderTotal, required int index}) {
+    final base = feeForTotal(orderTotal);
+    if (index <= 0) return base;
+    return (base * extraStorePercent / 100).roundToDouble();
+  }
+
+  /// Бүкіл себет үшін жалпы жеткізу ақысы ([storeCount] — қойма саны).
+  double totalFee({required double orderTotal, required int storeCount}) {
+    var sum = 0.0;
+    for (var i = 0; i < storeCount; i++) {
+      sum += feeForSubOrder(orderTotal: orderTotal, index: i);
+    }
+    return sum;
+  }
+}

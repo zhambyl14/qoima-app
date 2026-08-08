@@ -16,6 +16,8 @@ import 'ui/superadmin/shop_requests_screen.dart';
 import 'ui/guest/guest_shell.dart';
 import 'ui/main_shell.dart';
 import 'ui/client/client_shell.dart';
+import 'ui/courier/courier_pending_screen.dart';
+import 'ui/courier/courier_shell.dart';
 import 'ui/admin/admin_shell.dart';
 import 'ui/shared/error_view.dart';
 import 'data/models/client_model.dart';
@@ -405,6 +407,12 @@ class _RootGateState extends State<_RootGate> {
               if (user.blocked) return const BlockedScreen();
               if (user.isSuperadmin) return const ShopRequestsScreen();
               if (user.isClient) return const ClientShell();
+              // Курьер модераторға бағынады: бекітілмейінше тапсырыс көрмейді.
+              if (user.isCourier) {
+                return user.isActiveCourier
+                    ? const CourierShell()
+                    : const CourierPendingScreen();
+              }
               // Жазылым «заморозкасы»: мерзім өткеніне 3 күннен асты —
               // иесі де, сатушылары да тек тауарларды көре алады.
               if (user.subFrozen) return const SubscriptionFrozenScreen();
@@ -493,6 +501,8 @@ Future<_SessResult> _loadSession(String uid, BuildContext context) async {
         blockReason: blockReason,
         blockSource: blockSource,
         subscriptionUntil: subUntil,
+        city: userDoc.city,
+        courierStatus: userDoc.courierStatus,
       );
       if (!blocked) await wCtx.load();
       // Push токенін тіркейміз (рұқсат диалогы логинді бөгемеуі үшін await жоқ).

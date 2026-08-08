@@ -18,6 +18,8 @@ class OrderModel {
   final String note;
   final double depositAmount;
   final double deliveryFee;
+  /// «Өлшеп көру» ақысы (0050) — жеткізу ақысынан бөлек есептеледі.
+  final double fittingFee;
   final String pickupCode;
   final int orderNumber;
   final String sellerId;
@@ -45,6 +47,14 @@ class OrderModel {
   final String paymentCardHolder;
   final String paymentBank;
   final String inStorePaymentMethod;
+
+  // ── Курьер (0051) ───────────────────────────────────────────────────────────
+  final String courierUid;
+  final String courierName;
+  /// '' | assigned | picked_up | delivered
+  final String courierStatus;
+  final DateTime? courierTakenAt;
+  final DateTime? courierPickedUpAt;
 
   // ── Промокод (снапшот на момент заказа) ──────────────────────────────────────
   final String promoId;
@@ -86,6 +96,7 @@ class OrderModel {
     this.note = '',
     this.depositAmount = 0.0,
     this.deliveryFee = 0.0,
+    this.fittingFee = 0.0,
     this.pickupCode = '',
     this.orderNumber = 0,
     this.sellerId = 'онлайн',
@@ -109,6 +120,11 @@ class OrderModel {
     this.paymentCardHolder = '',
     this.paymentBank = '',
     this.inStorePaymentMethod = '',
+    this.courierUid = '',
+    this.courierName = '',
+    this.courierStatus = '',
+    this.courierTakenAt,
+    this.courierPickedUpAt,
     this.promoId = '',
     this.promoCode = '',
     this.promoDiscount = 0.0,
@@ -117,13 +133,25 @@ class OrderModel {
 
   double get total => items.fold(0.0, (s, i) => s + i.subtotal);
   double get finalTotal => (total - promoDiscount).clamp(0.0, total);
-  double get totalWithDelivery => finalTotal + deliveryFee;
+  /// Жеткізу + «өлшеп көру» ақысы (клиент осыны төлейді).
+  double get serviceFee => deliveryFee + fittingFee;
+  double get totalWithDelivery => finalTotal + serviceFee;
   double get remainingAmount =>
       (finalTotal - depositAmount).clamp(0.0, finalTotal);
 
   bool get isSmartReservation => orderType == typeSmartReservation;
   bool get isClickCollect => orderType == typeClickCollect;
   bool get isDelivery => orderType == typeDelivery;
+
+  // ── Курьер (0051) ───────────────────────────────────────────────────────────
+  static const String courierAssigned = 'assigned';
+  static const String courierPickedUp = 'picked_up';
+  static const String courierDelivered = 'delivered';
+
+  bool get hasCourier => courierUid.isNotEmpty;
+  bool get courierOnWay => courierStatus == courierPickedUp;
+  /// «Өлшеп көру» сұралған позициялар бар ма (курьер қосымша өлшем алып барады).
+  bool get hasFitting => items.any((i) => i.hasAltSize);
 
   bool get isAwaitingReview => status == statusPending && receiptUrl.isNotEmpty;
   bool get canHandOver => status == statusConfirmed;
@@ -161,6 +189,7 @@ class OrderModel {
       note: m['note'] as String? ?? '',
       depositAmount: (m['deposit_amount'] as num?)?.toDouble() ?? 0,
       deliveryFee: (m['delivery_fee'] as num?)?.toDouble() ?? 0,
+      fittingFee: (m['fitting_fee'] as num?)?.toDouble() ?? 0,
       pickupCode: m['pickup_code'] as String? ?? '',
       orderNumber: (m['order_number'] as num?)?.toInt() ?? 0,
       sellerId: m['seller_id'] as String? ?? 'онлайн',
@@ -184,6 +213,11 @@ class OrderModel {
       paymentCardHolder: m['payment_card_holder'] as String? ?? '',
       paymentBank: m['payment_bank'] as String? ?? '',
       inStorePaymentMethod: m['in_store_payment_method'] as String? ?? '',
+      courierUid: m['courier_uid'] as String? ?? '',
+      courierName: m['courier_name'] as String? ?? '',
+      courierStatus: m['courier_status'] as String? ?? '',
+      courierTakenAt: dtn(m['courier_taken_at']),
+      courierPickedUpAt: dtn(m['courier_picked_up_at']),
       promoId: m['promo_id'] as String? ?? '',
       promoCode: m['promo_code'] as String? ?? '',
       promoDiscount: (m['promo_discount'] as num?)?.toDouble() ?? 0,
@@ -208,6 +242,7 @@ class OrderModel {
         'note': note,
         'deposit_amount': depositAmount,
         'delivery_fee': deliveryFee,
+        'fitting_fee': fittingFee,
         'pickup_code': pickupCode,
         'order_number': orderNumber,
         'seller_id': sellerId,
@@ -251,6 +286,7 @@ class OrderModel {
     String? note,
     double? depositAmount,
     double? deliveryFee,
+    double? fittingFee,
     String? pickupCode,
     int? orderNumber,
     String? sellerId,
@@ -274,6 +310,11 @@ class OrderModel {
     String? paymentCardHolder,
     String? paymentBank,
     String? inStorePaymentMethod,
+    String? courierUid,
+    String? courierName,
+    String? courierStatus,
+    DateTime? courierTakenAt,
+    DateTime? courierPickedUpAt,
     String? promoId,
     String? promoCode,
     double? promoDiscount,
@@ -297,6 +338,7 @@ class OrderModel {
         note: note ?? this.note,
         depositAmount: depositAmount ?? this.depositAmount,
         deliveryFee: deliveryFee ?? this.deliveryFee,
+        fittingFee: fittingFee ?? this.fittingFee,
         pickupCode: pickupCode ?? this.pickupCode,
         orderNumber: orderNumber ?? this.orderNumber,
         sellerId: sellerId ?? this.sellerId,
@@ -320,6 +362,11 @@ class OrderModel {
         paymentCardHolder: paymentCardHolder ?? this.paymentCardHolder,
         paymentBank: paymentBank ?? this.paymentBank,
         inStorePaymentMethod: inStorePaymentMethod ?? this.inStorePaymentMethod,
+        courierUid: courierUid ?? this.courierUid,
+        courierName: courierName ?? this.courierName,
+        courierStatus: courierStatus ?? this.courierStatus,
+        courierTakenAt: courierTakenAt ?? this.courierTakenAt,
+        courierPickedUpAt: courierPickedUpAt ?? this.courierPickedUpAt,
         promoId: promoId ?? this.promoId,
         promoCode: promoCode ?? this.promoCode,
         promoDiscount: promoDiscount ?? this.promoDiscount,

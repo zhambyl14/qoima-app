@@ -11,6 +11,7 @@ import '../../data/repositories/store_moderation_repository.dart';
 import '../../data/services/auth_service.dart';
 import '../../theme/qoima_design.dart';
 import 'banners_screen.dart';
+import 'couriers_screen.dart';
 import 'marketplace_shops_screen.dart';
 import 'online_sales_screen.dart';
 import 'payment_settings_screen.dart';
@@ -44,6 +45,9 @@ class _ShopRequestsScreenState extends State<ShopRequestsScreen> {
   // Шағымдар badge-і — жаңа шағымдар саны.
   late final Stream<List<ReportModel>> _reports =
       ReportRepository().watchReports();
+  // Курьер badge-і — рұқсат күтіп тұрғандар саны.
+  late final Stream<List<UserModel>> _couriers =
+      StoreModerationRepository().watchCouriers();
   int _tab = 0; // 0 Все · 1 Новые · 2 Одобренные · 3 Отклонённые
 
   String get _uid => Supabase.instance.client.auth.currentUser!.id;
@@ -197,6 +201,25 @@ class _ShopRequestsScreenState extends State<ShopRequestsScreen> {
                             MaterialPageRoute(
                                 builder: (_) =>
                                     const MarketplaceShopsScreen())),
+                      ),
+                      StreamBuilder<List<UserModel>>(
+                        stream: _couriers,
+                        builder: (context, snap) {
+                          final pending = (snap.data ?? [])
+                              .where((c) =>
+                                  c.courierStatus.isEmpty ||
+                                  c.courierStatus == 'pending')
+                              .length;
+                          return _NavChip(
+                            icon: Icons.delivery_dining_outlined,
+                            label: tr('Курьеры', 'Курьерлер'),
+                            badge: pending,
+                            onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) => const CouriersScreen())),
+                          );
+                        },
                       ),
                       StreamBuilder<List<StoreEditRequestModel>>(
                         stream: _editPending,

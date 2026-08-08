@@ -10,7 +10,7 @@ import '../../data/services/client_service.dart';
 import '../../core/order_helpers.dart';
 import '../../theme/qoima_design.dart';
 import 'favorites_screen.dart';
-import 'my_bonuses_screen.dart';
+import 'promo_screen.dart';
 import 'addresses_screen.dart';
 import 'hidden_stores_screen.dart';
 import '../auth/account_security_screen.dart';
@@ -96,10 +96,11 @@ class ClientProfileScreen extends StatelessWidget {
               _MenuItem(
                 icon: Icons.card_giftcard_outlined,
                 tone: 'green',
-                title: tr('Мои бонусы', 'Менің бонустарым'),
-                sub: tr('Промокоды по магазинам', 'Дүкендер бойынша промокод'),
+                title: tr('Промо', 'Промо'),
+                sub: tr('Бонусы и «Пригласи друга»',
+                    'Бонустар және «Досыңды шақыр»'),
                 onTap: () => Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const MyBonusesScreen())),
+                    MaterialPageRoute(builder: (_) => const PromoScreen())),
               ),
               const SizedBox(height: 10),
               _MenuItem(

@@ -12,6 +12,9 @@ import '../../core/lang.dart';
 /// осы дүкендегі БІРІНШІ тапсырысын жасаса, екеуі де дүкен белгілеген
 /// пайызда жеңілдік алады (досы бірден, шақырушы тапсырыс аяқталған соң
 /// жеке сыйлық промокоды түрінде — 0044 триггері).
+///
+/// Код тек осы дүкенде АЯҚТАЛҒАН тапсырысы бар клиентке беріледі (0049) —
+/// экранға «Промо» бөлімінен немесе дүкен бетінен кіреді.
 class ReferralScreen extends StatefulWidget {
   final StoreModel store;
   const ReferralScreen({super.key, required this.store});
@@ -108,8 +111,8 @@ class _ReferralScreenState extends State<ReferralScreen> {
                       child: Padding(
                         padding: const EdgeInsets.all(32),
                         child: Text(
-                            tr('В этом магазине программа приглашений пока не включена',
-                                'Бұл дүкенде шақыру бағдарламасы әзірге қосылмаған'),
+                            tr('Код недоступен: программа выключена или у вас ещё нет выполненного заказа в этом магазине',
+                                'Код қолжетімсіз: бағдарлама өшірулі немесе бұл дүкенде әлі орындалған тапсырысыңыз жоқ'),
                             textAlign: TextAlign.center,
                             style: manrope(14, FontWeight.w600, color: cInk2)),
                       ),

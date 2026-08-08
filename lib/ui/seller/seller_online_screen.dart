@@ -8,6 +8,7 @@ import '../../data/models/order_model.dart';
 import '../../data/services/firestore_service.dart';
 import '../../theme/qoima_design.dart';
 import '../client/reservation_timer_widget.dart';
+import '../shared/courier_info_banner.dart';
 import '../../data/models/return_model.dart';
 import '../../data/services/return_service.dart';
 
@@ -940,8 +941,12 @@ class _OrderCardState extends State<_OrderCard> {
                   valueColor: cGreen),
             if (o.deliveryFee > 0)
               _PayRow(
-                  label: tr('Доставка', 'Жеткізу'),
+                  label: tr('Доставка курьером', 'Курьер жеткізуі'),
                   value: '${o.deliveryFee.toStringAsFixed(0)} ₸'),
+            if (o.fittingFee > 0)
+              _PayRow(
+                  label: tr('Примерка', 'Өлшеп көру'),
+                  value: '${o.fittingFee.toStringAsFixed(0)} ₸'),
             _PayRow(
                 label: tr('Итого оплачено', 'Барлығы төленді'),
                 value: '${o.totalWithDelivery.toStringAsFixed(0)} ₸',
@@ -952,6 +957,8 @@ class _OrderCardState extends State<_OrderCard> {
                   label: tr('Оплачено через', 'Төлем әдісі'),
                   value: _payMethodLabel(o.paymentBank),
                   valueColor: _payMethodColor(o.paymentBank)),
+            const SizedBox(height: 10),
+            CourierInfoBanner(order: o, forStore: true),
           ] else ...[
             // ⚠️ ТҮЗЕТУ: бұрын `o.total` (промокодқа дейінгі толық сома)
             // көрсетілетін. Енді `o.finalTotal` — deposit_amount-пен сәйкес.

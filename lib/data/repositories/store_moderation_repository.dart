@@ -131,4 +131,29 @@ class StoreModerationRepository {
       .eq('owner_uid', ownerUid)
       .order('created_at')
       .map((rows) => rows.map(ProductModel.fromMap).toList());
+
+  // ── Курьерлер (0051) — тікелей модераторға бағынады ─────────────────────────
+
+  /// Барлық курьер (superadmin RLS барлығын көреді). Күтудегілері алда —
+  /// модератор шешім қабылдауы керек ең бірінші солар.
+  Stream<List<UserModel>> watchCouriers() =>
+      _sb.from('users').stream(primaryKey: ['id']).eq('role', 'courier').map(
+        (rows) {
+          const order = {'pending': 0, 'active': 1, 'blocked': 2};
+          return rows.map(UserModel.fromMap).toList()
+            ..sort((a, b) {
+              final d = (order[a.courierStatus] ?? 3)
+                  .compareTo(order[b.courierStatus] ?? 3);
+              return d != 0
+                  ? d
+                  : a.name.toLowerCase().compareTo(b.name.toLowerCase());
+            });
+        },
+      );
+
+  /// Курьер күйін/қаласын өзгерту. RPC (SECURITY DEFINER) — артық баған
+  /// тиюден сақтайды әрі бекіткенде курьерге пуш жібереді.
+  Future<void> setCourierStatus(String uid, String status, {String? city}) =>
+      _sb.rpc('superadmin_set_courier',
+          params: {'p_uid': uid, 'p_status': status, 'p_city': city});
 }

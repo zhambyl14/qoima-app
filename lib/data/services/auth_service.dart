@@ -202,14 +202,18 @@ class AuthService {
   //  SELLER / ADMIN — телефон + құпиясөз
   // ═══════════════════════════════════════════════════════════════════════════
 
-  /// seller/admin тіркеу. Телефон Telegram-мен РАСТАЛҒАН болуы керек.
+  /// seller/admin/courier тіркеу. Телефон Telegram-мен РАСТАЛҒАН болуы керек.
   /// Профильді (+admin бизнес коды) триггер жасайды. Верификация жоқ — signUp
   /// соң сессия бірден басталады, gate рөлге қарай өтеді.
+  ///
+  /// [city] — тек курьерге міндетті: ол сол қаладағы дүкендердің тапсырысын
+  /// ғана көреді (0051).
   Future<void> register({
     required String name,
     required String phoneNumber, // E.164 (Telegram-мен расталған)
     required String password,
-    required String role, // 'admin' | 'seller'
+    required String role, // 'admin' | 'seller' | 'courier'
+    String city = '',
   }) async {
     final existing = await emailForPhone(phoneNumber);
     if (existing != null && existing.isNotEmpty) {
@@ -220,7 +224,12 @@ class AuthService {
       final res = await _sb.auth.signUp(
         email: cleanEmail,
         password: password,
-        data: {'role': role, 'name': name.trim(), 'phone': phoneNumber},
+        data: {
+          'role': role,
+          'name': name.trim(),
+          'phone': phoneNumber,
+          if (city.trim().isNotEmpty) 'city': city.trim(),
+        },
       );
       if (res.session == null) {
         await _sb.auth

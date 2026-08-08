@@ -473,8 +473,31 @@ class ClientService {
     return rows.isNotEmpty;
   }
 
+  /// Клиент осы дүкеннен сатып алды ма (шақыру коды тек сол кезде беріледі —
+  /// 0049). Дүкенге ақша әкелмеген адам оның жеңілдігін тарата алмайды.
+  Future<bool> hasPurchasedInStore(String adminUid) =>
+      _hasCompletedOrderInStore(adminUid, _uid);
+
+  /// «Промо» бөліміндегі «Досыңды шақыр» тізімі: клиент САТЫП АЛҒАН әрі
+  /// шақыру бағдарламасы қосулы дүкендер (adminUid → пайыз).
+  Future<Map<String, int>> getMyReferralStores() async {
+    if (_uid.isEmpty) return {};
+    try {
+      final res = await _sb.rpc('my_referral_stores');
+      if (res is! List) return {};
+      return {
+        for (final r in res)
+          (r['admin_uid'] as String? ?? ''):
+              (r['referral_percent'] as num?)?.toInt() ?? 0,
+      }..removeWhere((k, v) => k.isEmpty || v <= 0);
+    } catch (_) {
+      return {};
+    }
+  }
+
   /// Клиенттің осы дүкендегі жеке шақыру коды (жоқ болса жасалады).
-  /// null — дүкенде бағдарлама өшірулі немесе клиент авторизацияланбаған.
+  /// null — дүкенде бағдарлама өшірулі, клиент кірмеген немесе бұл дүкеннен
+  /// әлі сатып алмаған (0049).
   Future<String?> getMyReferralCode(String adminUid) async {
     if (_uid.isEmpty) return null;
     try {
@@ -679,6 +702,33 @@ class ClientService {
       }
     }
 
+    // «Өлшеп көру» (0050): қосымша өлшем қоймада БРОНЬДАЛАДЫ — курьер жолда
+    // келе жатқанда оны басқа біреу сатып ала алмауы үшін. Ақшасы алынбайды.
+    // Бронь сәтсіз болса (сол өлшем таусылып қалды) — тапсырысты БҰЗБАЙМЫЗ,
+    // тек сол позициядан қосымша өлшемді алып тастаймыз.
+    var items = order.items;
+    if (items.any((i) => i.hasAltSize)) {
+      final adjusted = <CartItemModel>[];
+      for (final item in items) {
+        if (!item.hasAltSize) {
+          adjusted.add(item);
+          continue;
+        }
+        try {
+          await _sb.rpc('adjust_batch_sizes', params: {
+            'p_batch': item.batchId,
+            'p_deltas': {item.altSize: item.qty},
+            'p_field': 'reserved_sizes',
+            'p_guard': true,
+          });
+          adjusted.add(item);
+        } catch (_) {
+          adjusted.add(item.copyWith(altSize: ''));
+        }
+      }
+      items = adjusted;
+    }
+
     // Промокод есептегішін арттырамыз.
     if (countsPromo) {
       try {
@@ -691,6 +741,7 @@ class ClientService {
     }
 
     final placed = order.copyWith(
+      items: items,
       pickupCode: code,
       sellerId: 'онлайн',
       sellerName: 'Онлайн',
@@ -793,6 +844,13 @@ class ClientService {
           if (!e.message.contains('batch_not_found')) rethrow;
         }
       }
+    }
+
+    // «Өлшеп көру» броні босайды (0050 — бір ғана ақиқат көзі: SQL функциясы).
+    if (order.hasFitting) {
+      try {
+        await _sb.rpc('release_fitting_holds', params: {'p_order': order.id});
+      } catch (_) {}
     }
 
     final countsPromo = (oRow['promo_counts_usage'] as bool? ?? false) &&

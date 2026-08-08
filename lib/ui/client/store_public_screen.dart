@@ -44,6 +44,8 @@ class _StorePublicScreenState extends State<StorePublicScreen> {
   // (кэштелген) болуы мүмкін болғандықтан, кірген сәтте қайта тексереміз.
   bool _unavailable = false;
   String _query = '';
+  // Осы дүкеннен сатып алған ба (0049): шақыру коды тек сол кезде беріледі.
+  bool _canInvite = false;
 
   List<String> _favoriteIds = [];
   StreamSubscription<List<String>>? _favSub;
@@ -58,7 +60,15 @@ class _StorePublicScreenState extends State<StorePublicScreen> {
       _favSub = _service.watchFavoriteIds().listen((ids) {
         if (mounted) setState(() => _favoriteIds = ids);
       });
+      if (store.referralEnabled) _loadCanInvite();
     }
+  }
+
+  Future<void> _loadCanInvite() async {
+    try {
+      final ok = await _service.hasPurchasedInStore(store.adminUid);
+      if (mounted) setState(() => _canInvite = ok);
+    } catch (_) {}
   }
 
   @override
@@ -273,6 +283,34 @@ class _StorePublicScreenState extends State<StorePublicScreen> {
       }
       return;
     }
+    // 0049: дүкеннен бір рет те зат алмаған адам оның жеңілдігін тарата
+    // алмайды — әйтпесе дүкенге ешқашан ақша әкелмей бонус жинауға болар еді.
+    // Тексеру серверде де бар (get_or_create_referral_code) — бұл жердегісі
+    // клиентке НЕГЕ болмайтынын түсіндіру үшін.
+    if (!_canInvite) {
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: cSurface,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          title: Text(tr('Сначала — ваш заказ', 'Алдымен — сіздің тапсырыс'),
+              style: manrope(16, FontWeight.w800, color: cInk)),
+          content: Text(
+              tr('Приглашать в этот магазин можно после вашего первого выполненного заказа здесь. Так рекомендация остаётся честной.',
+                  'Бұл дүкенге шақыру — осы жерден бірінші тапсырысыңыз орындалғаннан кейін. Сонда ұсынысыңыз адал болады.'),
+              style: manrope(14, FontWeight.w500, color: cInk2, height: 1.4)),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text(tr('Понятно', 'Түсінікті'),
+                    style: manrope(14, FontWeight.w700, color: cGreen))),
+          ],
+        ),
+      );
+      return;
+    }
+    if (!mounted) return;
     Navigator.push(context,
         MaterialPageRoute(builder: (_) => ReferralScreen(store: widget.store)));
   }
@@ -588,31 +626,45 @@ class _StorePublicScreenState extends State<StorePublicScreen> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
-            color: cGreenTint,
+            color: _canInvite ? cGreenTint : cBg,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: cGreen.withValues(alpha: 0.25)),
+            border: Border.all(
+                color: _canInvite ? cGreen.withValues(alpha: 0.25) : cLine),
           ),
           child: Row(children: [
             Container(
               width: 38,
               height: 38,
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: _canInvite ? Colors.white : cSurface,
                 borderRadius: BorderRadius.circular(11),
               ),
-              child: const Icon(Icons.card_giftcard_rounded,
-                  color: cGreenDeep, size: 20),
+              child: Icon(
+                  _canInvite
+                      ? Icons.card_giftcard_rounded
+                      : Icons.lock_outline_rounded,
+                  color: _canInvite ? cGreenDeep : cInk3,
+                  size: 20),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: Text(
-                  tr('Пригласи друга · −${store.referralPercent}%',
-                      'Досыңды шақыр · −${store.referralPercent}%'),
-                  style:
-                      manrope(14, FontWeight.w800, color: cGreenDeep)),
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                        tr('Пригласи друга · −${store.referralPercent}%',
+                            'Досыңды шақыр · −${store.referralPercent}%'),
+                        style: manrope(14, FontWeight.w800,
+                            color: _canInvite ? cGreenDeep : cInk2)),
+                    if (!_canInvite)
+                      Text(
+                          tr('Доступно после вашего первого заказа здесь',
+                              'Осы жерден бірінші тапсырысыңыздан кейін'),
+                          style: manrope(11.5, FontWeight.w600, color: cInk3)),
+                  ]),
             ),
-            const Icon(Icons.chevron_right_rounded,
-                color: cGreenDeep, size: 20),
+            Icon(Icons.chevron_right_rounded,
+                color: _canInvite ? cGreenDeep : cInk3, size: 20),
           ]),
         ),
       ),

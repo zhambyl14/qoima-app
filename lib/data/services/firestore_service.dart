@@ -1748,6 +1748,14 @@ class FirestoreService {
       }
     }
 
+    // «Өлшеп көру» броні босайды (0050): дүкен өзі берген жағдайда своп
+    // болмайды — қосымша өлшемдер бірден қоймаға оралуы керек.
+    if (order.hasFitting) {
+      try {
+        await _sb.rpc('release_fitting_holds', params: {'p_order': order.id});
+      } catch (_) {}
+    }
+
     await _sb.from('orders').update({
       'delivered_by_uid': seller.uid,
       'delivered_by_name': seller.name,
@@ -1855,6 +1863,13 @@ class FirestoreService {
         // келтіретін ештеңе жоқ, бірақ тапсырысты болдырмау бөгелмеуі керек.
         if (!e.message.contains('batch_not_found')) rethrow;
       }
+    }
+
+    // «Өлшеп көру» броні де босайды (0050).
+    if (order.hasFitting) {
+      try {
+        await _sb.rpc('release_fitting_holds', params: {'p_order': order.id});
+      } catch (_) {}
     }
 
     final countsPromo = (oRow['promo_counts_usage'] as bool? ?? false) &&

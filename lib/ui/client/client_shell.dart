@@ -103,6 +103,15 @@ class CartProvider extends ChangeNotifier {
     _persist();
   }
 
+  /// «Өлшеп көру» (0050): курьер қоса алып баратын қосалқы өлшем.
+  /// [size] бос болса — алып тасталады.
+  void setAltSize(int index, String size) {
+    if (index < 0 || index >= _items.length) return;
+    _items[index] = _items[index].copyWith(altSize: size);
+    notifyListeners();
+    _persist();
+  }
+
   void setAllSelected(bool value) {
     for (var i = 0; i < _items.length; i++) {
       _items[i] = _items[i].copyWith(selected: value);

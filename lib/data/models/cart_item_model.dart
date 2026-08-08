@@ -14,6 +14,11 @@ class CartItemModel {
   // Себетте «тапсырысқа таңдалды ма» (Wildberries/Kaspi стилі — чекбокс).
   // Әдепкі true: бұрынғы тапсырыс беру логикасы бәрін алады.
   final bool selected;
+  /// «Өлшеп көру» (0050): курьер ҚОСА алып баратын өлшем — сол тауар, сол
+  /// партия, басқа өлшем. '' = жоқ. Ақшасы тек негізгі [size] үшін төленеді;
+  /// бұл өлшем қоймада брондалады да, клиент оны таңдаса своп жасалады.
+  /// Тек жеткізуде және сол қаладағы дүкенде мағыналы.
+  final String altSize;
 
   const CartItemModel({
     required this.productId,
@@ -29,6 +34,7 @@ class CartItemModel {
     required this.warehouseId,
     this.warehouseAddress = '',
     this.selected = true,
+    this.altSize = '',
   });
 
   factory CartItemModel.fromJson(Map<String, dynamic> json) => CartItemModel(
@@ -45,6 +51,7 @@ class CartItemModel {
         warehouseId: json['warehouseId'] as String? ?? '',
         warehouseAddress: json['warehouseAddress'] as String? ?? '',
         selected: json['selected'] as bool? ?? true,
+        altSize: json['altSize'] as String? ?? '',
       );
 
   Map<String, dynamic> toJson() => {
@@ -61,6 +68,7 @@ class CartItemModel {
         'warehouseId': warehouseId,
         'warehouseAddress': warehouseAddress,
         'selected': selected,
+        if (altSize.isNotEmpty) 'altSize': altSize,
       };
 
   CartItemModel copyWith({
@@ -77,6 +85,7 @@ class CartItemModel {
     String? warehouseId,
     String? warehouseAddress,
     bool? selected,
+    String? altSize,
   }) =>
       CartItemModel(
         productId: productId ?? this.productId,
@@ -92,7 +101,10 @@ class CartItemModel {
         warehouseId: warehouseId ?? this.warehouseId,
         warehouseAddress: warehouseAddress ?? this.warehouseAddress,
         selected: selected ?? this.selected,
+        altSize: altSize ?? this.altSize,
       );
+
+  bool get hasAltSize => altSize.isNotEmpty;
 
   double get subtotal => price * qty;
 
