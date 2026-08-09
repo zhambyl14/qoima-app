@@ -82,6 +82,14 @@ class CourierService {
   Future<void> takeOrder(String orderId) =>
       _sb.rpc('courier_take_order', params: {'p_order': orderId});
 
+  /// Бір клиенттің бір төлемнен шыққан БАРЛЫҚ суб-тапсырысын бірге алу (0057).
+  ///
+  /// Жарты топты алудың мағынасы жоқ: мекенжай біреу, бару да біреу. Егер
+  /// топтың бір бөлігін басқа курьер әлдеқашан алып қойса — RPC қалғанын
+  /// алады да, санын қайтарады.
+  Future<void> takeGroup(String groupId) =>
+      _sb.rpc('courier_take_group', params: {'p_group': groupId});
+
   Future<void> dropOrder(String orderId) =>
       _sb.rpc('courier_drop_order', params: {'p_order': orderId});
 

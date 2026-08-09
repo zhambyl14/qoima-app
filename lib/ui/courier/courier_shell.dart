@@ -185,6 +185,19 @@ class _CourierShellState extends State<CourierShell> {
     );
   }
 
+  /// Тапсырыстарды БІР ТӨЛЕМ (бір клиенттің бір себеті) бойынша топтайды.
+  ///
+  /// Кілт — `cartGroupId`, ол бос болса тапсырыстың өз id-і (жалғыз мүшелі
+  /// топ). Реті бұзылмайды: топ бірінші кездескен орнында тұрады.
+  List<List<OrderModel>> _groupByCart(List<OrderModel> orders) {
+    final byKey = <String, List<OrderModel>>{};
+    for (final o in orders) {
+      final key = o.cartGroupId.isEmpty ? o.id : o.cartGroupId;
+      byKey.putIfAbsent(key, () => []).add(o);
+    }
+    return byKey.values.toList();
+  }
+
   // ── Таб 1: бос жұмыс (жеткізу + возврат) ───────────────────────────────────
   Widget _buildAvailable() {
     if (_available.isEmpty && _availableReturns.isEmpty) {
@@ -195,17 +208,29 @@ class _CourierShellState extends State<CourierShell> {
             'Дүкен төлемді немесе қайтарымды растаған бойда жұмыс осында шығады'),
       );
     }
+    final groups = _groupByCart(_available);
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
       children: [
         if (_available.isNotEmpty) ...[
           QSecLabel(tr('Доставки', 'Жеткізулер')),
           const SizedBox(height: 8),
-          ..._available.map((o) => CourierOrderCard(
-                order: o,
-                onTake: () => _run(() => _service.takeOrder(o.id),
-                    tr('Заказ ваш — забирайте со склада', 'Тапсырыс сіздікі — қоймадан алыңыз')),
-              )),
+          ...groups.map((g) => g.length == 1
+              ? CourierOrderCard(
+                  order: g.first,
+                  onTake: () => _run(() => _service.takeOrder(g.first.id),
+                      tr('Заказ ваш — забирайте со склада',
+                          'Тапсырыс сіздікі — қоймадан алыңыз')),
+                )
+              // Бір клиент — бірнеше дүкен. Жарты топты алу мағынасыз
+              // (мекенжай біреу), сондықтан бір ғана батырма.
+              : _CartGroup(
+                  orders: g,
+                  onTakeAll: () => _run(
+                      () => _service.takeGroup(g.first.cartGroupId),
+                      tr('Заказ ваш — объедьте склады',
+                          'Тапсырыс сіздікі — қоймаларды аралаңыз')),
+                )),
           const SizedBox(height: 14),
         ],
         // Возврат та — жұмыс. Бұрын курьерге мүлде көрінбейтін.
@@ -280,21 +305,11 @@ class _CourierShellState extends State<CourierShell> {
         if (active.isNotEmpty) ...[
           QSecLabel(tr('В работе', 'Жұмыста')),
           const SizedBox(height: 8),
-          ...active.map((o) => CourierOrderCard(
-                order: o,
-                onPickup: (code) => _run(
-                    () => _service.pickupOrder(o.id, code),
-                    tr('Забрано со склада', 'Қоймадан алынды')),
-                onDeliver: (swaps, feeCollected) => _run(
-                    () => _service.completeOrder(o.id,
-                        swappedIndexes: swaps, feeCollected: feeCollected),
-                    tr('Доставлено ✓', 'Жеткізілді ✓')),
-                onReturn: (reason, feeCollected) => _run(
-                    () => _service.returnOrder(o.id, reason,
-                        feeCollected: feeCollected),
-                    tr('Заказ возвращён на склад', 'Тапсырыс қоймаға оралды')),
-                onDrop: () => _run(() => _service.dropOrder(o.id),
-                    tr('Заказ освобождён', 'Тапсырыс босатылды')),
+          // Бір себеттен шыққандары бірге тұрады: курьер әр дүкенге өз
+          // кодымен соғады, бірақ клиентке БІР рет барады.
+          ..._groupByCart(active).map((g) => _CartGroup(
+                orders: g,
+                children: g.map(_activeCard).toList(),
               )),
           const SizedBox(height: 14),
         ],
@@ -320,6 +335,22 @@ class _CourierShellState extends State<CourierShell> {
       ],
     );
   }
+
+  /// Жұмыстағы тапсырыс карточкасы (әрекеттерімен) — топта да, жеке де сол.
+  Widget _activeCard(OrderModel o) => CourierOrderCard(
+        order: o,
+        onPickup: (code) => _run(() => _service.pickupOrder(o.id, code),
+            tr('Забрано со склада', 'Қоймадан алынды')),
+        onDeliver: (swaps, feeCollected) => _run(
+            () => _service.completeOrder(o.id,
+                swappedIndexes: swaps, feeCollected: feeCollected),
+            tr('Доставлено ✓', 'Жеткізілді ✓')),
+        onReturn: (reason, feeCollected) => _run(
+            () => _service.returnOrder(o.id, reason, feeCollected: feeCollected),
+            tr('Заказ возвращён на склад', 'Тапсырыс қоймаға оралды')),
+        onDrop: () => _run(() => _service.dropOrder(o.id),
+            tr('Заказ освобождён', 'Тапсырыс босатылды')),
+      );
 
   // ── Таб 3: профиль + табыс ─────────────────────────────────────────────────
   Widget _buildProfile(AppUser user) => ListView(
@@ -505,6 +536,108 @@ class _CourierShellState extends State<CourierShell> {
               style: manrope(12.5, FontWeight.w600, color: cInk3, height: 1.4)),
         ],
       );
+}
+
+/// БІР КЛИЕНТТІҢ, БІР ТӨЛЕМНЕН шыққан бірнеше дүкендегі тапсырысы (0057).
+///
+/// НЕГЕ КЕРЕК: себет дүкен/қойма бойынша бөлінеді, сондықтан «екі дүкеннен
+/// алдым» деген бір заказ базада екі жол болып жатады. Курьерге бұрын олар
+/// екі БӨТЕН тапсырыс болып көрінетін де:
+///   · біреуін бір курьер, екіншісін екінші курьер алып кетуі мүмкін еді
+///     (клиент бір заказын екі бөлек адамнан алатын);
+///   · курьер екінші дүкенге соғу керегін мүлде білмей қалуы мүмкін еді.
+/// Енді олар бір карточкада тұрады: жоғарыда клиент пен маршрут, ішінде әр
+/// дүкен өз жолымен (әрқайсысының өз pickup коды сақталады — қоймаға нақты
+/// келгеннің дәлелі әр дүкенде бөлек).
+class _CartGroup extends StatelessWidget {
+  final List<OrderModel> orders;
+
+  /// «Жаңа» табында — бүкіл топты бірден алу. Берілмесе (менің табым) —
+  /// ішіндегі [children] карточкалары өз әрекеттерін көрсетеді.
+  final VoidCallback? onTakeAll;
+  final List<Widget>? children;
+
+  const _CartGroup({required this.orders, this.onTakeAll, this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    final fee = orders.fold<double>(0, (s, o) => s + o.deliveryFee);
+    final stores = orders.map((o) => o.storeName).toSet().length;
+    // Топтың қай бөлігі әлі қоймадан алынбаған — курьер санмен көреді.
+    final picked = orders
+        .where((o) => o.courierStatus != OrderModel.courierAssigned)
+        .length;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: cBlueTint,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: cBlue.withValues(alpha: 0.45), width: 1.5),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(6, 4, 6, 10),
+          child: Row(children: [
+            const Icon(Icons.alt_route_rounded, color: cBlue, size: 20),
+            const SizedBox(width: 9),
+            Expanded(
+              child:
+                  Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(
+                    tr('Один клиент · $stores магазина',
+                        'Бір клиент · $stores дүкен'),
+                    style: manrope(13.5, FontWeight.w800, color: cInk)),
+                Text(
+                    tr('Заберите со всех складов и отвезите за одну поездку',
+                        'Барлық қоймадан алып, бір баруда жеткізіңіз'),
+                    style: manrope(11, FontWeight.w600, color: cInk2)),
+              ]),
+            ),
+            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              Text(money(fee),
+                  style: manrope(15, FontWeight.w800, color: cGreenDeep)),
+              Text(tr('всего вам', 'сізге барлығы'),
+                  style: manrope(9.5, FontWeight.w700, color: cInk3)),
+            ]),
+          ]),
+        ),
+        if (onTakeAll == null && picked < orders.length)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(6, 0, 6, 10),
+            child: Text(
+                tr('Со складов забрано: $picked из ${orders.length}',
+                    'Қоймалардан алынғаны: ${orders.length}-дің $picked-і'),
+                style: manrope(11.5, FontWeight.w800, color: cBlue)),
+          ),
+        ...?children,
+        if (onTakeAll != null) ...[
+          // «Жаңа» табында ішкі карточкалар әрекетсіз — тек шолу үшін.
+          ...orders.map((o) => CourierOrderCard(order: o)),
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: ElevatedButton.icon(
+              onPressed: onTakeAll,
+              icon: const Icon(Icons.check_rounded, size: 18),
+              label: Text(
+                  tr('Взять все ${orders.length} заказа',
+                      '${orders.length} тапсырысты да алу'),
+                  style: manrope(14, FontWeight.w800, color: Colors.white)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: cBlue,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
+              ),
+            ),
+          ),
+        ],
+      ]),
+    );
+  }
 }
 
 /// Табыс жіктелуінің бір жолы.

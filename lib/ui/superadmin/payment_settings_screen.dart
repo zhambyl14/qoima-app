@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/kz_cities.dart';
 import '../../core/lang.dart';
 import '../../data/models/delivery_tariff.dart';
 import '../../data/services/app_settings_service.dart';
@@ -349,62 +350,63 @@ class _PaymentSettingsScreenState extends State<PaymentSettingsScreen> {
 
 }
 
-/// Курьерлік қызмет ІСКЕ ҚОСЫЛҒАН қалалар (0055).
+/// Курьерлік қызмет ІСКЕ ҚОСЫЛҒАН қалалар (0055, 0057).
 ///
 /// ҚОСУЛЫ қалада жеткізуді де, возврат тасымалын да платформа курьері
-/// орындайды. Тізімде жоқ қалада курьер мүлде көрінбейді — дүкен тауарды өзі
-/// жеткізеді/жөнелтеді, возратты да клиент өзі әкеледі.
+/// орындайды: клиент себетте жеткізу ақысын көреді, тапсырыс расталған соң
+/// курьерге түседі. ӨШІРУЛІ қалада курьер мүлде көрінбейді — жеткізу ақысы
+/// да жоқ, дүкен клиентпен өзі келіседі (өзі апарады не жөнелту қызметімен
+/// жібереді), возратты да клиент өзі әкеледі.
 ///
-/// ⚠️ БОС ТІЗІМ = ШЕКТЕУ ЖОҚ (барлық қалада қосулы) — серверде де сол ереже
-/// (`courier_city_enabled`). Екеуі бір ақиқатты айтуы керек.
-class _CourierCitiesEditor extends StatefulWidget {
+/// ⚠️ БОС ТІЗІМ = ЕШБІР ҚАЛАДА КУРЬЕР ЖОҚ. 0055-те керісінше болатын («бос =
+/// бәрінде қосулы»), содан модератор тізімді толтырғанша клиенттерге жоқ
+/// курьердің ақысы көрсетіліп тұратын. Серверде де сол ереже
+/// (`courier_city_enabled`, 0057) — екеуі бір ақиқатты айтуы керек.
+///
+/// НЕГЕ ТІЗІМНЕН ТАҢДАУ: бұрын мұнда қолмен теру өрісі тұрған. Қала атауы
+/// дүкеннің `stores.city` мәнімен ӘРІПКЕ ДЕЙІН дәл келуі керек, ал ол әрқашан
+/// [kzCities] тізімінен алынады — қолмен терген «Алматы қ.» немесе «Almaty»
+/// ешқашан сәйкес келмей, курьер үнсіз өшіп қалатын.
+class _CourierCitiesEditor extends StatelessWidget {
   final List<String> cities;
   final ValueChanged<List<String>> onChanged;
   const _CourierCitiesEditor({required this.cities, required this.onChanged});
 
-  @override
-  State<_CourierCitiesEditor> createState() => _CourierCitiesEditorState();
-}
+  bool _has(String city) =>
+      cities.any((c) => c.trim().toLowerCase() == city.trim().toLowerCase());
 
-class _CourierCitiesEditorState extends State<_CourierCitiesEditor> {
-  final _ctrl = TextEditingController();
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  void _add() {
-    final city = _ctrl.text.trim();
-    if (city.isEmpty) return;
-    final exists = widget.cities
-        .any((c) => c.trim().toLowerCase() == city.toLowerCase());
-    if (exists) {
-      _ctrl.clear();
-      return;
+  void _toggle(String city) {
+    if (_has(city)) {
+      onChanged(cities
+          .where((c) => c.trim().toLowerCase() != city.trim().toLowerCase())
+          .toList());
+    } else {
+      onChanged([...cities, city]);
     }
-    widget.onChanged([...widget.cities, city]);
-    _ctrl.clear();
   }
-
-  void _remove(String city) => widget.onChanged(
-      widget.cities.where((c) => c != city).toList());
 
   @override
   Widget build(BuildContext context) {
-    final all = widget.cities.isEmpty;
+    // Тізімде жоқ, бірақ бұрын сақталған қалалар да көрінуі керек — әйтпесе
+    // модератор оларды өшіре де алмайды.
+    final extra = cities
+        .where((c) => !kzCities
+            .any((k) => k.toLowerCase() == c.trim().toLowerCase()))
+        .toList();
+    final all = [...kzCities, ...extra];
+    final none = cities.isEmpty;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: cSurface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: cLine),
+        border: Border.all(color: none ? cAmber : cLine),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          const Icon(Icons.map_rounded, size: 17, color: cGreen),
+          Icon(Icons.map_rounded, size: 17, color: none ? cAmber : cGreen),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -412,76 +414,79 @@ class _CourierCitiesEditorState extends State<_CourierCitiesEditor> {
                     'Курьерлік қызмет бар қалалар'),
                 style: manrope(13.5, FontWeight.w800, color: cInk)),
           ),
+          Text('${cities.length}/${all.length}',
+              style: manrope(12, FontWeight.w800, color: cInk3)),
         ]),
         const SizedBox(height: 6),
         Text(
-          all
-              ? tr('Список пуст — курьеры работают ВО ВСЕХ городах.',
-                  'Тізім бос — курьерлер БАРЛЫҚ қалада жұмыс істейді.')
-              : tr('Курьеры работают только в этих городах. В остальных магазин доставляет сам, а возврат клиент привозит сам.',
-                  'Курьерлер тек осы қалаларда жұмыс істейді. Қалғанында дүкен өзі жеткізеді, қайтарымды клиент өзі әкеледі.'),
-          style: manrope(11.5, FontWeight.w600, color: cInk3, height: 1.35),
+          none
+              ? tr('Не выбрано ни одного города — курьеров НЕТ НИГДЕ. Клиенты не видят стоимость доставки, магазины договариваются сами.',
+                  'Бірде-бір қала таңдалмаған — курьер ЕШҚАЙДА жоқ. Клиенттер жеткізу ақысын көрмейді, дүкендер өздері келіседі.')
+              : tr('Курьеры работают только в отмеченных городах. В остальных магазин доставляет сам, а возврат клиент привозит сам.',
+                  'Курьерлер тек белгіленген қалаларда жұмыс істейді. Қалғанында дүкен өзі жеткізеді, қайтарымды клиент өзі әкеледі.'),
+          style: manrope(11.5, FontWeight.w600,
+              color: none ? cAmber : cInk3, height: 1.35),
         ),
-        if (!all) ...[
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: widget.cities
-                .map((c) => Container(
-                      padding: const EdgeInsets.fromLTRB(11, 6, 6, 6),
-                      decoration: BoxDecoration(
-                        color: cGreenTint,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        Text(c,
-                            style: manrope(12.5, FontWeight.w700,
-                                color: cGreenDeep)),
-                        const SizedBox(width: 4),
-                        GestureDetector(
-                          onTap: () => _remove(c),
-                          child: const Icon(Icons.close_rounded,
-                              size: 15, color: cGreenDeep),
-                        ),
-                      ]),
-                    ))
-                .toList(),
-          ),
-        ],
         const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: all.map((c) {
+            final on = _has(c);
+            return GestureDetector(
+              onTap: () => _toggle(c),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 120),
+                padding: const EdgeInsets.fromLTRB(10, 7, 12, 7),
+                decoration: BoxDecoration(
+                  color: on ? cGreenTint : cBg,
+                  borderRadius: BorderRadius.circular(11),
+                  border: Border.all(color: on ? cGreen : cLine),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(
+                      on
+                          ? Icons.check_circle_rounded
+                          : Icons.circle_outlined,
+                      size: 15,
+                      color: on ? cGreen : cInk3),
+                  const SizedBox(width: 6),
+                  Text(trValue(c),
+                      style: manrope(12.5, FontWeight.w700,
+                          color: on ? cGreenDeep : cInk2)),
+                ]),
+              ),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 10),
         Row(children: [
           Expanded(
-            child: TextField(
-              controller: _ctrl,
-              textInputAction: TextInputAction.done,
-              onSubmitted: (_) => _add(),
-              style: manrope(13.5, FontWeight.w600, color: cInk),
-              decoration: InputDecoration(
-                isDense: true,
-                hintText: tr('Добавить город', 'Қала қосу'),
-                hintStyle: manrope(13, FontWeight.w500, color: cInk3),
-                filled: true,
-                fillColor: cBg,
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none),
+            child: GestureDetector(
+              onTap: () => onChanged(List.of(kzCities)),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                    color: cBg, borderRadius: BorderRadius.circular(11)),
+                child: Text(tr('Отметить все', 'Барлығын белгілеу'),
+                    style: manrope(12, FontWeight.w800, color: cInk2)),
               ),
             ),
           ),
           const SizedBox(width: 8),
-          GestureDetector(
-            onTap: _add,
-            child: Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: cGreen,
-                borderRadius: BorderRadius.circular(12),
+          Expanded(
+            child: GestureDetector(
+              onTap: cities.isEmpty ? null : () => onChanged(const []),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                    color: cBg, borderRadius: BorderRadius.circular(11)),
+                child: Text(tr('Снять все', 'Барлығын алу'),
+                    style: manrope(12, FontWeight.w800,
+                        color: cities.isEmpty ? cInk3 : cRed)),
               ),
-              child: const Icon(Icons.add_rounded, color: Colors.white),
             ),
           ),
         ]),

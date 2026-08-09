@@ -64,7 +64,16 @@ class BatchModel {
   final DateTime dateArrived;
   final double purchasePrice;
   final double sellingPrice;
+  /// ҚАЗІРГІ қалдық — сатылған сайын азаяды.
   final Map<String, int> sizesQuantity;
+
+  /// Партия КЕЛГЕНДЕГІ саны (0057) — өзгермейді.
+  ///
+  /// НЕГЕ БӨЛЕК: «Повторный завоз» экранында «прошлый завоз» деп [sizesQuantity]
+  /// көрсетілетін, ал ол сатылымнан кейін азайған сан. Админ 10 жұп әкеліп
+  /// 9-ын сатса, келесі завозда «алдыңғы жолы 1 дана» деген жалған эталон
+  /// көретін. Келген сан мен қалған сан — екі бөлек факт.
+  final Map<String, int> sizesInitial;
   final Map<String, int> reservedSizes;
   final String warehouseId;
   final DiscountModel? discount;
@@ -75,10 +84,16 @@ class BatchModel {
     required this.purchasePrice,
     required this.sellingPrice,
     required this.sizesQuantity,
+    Map<String, int>? sizesInitial,
     Map<String, int>? reservedSizes,
     this.warehouseId = '',
     this.discount,
-  }) : reservedSizes = reservedSizes ?? const {};
+  })  : sizesInitial = sizesInitial ?? const {},
+        reservedSizes = reservedSizes ?? const {};
+
+  /// Келген саны (белгісіз болса — қазіргі қалдық; ескі партиялар үшін).
+  Map<String, int> get arrivedSizes =>
+      sizesInitial.isEmpty ? sizesQuantity : sizesInitial;
 
   int get totalQuantity =>
       sizesQuantity.values.fold(0, (acc, qty) => acc + qty);
@@ -125,6 +140,7 @@ class BatchModel {
       purchasePrice: (m['purchase_price'] as num?)?.toDouble() ?? 0,
       sellingPrice: (m['selling_price'] as num?)?.toDouble() ?? 0,
       sizesQuantity: im(m['sizes_quantity']),
+      sizesInitial: im(m['sizes_initial']),
       reservedSizes: im(m['reserved_sizes']),
       warehouseId: m['warehouse_id'] as String? ?? '',
       discount: disc != null
@@ -140,6 +156,9 @@ class BatchModel {
         'date_arrived': dateArrived.toIso8601String(),
         'selling_price': sellingPrice,
         'sizes_quantity': sizesQuantity,
+        // Келген саны — жазылған соң ешқашан өзгермейді (база триггері де
+        // бос болса осыны толтырады).
+        'sizes_initial': sizesInitial.isEmpty ? sizesQuantity : sizesInitial,
         'reserved_sizes': reservedSizes,
         if (discount != null) 'discount': discount!.toMapJson(),
       };
@@ -150,6 +169,7 @@ class BatchModel {
     double? purchasePrice,
     double? sellingPrice,
     Map<String, int>? sizesQuantity,
+    Map<String, int>? sizesInitial,
     Map<String, int>? reservedSizes,
     String? warehouseId,
     Object? discount = _kSentinel,
@@ -161,6 +181,11 @@ class BatchModel {
         sellingPrice: sellingPrice ?? this.sellingPrice,
         sizesQuantity:
             sizesQuantity ?? Map<String, int>.from(this.sizesQuantity),
+        // ⚠️ Мұны тасымалдамасақ, `lastBatchWithCost` жасайтын
+        // copyWith(purchasePrice:) келген санды жоғалтып жіберер еді —
+        // «повторный завоз» қайтадан қалдықты көрсететін болып қалады.
+        sizesInitial:
+            sizesInitial ?? Map<String, int>.from(this.sizesInitial),
         reservedSizes:
             reservedSizes ?? Map<String, int>.from(this.reservedSizes),
         warehouseId: warehouseId ?? this.warehouseId,

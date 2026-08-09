@@ -36,7 +36,7 @@ class _SellerReturnReceiveScreenState
     setState(() => _receiving = true);
     try {
       // Тауар әрқашан жарамды деп қабылданады әрі қоймаға қайтарылады.
-      await ReturnService().markReceived(
+      final mine = await ReturnService().markReceived(
         adminUid: r.adminUid,
         returnId: r.id,
         itemConditionOk: true,
@@ -45,8 +45,11 @@ class _SellerReturnReceiveScreenState
       if (mounted) {
         setState(() => _received = true);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(context.l10n.returnReceiveSuccess),
-          backgroundColor: cGreen,
+          content: Text(mine
+              ? context.l10n.returnReceiveSuccess
+              : tr('Возврат уже принял другой сотрудник',
+                  'Қайтарымды басқа қызметкер қабылдап қойған')),
+          backgroundColor: mine ? cGreen : cAmber,
           behavior: SnackBarBehavior.floating,
         ));
         // Immediately show refund method sheet
@@ -154,22 +157,36 @@ class _SellerReturnReceiveScreenState
   Future<void> _completeRefund(RefundMethod method) async {
     setState(() => _refunding = true);
     try {
-      await ReturnService().completeRefund(
+      // `false` — біреу (админ не басқа сатушы) осы возратты бір сәт бұрын
+      // жауып үлгерген. Қойма ЕКІНШІ РЕТ артпайды (0057) — бірақ қызметкер
+      // мұны білуі керек, әйтпесе «өтпеді ме?» деп қайта басады.
+      final mine = await ReturnService().completeRefund(
         adminUid: r.adminUid,
         returnId: r.id,
         method: method,
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(context.l10n.returnRefundSuccess),
-          backgroundColor: cGreen,
-          behavior: SnackBarBehavior.floating,
-        ));
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(context.l10n.returnStockRestored),
-          backgroundColor: cGreen,
-          behavior: SnackBarBehavior.floating,
-        ));
+        if (mine) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(context.l10n.returnRefundSuccess),
+            backgroundColor: cGreen,
+            behavior: SnackBarBehavior.floating,
+          ));
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(context.l10n.returnStockRestored),
+            backgroundColor: cGreen,
+            behavior: SnackBarBehavior.floating,
+          ));
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(tr(
+                'Этот возврат уже закрыт другим сотрудником — товар на склад добавлен один раз',
+                'Бұл қайтарымды басқа қызметкер жауып қойған — тауар қоймаға бір рет қана қосылды')),
+            backgroundColor: cAmber,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 4),
+          ));
+        }
         Navigator.pop(context);
       }
     } catch (e) {

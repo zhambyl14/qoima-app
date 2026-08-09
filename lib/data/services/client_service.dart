@@ -775,6 +775,28 @@ class ClientService {
     return placed.copyWith(id: orderId, orderNumber: orderNumber);
   }
 
+  /// Бір төлеммен жасалған суб-тапсырыстарды БІР топқа байлайды (0057).
+  ///
+  /// Себет дүкен/қойма бойынша бөлінеді, бірақ клиент те, мекенжай да, курьер
+  /// баратын жол да біреу. Топсыз курьерге бұлар екі бөтен тапсырыс болып
+  /// көрінетін: біреуін бір курьер, екіншісін екіншісі алып кетуі мүмкін еді
+  /// де, клиент бір заказын екі курьерден бөлек-бөлек алатын.
+  ///
+  /// Топ id-і ретінде бірінші тапсырыстың id-і алынады — бөлек uuid генераторы
+  /// қажет емес.
+  Future<String> linkOrderGroup(List<String> orderIds) async {
+    if (orderIds.length < 2) return '';
+    final groupId = orderIds.first;
+    try {
+      await _sb
+          .from('orders')
+          .update({'cart_group_id': groupId}).inFilter('id', orderIds);
+    } catch (_) {
+      return '';
+    }
+    return groupId;
+  }
+
   /// Клиенттің тапсырыстары (clientUid бойынша; client-side сұрыптау).
   Stream<List<OrderModel>> watchClientOrders(String clientUid) => _sb
       .from('orders')

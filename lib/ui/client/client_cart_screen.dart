@@ -234,12 +234,15 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
       _allStoresInMyCity(items) != false &&
       _courierServiceAvailable(items);
 
-  /// Себеттегі БАРЛЫҚ дүкеннің қаласында курьерлік қызмет бар ма (0055).
-  /// Қала белгісіз болса — тарифтегі шектеу бос болғанда ғана рұқсат етеміз,
-  /// әйтпесе қате қалаға курьер жіберіп алмау үшін «жоқ» дейміз.
+  /// Себеттегі БАРЛЫҚ дүкеннің қаласында курьерлік қызмет бар ма (0055, 0057).
+  ///
+  /// ⚠️ Тізім бос болса — курьер ЕШҚАЙДА жоқ (бұрын керісінше «бәрінде бар»
+  /// деп саналатын да, модератор қаланы белгілемей тұрып клиентке жоқ
+  /// курьердің ақысы көрсетіліп қалатын). Қала белгісіз болса да «жоқ»:
+  /// қате қалаға курьер жібергеннен гөрі дүкен өзі жеткізгені дұрыс.
   bool _courierServiceAvailable(List<CartItemModel> items) {
-    if (_tariff.courierCities.isEmpty) return true; // шектеу қойылмаған
-    if (items.isEmpty) return true;
+    if (_tariff.courierCities.isEmpty) return false;
+    if (items.isEmpty) return false;
     for (final i in items) {
       final city = (_storeCityByAdmin[i.adminUid] ?? '').trim();
       if (city.isEmpty) return false;
@@ -565,6 +568,12 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
         );
         final placed = await _service.placeOrder(order);
         placedOrders.add(placed);
+      }
+
+      // Бір төлемнен бірнеше дүкен шықса — курьер оларды БІРГЕ алуы үшін
+      // байланыстырамыз (0057). Бір дүкен болса топтың мәні жоқ.
+      if (placedOrders.length > 1) {
+        await _service.linkOrderGroup(placedOrders.map((o) => o.id).toList());
       }
 
       if (!mounted) return;

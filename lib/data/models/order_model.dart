@@ -62,6 +62,13 @@ class OrderModel {
   ///   'courier' — платформа курьері (қалада қызмет қосулы);
   ///   'store'   — дүкен өзі жеткізеді/жөнелтеді, шартын клиентпен келіседі.
   final String deliveryMode;
+  /// Бір төлемнен шыққан суб-тапсырыстарды байланыстырады (0057).
+  ///
+  /// Себет дүкен/қойма бойынша бөлінеді — екі дүкеннен алса, екі тапсырыс
+  /// жазылады. Бірақ клиент БІРЕУ, мекенжай БІРЕУ, курьердің бару жолы да
+  /// БІРЕУ. Бұл id-сіз курьерге екі бөтен тапсырыс болып көрінетін де,
+  /// біреуін бір курьер, екіншісін екінші курьер алып кетуі мүмкін еді.
+  final String cartGroupId;
   final String pickupCode;
   final int orderNumber;
   final String sellerId;
@@ -153,6 +160,7 @@ class OrderModel {
     this.deliveryFeeCollected = false,
     this.deliveryFeeCollectedAt,
     this.deliveryMode = 'courier',
+    this.cartGroupId = '',
     this.pickupCode = '',
     this.orderNumber = 0,
     this.sellerId = 'онлайн',
@@ -276,6 +284,7 @@ class OrderModel {
       deliveryFeeCollected: m['delivery_fee_collected'] as bool? ?? false,
       deliveryFeeCollectedAt: dtn(m['delivery_fee_collected_at']),
       deliveryMode: m['delivery_mode'] as String? ?? deliveryByCourier,
+      cartGroupId: m['cart_group_id'] as String? ?? '',
       pickupCode: m['pickup_code'] as String? ?? '',
       orderNumber: (m['order_number'] as num?)?.toInt() ?? 0,
       sellerId: m['seller_id'] as String? ?? 'онлайн',
@@ -381,6 +390,7 @@ class OrderModel {
     bool? deliveryFeeCollected,
     DateTime? deliveryFeeCollectedAt,
     String? deliveryMode,
+    String? cartGroupId,
     String? pickupCode,
     int? orderNumber,
     String? sellerId,
@@ -439,6 +449,7 @@ class OrderModel {
         deliveryFeeCollectedAt:
             deliveryFeeCollectedAt ?? this.deliveryFeeCollectedAt,
         deliveryMode: deliveryMode ?? this.deliveryMode,
+        cartGroupId: cartGroupId ?? this.cartGroupId,
         pickupCode: pickupCode ?? this.pickupCode,
         orderNumber: orderNumber ?? this.orderNumber,
         sellerId: sellerId ?? this.sellerId,

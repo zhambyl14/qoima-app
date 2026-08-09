@@ -2,48 +2,12 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/return_model.dart';
 import '../models/sale_model.dart';
-import '../models/order_model.dart';
 import '../../core/app_user.dart';
 
 import '../../core/lang.dart';
 /// Қайтару (возврат) сервисі (Supabase).
 class ReturnService {
   final SupabaseClient _sb = Supabase.instance.client;
-
-  // ── Online cost resolution ─────────────────────────────────────────────────────
-
-  /// Онлайн сатылымның бірлік өзіндік құнын (product|batch|size бойынша) оқиды.
-  Future<Map<String, double>> _onlineCostByItem(
-      String adminUid, String orderId) async {
-    final map = <String, double>{};
-    if (orderId.isEmpty) return map;
-    try {
-      final rows = await _sb
-          .from('sales_history')
-          .select('product_id,batch_id,selected_size,purchase_price,type')
-          .eq('owner_uid', adminUid)
-          .eq('order_id', orderId);
-      for (final data in rows) {
-        if (data['type'] == 'return') continue;
-        final key =
-            '${data['product_id']}|${data['batch_id']}|${data['selected_size']}';
-        map[key] = (data['purchase_price'] as num?)?.toDouble() ?? 0;
-      }
-    } catch (_) {}
-    return map;
-  }
-
-  Future<double> _resolveBatchCost(String adminUid, String batchId) async {
-    try {
-      final row = await _sb
-          .from('batch_costs')
-          .select('purchase_price')
-          .eq('batch_id', batchId)
-          .maybeSingle();
-      return (row?['purchase_price'] as num?)?.toDouble() ?? 0;
-    } catch (_) {}
-    return 0;
-  }
 
   // ── ID generation (атомды, дублсіз) ────────────────────────────────────────────
 
@@ -183,130 +147,43 @@ class ReturnService {
     }).eq('id', returnId);
   }
 
-  Future<void> markReceived({
+  /// «Тауарды қабылдадым» — СЕРВЕРДЕ, жол құлпымен (0057).
+  ///
+  /// Қайтарады: `true` — осы шақыру қабылдады; `false` — біреу бұрын
+  /// қабылдап қойған (қате емес, бірақ UI мұны хабарлауы керек).
+  Future<bool> markReceived({
     required String adminUid,
     required String returnId,
     required bool itemConditionOk,
     required List<String> conditionPhotos,
   }) async {
-    await _sb.from('returns').update({
-      'status': ReturnStatus.received.name,
-      'item_condition_ok': itemConditionOk,
-      'condition_photos': conditionPhotos,
-      'received_at': DateTime.now().toIso8601String(),
-    }).eq('id', returnId);
+    final res = await _sb.rpc('return_mark_received', params: {
+      'p_return': returnId,
+      'p_condition_ok': itemConditionOk,
+      'p_photos': conditionPhotos,
+    });
+    return res == 'received';
   }
 
-  /// received → refunded: қойманы қалпына келтіреді + теріс sales_history жазады.
-  Future<void> completeRefund({
+  /// received → refunded: қойманы қалпына келтіреді + теріс sales_history
+  /// жазады. Қайтарады: `true` — осы шақыру аяқтады; `false` — біреу бұрын
+  /// аяқтап қойған.
+  ///
+  /// ⚠️ БҮКІЛ ОПЕРАЦИЯ СЕРВЕРДЕ, БІР ТРАНЗАКЦИЯДА (0057). Бұрын мұнда
+  /// «статусты оқы → шешім қабылда → жаз» тізбегі тұрған: админ мен сатушы
+  /// бір возратты бір мезгілде қабылдаса, ЕКЕУІ де «әлі refunded емес» деп
+  /// көріп, қойма ЕКІ РЕТ артатын (1 дана → 3 дана). Мұндай жарысты клиент
+  /// кодында жеңу мүмкін емес — сондықтан шешім `for update` құлпымен
+  /// базада қабылданады.
+  Future<bool> completeRefund({
     required String adminUid,
     required String returnId,
     required RefundMethod method,
   }) async {
     try {
-      final rRow = await _sb
-          .from('returns')
-          .select()
-          .eq('id', returnId)
-          .maybeSingle();
-      if (rRow == null) throw ReturnException(tr('Возврат не найден.', 'Қайтару табылмады.'));
-      if (rRow['status'] == ReturnStatus.refunded.name) return; // идемпотентті
-      final model = ReturnModel.fromRow(rRow);
-
-      // Бірлік өзіндік құн (онлайн сатылымнан → batch_costs fallback).
-      final costByItem = await _onlineCostByItem(adminUid, model.orderId ?? '');
-      for (final item in model.items) {
-        final key = '${item.productId}|${item.batchId}|${item.size}';
-        if (!costByItem.containsKey(key)) {
-          costByItem[key] = await _resolveBatchCost(adminUid, item.batchId);
-        }
-      }
-
-      // Партиялардың қоймасын алдын ала оқимыз (warehouse delta үшін).
-      final batchIds = model.items.map((i) => i.batchId).toSet().toList();
-      final whByBatch = <String, String?>{};
-      if (batchIds.isNotEmpty) {
-        final brows = await _sb
-            .from('batches')
-            .select('id,warehouse_id')
-            .inFilter('id', batchIds);
-        for (final b in brows) {
-          whByBatch[b['id'] as String] = b['warehouse_id'] as String?;
-        }
-      }
-
-      // Қойманы қалпына келтіреміз.
-      final warehouseQtyDelta = <String, int>{};
-      for (final item in model.items) {
-        await _sb.rpc('adjust_batch_sizes', params: {
-          'p_batch': item.batchId,
-          'p_deltas': {item.size: item.quantity},
-          'p_field': 'sizes_quantity',
-          'p_guard': false,
-        });
-        final wId = whByBatch[item.batchId];
-        if (wId != null && wId.isNotEmpty) {
-          warehouseQtyDelta[wId] = (warehouseQtyDelta[wId] ?? 0) + item.quantity;
-        }
-      }
-      for (final entry in warehouseQtyDelta.entries) {
-        await _sb.rpc('increment_warehouse_totals',
-            params: {'p_wh': entry.key, 'p_pairs': entry.value, 'p_products': 0});
-      }
-
-      // Әр элемент үшін теріс sales_history жазбасы (себестоимостьты балансылау).
-      final negSales = <Map<String, dynamic>>[];
-      for (final item in model.items) {
-        final key = '${item.productId}|${item.batchId}|${item.size}';
-        negSales.add({
-          'owner_uid': adminUid,
-          'type': 'return',
-          'return_id': model.id,
-          'product_id': item.productId,
-          'product_name': item.productTitle,
-          'batch_id': item.batchId,
-          'selected_size': item.size,
-          'sale_date': DateTime.now().toIso8601String(),
-          'quantity': item.quantity,
-          'total_price': -item.subtotal,
-          'base_price': -item.subtotal,
-          'discount_percent': 0.0,
-          'discount_amount': 0.0,
-          'seller_id': 'онлайн',
-          'seller_name': 'Онлайн',
-          'warehouse_id': (model.warehouseId != null &&
-                  model.warehouseId!.isNotEmpty)
-              ? model.warehouseId
-              : null,
-          'is_online': model.type == ReturnType.online,
-          'order_id': model.orderId ?? '',
-          'payment_method': method.name,
-          'purchase_price': costByItem[key] ?? 0,
-        });
-      }
-      if (negSales.isNotEmpty) {
-        await _sb.from('sales_history').insert(negSales);
-      }
-
-      // Тапсырысты «Қайтарылды» күйіне ауыстырамыз.
-      if ((model.orderId ?? '').isNotEmpty) {
-        await _sb
-            .from('orders')
-            .update({'status': OrderModel.statusReturned}).eq(
-                'id', model.orderId as String);
-      }
-
-      await _sb.from('returns').update({
-        'status': ReturnStatus.refunded.name,
-        'refund_method': method.name,
-        'refunded_at': DateTime.now().toIso8601String(),
-      }).eq('id', returnId);
-
-      // Қор қайтарылды — тауар статусын жаңартамыз.
-      for (final pid in model.items.map((i) => i.productId).toSet()) {
-        await _sb
-            .rpc('recompute_product_status', params: {'p_product': pid});
-      }
+      final res = await _sb.rpc('return_complete_refund',
+          params: {'p_return': returnId, 'p_method': method.name});
+      return res == 'refunded';
     } catch (e) {
       debugPrint('[ReturnService.completeRefund] $e');
       rethrow;

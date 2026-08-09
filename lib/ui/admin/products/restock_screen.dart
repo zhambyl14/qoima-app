@@ -48,10 +48,19 @@ class _RestockScreenState extends State<RestockScreen> {
 
   int get _total => _sizes.values.fold(0, (a, b) => a + b);
 
+  /// Алдыңғы партияның КЕЛГЕН саны (қазіргі қалдығы емес!).
+  ///
+  /// ⚠️ Бұрын мұнда `sizesQuantity` тұрған — ол сатылған сайын азаятын
+  /// ағымдағы қалдық. Соның кесірінен «прошлый завоз: 41-1» деп көрсетілетін
+  /// (шын мәнінде 41-ден 5 жұп әкелініп, 4-і сатылған). Админ соны эталон
+  /// деп қабылдап, келесі партияны да қате санмен әкелетін.
+  Map<String, int> get _lastArrived =>
+      _lastBatch?.arrivedSizes ?? const <String, int>{};
+
   /// Размер линиясы алдыңғы партиямен ДӘЛ бірдей ме (админге «сол күйі» деп
   /// растау үшін).
   bool get _sameAsLast {
-    final last = _lastBatch?.sizesQuantity ?? const <String, int>{};
+    final last = _lastArrived;
     final cur = {..._sizes}..removeWhere((_, v) => v <= 0);
     final prev = {...last}..removeWhere((_, v) => v <= 0);
     if (cur.length != prev.length) return false;
@@ -103,7 +112,9 @@ class _RestockScreenState extends State<RestockScreen> {
         _lastBatch = b;
         _loadingBatch = false;
         if (b != null) {
-          _sizes.addAll(Map<String, int>.from(b.sizesQuantity)
+          // Алдыңғы жолы ҚАНША ӘКЕЛГЕНІ (қалдығы емес) — жаңа партияның
+          // әдепкі торы да сол.
+          _sizes.addAll(Map<String, int>.from(b.arrivedSizes)
             ..removeWhere((_, v) => v <= 0));
           if (b.purchasePrice > 0) {
             _purchaseCtrl.text = b.purchasePrice.toStringAsFixed(0);
@@ -354,10 +365,19 @@ class _RestockScreenState extends State<RestockScreen> {
                                   style: manrope(12.5, FontWeight.w800,
                                       color: cInk)),
                               const SizedBox(height: 2),
+                              // ⚠️ ЗАВЕЗЕНО, а не остаток: это эталон
+                              // «сколько я привожу», он не должен таять
+                              // по мере продаж.
                               Text(
-                                  '${_fmtDate(last.dateArrived)} · ${_fmtLine(last.sizesQuantity)}',
+                                  '${_fmtDate(last.dateArrived)} · ${tr('завезено', 'әкелінген')}: ${_fmtLine(_lastArrived)}',
                                   style: manrope(11.5, FontWeight.w600,
                                       color: cInk2)),
+                              // Қазіргі қалдық — бөлек жол. Екеуі бір санға
+                              // қосылып кетпеуі керек.
+                              Text(
+                                  '${tr('сейчас на складе', 'қазір қоймада')}: ${_fmtLine(last.sizesQuantity)}',
+                                  style: manrope(11, FontWeight.w600,
+                                      color: cInk3)),
                             ]),
                       ),
                       if (!_sameAsLast)
@@ -365,8 +385,7 @@ class _RestockScreenState extends State<RestockScreen> {
                           onTap: () => setState(() {
                             _sizes
                               ..clear()
-                              ..addAll(Map<String, int>.from(
-                                  last.sizesQuantity)
+                              ..addAll(Map<String, int>.from(_lastArrived)
                                 ..removeWhere((_, v) => v <= 0));
                           }),
                           child: Container(
