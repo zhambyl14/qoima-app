@@ -9,6 +9,19 @@ class CartItemModel {
   final String adminUid;
   final String storeName;
   final String imageUrl;
+
+  // ── Тауарды ФИЗИКАЛЫҚ ТҮРДЕ тану белгілері (снапшот) ──────────────────────
+  //  Тапсырыс карточкасында бұрын тек `productName` тұратын. «New Balance 530»
+  //  деген атаумен қоймада 4 түс, 2 модификация тұруы мүмкін — сатушы қайсысын
+  //  беретінін білмей, қате тауар беріп жіберетін. Тапсырыс — заң күші бар
+  //  құжат, сондықтан бұл өрістер СНАПШОТ: кейін тауар өңделсе де тапсырыста
+  //  клиент нақты нені сатып алғаны қалады.
+  final String brand;
+  final String type;
+  final String color;
+  final String variantNote;
+  final String articul;
+
   final String warehouseId;
   final String warehouseAddress;
   // Себетте «тапсырысқа таңдалды ма» (Wildberries/Kaspi стилі — чекбокс).
@@ -36,6 +49,11 @@ class CartItemModel {
     required this.adminUid,
     required this.storeName,
     required this.imageUrl,
+    this.brand = '',
+    this.type = '',
+    this.color = '',
+    this.variantNote = '',
+    this.articul = '',
     required this.warehouseId,
     this.warehouseAddress = '',
     this.selected = true,
@@ -55,6 +73,11 @@ class CartItemModel {
         adminUid: json['adminUid'] as String? ?? '',
         storeName: json['storeName'] as String? ?? '',
         imageUrl: json['imageUrl'] as String? ?? '',
+        brand: json['brand'] as String? ?? '',
+        type: json['type'] as String? ?? '',
+        color: json['color'] as String? ?? '',
+        variantNote: json['variantNote'] as String? ?? '',
+        articul: json['articul'] as String? ?? '',
         warehouseId: json['warehouseId'] as String? ?? '',
         warehouseAddress: json['warehouseAddress'] as String? ?? '',
         selected: json['selected'] as bool? ?? true,
@@ -74,6 +97,11 @@ class CartItemModel {
         'adminUid': adminUid,
         'storeName': storeName,
         'imageUrl': imageUrl,
+        if (brand.isNotEmpty) 'brand': brand,
+        if (type.isNotEmpty) 'type': type,
+        if (color.isNotEmpty) 'color': color,
+        if (variantNote.isNotEmpty) 'variantNote': variantNote,
+        if (articul.isNotEmpty) 'articul': articul,
         'warehouseId': warehouseId,
         'warehouseAddress': warehouseAddress,
         'selected': selected,
@@ -109,6 +137,11 @@ class CartItemModel {
         adminUid: adminUid ?? this.adminUid,
         storeName: storeName ?? this.storeName,
         imageUrl: imageUrl ?? this.imageUrl,
+        brand: brand,
+        type: type,
+        color: color,
+        variantNote: variantNote,
+        articul: articul,
         warehouseId: warehouseId ?? this.warehouseId,
         warehouseAddress: warehouseAddress ?? this.warehouseAddress,
         selected: selected ?? this.selected,
@@ -118,6 +151,15 @@ class CartItemModel {
       );
 
   bool get hasAltSize => altSize.isNotEmpty;
+
+  /// «Nike · қара · кроссовка» — сатушы қоймадан ДӘЛ осыны алуы үшін.
+  /// Бос өрістер түсіп қалады, бәрі бос болса — бос жол.
+  String get identityLine => [
+        if (brand.isNotEmpty) brand,
+        if (color.isNotEmpty) color,
+        if (type.isNotEmpty) type,
+        if (variantNote.isNotEmpty) variantNote,
+      ].join(' · ');
 
   /// «Өлшеп көру» аяқталған позиция: клиент қай өлшемді алды, қайсысы қайтады.
   bool get fittingResolved =>

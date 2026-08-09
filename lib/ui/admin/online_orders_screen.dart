@@ -10,6 +10,7 @@ import '../../data/services/firestore_service.dart';
 import '../../theme/qoima_design.dart';
 import '../client/reservation_timer_widget.dart';
 import '../shared/courier_info_banner.dart';
+import '../shared/order_item_row.dart';
 import '../shared/order_money_card.dart';
 import '../shared/prompt_text_dialog.dart';
 
@@ -972,24 +973,10 @@ class _OrderCardState extends State<_OrderCard> {
 
                           const Divider(height: 16),
 
-                          // Items
-                          ...o.items.map((item) => Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 2),
-                                child: Row(children: [
-                                  Expanded(
-                                      child: Text(
-                                          '${item.productName}  (EU ${item.size})',
-                                          style: const TextStyle(
-                                              fontSize: 13,
-                                              color: cInk))),
-                                  Text(
-                                      '×${item.qty}  ${item.subtotal.toStringAsFixed(0)} ₸',
-                                      style: const TextStyle(
-                                          fontSize: 12,
-                                          color: cInk2)),
-                                ]),
-                              )),
+                          // ── Позициялар: фото + бренд/түс/түрі + артикул ──
+                          //  Бір атаумен қоймада бірнеше түс/модификация
+                          //  тұрады — атаудың өзі жеткіліксіз.
+                          ...o.items.map((item) => OrderItemRow(item: item)),
 
                           // Addresses
                           if (o.warehouseAddress.isNotEmpty) ...[
@@ -1007,21 +994,14 @@ class _OrderCardState extends State<_OrderCard> {
                                               color: cInk2))),
                                 ]),
                           ],
-                          if (o.isDelivery && o.address.isNotEmpty) ...[
-                            const SizedBox(height: 4),
-                            Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Icon(Icons.local_shipping_outlined,
-                                      size: 14, color: cInk3),
-                                  const SizedBox(width: 4),
-                                  Expanded(
-                                      child: Text(o.address,
-                                          style: const TextStyle(
-                                              fontSize: 12,
-                                              color: cInk2))),
-                                ]),
-                          ],
+                          // Жеткізу — ҚАЛАСЫМЕН: басқа қала болса жөнелту
+                          // қызметі керек, оны шатастыруға болмайды.
+                          if (o.isDelivery)
+                            OrderDestinationCard(
+                              city: o.clientCity,
+                              address: o.address,
+                              byCourier: o.byPlatformCourier,
+                            ),
 
                           const Divider(height: 16),
 

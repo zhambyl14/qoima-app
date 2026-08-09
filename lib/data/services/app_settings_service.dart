@@ -145,11 +145,33 @@ class AppSettingsService {
   }
 
   /// Тек superadmin (RLS: app_settings_write).
-  Future<void> saveDeliveryTariff(DeliveryTariff t) async {
+  ///
+  /// [previousCities] берілсе — курьерлік қызмет қосылған/өшірілген қалалардың
+  /// дүкендері мен курьерлеріне хабарлама жібереді (0058). Онсыз модератордың
+  /// шешімі туралы ол қаладағылар ЕШҚАШАН білмейді: курьер қосымшаны ашпаса
+  /// жұмыс бос жатады, дүкен әлі күнге «өзім жеткіземін» деп отырады.
+  Future<void> saveDeliveryTariff(DeliveryTariff t,
+      {List<String>? previousCities}) async {
     final now = DateTime.now().toIso8601String();
     await _sb.from('app_settings').upsert([
       for (final e in t.toMap().entries)
         {'key': e.key, 'value': e.value, 'updated_at': now},
     ]);
+
+    if (previousCities == null) return;
+    String norm(String c) => c.trim().toLowerCase();
+    final before = previousCities.map(norm).toSet();
+    final after = t.courierCities.map(norm).toSet();
+    final enabled =
+        t.courierCities.where((c) => !before.contains(norm(c))).toList();
+    final disabled =
+        previousCities.where((c) => !after.contains(norm(c))).toList();
+    if (enabled.isEmpty && disabled.isEmpty) return;
+    try {
+      await _sb.rpc('notify_courier_cities_changed',
+          params: {'p_enabled': enabled, 'p_disabled': disabled});
+    } catch (_) {
+      // Хабарлама сәтсіз болса да тариф САҚТАЛҒАН — негізгі әрекет бұзылмайды.
+    }
   }
 }

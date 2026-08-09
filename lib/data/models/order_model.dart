@@ -45,6 +45,13 @@ class OrderModel {
   final String orderType;
   final DateTime createdAt;
   final String address;
+  /// Жеткізу ҚАЛАСЫ — клиент себетте таңдайды (снапшот).
+  ///
+  /// Бұрын қала тек [address] жолының ішінде еркін мәтін болатын. Дүкен өзі
+  /// жеткізетін жағдайда сатушы қай қалаға жіберетінін білмей қалатын
+  /// («Бараева 28» деген көше бірнеше қалада бар), әрі курьер қызметінің
+  /// бар-жоғы клиенттің профиліндегі БОС қаладан анықталатын.
+  final String clientCity;
   final String note;
   /// Клиент ДҮКЕНГЕ аударатын сома (тауар/депозит + «өлшеп көру»).
   /// ⚠️ 0053-тен бастап мұнда жеткізу ақысы ЖОҚ — ол курьердікі.
@@ -153,6 +160,7 @@ class OrderModel {
     required this.orderType,
     required this.createdAt,
     this.address = '',
+    this.clientCity = '',
     this.note = '',
     this.depositAmount = 0.0,
     this.deliveryFee = 0.0,
@@ -277,6 +285,7 @@ class OrderModel {
       orderType: m['order_type'] as String? ?? typeClickCollect,
       createdAt: dt(m['created_at']),
       address: m['address'] as String? ?? '',
+      clientCity: m['client_city'] as String? ?? '',
       note: m['note'] as String? ?? '',
       depositAmount: (m['deposit_amount'] as num?)?.toDouble() ?? 0,
       deliveryFee: (m['delivery_fee'] as num?)?.toDouble() ?? 0,
@@ -338,6 +347,7 @@ class OrderModel {
         'status': status,
         'order_type': orderType,
         'address': address,
+        'client_city': clientCity,
         'note': note,
         'deposit_amount': depositAmount,
         'delivery_fee': deliveryFee,
@@ -383,6 +393,7 @@ class OrderModel {
     String? orderType,
     DateTime? createdAt,
     String? address,
+    String? clientCity,
     String? note,
     double? depositAmount,
     double? deliveryFee,
@@ -441,6 +452,7 @@ class OrderModel {
         orderType: orderType ?? this.orderType,
         createdAt: createdAt ?? this.createdAt,
         address: address ?? this.address,
+        clientCity: clientCity ?? this.clientCity,
         note: note ?? this.note,
         depositAmount: depositAmount ?? this.depositAmount,
         deliveryFee: deliveryFee ?? this.deliveryFee,

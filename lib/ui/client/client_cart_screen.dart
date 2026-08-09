@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/app_user.dart';
+import '../../core/kz_cities.dart';
 import '../../data/models/cart_item_model.dart';
 import '../../data/models/delivery_tariff.dart';
 import '../../data/models/order_model.dart';
@@ -32,6 +35,11 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
   // (бұрын «Бронь» алдын ала таңдаулы тұрып, көбі байқамай бронь жасайтын).
   String? _orderType;
   final _addressCtrl = TextEditingController();
+
+  /// Жеткізу қаласы — клиент ӨЗІ таңдайды (профильдегі қала әдепкі мән ретінде
+  /// ұсынылады, бірақ клиенттерде ол көбіне бос). Курьер қызметінің бар-жоғы
+  /// да, сатушының «қай қалаға жіберемін» деген сұрағы да осыдан шешіледі.
+  String _deliveryCity = '';
   final _noteCtrl = TextEditingController();
   final _promoCtrl = TextEditingController();
   bool _isLoading = false;
@@ -154,10 +162,27 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _checkAvailability());
-    AppSettingsService().getDeliveryTariff().then((t) {
-      if (mounted) setState(() => _tariff = t);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAvailability();
+      // Профильдегі қала — тек ӘДЕПКІ ұсыныс, клиент ауыстыра алады.
+      final myCity = context.read<AppUser>().city.trim();
+      if (myCity.isNotEmpty && _deliveryCity.isEmpty && mounted) {
+        setState(() => _deliveryCity = myCity);
+      }
     });
+    _reloadTariff();
+  }
+
+  /// Тарифті ҚАЙТА оқиды.
+  ///
+  /// ⚠️ Модератор қаланы қосқан сәтте курьер қызметі БІРДЕН іске қосылуы керек.
+  /// Бұрын тариф тек `initState`-те оқылатын, ал себет экраны shell ішінде
+  /// тірі күйде сағаттап тұра беретін — клиент қосымшаны қайта ашпайынша ескі
+  /// тарифті (курьерсіз) көретін. Енді себет әр ашылғанда/жаңартылғанда
+  /// қайта оқылады.
+  Future<void> _reloadTariff() async {
+    final t = await AppSettingsService().getDeliveryTariff();
+    if (mounted) setState(() => _tariff = t);
   }
 
   @override
@@ -170,6 +195,9 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
 
   Future<void> _checkAvailability() async {
     final cart = context.read<CartProvider>();
+    // Тариф те осы жерде жаңарады: себет ашылған сайын модератордың соңғы
+    // шешімі (қала қосылды/өшірілді) бірден қолданылады.
+    unawaited(_reloadTariff());
     if (cart.items.isEmpty) {
       if (mounted) setState(() => _unavailableKeys = {});
       return;
@@ -406,7 +434,12 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
   /// null — белгісіз (клиент қаласы көрсетілмеген), true — өз қала, false —
   /// кемінде бір дүкен басқа қалада.
   bool? _allStoresInMyCity(List<CartItemModel> items) {
-    final myCity = context.read<AppUser>().city.trim();
+    // Профильдегі емес, ТАҢДАЛҒАН жеткізу қаласы: клиенттердің профилінде қала
+    // көбіне бос болатын да, бұл тексеріс үнемі `null` қайтарып, «басқа қала»
+    // жағдайы мүлде байқалмайтын.
+    final myCity = _deliveryCity.trim().isNotEmpty
+        ? _deliveryCity.trim()
+        : context.read<AppUser>().city.trim();
     if (myCity.isEmpty || items.isEmpty) return null;
     for (final i in items) {
       final storeCity = (_storeCityByAdmin[i.adminUid] ?? '').trim();
@@ -465,6 +498,13 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
     if (checkoutItems.isEmpty) return;
     if (_orderType == null) return; // алу тәсілі таңдалмаған
 
+    if (_orderType == OrderModel.typeDelivery && _deliveryCity.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(tr('Выберите город доставки', 'Жеткізу қаласын таңдаңыз')),
+        behavior: SnackBarBehavior.floating,
+      ));
+      return;
+    }
     if (_orderType == OrderModel.typeDelivery &&
         _addressCtrl.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -550,6 +590,10 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
           orderType: _orderType!,
           createdAt: DateTime.now(),
           address: _addressCtrl.text.trim(),
+          // Дүкен «қай қалаға жіберемін» дегенді осыдан біледі.
+          clientCity: _orderType == OrderModel.typeDelivery
+              ? _deliveryCity.trim()
+              : '',
           note: _noteCtrl.text.trim(),
           // ДҮКЕНГЕ: тауар/депозит + «өлшеп көру».
           depositAmount: plan.storeAmount,
@@ -871,6 +915,38 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
 
                     // Delivery address input
                     if (_orderType == OrderModel.typeDelivery) ...[
+                      // ── Қала: жеткізудің БІРІНШІ сұрағы ──────────────────
+                      //  Бұрын қала тек мекенжай жолының ішінде еркін мәтін
+                      //  болатын. Содан: (1) сатушы қай қалаға жіберетінін
+                      //  білмейтін, (2) курьер қызметі бар-жоғын анықтау үшін
+                      //  профильдегі қала оқылатын — ал ол клиенттерде БОС.
+                      Text(tr('Город доставки *', 'Жеткізу қаласы *'),
+                          style: manrope(12.5, FontWeight.w700, color: cInk2)),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 7,
+                        runSpacing: 7,
+                        children: kzCities.map((c) {
+                          final on = _deliveryCity == c;
+                          return GestureDetector(
+                            onTap: () => setState(() => _deliveryCity = c),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 7),
+                              decoration: BoxDecoration(
+                                color: on ? cGreen : cSurface,
+                                borderRadius: BorderRadius.circular(10),
+                                border:
+                                    Border.all(color: on ? cGreen : cLine),
+                              ),
+                              child: Text(trValue(c),
+                                  style: manrope(12.5, FontWeight.w700,
+                                      color: on ? Colors.white : cInk)),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 12),
                       Text(tr('Адрес доставки *', 'Жеткізу мекенжайы *'),
                           style: manrope(12.5, FontWeight.w700, color: cInk2)),
                       const SizedBox(height: 6),

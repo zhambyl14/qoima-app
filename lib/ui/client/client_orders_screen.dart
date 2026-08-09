@@ -312,9 +312,39 @@ class _OrderCardState extends State<_OrderCard> {
   bool _showQr = false;
   bool _cancelling = false;
   bool _uploading = false;
+  /// Егжей-тегжей (есеп кестесі, курьер, таймлайн) ашық па. Әдепкі — ЖИНАУЛЫ:
+  /// тізімді бір қараған сәтте шолып шығу мүмкін болуы керек.
+  bool _expanded = false;
   String? _warehouseNote; // складтың «қалай табу» түсініктемесі (клиентке)
 
   OrderModel get o => widget.order;
+
+  /// Жиналған күйде көрсетілетін БІР жол — «заказым қазір қай кезеңде».
+  /// Клиентке әдетте тек осы керек.
+  String _shortStatusHint(OrderModel order) {
+    if (order.status == OrderModel.statusCompleted) {
+      return tr('Доставлен', 'Жеткізілді');
+    }
+    if (order.status == OrderModel.statusCancelled) {
+      return tr('Отменён', 'Болдырылмады');
+    }
+    if (order.status == OrderModel.statusReturned) {
+      return tr('Возврат оформлен', 'Қайтарым рәсімделді');
+    }
+    if (order.storeDeliversItself) {
+      return tr('Магазин свяжется с вами', 'Дүкен сізбен байланысады');
+    }
+    if (order.courierStatus == OrderModel.courierPickedUp) {
+      return tr('Курьер везёт заказ', 'Курьер тапсырысты апара жатыр');
+    }
+    if (order.hasCourier) {
+      return tr('Курьер назначен', 'Курьер тағайындалды');
+    }
+    if (order.status == OrderModel.statusConfirmed) {
+      return tr('Ищем курьера', 'Курьер іздеудеміз');
+    }
+    return tr('Ожидает оплаты', 'Төлемді күтуде');
+  }
 
   @override
   void initState() {
@@ -593,7 +623,20 @@ class _OrderCardState extends State<_OrderCard> {
                 )),
           ],
 
-          if (o.promoDiscount > 0) ...[
+          // ── «Толығырақ»: егжей-тегжейі ЖИНАЛЫП тұрады ──────────────────────
+          //  Бұрын әр тапсырыста есеп кестесі, курьер баннері мен толық
+          //  таймлайн ашық тұратын — тізім оқылмайтын қабырғаға айналатын.
+          //  Клиентке әдетте бір нәрсе керек: «менің заказым қай кезеңде».
+          //  Қалғанын сұрағанда ғана береміз. Әрекет талап ететін ескертулер
+          //  (чек тіркеу, тексеруде, бас тарту себебі) БҰҒАН КІРМЕЙДІ — олар
+          //  әрқашан көрінеді.
+          _CollapseToggle(
+            expanded: _expanded,
+            onTap: () => setState(() => _expanded = !_expanded),
+            hint: o.isDelivery && !_expanded ? _shortStatusHint(o) : '',
+          ),
+
+          if (_expanded && o.promoDiscount > 0) ...[
             const SizedBox(height: 6),
             Container(height: 1, color: cLine2),
             const SizedBox(height: 6),
@@ -607,7 +650,7 @@ class _OrderCardState extends State<_OrderCard> {
                 ]),
           ],
 
-          if (o.isDelivery) ...[
+          if (_expanded && o.isDelivery) ...[
             const SizedBox(height: 8),
             // Ақшаның толық жіктелуі: дүкенге қанша аударылды, курьерге
             // қанша беріледі. Клиент екі бөлек төлемді анық көреді.
@@ -618,7 +661,7 @@ class _OrderCardState extends State<_OrderCard> {
             OrderTimeline(order: o),
           ],
 
-          if (o.isSmartReservation && o.depositAmount > 0) ...[
+          if (_expanded && o.isSmartReservation && o.depositAmount > 0) ...[
             const SizedBox(height: 6),
             Container(height: 1, color: cLine2),
             const SizedBox(height: 6),
@@ -928,6 +971,62 @@ class _OrderCardState extends State<_OrderCard> {
 }
 
 // ── Алу мекенжайы жолы (басуға болатыны айқын: мән + әрекет белгісі) ───────────
+/// «Толығырақ ⌄ / Жию ⌃» — тапсырыс карточкасының егжей-тегжейін ашады.
+///
+/// Жиналған күйде оң жақта бір жолдық күй тұрады («Курьер тапсырысты апара
+/// жатыр») — клиент карточканы ашпай-ақ ең керек нәрсені көреді.
+class _CollapseToggle extends StatelessWidget {
+  final bool expanded;
+  final VoidCallback onTap;
+  final String hint;
+
+  const _CollapseToggle({
+    required this.expanded,
+    required this.onTap,
+    this.hint = '',
+  });
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Row(children: [
+            if (hint.isNotEmpty) ...[
+              Container(
+                width: 6,
+                height: 6,
+                decoration: const BoxDecoration(
+                    color: cGreen, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 7),
+              Flexible(
+                child: Text(hint,
+                    style: manrope(12, FontWeight.w700, color: cInk2),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis),
+              ),
+              const SizedBox(width: 8),
+            ],
+            const Spacer(),
+            Text(
+                expanded
+                    ? tr('Свернуть', 'Жию')
+                    : tr('Подробнее', 'Толығырақ'),
+                style: manrope(12, FontWeight.w800, color: cGreenDeep)),
+            const SizedBox(width: 2),
+            Icon(
+                expanded
+                    ? Icons.keyboard_arrow_up_rounded
+                    : Icons.keyboard_arrow_down_rounded,
+                size: 18,
+                color: cGreenDeep),
+          ]),
+        ),
+      );
+}
+
 class _PickupRow extends StatelessWidget {
   final IconData icon;
   final String value;

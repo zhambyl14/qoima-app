@@ -277,6 +277,12 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
       adminUid: widget.store.adminUid,
       storeName: widget.store.storeName,
       imageUrl: p.images.isNotEmpty ? p.images.first : '',
+      // Сатушы қоймадан ДӘЛ осы тауарды табуы үшін (снапшот).
+      brand: p.brand,
+      type: p.type,
+      color: p.color,
+      variantNote: p.variantNote,
+      articul: p.articul,
       warehouseId: _warehouseId,
       warehouseAddress: _pickupAddress,
     );

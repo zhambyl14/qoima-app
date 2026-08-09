@@ -9,6 +9,7 @@ import '../../data/services/firestore_service.dart';
 import '../../theme/qoima_design.dart';
 import '../client/reservation_timer_widget.dart';
 import '../shared/courier_info_banner.dart';
+import '../shared/order_item_row.dart';
 import '../shared/order_money_card.dart';
 import '../../data/models/return_model.dart';
 import '../../data/services/return_service.dart';
@@ -910,18 +911,18 @@ class _OrderCardState extends State<_OrderCard> {
 
           const Divider(height: 16, color: cLine),
 
-          // Items
-          ...o.items.map((item) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: 2),
-                child: Row(children: [
-                  Expanded(
-                      child: Text('${item.productName} (EU ${item.size})',
-                          style: manrope(13, FontWeight.w500, color: cInk))),
-                  Text(
-                      '×${item.qty}  ${item.subtotal.toStringAsFixed(0)} ₸',
-                      style: manrope(12, FontWeight.w500, color: cInk2)),
-                ]),
-              )),
+          // ── Позициялар: фото + бренд/түс/түрі + артикул ─────────────────
+          //  Атаудың өзі жеткіліксіз: бір атаумен қоймада бірнеше түс пен
+          //  модификация тұрады, сатушы қатесіз таба алуы керек.
+          ...o.items.map((item) => OrderItemRow(item: item)),
+
+          // Жеткізу — ҚАЛАСЫМЕН (басқа қала болса жөнелту қызметі керек).
+          if (o.isDelivery)
+            OrderDestinationCard(
+              city: o.clientCity,
+              address: o.address,
+              byCourier: o.byPlatformCourier,
+            ),
 
           const Divider(height: 16, color: cLine),
 

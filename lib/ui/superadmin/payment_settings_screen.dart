@@ -36,8 +36,13 @@ class _PaymentSettingsScreenState extends State<PaymentSettingsScreen> {
   final _fittingMaxCtrl = TextEditingController();
   final _returnFeeCtrl = TextEditingController();
 
-  /// Курьерлік қызмет іске қосылған қалалар (0055). БОС = барлық қалада.
+  /// Курьерлік қызмет іске қосылған қалалар (0055, 0057).
+  /// ⚠️ БОС ТІЗІМ = ЕШҚАЙДА курьер жоқ.
   List<String> _courierCities = [];
+
+  /// Базада тұрған тізім — сақтағанда «қай қала жаңа қосылды / өшірілді»
+  /// дегенді анықтап, тек СОЛ қалалардағыларға хабарлама жіберу үшін.
+  List<String> _savedCourierCities = [];
 
   @override
   void initState() {
@@ -105,6 +110,8 @@ class _PaymentSettingsScreenState extends State<PaymentSettingsScreen> {
         _fittingMaxCtrl.text = '${tariff.fittingMaxItems}';
         _returnFeeCtrl.text = tariff.returnFee.toStringAsFixed(0);
         _courierCities = List.of(tariff.courierCities);
+        // Сақтағанда «қай қала ЖАҢА қосылды» дегенді осымен салыстырамыз.
+        _savedCourierCities = List.of(tariff.courierCities);
         _loading = false;
       });
     } catch (_) {
@@ -122,7 +129,11 @@ class _PaymentSettingsScreenState extends State<PaymentSettingsScreen> {
         telegram: _tgCtrl.text.trim().replaceFirst('@', ''),
         instagram: _igCtrl.text.trim().replaceFirst('@', ''),
       ));
-      await _service.saveDeliveryTariff(_tariffFromFields);
+      // Қала қосылса/өшірілсе — сол қаладағы дүкендер мен курьерлерге бірден
+      // хабарлама кетеді (0058): шешім КҮШІНЕ ЕНГЕНІН олар білуі керек.
+      await _service.saveDeliveryTariff(_tariffFromFields,
+          previousCities: _savedCourierCities);
+      _savedCourierCities = List.of(_courierCities);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(tr('Реквизиты сохранены ✓', 'Реквизиттер сақталды ✓')),

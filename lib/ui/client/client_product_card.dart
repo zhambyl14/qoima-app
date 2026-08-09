@@ -500,6 +500,12 @@ class _SizePickerSheetState extends State<_SizePickerSheet> {
       storeName: widget.store.storeName,
       imageUrl:
           widget.product.images.isNotEmpty ? widget.product.images.first : '',
+      // Сатушы қоймадан ДӘЛ осы тауарды табуы үшін (снапшот).
+      brand: widget.product.brand,
+      type: widget.product.type,
+      color: widget.product.color,
+      variantNote: widget.product.variantNote,
+      articul: widget.product.articul,
       warehouseId: entry.batch.warehouseId,
       warehouseAddress: address,
     ));
