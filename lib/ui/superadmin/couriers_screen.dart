@@ -5,6 +5,7 @@ import '../../core/lang.dart';
 import '../../data/models/user_model.dart';
 import '../../data/repositories/store_moderation_repository.dart';
 import '../../theme/qoima_design.dart';
+import 'courier_orders_tab.dart';
 
 /// Superadmin — курьерлерді басқару.
 ///
@@ -20,7 +21,10 @@ class CouriersScreen extends StatefulWidget {
 
 class _CouriersScreenState extends State<CouriersScreen> {
   final _repo = StoreModerationRepository();
-  int _tab = 0; // 0 Күтуде · 1 Белсенді · 2 Бұғатталған
+  // 0 Күтуде · 1 Белсенді · 2 Бұғатталған · 3 ТАПСЫРЫСТАР (0060).
+  // Соңғысы курьерлердің НАҚТЫ жұмысы: бос/жұмыста/тұрып қалғандары әрі
+  // жоғалып кеткен курьерден тапсырысты босату.
+  int _tab = 0;
 
   static const _statuses = ['pending', 'active', 'blocked'];
 
@@ -85,16 +89,17 @@ class _CouriersScreenState extends State<CouriersScreen> {
               bottom: [
                 const SizedBox(height: 12),
                 Row(children: [
-                  for (var i = 0; i < _statuses.length; i++) ...[
-                    if (i > 0) const SizedBox(width: 8),
+                  for (var i = 0; i < 4; i++) ...[
+                    if (i > 0) const SizedBox(width: 7),
                     Expanded(
                       child: _Chip(
                         label: switch (i) {
                           0 => tr('Ожидают', 'Күтуде'),
                           1 => tr('Активные', 'Белсенді'),
-                          _ => tr('Блок', 'Бұғат'),
+                          2 => tr('Блок', 'Бұғат'),
+                          _ => tr('Заказы', 'Тапсырыс'),
                         },
-                        count: counts[_statuses[i]] ?? 0,
+                        count: i < 3 ? (counts[_statuses[i]] ?? 0) : null,
                         selected: _tab == i,
                         onTap: () => setState(() => _tab = i),
                       ),
@@ -104,7 +109,9 @@ class _CouriersScreenState extends State<CouriersScreen> {
               ],
             ),
             Expanded(
-              child: snap.connectionState == ConnectionState.waiting
+              child: _tab == 3
+                  ? const CourierOrdersTab()
+                  : snap.connectionState == ConnectionState.waiting
                   ? const Center(
                       child: CircularProgressIndicator(
                           color: cGreen, strokeWidth: 2))
@@ -148,12 +155,13 @@ class _CouriersScreenState extends State<CouriersScreen> {
 
 class _Chip extends StatelessWidget {
   final String label;
-  final int count;
+  /// null — сан көрсетілмейді («Тапсырыс» табы өз санауышын өзі жүргізеді).
+  final int? count;
   final bool selected;
   final VoidCallback onTap;
   const _Chip({
     required this.label,
-    required this.count,
+    this.count,
     required this.selected,
     required this.onTap,
   });
@@ -168,7 +176,7 @@ class _Chip extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
           ),
           child: Column(children: [
-            Text('$count',
+            Text(count?.toString() ?? '·',
                 style: manrope(15, FontWeight.w800,
                     color: selected ? cGreenDeep : Colors.white)),
             Text(label,

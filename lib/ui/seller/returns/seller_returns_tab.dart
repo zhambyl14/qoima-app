@@ -144,7 +144,14 @@ class _ReturnCard extends StatelessWidget {
 
     return GestureDetector(
       onTap: () {
-        if (ret.status == ReturnStatus.approved) {
+        // ⚠️ `received` де МІНДЕТТІ ТҮРДЕ қабылдау экранына барады.
+        //    Бұрын мұнда тек `approved` тұрғандықтан, «тауарды қабылдадым»
+        //    деп белгіленген, бірақ ақшасы қайтарылмаған возврат «қарау»
+        //    экранына түсетін — ал онда аяқтайтын батырма ЖОҚ. Возврат сол
+        //    күйде мәңгі тұрып қалатын: клиент ақшасын алмайды, есепке
+        //    (sales_history) де ешнәрсе жазылмайды.
+        if (ret.status == ReturnStatus.approved ||
+            ret.status == ReturnStatus.received) {
           Navigator.push(
               context,
               MaterialPageRoute(
@@ -228,6 +235,16 @@ class _ReturnCard extends StatelessWidget {
                     tone: 'blue',
                     icon: const Icon(Icons.move_to_inbox_outlined,
                         size: 12, color: Color(0xFF1A5BD0))),
+              ],
+              // Аяқталмаған возврат — клиент ақшасын әлі алмаған. Бұл ең
+              // «үнсіз» күй, сондықтан айқын қызыл белгі керек.
+              if (ret.status == ReturnStatus.received) ...[
+                const SizedBox(height: 8),
+                QPill(tr('Верните деньги — возврат не завершён',
+                        'Ақшаны қайтарыңыз — возврат аяқталмаған'),
+                    tone: 'red',
+                    icon: const Icon(Icons.priority_high_rounded,
+                        size: 12, color: cRed)),
               ],
             ],
           ),

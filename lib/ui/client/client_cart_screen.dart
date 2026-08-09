@@ -36,10 +36,14 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
   String? _orderType;
   final _addressCtrl = TextEditingController();
 
-  /// Жеткізу қаласы — клиент ӨЗІ таңдайды (профильдегі қала әдепкі мән ретінде
-  /// ұсынылады, бірақ клиенттерде ол көбіне бос). Курьер қызметінің бар-жоғы
-  /// да, сатушының «қай қалаға жіберемін» деген сұрағы да осыдан шешіледі.
+  /// Жеткізу қаласы — ПРОФИЛЬДЕН алынады (`clients.city`, тіркелуде
+  /// толтырылады). Курьер қызметінің бар-жоғы да, сатушының «қай қалаға
+  /// жіберемін» деген сұрағы да осыдан шешіледі.
   String _deliveryCity = '';
+
+  /// Қала тізімі ашық па. Әдепкі — ЖАБЫҚ: профильде қала бар болса клиенттен
+  /// оны қайта сұраудың қажеті жоқ.
+  bool _cityPickerOpen = false;
   final _noteCtrl = TextEditingController();
   final _promoCtrl = TextEditingController();
   bool _isLoading = false;
@@ -915,37 +919,62 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
 
                     // Delivery address input
                     if (_orderType == OrderModel.typeDelivery) ...[
-                      // ── Қала: жеткізудің БІРІНШІ сұрағы ──────────────────
-                      //  Бұрын қала тек мекенжай жолының ішінде еркін мәтін
-                      //  болатын. Содан: (1) сатушы қай қалаға жіберетінін
-                      //  білмейтін, (2) курьер қызметі бар-жоғын анықтау үшін
-                      //  профильдегі қала оқылатын — ал ол клиенттерде БОС.
-                      Text(tr('Город доставки *', 'Жеткізу қаласы *'),
-                          style: manrope(12.5, FontWeight.w700, color: cInk2)),
-                      const SizedBox(height: 6),
-                      Wrap(
-                        spacing: 7,
-                        runSpacing: 7,
-                        children: kzCities.map((c) {
-                          final on = _deliveryCity == c;
-                          return GestureDetector(
-                            onTap: () => setState(() => _deliveryCity = c),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 7),
-                              decoration: BoxDecoration(
-                                color: on ? cGreen : cSurface,
-                                borderRadius: BorderRadius.circular(10),
-                                border:
-                                    Border.all(color: on ? cGreen : cLine),
+                      // ── Қала: СҰРАМАЙМЫЗ, профильден аламыз ──────────────
+                      //  Клиенттің қаласы тіркелу кезінде толтырылған
+                      //  (`clients.city`) әрі сеанс басталғанда AppUser-ге
+                      //  жүктеледі. Оны қайта сұрау — бос жұмыс. Тізім тек екі
+                      //  жағдайда ашылады: қала белгісіз болса (сирек) немесе
+                      //  клиент «Өзгерту» дегенде (мыс. сыйлықты басқа қалаға).
+                      if (_deliveryCity.isEmpty || _cityPickerOpen) ...[
+                        Text(tr('Город доставки *', 'Жеткізу қаласы *'),
+                            style:
+                                manrope(12.5, FontWeight.w700, color: cInk2)),
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 7,
+                          runSpacing: 7,
+                          children: kzCities.map((c) {
+                            final on = _deliveryCity == c;
+                            return GestureDetector(
+                              onTap: () => setState(() {
+                                _deliveryCity = c;
+                                _cityPickerOpen = false;
+                              }),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 7),
+                                decoration: BoxDecoration(
+                                  color: on ? cGreen : cSurface,
+                                  borderRadius: BorderRadius.circular(10),
+                                  border:
+                                      Border.all(color: on ? cGreen : cLine),
+                                ),
+                                child: Text(trValue(c),
+                                    style: manrope(12.5, FontWeight.w700,
+                                        color: on ? Colors.white : cInk)),
                               ),
-                              child: Text(trValue(c),
-                                  style: manrope(12.5, FontWeight.w700,
-                                      color: on ? Colors.white : cInk)),
-                            ),
-                          );
-                        }).toList(),
-                      ),
+                            );
+                          }).toList(),
+                        ),
+                      ] else
+                        GestureDetector(
+                          onTap: () => setState(() => _cityPickerOpen = true),
+                          behavior: HitTestBehavior.opaque,
+                          child: Row(children: [
+                            const Icon(Icons.place_rounded,
+                                size: 15, color: cInk3),
+                            const SizedBox(width: 6),
+                            Text(
+                                tr('Доставка в ${trValue(_deliveryCity)}',
+                                    '${trValue(_deliveryCity)} қаласына жеткізу'),
+                                style: manrope(12.5, FontWeight.w700,
+                                    color: cInk2)),
+                            const SizedBox(width: 8),
+                            Text(tr('Изменить', 'Өзгерту'),
+                                style: manrope(12, FontWeight.w800,
+                                    color: cGreenDeep)),
+                          ]),
+                        ),
                       const SizedBox(height: 12),
                       Text(tr('Адрес доставки *', 'Жеткізу мекенжайы *'),
                           style: manrope(12.5, FontWeight.w700, color: cInk2)),

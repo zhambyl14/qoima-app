@@ -4,6 +4,9 @@ import '../../../core/l10n_ext.dart';
 import '../../../data/models/return_model.dart';
 import '../../../data/services/return_service.dart';
 import '../../../theme/qoima_design.dart';
+// Қабылдау/аяқтау экраны рөлге тәуелсіз (ReturnService арқылы жұмыс істейді) —
+// админ де, сатушы да сол бір экранды қолданады.
+import '../../seller/returns/seller_return_receive_screen.dart';
 
 import '../../../core/lang.dart';
 import '../../../core/error_text.dart';
@@ -433,11 +436,66 @@ class _DetailBodyState extends State<_DetailBody> {
                 ]),
               ],
 
-              // Approved/received: тығырықтан шығу үшін бас тарту мүмкіндігі
-              // (мысалы, сатушы аяқтай алмай қалса, админ возвратты жаба алады).
+              // ── Возвратты АЯҚТАУ (админнің өзі де жасай алады) ───────────
+              //  Бұрын мұнда тек «бас тарту» тұрған: тауар қабылданып,
+              //  ақшасы қайтарылмаған возратты админ ешқалай аяқтай алмайтын
+              //  да, ол мәңгі `received` күйінде тұрып қалатын — клиент
+              //  ақшасын алмайды, есепке де ештеңе жазылмайды.
               if (r.status == ReturnStatus.approved ||
                   r.status == ReturnStatus.received) ...[
                 const SizedBox(height: 20),
+                if (r.status == ReturnStatus.received)
+                  Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.all(11),
+                    decoration: BoxDecoration(
+                      color: cRedTint,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: cRed.withValues(alpha: 0.35)),
+                    ),
+                    child: Row(children: [
+                      const Icon(Icons.priority_high_rounded,
+                          size: 17, color: cRed),
+                      const SizedBox(width: 9),
+                      Expanded(
+                        child: Text(
+                            tr('Товар принят, но деньги ещё не возвращены',
+                                'Тауар қабылданған, бірақ ақша әлі қайтарылмаған'),
+                            style:
+                                manrope(12.5, FontWeight.w700, color: cRed)),
+                      ),
+                    ]),
+                  ),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton.icon(
+                    onPressed: _busy
+                        ? null
+                        : () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) =>
+                                    SellerReturnReceiveScreen(ret: r))),
+                    icon: const Icon(Icons.inventory_2_outlined, size: 18),
+                    label: Text(
+                        r.status == ReturnStatus.received
+                            ? tr('Завершить возврат денег',
+                                'Ақша қайтаруды аяқтау')
+                            : tr('Принять товар', 'Тауарды қабылдау'),
+                        style: manrope(14.5, FontWeight.w800,
+                            color: Colors.white)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: cGreen,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
                 SizedBox(
                   width: double.infinity,
                   height: 48,

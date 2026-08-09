@@ -257,7 +257,11 @@ class _SellerReturnReceiveScreenState
               // ── Курьер қайтарымды әкеле жатыр ма? ──────────────────────────
               //  Курьер тапсырмайынша тауар физикалық түрде дүкенде ЖОҚ —
               //  «қабылдадым» деп белгілеу қоймаға жалған қалдық қосар еді.
-              if (r.byCourier && r.hasCourier && !alreadyReceived) ...[
+              // ⚠️ `hasCourier` ШАРТ ЕМЕС: курьер ӘЛІ ТАҒАЙЫНДАЛМАҒАН кезде де
+              //    тауар дүкенде жоқ. Бұрын бұл жерде `r.hasCourier` тұрғандықтан
+              //    «ешкім алмаған» возратты дүкен қабылдай беретін — қоймаға
+              //    келмеген тауар қосылатын.
+              if (r.byCourier && !alreadyReceived) ...[
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
@@ -277,18 +281,24 @@ class _SellerReturnReceiveScreenState
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                                '${tr('Курьер', 'Курьер')}: ${r.courierName}',
+                                r.hasCourier
+                                    ? '${tr('Курьер', 'Курьер')}: ${r.courierName}'
+                                    : tr('Курьер ещё не назначен',
+                                        'Курьер әлі тағайындалмаған'),
                                 style: manrope(13, FontWeight.w800,
                                     color: cInk)),
                             Text(
-                                r.courierDelivered
-                                    ? tr('Привёз возврат — можно принимать',
-                                        'Қайтарымды әкелді — қабылдауға болады')
-                                    : r.courierPickedUp
-                                        ? tr('Забрал у клиента, везёт вам',
-                                            'Клиенттен алды, сізге апара жатыр')
-                                        : tr('Назначен, скоро заберёт у клиента',
-                                            'Тағайындалды, клиенттен жақында алады'),
+                                !r.hasCourier
+                                    ? tr('Возврат ждёт свободного курьера',
+                                        'Қайтарым бос курьерді күтуде')
+                                    : r.courierDelivered
+                                        ? tr('Привёз возврат — можно принимать',
+                                            'Қайтарымды әкелді — қабылдауға болады')
+                                        : r.courierPickedUp
+                                            ? tr('Забрал у клиента, везёт вам',
+                                                'Клиенттен алды, сізге апара жатыр')
+                                            : tr('Назначен, скоро заберёт у клиента',
+                                                'Тағайындалды, клиенттен жақында алады'),
                                 style: manrope(11.5, FontWeight.w600,
                                     color: cInk2)),
                           ]),
@@ -370,7 +380,7 @@ class _SellerReturnReceiveScreenState
                 const SizedBox(height: 24),
                 // Курьер әлі жеткізбесе — тауар қолда жоқ, қабылдауға болмайды
                 // (әйтпесе қоймаға шындықта жоқ қалдық қосылар еді).
-                if (r.byCourier && r.hasCourier && !r.courierDelivered) ...[
+                if (r.byCourier && !r.courierDelivered) ...[
                   Container(
                     padding: const EdgeInsets.all(11),
                     decoration: BoxDecoration(
@@ -383,8 +393,11 @@ class _SellerReturnReceiveScreenState
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                            tr('Дождитесь курьера — товар ещё не у вас',
-                                'Курьерді күтіңіз — тауар әлі сізде жоқ'),
+                            r.hasCourier
+                                ? tr('Дождитесь курьера — товар ещё не у вас',
+                                    'Курьерді күтіңіз — тауар әлі сізде жоқ')
+                                : tr('Курьер ещё не забрал товар у клиента',
+                                    'Курьер тауарды клиенттен әлі алған жоқ'),
                             style: manrope(12, FontWeight.w700, color: cInk2)),
                       ),
                     ]),
@@ -397,9 +410,11 @@ class _SellerReturnReceiveScreenState
                   child: ElevatedButton(
                     onPressed: (_receiving ||
                             _refunding ||
-                            (r.byCourier &&
-                                r.hasCourier &&
-                                !r.courierDelivered))
+                            // Курьермен қайтарылатын тауар дүкенге ЖЕТКІЗІЛГЕНДЕ
+                            // ғана қабылданады. `hasCourier` тексерілмейді:
+                            // курьер тағайындалмаса тауар тіпті жолға да
+                            // шықпаған.
+                            (r.byCourier && !r.courierDelivered))
                         ? null
                         : _markReceived,
                     style: ElevatedButton.styleFrom(
