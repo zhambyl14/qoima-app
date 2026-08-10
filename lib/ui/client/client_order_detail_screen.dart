@@ -10,6 +10,7 @@ import '../../core/order_helpers.dart';
 import '../../data/models/cart_item_model.dart';
 import '../../data/models/order_model.dart';
 import '../../data/models/return_model.dart';
+import '../../data/models/review_model.dart';
 import '../../data/services/client_service.dart';
 import '../../data/services/return_service.dart';
 import '../../theme/qoima_design.dart';
@@ -17,6 +18,7 @@ import '../shared/order_money_card.dart';
 import 'client_shell.dart';
 import 'order_timeline.dart';
 import 'returns/client_return_form_screen.dart';
+import 'reviews_section.dart';
 
 /// Аяқталған тапсырыстың ЖЕКЕ беті.
 ///
@@ -198,6 +200,55 @@ class _ClientOrderDetailScreenState extends State<ClientOrderDetailScreen> {
         backgroundColor: color,
         behavior: SnackBarBehavior.floating,
       ));
+
+  // ── Тауарды бағалау ────────────────────────────────────────────────────────
+  //  Тек АЛЫНҒАН тапсырыста мағыналы — RLS/RPC да сатып алушыға ғана рұқсат
+  //  береді. Тауар/дүкен арнайы жүктеледі: CartItemModel-де снапшот қана бар,
+  //  ал пікір формасына ағымдағы ProductModel/StoreModel керек.
+  bool _ratingBusy = false;
+
+  Future<void> _rateProduct(CartItemModel item) async {
+    if (_ratingBusy) return;
+    setState(() => _ratingBusy = true);
+    try {
+      final product = await _service.getProductById(o.adminUid, item.productId);
+      final store = await _service.getStoreByAdminUid(o.adminUid);
+      if (product == null || store == null) {
+        if (mounted) {
+          _snack(tr('Товар больше недоступен', 'Тауар енді қолжетімсіз'), cRed);
+        }
+        return;
+      }
+      final reviews = await _service.getProductReviews(product.id);
+      final myUid = AppUser.current.uid;
+      ReviewModel? mine;
+      for (final r in reviews) {
+        if (r.clientUid == myUid) {
+          mine = r;
+          break;
+        }
+      }
+      if (!mounted) return;
+      final result = await showWriteReviewSheet(
+        context,
+        product: product,
+        store: store,
+        clientName: AppUser.current.name,
+        existing: mine,
+      );
+      if (result != null && mounted) {
+        _snack(
+            result == 'deleted'
+                ? tr('Отзыв удалён', 'Пікір өшірілді')
+                : tr('Спасибо за отзыв!', 'Пікіріңізге рахмет!'),
+            result == 'deleted' ? cInk2 : cGreen);
+      }
+    } catch (e) {
+      if (mounted) _snack(friendlyError(e), cRed);
+    } finally {
+      if (mounted) setState(() => _ratingBusy = false);
+    }
+  }
 
   Future<void> _open2Gis(String address) async {
     final encoded = Uri.encodeComponent(address);
@@ -394,6 +445,19 @@ class _ClientOrderDetailScreenState extends State<ClientOrderDetailScreen> {
               style: manrope(12, FontWeight.w600, color: cInk2)),
         ]),
       ),
+      // Тауарды бағалау — ТЕК АЛЫНҒАН тапсырыста (RPC сатып алушыға ғана
+      // рұқсат береді). Осы жол клиенттің тауар бетіне кірмей-ақ пікір
+      // қалдыруының ең қысқа жолы.
+      if (o.status == OrderModel.statusCompleted)
+        GestureDetector(
+          onTap: _ratingBusy ? null : () => _rateProduct(item),
+          behavior: HitTestBehavior.opaque,
+          child: Padding(
+            padding: const EdgeInsets.only(left: 6, top: 2),
+            child: Icon(Icons.star_rounded,
+                size: 21, color: const Color(0xFFF6A609)),
+          ),
+        ),
       // Ұнады ма — тауарды таңдаулыға. Қайта сатып алудың ең қысқа жолы.
       GestureDetector(
         onTap: () => _toggleFavorite(item),

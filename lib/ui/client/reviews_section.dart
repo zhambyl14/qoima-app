@@ -10,6 +10,28 @@ import '../../data/services/client_service.dart';
 import '../../theme/qoima_design.dart';
 import 'report_sheet.dart';
 
+/// Пікір/баға жазу sheet-ін кез келген экраннан ашу (мыс. алынған тапсырыс
+/// бетінен — тауар детальіне кірмей-ақ). [existing] берілсе — өңдеу режимі.
+/// Нәтиже: 'saved' | 'deleted' | null (болдырмады).
+Future<String?> showWriteReviewSheet(
+  BuildContext context, {
+  required ProductModel product,
+  required StoreModel store,
+  required String clientName,
+  ReviewModel? existing,
+}) =>
+    showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _WriteReviewSheet(
+        product: product,
+        store: store,
+        clientName: clientName,
+        existing: existing,
+      ),
+    );
+
 /// Жұлдызды рейтинг көрсеткіші (толық/жарты/бос жұлдыздар).
 class RatingStars extends StatelessWidget {
   final double rating;
@@ -103,17 +125,12 @@ class _ReviewsSectionState extends State<ReviewsSection> {
 
   Future<void> _openWriteSheet() async {
     final user = context.read<AppUser>();
-    final existing = _myReview;
-    final result = await showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _WriteReviewSheet(
-        product: widget.product,
-        store: widget.store,
-        clientName: user.name,
-        existing: existing,
-      ),
+    final result = await showWriteReviewSheet(
+      context,
+      product: widget.product,
+      store: widget.store,
+      clientName: user.name,
+      existing: _myReview,
     );
     if (result != null && mounted) {
       _load();
