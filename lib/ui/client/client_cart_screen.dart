@@ -9,6 +9,7 @@ import '../../data/models/cart_item_model.dart';
 import '../../data/models/delivery_tariff.dart';
 import '../../data/models/order_model.dart';
 import '../../data/models/promo_model.dart';
+import '../../data/models/store_model.dart';
 import '../../data/services/app_settings_service.dart';
 import '../../data/services/client_service.dart';
 import '../../theme/qoima_design.dart';
@@ -57,6 +58,18 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
 
   // Жеткізу тарифі (0050) — superadmin баптайды, әдепкісі DeliveryTariff-те.
   DeliveryTariff _tariff = const DeliveryTariff();
+
+  // ── «Жеткізуді КІМ орындайды» — жауап ДАЙЫН БОЛҒАНДА ғана ─────────────────
+  //  Бұл шешім екі async дереккөзге сүйенеді: тариф (курьер қай қалаларда
+  //  жұмыс істейді) және дүкендердің қаласы. Екеуі де келгенше әдепкі мәндер
+  //  «курьер жоқ» дегенді білдіреді — сол себепті себет АЛДЫМЕН «Дүкен өзі
+  //  жеткізеді» деп сеніммен жазып тұрып, бірнеше секундтан кейін «Курьер
+  //  жеткізеді — 690 ₸» болып ауысатын. Клиент үшін бұл «қосымша ойланып
+  //  тұр» деген сезім, әрі жаңылыстырады. Енді дайын болғанша ЖАУАП
+  //  БЕРМЕЙМІЗ: «анықталуда» деп ашық жазамыз да, төлемді де ұстап тұрамыз.
+  bool _tariffLoaded = false;
+  bool _storeCitiesLoaded = false;
+  bool get _deliveryInfoReady => _tariffLoaded && _storeCitiesLoaded;
 
   // Применённый промокод (привязан к магазину appliedAdminUid)
   PromoModel? _appliedPromo;
@@ -186,7 +199,12 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
   /// қайта оқылады.
   Future<void> _reloadTariff() async {
     final t = await AppSettingsService().getDeliveryTariff();
-    if (mounted) setState(() => _tariff = t);
+    if (mounted) {
+      setState(() {
+        _tariff = t;
+        _tariffLoaded = true;
+      });
+    }
   }
 
   @override
@@ -202,16 +220,36 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
     // Тариф те осы жерде жаңарады: себет ашылған сайын модератордың соңғы
     // шешімі (қала қосылды/өшірілді) бірден қолданылады.
     unawaited(_reloadTariff());
+
+    // ⚠️ Дүкендер тізімі ӘРҚАШАН оқылады (себет бос болса да) және нәтижесі
+    // БІРДЕН setState-ке түседі. Себебі жеткізу тәсілін шешуге ТЕК дүкеннің
+    // қаласы керек, ал төмендегі қолжетімділік тексерісі әр тауар бойынша
+    // бөлек сұраныс жасайды (5 тауар → 5+ round-trip). Бұрын setState тек
+    // соңында шақырылатын да, «Дүкен өзі жеткізеді → Курьер жеткізеді»
+    // ауысуы бірнеше секундқа кешігетін.
+    var stores = const <StoreModel>[];
+    try {
+      stores = await _service.getPublishedStores();
+    } catch (_) {}
+    if (mounted) {
+      setState(() {
+        if (stores.isNotEmpty) {
+          _storeCityByAdmin = {for (final s in stores) s.adminUid: s.city};
+        }
+        // Қате болса да «дайын» деп белгілейміз: клиентті мәңгі күттіріп
+        // қоюдан гөрі қауіпсіз әдепкіге (дүкен өзі жеткізеді) көшкен жөн.
+        _storeCitiesLoaded = true;
+      });
+    }
+
     if (cart.items.isEmpty) {
       if (mounted) setState(() => _unavailableKeys = {});
       return;
     }
     try {
-      final stores = await _service.getPublishedStores();
       final visibleByAdmin = {
         for (final s in stores) s.adminUid: s.visibleWarehouseIds,
       };
-      _storeCityByAdmin = {for (final s in stores) s.adminUid: s.city};
 
       // Витринада НАҚТЫ көрінетін товар id-лері (фото бар, жасырылмаған, қолда
       // бар). Витринадан алынған товарды (фотосыз/жасырын) сатып алуға болмайды —
@@ -261,7 +299,10 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
   ///
   /// Болмаса — дүкен өзі жеткізеді/жөнелтеді: аппта жеткізу ақысы да,
   /// «өлшеп көру» де есептелмейді (екеуін де курьер орындайтын).
+  ///   4) жауап ДАЙЫН (тариф + дүкен қалалары жүктелген) — әйтпесе әлі
+  ///      білмейміз, ал «білмеймін» ≠ «курьер жоқ».
   bool _isCourierDelivery(List<CartItemModel> items) =>
+      _deliveryInfoReady &&
       _orderType == OrderModel.typeDelivery &&
       _allStoresInMyCity(items) != false &&
       _courierServiceAvailable(items);
@@ -453,6 +494,11 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
   }
 
   String _deliverySubtitle(List<CartItemModel> items) {
+    // Жауап әлі белгісіз — БОЛЖАМ АЙТПАЙМЫЗ. «Дүкен өзі жеткізеді» деп жазып
+    // тұрып кейін «курьер 690 ₸» деп ауысу — клиентті шатастырады.
+    if (!_deliveryInfoReady) {
+      return tr('Определяем способ доставки…', 'Жеткізу тәсілі анықталуда…');
+    }
     if (_allStoresInMyCity(items) == false) {
       return tr('В ваш город — магазин отправит после 100% оплаты',
           'Сіздің қалаға — 100% төлемнен кейін дүкен жөнелтеді');
@@ -1236,21 +1282,35 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                     ]);
                   }),
                   const SizedBox(height: 11),
-                  QPrimaryButton(
-                    label: _orderType == null
-                        ? tr('Выберите способ получения',
-                            'Алу тәсілін таңдаңыз')
-                        : _orderType == OrderModel.typeSmartReservation
-                            ? tr('Забронировать', 'Брондау')
-                            : tr('Оплатить', 'Төлеу'),
-                    isLoading: _isLoading,
-                    onPressed: (_isLoading ||
-                            _orderType == null ||
-                            checkoutItems.isEmpty)
-                        ? null
-                        : _onCheckoutPressed,
-                    height: 54,
-                  ),
+                  // ⚠️ Жеткізу таңдалғанда, тәсіл анықталғанша төлемді ұстап
+                  // тұрамыз: әйтпесе тапсырыс ҚАТЕ `deliveryMode`-пен жазылып
+                  // кетеді (курьер бар қалада «дүкен өзі жеткізеді» болып),
+                  // ал ол ақшаның кімге баратынын өзгертеді.
+                  Builder(builder: (_) {
+                    final waitingDelivery =
+                        _orderType == OrderModel.typeDelivery &&
+                            !_deliveryInfoReady;
+                    return QPrimaryButton(
+                      label: _orderType == null
+                          ? tr('Выберите способ получения',
+                              'Алу тәсілін таңдаңыз')
+                          : waitingDelivery
+                              ? tr('Проверяем доставку…',
+                                  'Жеткізу тексерілуде…')
+                              : _orderType ==
+                                      OrderModel.typeSmartReservation
+                                  ? tr('Забронировать', 'Брондау')
+                                  : tr('Оплатить', 'Төлеу'),
+                      isLoading: _isLoading || waitingDelivery,
+                      onPressed: (_isLoading ||
+                              waitingDelivery ||
+                              _orderType == null ||
+                              checkoutItems.isEmpty)
+                          ? null
+                          : _onCheckoutPressed,
+                      height: 54,
+                    );
+                  }),
                 ]),
               ),
             ),

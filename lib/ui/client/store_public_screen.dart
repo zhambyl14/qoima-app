@@ -611,7 +611,11 @@ class _StorePublicScreenState extends State<StorePublicScreen> {
             _infoRow(Icons.location_city_rounded, trValue(store.city)),
           if (store.address.isNotEmpty)
             _infoRow(Icons.place_outlined, store.address),
-          if (store.phone.isNotEmpty)
+          // ⚠️ Дүкеннің телефоны МҰНДА ЖОҚ: клиент/қонақ дүкен парақшасынан
+          // нөмірді көрмеуі керек — байланыс қосымша арқылы жүреді. Тапсырыс
+          // жасалғаннан кейін нөмір ТАПСЫРЫС карточкасында ғана көрінеді
+          // (сол жерде ол шынымен керек: тауарды қайдан алу керек).
+          if (widget.previewMode && store.phone.isNotEmpty)
             _infoRow(Icons.phone_outlined, store.phone),
         ]),
       ),

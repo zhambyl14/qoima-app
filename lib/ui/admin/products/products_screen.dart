@@ -89,11 +89,19 @@ class _ProductsScreenState extends State<ProductsScreen> {
           .toList();
     }
     if (_q.isNotEmpty) {
+      // Жылдам код (0062) бойынша ДӘЛ сәйкестік — бөлек әрі БІРІНШІ тексеріледі.
+      // Сатушы «103» деп терген кезде оған дәл сол тауар керек, ал атауында
+      // «103» кездесетін ондаған тауар шығып кетуі мүмкін.
+      final exact =
+          list.where((p) => p.quickCode.isNotEmpty && p.quickCode == _q).toList();
+      if (exact.isNotEmpty) return exact;
       list = list
           .where((p) =>
               p.name.toLowerCase().contains(_q) ||
               p.brand.toLowerCase().contains(_q) ||
               p.articul.toLowerCase().contains(_q) ||
+              p.quickCode.contains(_q) ||
+              p.keywords.toLowerCase().contains(_q) ||
               p.type.toLowerCase().contains(_q))
           .toList();
     }
@@ -366,12 +374,13 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                     borderRadius: BorderRadius.circular(14)),
                                 child: TextField(
                                   controller: _searchCtrl,
-                                  onChanged: (v) =>
-                                      setState(() => _q = v.toLowerCase()),
+                                  onChanged: (v) => setState(
+                                      () => _q = v.trim().toLowerCase()),
                                   style: manrope(14.5, FontWeight.w500,
                                       color: Colors.white),
                                   decoration: InputDecoration(
-                                      hintText: context.l10n.searchHint,
+                                      hintText: tr('Название, артикул, число…',
+                                          'Атауы, артикул, сан…'),
                                       hintStyle: manrope(14.5, FontWeight.w500,
                                           color: Colors.white.withValues(
                                               alpha: 0.8)),
@@ -857,6 +866,20 @@ class _ProductCard extends StatelessWidget {
                                 color: cInk2,
                                 fontWeight: FontWeight.w500)),
                       ),
+                      // Жылдам код (0062) — сатушы дәл осы санмен іздейді.
+                      if (product.quickCode.isNotEmpty) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 7, vertical: 3),
+                          decoration: BoxDecoration(
+                              color: cGreenTint,
+                              borderRadius: BorderRadius.circular(6)),
+                          child: Text('№ ${product.quickCode}',
+                              style: manrope(11, FontWeight.w800,
+                                  color: cGreenDeep)),
+                        ),
+                      ],
                       const Spacer(),
                       const Icon(Icons.chevron_right_rounded,
                           color: cInk3, size: 20),

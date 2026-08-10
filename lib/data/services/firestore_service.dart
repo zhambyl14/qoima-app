@@ -162,35 +162,11 @@ class FirestoreService {
     return batchId;
   }
 
-  Future<String?> findMatchingProduct({
-    required String name,
-    required String brand,
-    required String type,
-    required String material,
-    required String category,
-    required String color,
-    String variantNote = '',
-  }) async {
-    final rows = await _sb
-        .from('products')
-        .select()
-        .eq('owner_uid', _ownerUid)
-        .eq('name', name.trim())
-        .eq('brand', brand.trim());
-    for (final r in rows) {
-      final p = ProductModel.fromMap(r);
-      // variant_note кимлікке кіреді: әр түрлі белгі = бөлек товар (повторный
-      // завоз болмайды; бірдей белгі ғана бар карточкаға жаңа партия қосады).
-      if (p.type == type &&
-          p.material == material &&
-          p.category == category &&
-          p.color == color &&
-          p.variantNote.trim() == variantNote.trim()) {
-        return p.id;
-      }
-    }
-    return null;
-  }
+  // ⚠️ findMatchingProduct() ЖОЙЫЛДЫ (0062). Ол «дәл сондай тауар бар ма» деп
+  // іздеп, тапса тауарды ЕСКІ карточкаға партия етіп қосатын. Бұл қате шешім
+  // болды: «Товар қосу» дегеніміз — ЖАҢА тауар, ал повторный завоздың өз
+  // экраны бар (RestockScreen). Енді қосу формалары ешқашан біріктірмейді,
+  // тек [findSimilarProducts] арқылы ҰСЫНЫС береді.
 
   /// Дүкеннің барлық тауары (бір реттік оқу). «Повторный завоз» тізімі мен
   /// қосу формасындағы «ұқсас тауар» ескертуі осыны қолданады.
@@ -206,11 +182,9 @@ class FirestoreService {
   /// ҰҚСАС (дәл емес) тауарлар — «сізде мұндай тауар бар, бұл повторный завоз
   /// емес пе?» ескертуі үшін.
   ///
-  /// [findMatchingProduct]-тан айырмашылығы: ол ДӘЛ сәйкестікті іздейді
-  /// (табылса — үнсіз жаңа партия болады), ал бұл жуықтап табады. Нақты
-  /// қауіп осында: админ бұрын «Adidas Samba сары» бар екенін ұмытып,
-  /// сәл өзгеше жаңа модельді дәл солай толтырса, ол бөлек тауар емес,
-  /// ескісіне партия болып кетеді. Сондықтан админге АЛДЫН АЛА көрсетеміз.
+  /// Нәтиже ЕШҚАШАН автоматты әрекетке айналмайды — админге көрсетіледі, ол
+  /// шешеді: тізімнен бассa «Повторный завоз» экраны ашылады, баспаса тауар
+  /// өз артикулымен бөлек сақталады.
   Future<List<ProductModel>> findSimilarProducts({
     required String name,
     String brand = '',
@@ -347,6 +321,8 @@ class FirestoreService {
     required String country,
     required String season,
     String colorHex = '',
+    String quickCode = '',
+    String keywords = '',
   }) =>
       _sb.from('products').update({
         'name': name.trim(),
@@ -359,7 +335,31 @@ class FirestoreService {
         'description': description.trim(),
         'country': country.trim(),
         'season': season,
+        'quick_code': quickCode.trim(),
+        'keywords': keywords.trim(),
       }).eq('id', productId);
+
+  // ── Жылдам код (0062) ───────────────────────────────────────────────────────
+
+  /// Осы дүкендегі жылдам кодты БАСҚА тауар иеленіп тұр ма.
+  ///
+  /// DB-де partial unique index бар (соңғы шеп), бірақ админге қатені
+  /// «PostgrestException 23505» түрінде көрсету — қолданушыға түк айтпайды.
+  /// Сондықтан сақтаудан бұрын тексеріп, кім иеленгенін атымен айтамыз.
+  /// [exceptProductId] — өңдеп жатқан тауардың өзі (өз кодымен қақтығыспауы үшін).
+  Future<ProductModel?> productWithQuickCode(String code,
+      {String exceptProductId = ''}) async {
+    final c = code.trim();
+    if (c.isEmpty) return null;
+    var q = _sb
+        .from('products')
+        .select()
+        .eq('owner_uid', _ownerUid)
+        .eq('quick_code', c);
+    if (exceptProductId.isNotEmpty) q = q.neq('id', exceptProductId);
+    final row = await q.limit(1).maybeSingle();
+    return row == null ? null : ProductModel.fromMap(row);
+  }
 
   // ── Batches ───────────────────────────────────────────────────────────────────
 

@@ -11,13 +11,24 @@ class ProductModel {
   final String categoryKey; // тип товара v2: shoes|tshirt|outer|... ('' = shoes)
   final String color;
   // Ұсақ айырмашылық белгісі (мыс. «қара табан», «гүлі бар»). Бірдей модель/түс
-  // болса да, әр түрлі белгі = БӨЛЕК товар (findMatchingProduct кимлікке қосады —
-  // повторный завоз болмайды). Клиент detail-де нұсқа ауыстырғышта көреді.
+  // болса да, әр түрлі белгі = БӨЛЕК товар. Клиент detail-де нұсқа
+  // ауыстырғышта көреді.
   final String variantNote;
   // HSV палитрадан таңдалған ерекше түстің нақты HEX коды ('#RRGGBB'). Бос болса —
   // color аты бойынша colorOptions-тан есептеледі.
   final String customColorHex;
   final String articul;
+  // ── Жылдам код (0062) — ТЕК дүкен ішіндегілерге ────────────────────────────
+  // Админ/сатушы офлайн сатқанда немесе қоймадан іздегенде тауарды атауымен
+  // емес, өз қысқа санымен табады («103»). Артикул бұл рөлге жарамайды: ол
+  // ГЛОБАЛЬ реттік нөмір (QM-0000123) — ұзын әрі есте қалмайды.
+  // Дүкен ішінде БІРЕГЕЙ (DB-де partial unique index). Клиентке ЕШҚАШАН
+  // көрсетілмейді және клиенттің іздеу буферіне кірмейді.
+  final String quickCode;
+  // «Ұқсас сөздер» — клиент тауарды не деп іздесе де табылу үшін
+  // (мыс. «сникерс, беговые, спорттық»). Карточкада көрсетілмейді, тек
+  // іздеуге қатысады.
+  final String keywords;
   final String status; // "В наличии" | "Продано"
   final List<String> images;
   final String description; // описание товара (необязательно)
@@ -46,6 +57,8 @@ class ProductModel {
     this.variantNote = '',
     this.customColorHex = '',
     required this.articul,
+    this.quickCode = '',
+    this.keywords = '',
     required this.status,
     required this.images,
     this.description = '',
@@ -132,6 +145,8 @@ class ProductModel {
       variantNote: json['variantNote'] as String? ?? '',
       customColorHex: json['customColorHex'] as String? ?? '',
       articul: json['articul'] as String? ?? '',
+      quickCode: json['quickCode'] as String? ?? '',
+      keywords: json['keywords'] as String? ?? '',
       status: json['status'] as String? ?? statusInStock,
       images: List<String>.from(json['images'] as List? ?? []),
       description: json['description'] as String? ?? '',
@@ -153,6 +168,8 @@ class ProductModel {
         variantNote: m['variant_note'] as String? ?? '',
         customColorHex: m['color_hex'] as String? ?? '',
         articul: m['articul'] as String? ?? '',
+        quickCode: m['quick_code'] as String? ?? '',
+        keywords: m['keywords'] as String? ?? '',
         status: m['status'] as String? ?? statusInStock,
         images: (m['images'] as List?)?.map((e) => e.toString()).toList() ?? [],
         description: m['description'] as String? ?? '',
@@ -177,6 +194,8 @@ class ProductModel {
         'variant_note': variantNote,
         'color_hex': customColorHex,
         'articul': articul,
+        'quick_code': quickCode.trim(),
+        'keywords': keywords.trim(),
         'status': status,
         'images': images,
         'description': description,
@@ -196,6 +215,8 @@ class ProductModel {
         'variantNote': variantNote,
         'customColorHex': customColorHex,
         'articul': articul,
+        'quickCode': quickCode,
+        'keywords': keywords,
         'status': status,
         'images': images,
         'description': description,
@@ -215,6 +236,8 @@ class ProductModel {
     String? variantNote,
     String? customColorHex,
     String? articul,
+    String? quickCode,
+    String? keywords,
     String? status,
     List<String>? images,
     String? description,
@@ -237,6 +260,8 @@ class ProductModel {
       variantNote: variantNote ?? this.variantNote,
       customColorHex: customColorHex ?? this.customColorHex,
       articul: articul ?? this.articul,
+      quickCode: quickCode ?? this.quickCode,
+      keywords: keywords ?? this.keywords,
       status: status ?? this.status,
       images: images ?? this.images,
       description: description ?? this.description,

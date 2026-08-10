@@ -230,6 +230,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     final brandCtrl = TextEditingController(text: p.brand);
     final descCtrl = TextEditingController(text: p.description);
     final countryCtrl = TextEditingController(text: p.country);
+    // Жылдам код (0062) — дүкен ішіндегі қысқа сан, клиентке көрсетілмейді.
+    final quickCtrl = TextEditingController(text: p.quickCode);
+    // «Ұқсас сөздер» — клиент іздеуіне ғана қатысады.
+    final keywordsCtrl = TextEditingController(text: p.keywords);
 
     // Канондық тізімдер + ескі товардағы тізімнен тыс мән жоғалмасын
     final baseTypes = kTypesByCategory[catKey] ?? const <String>[];
@@ -537,6 +541,29 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                             () => setS(() => season = season == s ? '' : s)))
                         .toList(),
                   ),
+                  // ── Тек дүкен ішіне арналған екі өріс (0062) ───────────
+                  label(tr('Быстрое число (для поиска)',
+                      'Жылдам код (іздеу үшін)')),
+                  TextField(
+                      controller: quickCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: deco(tr('Напр: 103', 'Мыс: 103'))),
+                  const SizedBox(height: 6),
+                  Text(
+                      tr('Продавец найдёт товар по этому числу при офлайн-продаже. Покупатель его не видит. Число должно быть уникальным в магазине.',
+                          'Сатушы офлайн сатқанда осы санмен тауарды табады. Сатып алушы оны көрмейді. Сан дүкен ішінде қайталанбауы керек.'),
+                      style: manrope(11, FontWeight.w500, color: cInk3)),
+                  const SizedBox(height: 14),
+                  TextField(
+                      controller: keywordsCtrl,
+                      textCapitalization: TextCapitalization.none,
+                      decoration: deco(tr('Похожие слова (необязательно)',
+                          'Ұқсас сөздер (міндетті емес)'))),
+                  const SizedBox(height: 6),
+                  Text(
+                      tr('Напр: сникерс, беговые, для зала — клиент найдёт товар по этим словам.',
+                          'Мыс: сникерс, жүгіруге, залға — клиент осы сөздермен табады.'),
+                      style: manrope(11, FontWeight.w500, color: cInk3)),
                   const SizedBox(height: 14),
                   TextField(
                       controller: countryCtrl,
@@ -588,6 +615,30 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     if (saved != true) return;
     final newName = nameCtrl.text.trim();
     final newBrand = brandCtrl.text.trim();
+    final newQuick = quickCtrl.text.trim();
+    final newKeywords = keywordsCtrl.text.trim();
+
+    // Жылдам кодты басқа тауар иеленіп тұрса — DB unique индексі құлатады,
+    // бірақ қате мәтіні админге түк айтпайды. Алдын ала атымен айтамыз.
+    if (newQuick.isNotEmpty && newQuick != p.quickCode) {
+      try {
+        final taken = await _service.productWithQuickCode(newQuick,
+            exceptProductId: p.id);
+        if (taken != null) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(tr('Число «$newQuick» уже занято: ${taken.name}',
+                '«$newQuick» коды бос емес: ${taken.name}')),
+            backgroundColor: cRed,
+            behavior: SnackBarBehavior.floating,
+          ));
+          return;
+        }
+      } catch (_) {
+        // Тексеру мүмкін болмады — DB бәрібір қорғайды.
+      }
+    }
+
     try {
       await _service.updateProductInfo(
         p.id,
@@ -601,6 +652,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         description: descCtrl.text.trim(),
         country: countryCtrl.text.trim(),
         season: season,
+        quickCode: newQuick,
+        keywords: newKeywords,
       );
       if (!mounted) return;
       setState(() => _product = _product.copyWith(
@@ -614,6 +667,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             description: descCtrl.text.trim(),
             country: countryCtrl.text.trim(),
             season: season,
+            quickCode: newQuick,
+            keywords: newKeywords,
           ));
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(tr('Товар обновлён', 'Тауар жаңартылды')),
@@ -989,6 +1044,27 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                 fontWeight: FontWeight.w700)),
                       ),
                     ),
+                    // Жылдам код (0062) — сатушыға арналған қысқа сан. Артикулдан
+                    // ӘДЕЙІ бөлек стильде (жасыл, «№» белгісімен): екеуі екі
+                    // басқа нәрсе — біреуі глобаль код, екіншісі дүкеннің саны.
+                    if (p.quickCode.isNotEmpty)
+                      Positioned(
+                        bottom: 16,
+                        left: 16,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: cGreen.withValues(alpha: 0.92),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text('№ ${p.quickCode}',
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800)),
+                        ),
+                      ),
                     if (p.articul.isNotEmpty)
                       Positioned(
                         bottom: 16,

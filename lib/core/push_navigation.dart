@@ -81,6 +81,9 @@ Future<void> handlePushOpen(Map<String, dynamic> data) async {
       case 'order_status':
         _openOrderStatus(nav, user, data);
         break;
+      case 'return_window':
+        _openReturnWindow(nav, user, data);
+        break;
       case 'review_reply':
         await _openReviewReply(nav, user, data);
         break;
@@ -210,18 +213,36 @@ void _openJoinRequest(NavigatorState nav, AppUser user) {
 }
 
 // ── client: тапсырыс статусы өзгерді ─────────────────────────────────────────
+//  Таптар (0062-ден кейін): 0=белсенді, 1=алынған, 2=бас тартылған,
+//  3=қайтарулар. Бұрын «аяқталған» біреу ғана болатын.
 void _openOrderStatus(
     NavigatorState nav, AppUser user, Map<String, dynamic> data) {
   if (!user.isClient) return;
   final orderId = data['orderId'] as String? ?? '';
   final status = data['status'] as String? ?? '';
-  final completedTab = status == 'completed' ||
-      status == 'cancelled' ||
-      status == 'returned';
+  final tab = switch (status) {
+    'completed' || 'returned' => 1,
+    'cancelled' => 2,
+    _ => 0,
+  };
   nav.push(MaterialPageRoute(
       builder: (_) => ClientOrdersScreen(
             highlightOrderId: orderId.isEmpty ? null : orderId,
-            initialTabIndex: completedTab ? 1 : 0,
+            initialTabIndex: tab,
+          )));
+}
+
+// ── client: қайтару мерзімі бітуге жақын (0062) ──────────────────────────────
+//  Алынған тапсырыстар табын ашып, сол тапсырысты бөлектейміз — қайтару
+//  батырмасы соның жеке бетінде.
+void _openReturnWindow(
+    NavigatorState nav, AppUser user, Map<String, dynamic> data) {
+  if (!user.isClient) return;
+  final orderId = data['orderId'] as String? ?? '';
+  nav.push(MaterialPageRoute(
+      builder: (_) => ClientOrdersScreen(
+            highlightOrderId: orderId.isEmpty ? null : orderId,
+            initialTabIndex: 1,
           )));
 }
 

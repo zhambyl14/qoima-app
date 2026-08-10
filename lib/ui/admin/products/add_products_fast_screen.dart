@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -13,6 +14,7 @@ import '../../shared/color_picker_sheet.dart';
 import '../../shared/h_scroll_chips.dart';
 import '../../shared/mandatory_warehouse_picker.dart';
 import '../../shared/prompt_text_dialog.dart';
+import 'restock_screen.dart';
 
 /// Жылдам товар қосу — бір экранда бірнеше тауарды жол-жолмен қосу.
 /// Жоғарыда БІР рет ортақ: категория + кому + жеткізілім күні + әдепкі баға.
@@ -31,15 +33,14 @@ class _ColorPick {
   final String color;
   final String hex; // ерекше түстің HEX коды ('' = стандарт палитра)
   final noteCtrl = TextEditingController();
+  // Жылдам код (0062) — сатушының өз саны, офлайн іздеуге. Әр нұсқа жеке
+  // тауар болғандықтан коды да жеке.
+  final quickCtrl = TextEditingController();
   _ColorPick(this.color, {this.hex = ''});
-  void dispose() => noteCtrl.dispose();
-}
-
-/// Қоймада дәл сондай тауар табылған жол (растау диалогы үшін).
-class _ExistingMatch {
-  final String rowLabel; // «Adidas Samba · Жёлтый»
-  final ProductModel product;
-  const _ExistingMatch(this.rowLabel, this.product);
+  void dispose() {
+    noteCtrl.dispose();
+    quickCtrl.dispose();
+  }
 }
 
 /// Бір товар-жолдың күйі.
@@ -52,6 +53,15 @@ class _FastRow {
   final List<_ColorPick> colors = [];
   final Map<String, TextEditingController> sizeCtrls = {}; // размер → сан
   bool saved = false;
+
+  // ── «Мұндай тауар бар» ұсынысы (0062) ──────────────────────────────────
+  //  Жылдам режимде де қажет: бұрын ұсыныс ТЕК қарапайым қосу формасында
+  //  болатын, ал тауарды көбіне осы жерден енгізеді. Нәтижесінде әкелінген
+  //  партия жаңа тауар болып жазылып, қоймада бір модель екі карточкаға
+  //  бөлініп кететін.
+  List<ProductModel> similar = const [];
+  bool similarDismissed = false;
+  Timer? similarDebounce;
 
   int qtyOf(String s) => int.tryParse(sizeCtrls[s]?.text ?? '') ?? 0;
   int get total =>
@@ -70,6 +80,7 @@ class _FastRow {
   }
 
   void dispose() {
+    similarDebounce?.cancel();
     nameCtrl.dispose();
     brandCtrl.dispose();
     purchaseCtrl.dispose();
@@ -358,104 +369,161 @@ class _AddProductsFastScreenState extends State<AddProductsFastScreen> {
     if (value != null && mounted) setState(() => r.type = value);
   }
 
-  /// Қоймада ДӘЛ сондай тауар бар жолдарды тауып, админге бір рет көрсетеді.
-  ///
-  /// Бұрын мұндай жолдар сұраусыз ескі карточкаға партия болып қосылатын.
-  /// Қауіп: админ бұрынғы «Adidas Samba сары» бар екенін ұмытып, сәл өзгеше
-  /// ЖАҢА модельді дәл солай толтырса — екеуі бір карточкаға құйылып, қойма
-  /// да, өзіндік құн да, аналитика да бұрмаланады. Ал шешімді тек адам біледі.
-  ///
-  /// true = жалғастыруға болады (не сәйкестік жоқ, не админ растады).
-  Future<bool> _confirmExistingMatches(List<_FastRow> toSave) async {
-    final matches = <_ExistingMatch>[];
-    for (final r in toSave) {
-      for (final cp in r.colors) {
-        final id = await _firestoreService.findMatchingProduct(
-          name: r.nameCtrl.text.trim(),
-          brand: r.brandCtrl.text.trim(),
-          type: r.type ?? '',
-          material: '',
-          category: _targetGroup ?? '',
-          color: cp.color,
-          variantNote: cp.noteCtrl.text.trim(),
-        );
-        if (id == null) continue;
-        final p = await _firestoreService.getProduct(id);
-        if (p == null) continue;
-        matches.add(_ExistingMatch(
-            '${r.nameCtrl.text.trim()} · ${trValue(cp.color)}', p));
-      }
-    }
-    if (matches.isEmpty || !mounted) return matches.isEmpty;
+  // ── «Мұндай тауар бар» ұсынысы (0062) ─────────────────────────────────────
 
+  /// Атау/бренд терілген сайын (кідіріспен) ұқсас тауарларды іздейміз.
+  void _scheduleSimilar(_FastRow r) {
+    r.similarDebounce?.cancel();
+    r.similarDebounce =
+        Timer(const Duration(milliseconds: 450), () => _searchSimilar(r));
+  }
+
+  Future<void> _searchSimilar(_FastRow r) async {
+    final name = r.nameCtrl.text.trim();
+    if (name.length < 3) {
+      if (r.similar.isNotEmpty && mounted) {
+        setState(() => r.similar = const []);
+      }
+      return;
+    }
+    try {
+      final found = await _firestoreService.findSimilarProducts(
+        name: name,
+        brand: r.brandCtrl.text.trim(),
+        categoryKey: _categoryKey ?? '',
+        limit: 3,
+      );
+      if (mounted) setState(() => r.similar = found);
+    } catch (_) {}
+  }
+
+  /// Ұқсас тауарды басқанда — «Повторный завоз» экранына ауысамыз.
+  /// Жылдам форма сақталмайды, сондықтан АШЫҚ ескертеміз.
+  Future<void> _openRestock(ProductModel p) async {
     final ok = await showDialog<bool>(
       context: context,
-      barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         backgroundColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(
-            tr('${matches.length} поз. уже есть на складе',
-                '${matches.length} поз. қоймада бар'),
+        title: Text(tr('Повторный завоз?', 'Қайта завоз ба?'),
             style: manrope(16, FontWeight.w800, color: cInk)),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Flexible(
-              child: ListView(
-                shrinkWrap: true,
-                children: matches
-                    .map((m) => Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: Row(children: [
-                            SizedBox(
-                              width: 40,
-                              height: 40,
-                              child: QShoeImage(
-                                imageUrl: m.product.images.isNotEmpty
-                                    ? m.product.images.first
-                                    : null,
-                                height: 40,
-                                tone: m.product.id.hashCode % 5,
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(m.rowLabel,
-                                  style: manrope(12.5, FontWeight.w700,
-                                      color: cInk),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis),
-                            ),
-                          ]),
-                        ))
-                    .toList(),
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-                tr('Они добавятся как повторный завоз (новая партия). Если это другие товары — впишите отличие рядом с цветом.',
-                    'Олар қайта завоз (жаңа партия) болып қосылады. Егер бұл басқа тауарлар болса — түстің қасына айырмашылығын жазыңыз.'),
-                style:
-                    manrope(12.5, FontWeight.w500, color: cInk2, height: 1.4)),
-          ]),
-        ),
-        actionsOverflowDirection: VerticalDirection.down,
+        content: Text(
+            tr('Откроем оформление новой партии для «${p.name}». Заполненные строки не сохранятся.',
+                '«${p.name}» үшін жаңа партия рәсімдеуін ашамыз. Толтырылған жолдар сақталмайды.'),
+            style: manrope(13.5, FontWeight.w500, color: cInk2, height: 1.4)),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: Text(tr('Проверю', 'Тексеремін'),
-                  style: manrope(13.5, FontWeight.w700, color: cRed))),
+              child: Text(tr('Отмена', 'Болдырмау'),
+                  style: manrope(14, FontWeight.w600, color: cInk2))),
           ElevatedButton(
               onPressed: () => Navigator.pop(ctx, true),
               style: ElevatedButton.styleFrom(
                   backgroundColor: cGreen, foregroundColor: Colors.white),
-              child: Text(tr('Да, завоз', 'Иә, завоз'),
-                  style: manrope(13.5, FontWeight.w800, color: Colors.white))),
+              child: Text(tr('Да, завоз', 'Иә, завоз'))),
         ],
       ),
     );
-    return ok == true;
+    if (ok != true || !mounted) return;
+    Navigator.pushReplacement(
+        context, MaterialPageRoute(builder: (_) => RestockScreen(product: p)));
+  }
+
+  /// Жол ішіндегі ұсыныс баннері (қарапайым қосу формасындағымен бір мағына,
+  /// бірақ ықшам: жылдам режимде экран жолдарға толы).
+  Widget _buildSimilarHint(_FastRow r) => Container(
+        margin: const EdgeInsets.only(top: 8),
+        padding: const EdgeInsets.all(9),
+        decoration: BoxDecoration(
+          color: cAmberTint,
+          borderRadius: BorderRadius.circular(11),
+          border: Border.all(color: cAmber.withValues(alpha: 0.35)),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            const Icon(Icons.help_outline_rounded, color: cAmber, size: 15),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                  tr('Похожий товар уже есть. Это повторный завоз?',
+                      'Ұқсас тауар бар. Бұл қайта завоз ба?'),
+                  style: manrope(11.5, FontWeight.w800, color: cInk)),
+            ),
+            GestureDetector(
+              onTap: () => setState(() => r.similarDismissed = true),
+              child: const Icon(Icons.close_rounded, size: 15, color: cInk3),
+            ),
+          ]),
+          const SizedBox(height: 7),
+          ...r.similar.map((p) => GestureDetector(
+                onTap: () => _openRestock(p),
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 6),
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(9)),
+                  child: Row(children: [
+                    SizedBox(
+                      width: 34,
+                      height: 34,
+                      child: QShoeImage(
+                        imageUrl: p.images.isNotEmpty ? p.images.first : null,
+                        height: 34,
+                        tone: p.id.hashCode % 5,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                          [
+                            p.name,
+                            if (p.color.isNotEmpty) trValue(p.color),
+                            if (p.variantNote.isNotEmpty) p.variantNote,
+                          ].join(' · '),
+                          style: manrope(11.5, FontWeight.w700, color: cInk),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                          color: cGreen,
+                          borderRadius: BorderRadius.circular(8)),
+                      child: Text(tr('Завоз', 'Завоз'),
+                          style: manrope(10.5, FontWeight.w800,
+                              color: Colors.white)),
+                    ),
+                  ]),
+                ),
+              )),
+          Text(
+              tr('Иначе сохраним как отдельный товар со своим артикулом.',
+                  'Баспасаңыз, өз артикулы бар бөлек тауар болып сақталады.'),
+              style: manrope(10.5, FontWeight.w600, color: cInk2)),
+        ]),
+      );
+
+  /// Енгізілген жылдам кодтарды дүкендегі басқа тауар иеленіп тұрған жоқ па.
+  Future<bool> _quickCodesFree(List<_FastRow> rows) async {
+    for (final r in rows) {
+      for (final cp in r.colors) {
+        final code = cp.quickCtrl.text.trim();
+        if (code.isEmpty) continue;
+        try {
+          final taken = await _firestoreService.productWithQuickCode(code);
+          if (taken != null) {
+            _err(tr('Число «$code» уже занято: ${taken.name}',
+                '«$code» коды бос емес: ${taken.name}'));
+            return false;
+          }
+        } catch (_) {
+          // Тексеру мүмкін болмады — DB-дегі unique индекс бәрібір қорғайды.
+        }
+      }
+    }
+    return true;
   }
 
   // ── Сақтау ────────────────────────────────────────────────────────────────
@@ -501,12 +569,23 @@ class _AddProductsFastScreenState extends State<AddProductsFastScreen> {
       }
     }
 
+    // Жылдам кодтар форманың ІШІНДЕ қайталанбауы керек.
+    final seenCodes = <String>{};
+    for (final r in toSave) {
+      for (final cp in r.colors) {
+        final code = cp.quickCtrl.text.trim();
+        if (code.isEmpty) continue;
+        if (!seenCodes.add(code)) {
+          _err(tr('Быстрое число «$code» повторяется — у каждого товара своё',
+              '«$code» жылдам коды қайталанады — әр тауардың коды бөлек'));
+          return;
+        }
+      }
+    }
+
     setState(() => _isLoading = true);
-    // Қоймада дәл сондай тауар бар жолдар — БІР рет ашық растатамыз.
-    // Жылдам режимде әр жолға диалог шығару мағынасыз, бірақ үнсіз біріктіру
-    // де қауіпті: админ жаңа модельді ескісіндей толтырса, ол жаңа карточка
-    // емес, ЕСКІСІНЕ ПАРТИЯ болып кетеді (қойма мен өзіндік құн араласады).
-    if (!await _confirmExistingMatches(toSave)) {
+    // Дүкенде бұл кодтар бос па (DB-дегі unique индексті алдын ала ұстаймыз).
+    if (!await _quickCodesFree(toSave)) {
       if (mounted) setState(() => _isLoading = false);
       return;
     }
@@ -539,46 +618,31 @@ class _AddProductsFastScreenState extends State<AddProductsFastScreen> {
             sellingPrice: double.tryParse(r.sellingCtrl.text) ?? 0,
             sizesQuantity: Map.from(sizesQty),
           );
-          final note = cp.noteCtrl.text.trim();
-          final existingId = await _firestoreService.findMatchingProduct(
+          // ⚠️ ӘРҚАШАН ЖАҢА ТАУАР. Бұрын мұнда findMatchingProduct тұратын да,
+          // дәл сәйкестік табылса жол ескі карточкаға ПАРТИЯ болып жазылатын.
+          // Повторный завоздың өз экраны бар; «товар қосу» — жаңа тауар.
+          final product = ProductModel(
+            id: '',
             name: r.nameCtrl.text.trim(),
             brand: r.brandCtrl.text.trim(),
             type: r.type ?? '',
             material: '',
             category: _targetGroup ?? '',
+            categoryKey: _categoryKey ?? '',
             color: cp.color,
-            variantNote: note,
+            variantNote: cp.noteCtrl.text.trim(),
+            customColorHex: cp.hex,
+            articul: '',
+            quickCode: cp.quickCtrl.text.trim(),
+            status: ProductModel.statusInStock,
+            images: const [],
           );
-          if (existingId != null) {
-            await _firestoreService.addNewBatchToProduct(
-              productId: existingId,
-              batch: batch,
-              dateArrived: _dateArrived,
-              warehouseId: warehouseId,
-            );
-          } else {
-            final product = ProductModel(
-              id: '',
-              name: r.nameCtrl.text.trim(),
-              brand: r.brandCtrl.text.trim(),
-              type: r.type ?? '',
-              material: '',
-              category: _targetGroup ?? '',
-              categoryKey: _categoryKey ?? '',
-              color: cp.color,
-              variantNote: note,
-              customColorHex: cp.hex,
-              articul: '',
-              status: ProductModel.statusInStock,
-              images: const [],
-            );
-            await _firestoreService.addNewProduct(
-              product: product,
-              firstBatch: batch,
-              dateArrived: _dateArrived,
-              warehouseId: warehouseId,
-            );
-          }
+          await _firestoreService.addNewProduct(
+            product: product,
+            firstBatch: batch,
+            dateArrived: _dateArrived,
+            warehouseId: warehouseId,
+          );
           savedProducts++;
         }
         r.saved = true;
@@ -906,12 +970,18 @@ class _AddProductsFastScreenState extends State<AddProductsFastScreen> {
         _MiniTextField(
             controller: r.nameCtrl,
             hint: tr('Название *', 'Атауы *'),
-            onChanged: (_) => setState(() {})),
+            onChanged: (_) {
+              setState(() {});
+              _scheduleSimilar(r);
+            }),
         const SizedBox(height: 8),
         _MiniTextField(
             controller: r.brandCtrl,
             hint: tr('Бренд *', 'Бренд *'),
-            onChanged: (_) => setState(() {})),
+            onChanged: (_) {
+              setState(() {});
+              _scheduleSimilar(r);
+            }),
         if (_brandSuggestions.isNotEmpty) ...[
           const SizedBox(height: 6),
           HScrollChips(
@@ -919,10 +989,16 @@ class _AddProductsFastScreenState extends State<AddProductsFastScreen> {
                 .map((b) => HChip(
                     label: b,
                     selected: r.brandCtrl.text.trim() == b,
-                    onTap: () => setState(() => r.brandCtrl.text = b)))
+                    onTap: () {
+                      setState(() => r.brandCtrl.text = b);
+                      _scheduleSimilar(r);
+                    }))
                 .toList(),
           ),
         ],
+        // «Мұндай тауар бар ма» — толтырып жатқанда бірден көрінеді.
+        if (r.similar.isNotEmpty && !r.similarDismissed)
+          _buildSimilarHint(r),
         // ── Тип товара ──────────────────────────────────────────────────
         const SizedBox(height: 10),
         Text(tr('Тип товара', 'Тауар түрі'),
@@ -998,6 +1074,16 @@ class _AddProductsFastScreenState extends State<AddProductsFastScreen> {
                     controller: cp.noteCtrl,
                     hint: tr('Отличие (напр. чёрная подошва)',
                         'Айырмашылық (мыс. қара табан)'),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                // Жылдам код — сатушының өз саны (офлайн сату/іздеу үшін).
+                SizedBox(
+                  width: 70,
+                  child: _MiniTextField(
+                    controller: cp.quickCtrl,
+                    hint: '№ 103',
+                    keyboardType: TextInputType.number,
                   ),
                 ),
                 GestureDetector(
@@ -1097,14 +1183,19 @@ class _MiniTextField extends StatelessWidget {
   final TextEditingController controller;
   final String hint;
   final ValueChanged<String>? onChanged;
+  final TextInputType? keyboardType;
   const _MiniTextField(
-      {required this.controller, required this.hint, this.onChanged});
+      {required this.controller,
+      required this.hint,
+      this.onChanged,
+      this.keyboardType});
 
   @override
   Widget build(BuildContext context) {
     return TextField(
       controller: controller,
       onChanged: onChanged,
+      keyboardType: keyboardType,
       textCapitalization: TextCapitalization.sentences,
       style: manrope(14, FontWeight.w600, color: cInk),
       decoration: InputDecoration(

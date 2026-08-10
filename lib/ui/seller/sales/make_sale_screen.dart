@@ -704,13 +704,21 @@ class _Step1State extends State<_Step1> {
     }
     if (_query.isEmpty) return result;
     final q = _query.toLowerCase();
+    // Жылдам код (0062) бойынша ДӘЛ сәйкестік — бірінші. Сатушы клиенттің
+    // алдында тұрып «103» дегенде оған дәл сол тауар керек, ал атауында «103»
+    // кездесетін тауарлар тізімі емес.
+    final exact =
+        result.where((p) => p.quickCode.isNotEmpty && p.quickCode == q).toList();
+    if (exact.isNotEmpty) return exact;
     return result
         .where((p) =>
             p.name.toLowerCase().contains(q) ||
             p.brand.toLowerCase().contains(q) ||
             p.type.toLowerCase().contains(q) ||
             p.category.toLowerCase().contains(q) ||
-            p.articul.toLowerCase().contains(q))
+            p.articul.toLowerCase().contains(q) ||
+            p.quickCode.contains(q) ||
+            p.keywords.toLowerCase().contains(q))
         .toList();
   }
 
@@ -790,7 +798,7 @@ class _Step1State extends State<_Step1> {
                 style:
                     const TextStyle(fontSize: 14, color: cInk),
                 decoration: InputDecoration(
-                  hintText: tr('Название, бренд, категория...', 'Атауы, бренд, категория...'),
+                  hintText: tr('Название, бренд, число…', 'Атауы, бренд, сан…'),
                   hintStyle:
                       const TextStyle(color: cInk3, fontSize: 13),
                   prefixIcon: const Icon(Icons.search_rounded,

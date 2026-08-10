@@ -74,6 +74,12 @@ String _searchBuffer(ProductGroup g) {
     add(v.material);
     add(trValue(v.material));
     add(v.variantNote);
+    // «Ұқсас сөздер» (0062): дүкен өзі жазған синонимдер — «сникерс»,
+    // «беговые», «спорттық». Тек ІЗДЕУГЕ қатысады, карточкада көрінбейді.
+    add(v.keywords);
+    // ⚠️ quickCode ӘДЕЙІ ЖОҚ: ол дүкеннің ішкі саны (офлайн сату/қоймадан
+    // іздеу үшін). Клиент «103» деп іздегенде бөтен дүкендердің тауарлары
+    // шықпауы керек.
   }
   return buf.toString();
 }
@@ -798,6 +804,98 @@ class ClientService {
   }
 
   /// Клиенттің тапсырыстары (clientUid бойынша; client-side сұрыптау).
+  // ── Қайта тапсырыс беру (0062) ─────────────────────────────────────────────
+
+  /// Өткен тапсырысты себетке қайта салу нәтижесі: [items] — қазір қолжетімді
+  /// (ЖАҢА бағамен, ЖАҢА партиямен) жолдар, [unavailable] — енді жоқ тауар
+  /// атаулары.
+  ///
+  /// ⚠️ Тапсырыстағы `CartItemModel` — СНАПШОТ: ондағы `batchId` мен `price`
+  /// айлар бұрынғы болуы мүмкін. Соны сол күйінде себетке салу — жоқ партияға
+  /// тапсырыс жасау (checkout қате береді) немесе ескі бағаны тіреу деген сөз.
+  /// Сондықтан әр жолды қайта шешеміз.
+  Future<({List<CartItemModel> items, List<String> unavailable})> resolveReorder(
+      OrderModel order) async {
+    final items = <CartItemModel>[];
+    final unavailable = <String>[];
+
+    // Дүкеннің өзі жабылса/бұғатталса — түк қосылмайды.
+    final store = await getStoreByAdminUid(order.adminUid);
+    if (store == null || !store.isPublished || store.isBlocked) {
+      return (
+        items: items,
+        unavailable: order.items.map((i) => i.productName).toList(),
+      );
+    }
+
+    // Қойма мекенжайлары — бір рет (әр жол үшін қайта сұрамаймыз).
+    final whAddress = <String, String>{};
+    try {
+      for (final w in await getWarehouses(order.adminUid, const [])) {
+        whAddress[w.id] = w.address ?? '';
+      }
+    } catch (_) {}
+
+    for (final old in order.items) {
+      try {
+        final p = await getProductById(order.adminUid, old.productId);
+        if (p == null || p.storefrontHidden) {
+          unavailable.add(old.productName);
+          continue;
+        }
+        final batches =
+            await getProductBatches(order.adminUid, old.productId, const []);
+        // Бұрынғы партия әлі тұрса — соны аламыз (баға/қойма тұрақты болсын),
+        // әйтпесе сол өлшемі бар кез келген партияны.
+        BatchModel? pick;
+        for (final b in batches) {
+          if (b.availableForSize(old.size) <= 0) continue;
+          if (b.id == old.batchId) {
+            pick = b;
+            break;
+          }
+          pick ??= b;
+        }
+        if (pick == null) {
+          unavailable.add('${old.productName} (${old.size})');
+          continue;
+        }
+        final price = effectivePrice(pick);
+        items.add(CartItemModel(
+          productId: p.id,
+          productName: p.name,
+          batchId: pick.id,
+          size: old.size,
+          qty: old.qty,
+          price: price,
+          originalPrice: price < pick.sellingPrice ? pick.sellingPrice : 0,
+          adminUid: order.adminUid,
+          storeName: store.storeName,
+          imageUrl: p.images.isNotEmpty ? p.images.first : '',
+          brand: p.brand,
+          type: p.type,
+          color: p.color,
+          variantNote: p.variantNote,
+          articul: p.articul,
+          warehouseId: pick.warehouseId,
+          warehouseAddress: whAddress[pick.warehouseId] ?? '',
+        ));
+      } catch (_) {
+        unavailable.add(old.productName);
+      }
+    }
+    return (items: items, unavailable: unavailable);
+  }
+
+  /// Бір тапсырыс (push-тен тікелей ашу үшін). RLS клиенттің өз тапсырысын
+  /// ғана қайтарады, сондықтан бөтен id-мен ештеңе шықпайды.
+  Future<OrderModel?> getOrderById(String orderId) async {
+    if (orderId.isEmpty) return null;
+    final row =
+        await _sb.from('orders').select().eq('id', orderId).maybeSingle();
+    return row == null ? null : OrderModel.fromMap(row);
+  }
+
   Stream<List<OrderModel>> watchClientOrders(String clientUid) => _sb
       .from('orders')
       .stream(primaryKey: ['id'])

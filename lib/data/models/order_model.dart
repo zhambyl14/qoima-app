@@ -92,6 +92,11 @@ class OrderModel {
   final String rejectionReason;
   final DateTime? rejectedAt;
   final DateTime? deadlineAt;
+  /// Тапсырыс АЛЫНҒАН сәт (0045 триггері толтырады). Қайтару терезесі осыдан
+  /// саналады — бұрын [createdAt] қолданылатын, ол ҚАТЕ еді: тапсырыс апталар
+  /// бойы төлемді күтіп тұруы мүмкін, сонда клиент қолына алған күні
+  /// «14 күн өтіп кеткен» болып шығатын.
+  final DateTime? completedAt;
   final bool stockRestored;
 
   // ── Кім болдырмады (race-condition түзетуден кейін) ─────────────────────────
@@ -183,6 +188,7 @@ class OrderModel {
     this.rejectionReason = '',
     this.rejectedAt,
     this.deadlineAt,
+    this.completedAt,
     this.stockRestored = false,
     this.cancelledByRole = '',
     this.cancelledByUid = '',
@@ -252,6 +258,29 @@ class OrderModel {
   bool get returnLegDone => returnLegStatus == 'returned';
   bool get hasReturnLeg => returnLeg.isNotEmpty;
 
+  // ── Қайтару терезесі — ЖАЛҒЫЗ КӨЗ ────────────────────────────────────────
+  /// Клиент тапсырысты қолына алғаннан кейін қайтаруға берілетін мерзім.
+  /// 0062-дегі `sweep_return_window_reminders` push-ы да дәл осы санға
+  /// негізделген — екеуі әрдайым бір мәнде тұруы керек.
+  static const Duration returnWindow = Duration(days: 14);
+
+  /// Мерзім қашан бітеді. [completedAt] жоқ ескі жазбаларда ғана [createdAt]
+  /// қолданылады (0045-ке дейін аяқталған тапсырыстар).
+  DateTime get returnDeadline =>
+      (completedAt ?? createdAt).add(returnWindow);
+
+  /// Осы тапсырысты қайтаруға принципті түрде бола ма (алынған + мерзімінде).
+  /// Нақты батырманың көрінуі бұған ҚОСА «бұл тапсырыс бойынша қайтару бар ма»
+  /// тексерісіне байланысты — ол ағын деңгейінде шешіледі.
+  bool get returnable =>
+      status == statusCompleted && DateTime.now().isBefore(returnDeadline);
+
+  /// Мерзім бітуіне қалған күн (0 — бүгін бітеді/бітті).
+  int get returnDaysLeft {
+    final d = returnDeadline.difference(DateTime.now()).inHours;
+    return d <= 0 ? 0 : (d / 24).ceil();
+  }
+
   bool get isAwaitingReview => status == statusPending && receiptUrl.isNotEmpty;
   bool get canHandOver => status == statusConfirmed;
   bool get isFullPrepay => orderType != typeSmartReservation;
@@ -308,6 +337,7 @@ class OrderModel {
       rejectionReason: m['rejection_reason'] as String? ?? '',
       rejectedAt: dtn(m['rejected_at']),
       deadlineAt: dtn(m['deadline_at']),
+      completedAt: dtn(m['completed_at']),
       stockRestored: m['stock_restored'] as bool? ?? false,
       cancelledByRole: m['cancelled_by_role'] as String? ?? '',
       cancelledByUid: m['cancelled_by_uid'] as String? ?? '',
@@ -416,6 +446,7 @@ class OrderModel {
     String? rejectionReason,
     DateTime? rejectedAt,
     DateTime? deadlineAt,
+    DateTime? completedAt,
     bool? stockRestored,
     String? cancelledByRole,
     String? cancelledByUid,
@@ -476,6 +507,7 @@ class OrderModel {
         rejectionReason: rejectionReason ?? this.rejectionReason,
         rejectedAt: rejectedAt ?? this.rejectedAt,
         deadlineAt: deadlineAt ?? this.deadlineAt,
+        completedAt: completedAt ?? this.completedAt,
         stockRestored: stockRestored ?? this.stockRestored,
         cancelledByRole: cancelledByRole ?? this.cancelledByRole,
         cancelledByUid: cancelledByUid ?? this.cancelledByUid,

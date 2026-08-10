@@ -36,22 +36,27 @@ class _AddProductScreenState extends State<AddProductScreen> {
   final _sellingCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
   final _countryCtrl = TextEditingController();
+  // «Ұқсас сөздер» (0062) — клиент іздеуіне ғана қатысады, карточкада
+  // көрсетілмейді. Барлық түс нұсқаларына ОРТАҚ: сөздер модельге тиесілі.
+  final _keywordsCtrl = TextEditingController();
 
   // Бұрын қолданылған брендтер (ұсыныс чиптері үшін).
   List<String> _brandSuggestions = [];
 
-  // ── «Мұндай тауар бар» күзеті ──────────────────────────────────────────
-  // Нақты қауіп: қоймада «Adidas Samba сары» бар екенін ұмытып, сәл өзгеше
-  // ЖАҢА модельді дәл солай толтыру. Сонда findMatchingProduct дәл сәйкестік
-  // табады да, ол жаңа тауар емес — ЕСКІСІНЕ ПАРТИЯ болып үнсіз кетеді
-  // (қойма, өзіндік құн, аналитика — бәрі араласады). Сондықтан:
-  //   1) толтыру кезінде ұқсастарын суретімен көрсетеміз;
-  //   2) сақтауда дәл сәйкестік табылса — АШЫҚ сұраймыз (үнсіз біріктірмейміз).
+  // ── «Мұндай тауар бар» ҰСЫНЫСЫ ─────────────────────────────────────────
+  //  ⚠️ ЕРЕЖЕ (0062): бұл экран ЕШҚАШАН бар тауарға партия қоспайды.
+  //  «Товар қосу» = ЖАҢА тауар, өз артикулымен. Бұрын бұл экран дәл сәйкестік
+  //  тапса ескі карточкаға партия жазатын — админ бір-екі өрісті ұқсас
+  //  толтырып қалса, екі бөлек тауар бір карточкаға құйылып, қойма да,
+  //  өзіндік құн да, аналитика да бұрмаланатын.
+  //
+  //  Повторный завоз үшін БӨЛЕК экран бар (RestockScreen) — оның жұмысын бұл
+  //  форма қайталамайды. Мұнда тек ҰСЫНЫС береміз: «сізде ұқсас тауар бар,
+  //  бұл завоз болуы мүмкін» деп, суретімен көрсетеміз. Басса — сол экранға
+  //  апарамыз. Баспаса — жаңа тауар болып сақталады, солай болуы да керек.
   List<ProductModel> _similar = [];
   bool _similarDismissed = false;
   Timer? _similarDebounce;
-  // Нұсқа кілті → админ «иә, бұл повторный завоз» деп растады.
-  final Set<String> _confirmedRestock = {};
 
   String? _type;
   String? _material;
@@ -74,6 +79,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
   final Map<String, String> _variantColorOf = {}; // кілт → түс аты
   final Map<String, String> _variantHexOf = {}; // кілт → custom HEX ('' = стандарт)
   final Map<String, TextEditingController> _variantNoteOf = {}; // кілт → белгі
+  // кілт → жылдам код (0062). Әр нұсқа — БӨЛЕК тауар, сондықтан коды да бөлек:
+  // сатушы «103» деп тергенде дәл сол түс шығуы керек.
+  final Map<String, TextEditingController> _variantQuickOf = {};
   final Map<String, Map<String, int>> _variantSizes = {};
   final Map<String, List<Uint8List>> _variantImages = {};
   final Set<String> _savedColors = {};
@@ -192,7 +200,11 @@ class _AddProductScreenState extends State<AddProductScreen> {
     _sellingCtrl.dispose();
     _descCtrl.dispose();
     _countryCtrl.dispose();
+    _keywordsCtrl.dispose();
     for (final c in _variantNoteOf.values) {
+      c.dispose();
+    }
+    for (final c in _variantQuickOf.values) {
       c.dispose();
     }
     super.dispose();
@@ -370,6 +382,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
       _variantColorOf[key] = colorName;
       if (hex.isNotEmpty) _variantHexOf[key] = hex;
       _variantNoteOf[key] = TextEditingController();
+      _variantQuickOf[key] = TextEditingController();
       _variantSizes[key] = {
         for (final s in _sizesForSelection()) s: 0,
         for (final s in _customSizes) s: 0,
@@ -403,6 +416,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
       _variantColorOf.remove(key);
       _variantHexOf.remove(key);
       _variantNoteOf.remove(key)?.dispose();
+      _variantQuickOf.remove(key)?.dispose();
       _variantSizes.remove(key);
       _variantImages.remove(key);
       _savedColors.remove(key);
@@ -686,6 +700,18 @@ class _AddProductScreenState extends State<AddProductScreen> {
         _err(tr('Выберите хотя бы один цвет', 'Кемінде бір түс таңдаңыз'));
         return false;
       }
+      // Жылдам кодтар бір-бірін қайталамауы керек (форманың ІШІНДЕ). Дүкен
+      // бойынша бірегейлікті DB тексереді — ол _save-та бөлек хабарланады.
+      final seen = <String>{};
+      for (final key in _selectedColors) {
+        final code = _variantQuickOf[key]?.text.trim() ?? '';
+        if (code.isEmpty) continue;
+        if (!seen.add(code)) {
+          _err(tr('Быстрое число «$code» повторяется — у каждого товара своё',
+              '«$code» жылдам коды қайталанады — әр тауардың коды бөлек'));
+          return false;
+        }
+      }
     }
     if (_step == 1) {
       if (_purchaseCtrl.text.isEmpty) {
@@ -713,109 +739,42 @@ class _AddProductScreenState extends State<AddProductScreen> {
     return true;
   }
 
-  /// Дәл сәйкестік табылды — «бұл повторный завоз ба?» деп АШЫҚ сұраймыз.
-  /// true = иә, ескі карточкаға партия қосамыз; false = жоқ, бөлек тауар
-  /// (сақтау тоқтайды да, админ айырмашылық белгісін жазады).
-  Future<bool> _confirmRestock(String existingId, String variantKey) async {
-    ProductModel? existing;
-    try {
-      existing = await _firestoreService.getProduct(existingId);
-    } catch (_) {}
-    if (!mounted) return false;
-
-    final answer = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(tr('Такой товар уже есть', 'Мұндай тауар бар'),
-            style: manrope(16.5, FontWeight.w800, color: cInk)),
-        content: Column(mainAxisSize: MainAxisSize.min, children: [
-          if (existing != null)
-            Container(
-              padding: const EdgeInsets.all(9),
-              decoration: BoxDecoration(
-                  color: cBg, borderRadius: BorderRadius.circular(13)),
-              child: Row(children: [
-                SizedBox(
-                  width: 52,
-                  height: 52,
-                  child: QShoeImage(
-                    imageUrl: existing.images.isNotEmpty
-                        ? existing.images.first
-                        : null,
-                    height: 52,
-                    tone: existing.id.hashCode % 5,
-                  ),
-                ),
-                const SizedBox(width: 11),
-                Expanded(
-                  child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(existing.name,
-                            style:
-                                manrope(13.5, FontWeight.w800, color: cInk),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis),
-                        Text(
-                            [
-                              if (existing.brand.isNotEmpty) existing.brand,
-                              if (existing.color.isNotEmpty)
-                                trValue(existing.color),
-                              if (existing.variantNote.isNotEmpty)
-                                existing.variantNote,
-                            ].join(' · '),
-                            style: manrope(11.5, FontWeight.w600,
-                                color: cInk2)),
-                      ]),
-                ),
-              ]),
-            ),
-          const SizedBox(height: 14),
-          Text(
-              tr('Добавить эту партию к нему как повторный завоз — или это всё-таки другой товар?',
-                  'Осы партияны оған қайта завоз ретінде қосамыз ба — әлде бұл басқа тауар ма?'),
-              style: manrope(13.5, FontWeight.w500, color: cInk2, height: 1.4)),
-        ]),
-        actionsOverflowDirection: VerticalDirection.down,
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text(tr('Нет, другой товар', 'Жоқ, басқа тауар'),
-                  style: manrope(13.5, FontWeight.w700, color: cRed))),
-          ElevatedButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              style: ElevatedButton.styleFrom(
-                  backgroundColor: cGreen, foregroundColor: Colors.white),
-              child: Text(tr('Да, повторный завоз', 'Иә, қайта завоз'),
-                  style: manrope(13.5, FontWeight.w800,
-                      color: Colors.white))),
-        ],
-      ),
-    );
-
-    if (answer == true) return true;
-    if (mounted) {
-      // Бөлек тауар болса — оны айырмашылық белгісі ғана ажыратады
-      // (findMatchingProduct variantNote-ты кимлікке қосады).
-      setState(() {
-        _step = 0;
-        _activeColor = variantKey;
-      });
-      _err(tr('Впишите отличие рядом с цветом — тогда это будет отдельный товар',
-          'Түстің қасына айырмашылығын жазыңыз — сонда бөлек тауар болады'));
+  /// Енгізілген жылдам кодтарды дүкендегі басқа тауар иеленіп тұрған жоқ па.
+  /// false — қате көрсетілді, сақтауды жалғастыруға болмайды.
+  Future<bool> _quickCodesFree() async {
+    for (final key in _selectedColors) {
+      if (_savedColors.contains(key)) continue; // әлдеқашан сақталған
+      final code = _variantQuickOf[key]?.text.trim() ?? '';
+      if (code.isEmpty) continue;
+      try {
+        final taken = await _firestoreService.productWithQuickCode(code);
+        if (taken != null) {
+          _err(tr('Число «$code» уже занято: ${taken.name}',
+              '«$code» коды бос емес: ${taken.name}'));
+          return false;
+        }
+      } catch (_) {
+        // Тексеру мүмкін болмады (желі) — сақтауды тоқтатпаймыз, DB-дегі
+        // unique индекс бәрібір қорғайды.
+      }
     }
-    return false;
+    return true;
   }
 
-  /// Барлық түс варианттарын кезекпен сақтайды. Әр түс — жеке товар
-  /// (бар болса — жаңа партия). Қате шыққанда сәтті өткендер _savedColors-та
-  /// қалады — «Сохранить» қайта басылғанда дубль жасалмайды.
+  /// Барлық түс варианттарын кезекпен сақтайды. Әр түс — ЖЕКЕ ЖАҢА товар
+  /// (өз артикулымен). Қате шыққанда сәтті өткендер _savedColors-та қалады —
+  /// «Сохранить» қайта басылғанда дубль жасалмайды.
   Future<void> _save() async {
     if (_isLoading) return;
     setState(() => _isLoading = true);
+    // Жылдам код дүкенде бос па — сақтаудан БҰРЫН тексереміз. DB-де unique
+    // индекс бар (соңғы шеп), бірақ ол шыққанда жартысы сақталып қалуы мүмкін
+    // әрі қате «23505» болып көрінеді — админге ол түк айтпайды.
+    if (!await _quickCodesFree()) {
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
+    if (!mounted) return;
     if (!await ensureWarehouseSelected(context)) {
       if (mounted) setState(() => _isLoading = false);
       return;
@@ -835,31 +794,6 @@ class _AddProductScreenState extends State<AddProductScreen> {
           setState(() => _savingIndex = _savedColors.length + 1);
         }
 
-        // Бірдей товар (осы түс + айырмашылық белгісі) бар-жоғын тексереміз
-        final existingId = await _firestoreService.findMatchingProduct(
-          name: _nameCtrl.text.trim(),
-          brand: _brandCtrl.text.trim(),
-          type: _type ?? '',
-          material: _material ?? '',
-          category: _targetGroup ?? '',
-          color: colorName,
-          variantNote: note,
-        );
-
-        // ⚠️ БҰРЫН МҰНДА ҮНСІЗ БІРІГУ БОЛАТЫН: дәл сәйкестік табылса, админнен
-        // сұрамай-ақ ескі карточкаға партия қосылатын. Админ жаңа модельді
-        // ескісіндей толтырып жіберсе (өзгешелігін жазуды ұмытып), екі бөлек
-        // тауар бір карточкаға құйылып, қойма мен өзіндік құн араласатын.
-        // Енді АШЫҚ сұраймыз — бұл шешімді тек адам қабылдай алады.
-        if (existingId != null && !_confirmedRestock.contains(color)) {
-          final isRestock = await _confirmRestock(existingId, color);
-          if (!isRestock) {
-            if (mounted) setState(() => _isLoading = false);
-            return;
-          }
-          _confirmedRestock.add(color);
-        }
-
         final imageUrls = await _cloudinaryService
             .uploadBytesList(_variantImages[color] ?? []);
         final batchModel = BatchModel(
@@ -870,52 +804,37 @@ class _AddProductScreenState extends State<AddProductScreen> {
           sizesQuantity: Map.from(_variantSizes[color] ?? {}),
         );
 
-        if (existingId != null) {
-          // Бар карточкаға жаңа партия қосамыз
-          await _firestoreService.addNewBatchToProduct(
-            productId: existingId,
-            batch: batchModel,
-            dateArrived: _dateArrived,
-            warehouseId: warehouseId,
-          );
-          if (imageUrls.isNotEmpty) {
-            final oldImages = await _firestoreService.updateProductImages(
-                existingId, imageUrls);
-            // Ескі суреттер енді ешбір жерде қолданылмайды (DB жаңасымен
-            // алмастырылды) — Cloudinary-де жетім қалмауы үшін тазалаймыз.
-            final orphaned =
-                oldImages.where((u) => !imageUrls.contains(u)).toList();
-            if (orphaned.isNotEmpty) {
-              await _cloudinaryService.deleteMany(orphaned);
-            }
-          }
-        } else {
-          // Жаңа карточка жасаймыз
-          final product = ProductModel(
-            id: '',
-            name: _nameCtrl.text.trim(),
-            brand: _brandCtrl.text.trim(),
-            type: _type ?? '',
-            material: _material ?? '',
-            category: _targetGroup ?? '',
-            categoryKey: _categoryKey ?? '',
-            color: colorName,
-            variantNote: note,
-            customColorHex: _variantHexOf[color] ?? '',
-            articul: '',
-            status: ProductModel.statusInStock,
-            images: imageUrls,
-            description: _descCtrl.text.trim(),
-            country: _countryCtrl.text.trim(),
-            season: _season ?? '',
-          );
-          await _firestoreService.addNewProduct(
-            product: product,
-            firstBatch: batchModel,
-            dateArrived: _dateArrived,
-            warehouseId: warehouseId,
-          );
-        }
+        // ⚠️ ӘРҚАШАН ЖАҢА КАРТОЧКА. Бұрын мұнда findMatchingProduct тексерісі
+        // тұратын да, дәл сәйкестік табылса тауар ЕСКІСІНЕ ПАРТИЯ болып кететін
+        // («повторный завоз»). Ол қате: повторный завоздың өз экраны бар, ал
+        // «Товар қосу» дегеніміз — жаңа тауар. Бірдей толтырылған екі тауар
+        // енді екі бөлек артикул алады.
+        final product = ProductModel(
+          id: '',
+          name: _nameCtrl.text.trim(),
+          brand: _brandCtrl.text.trim(),
+          type: _type ?? '',
+          material: _material ?? '',
+          category: _targetGroup ?? '',
+          categoryKey: _categoryKey ?? '',
+          color: colorName,
+          variantNote: note,
+          customColorHex: _variantHexOf[color] ?? '',
+          articul: '',
+          quickCode: _variantQuickOf[color]?.text.trim() ?? '',
+          keywords: _keywordsCtrl.text.trim(),
+          status: ProductModel.statusInStock,
+          images: imageUrls,
+          description: _descCtrl.text.trim(),
+          country: _countryCtrl.text.trim(),
+          season: _season ?? '',
+        );
+        await _firestoreService.addNewProduct(
+          product: product,
+          firstBatch: batchModel,
+          dateArrived: _dateArrived,
+          warehouseId: warehouseId,
+        );
         _savedColors.add(color);
       }
 
@@ -1226,8 +1145,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                  tr('У вас уже есть похожий товар. Это повторный завоз?',
-                      'Сізде ұқсас тауар бар. Бұл қайта завоз ба?'),
+                  tr('Похожий товар уже есть. Это повторный завоз?',
+                      'Ұқсас тауар бар. Бұл қайта завоз ба?'),
                   style: manrope(12.5, FontWeight.w800, color: cInk)),
             ),
             GestureDetector(
@@ -1293,9 +1212,11 @@ class _AddProductScreenState extends State<AddProductScreen> {
                   ]),
                 ),
               )),
+          // Бұрын мұнда «әйтпесе ол ескісімен бірігіп кетеді» деген ескерту
+          // тұратын. Ол енді ЖАЛҒАН: бұл форма ешқашан біріктірмейді.
           Text(
-              tr('Если товар всё-таки другой — впишите отличие в поле у цвета, иначе он сольётся со старым.',
-                  'Тауар шынымен басқа болса — түстің қасындағы өріске айырмашылығын жазыңыз, әйтпесе ол ескісімен бірігіп кетеді.'),
+              tr('Нажмите на товар — откроем новую партию для него. Иначе сохраним как отдельный товар со своим артикулом.',
+                  'Тауарды бассаңыз — оған жаңа партия ашамыз. Баспасаңыз, өз артикулы бар бөлек тауар болып сақталады.'),
               style: manrope(11, FontWeight.w600, color: cInk2, height: 1.35)),
         ]),
       );
@@ -1338,38 +1259,13 @@ class _AddProductScreenState extends State<AddProductScreen> {
         _StepHeader(
             icon: Icons.label_outline,
             title: tr('Информация о товаре', 'Тауар туралы ақпарат'),
-            subtitle: tr('Название, бренд и характеристики', 'Атауы, бренді және сипаттамалары')),
+            subtitle: tr('Сначала категория, затем название', 'Алдымен категория, сосын атауы')),
         const SizedBox(height: 20),
-        _Field(
-            controller: _nameCtrl,
-            label: tr('Название товара', 'Тауар атауы'),
-            hint: tr('Напр: Nike Air Max 270', 'Мыс: Nike Air Max 270'),
-            icon: Icons.inventory_2_outlined),
-        const SizedBox(height: 12),
-        _Field(
-            controller: _brandCtrl,
-            label: 'Бренд',
-            hint: tr('Напр: Nike, Adidas, New Balance', 'Мыс: Nike, Adidas, New Balance'),
-            icon: Icons.workspace_premium_outlined),
-        // Бұрын қолданылған брендтер — бір жолда жылжымалы (шашылмайды).
-        if (_brandSuggestions.isNotEmpty) ...[
-          const SizedBox(height: 8),
-          HScrollChips(
-            chips: _brandSuggestions
-                .map((b) => HChip(
-                      label: b,
-                      selected: _brandCtrl.text.trim() == b,
-                      onTap: () => setState(() => _brandCtrl.text = b),
-                    ))
-                .toList(),
-          ),
-        ],
-        // Ұқсас тауарлар — толтырып жатқанда бірден көрінеді.
-        if (_similar.isNotEmpty && !_similarDismissed) ...[
-          const SizedBox(height: 14),
-          _buildSimilarWarning(),
-        ],
-        const SizedBox(height: 16),
+        // ⚠️ КАТЕГОРИЯ — ЕҢ АЛДЫМЕН. Одан кейінгі бүкіл форма соған тәуелді:
+        // тип тізімі, материалдар, «кімге», размер торы, тіпті бренд ұсыныстары
+        // да категория бойынша сүзіледі. Бұрын атау мен бренд бірінші тұратын
+        // да, админ оларды толтырып болғанша ұсыныстар БОС не ҚАТЕ категориядан
+        // келетін, ал категорияны таңдағанда бәрі қайта құрылатын.
         _Label(tr('Категория товара *', 'Тауар категориясы *')),
         const SizedBox(height: 8),
         _buildCategoryTypePicker(),
@@ -1384,6 +1280,60 @@ class _AddProductScreenState extends State<AddProductScreen> {
           _Label(tr('Кому *', 'Кімге *')),
           const SizedBox(height: 8),
           _buildTargetGroupPicker(),
+        ],
+        // Категория таңдалмайынша қалған өрістердің мәні жоқ — ұсыныстар
+        // қате категориядан келеді. Сондықтан оларды әдейі кейін көрсетеміз.
+        if (_categoryKey == null) ...[
+          const SizedBox(height: 18),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: cBlueTint,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(children: [
+              const Icon(Icons.arrow_upward_rounded, size: 16, color: cBlue),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                    tr('Выберите категорию — остальные поля подстроятся под неё',
+                        'Категорияны таңдаңыз — қалған өрістер соған бейімделеді'),
+                    style: manrope(12, FontWeight.w600, color: cBlue)),
+              ),
+            ]),
+          ),
+        ],
+        if (_categoryKey != null) ...[
+          const SizedBox(height: 16),
+          _Field(
+              controller: _nameCtrl,
+              label: tr('Название товара', 'Тауар атауы'),
+              hint: tr('Напр: Nike Air Max 270', 'Мыс: Nike Air Max 270'),
+              icon: Icons.inventory_2_outlined),
+          const SizedBox(height: 12),
+          _Field(
+              controller: _brandCtrl,
+              label: 'Бренд',
+              hint: tr('Напр: Nike, Adidas, New Balance', 'Мыс: Nike, Adidas, New Balance'),
+              icon: Icons.workspace_premium_outlined),
+          // Бұрын қолданылған брендтер — бір жолда жылжымалы (шашылмайды).
+          if (_brandSuggestions.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            HScrollChips(
+              chips: _brandSuggestions
+                  .map((b) => HChip(
+                        label: b,
+                        selected: _brandCtrl.text.trim() == b,
+                        onTap: () => setState(() => _brandCtrl.text = b),
+                      ))
+                  .toList(),
+            ),
+          ],
+          // Ұқсас тауарлар — толтырып жатқанда бірден көрінеді.
+          if (_similar.isNotEmpty && !_similarDismissed) ...[
+            const SizedBox(height: 14),
+            _buildSimilarWarning(),
+          ],
         ],
         const SizedBox(height: 16),
         _Label(tr('Цвет *', 'Түсі *')),
@@ -1441,6 +1391,21 @@ class _AddProductScreenState extends State<AddProductScreen> {
             label: tr('Страна производства (необязательно)', 'Өндірілген ел (міндетті емес)'),
             hint: tr('Напр: Вьетнам, Китай, Турция', 'Мыс: Вьетнам, Қытай, Түркия'),
             icon: Icons.public_outlined),
+        const SizedBox(height: 12),
+        // «Ұқсас сөздер» — клиент тауарды НЕ ДЕП іздесе де табылуы үшін.
+        // Карточкада көрсетілмейді, тек іздеу буферіне кіреді.
+        _Field(
+            controller: _keywordsCtrl,
+            label: tr('Похожие слова (необязательно)',
+                'Ұқсас сөздер (міндетті емес)'),
+            hint: tr('Напр: сникерс, беговые, для зала',
+                'Мыс: сникерс, жүгіруге, залға'),
+            icon: Icons.manage_search_rounded),
+        const SizedBox(height: 6),
+        Text(
+            tr('Клиент найдёт товар по этим словам. Покупателю они не показываются.',
+                'Клиент осы сөздермен тауарды табады. Сатып алушыға көрсетілмейді.'),
+            style: manrope(11, FontWeight.w500, color: cInk3)),
         const SizedBox(height: 12),
         TextFormField(
             controller: _descCtrl,
@@ -1512,10 +1477,28 @@ class _AddProductScreenState extends State<AddProductScreen> {
     ]);
   }
 
-  /// Таңдалған нұсқа жолы: түс + айырмашылық белгісі (міндетті емес) + өшіру.
+  /// Таңдалған нұсқа жолы: түс + айырмашылық белгісі + жылдам код + өшіру.
   Widget _buildVariantNoteRow(String key) {
     final color = _baseColor(key);
     final swatch = _variantColor(key);
+    InputDecoration deco(String hint) => InputDecoration(
+          hintText: hint,
+          hintStyle: manrope(12.5, FontWeight.w500, color: cInk3),
+          isDense: true,
+          filled: true,
+          fillColor: cBg,
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+          border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(9),
+              borderSide: const BorderSide(color: cLine)),
+          enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(9),
+              borderSide: const BorderSide(color: cLine)),
+          focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(9),
+              borderSide: const BorderSide(color: cGreen, width: 1.5)),
+        );
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(children: [
@@ -1527,7 +1510,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
         ),
         const SizedBox(width: 8),
         SizedBox(
-          width: 68,
+          width: 62,
           child: Text(trValue(color),
               style: manrope(12.5, FontWeight.w700, color: cInk),
               overflow: TextOverflow.ellipsis),
@@ -1537,25 +1520,20 @@ class _AddProductScreenState extends State<AddProductScreen> {
           child: TextField(
             controller: _variantNoteOf[key],
             style: manrope(13, FontWeight.w600, color: cInk),
-            decoration: InputDecoration(
-              hintText: tr('Отличие (напр. чёрная подошва)',
-                  'Айырмашылық (мыс. қара табан)'),
-              hintStyle: manrope(12.5, FontWeight.w500, color: cInk3),
-              isDense: true,
-              filled: true,
-              fillColor: cBg,
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-              border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(9),
-                  borderSide: const BorderSide(color: cLine)),
-              enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(9),
-                  borderSide: const BorderSide(color: cLine)),
-              focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(9),
-                  borderSide: const BorderSide(color: cGreen, width: 1.5)),
-            ),
+            decoration: deco(tr('Отличие (напр. чёрная подошва)',
+                'Айырмашылық (мыс. қара табан)')),
+          ),
+        ),
+        const SizedBox(width: 6),
+        // Жылдам код — сатушының өз саны («103»). Офлайн сатуда/қоймадан
+        // іздеуде осы санмен табылады; клиент оны ешқашан көрмейді.
+        SizedBox(
+          width: 74,
+          child: TextField(
+            controller: _variantQuickOf[key],
+            keyboardType: TextInputType.number,
+            style: manrope(13, FontWeight.w700, color: cInk),
+            decoration: deco('№ 103'),
           ),
         ),
         GestureDetector(

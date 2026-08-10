@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/app_user.dart';
@@ -8,9 +10,10 @@ import '../../data/services/client_service.dart';
 import '../../data/services/return_service.dart';
 import '../../core/order_helpers.dart';
 import '../../theme/qoima_design.dart';
+import 'client_order_detail_screen.dart';
+import 'client_shell.dart';
 import 'payment_instructions_sheet.dart';
 import 'reservation_timer_widget.dart';
-import 'returns/client_return_form_screen.dart';
 import 'returns/client_returns_history_screen.dart';
 
 import '../../core/lang.dart';
@@ -22,7 +25,7 @@ import 'order_timeline.dart';
 class ClientOrdersScreen extends StatefulWidget {
   final VoidCallback? onBack;
   /// Push deep-link арқылы ашылғанда (order_status): дұрыс табты бірден
-  /// ашамыз (0=белсенді, 1=аяқталған).
+  /// ашамыз (0=белсенді, 1=алынған, 2=бас тартылған, 3=қайтарулар).
   final int initialTabIndex;
   /// Push data-дағы orderId — сол тапсырыстың карточкасын бөлектейміз.
   final String? highlightOrderId;
@@ -34,7 +37,13 @@ class ClientOrdersScreen extends StatefulWidget {
 }
 
 class _ClientOrdersScreenState extends State<ClientOrdersScreen> {
-  late int _tabIndex = widget.initialTabIndex; // 0=active, 1=completed, 2=returns
+  // 0=белсенді, 1=алынған, 2=бас тартылған, 3=қайтарулар.
+  //
+  // НЕГЕ «аяқталған» ЕКІГЕ БӨЛІНДІ: бұрын алынған тапсырыс та, бас тартылған
+  // да бір тізімде тұратын. Бұл екі МҮЛДЕ БАСҚА нәрсе: біріншісі — сатып алу
+  // тарихы (қайталауға, қайтаруға болады), екіншісі — болмай қалған әрекет.
+  // Араласқанда «мен не сатып алдым» деген сұраққа жауап табу қиын еді.
+  late int _tabIndex = widget.initialTabIndex;
 
   final ClientService _service = ClientService();
   // v11: тапсырыстар clientUid бойынша сұралады (email-auth токенінде телефон жоқ).
@@ -116,14 +125,18 @@ class _ClientOrdersScreenState extends State<ClientOrdersScreen> {
                                 o.status == OrderModel.statusReady)
                             .toList();
 
-                        final completed = all
+                        // Клиент тауарды ҚОЛЫНА АЛҒАН тапсырыстар — сатып алу
+                        // тарихы. Қайтарылған да осында: тауар бір рет алынды,
+                        // әрі возраттың өз табы бар.
+                        final received = all
                             .where((o) =>
-                                o.status ==
-                                    OrderModel.statusCompleted ||
-                                o.status ==
-                                    OrderModel.statusCancelled ||
-                                o.status ==
-                                    OrderModel.statusReturned)
+                                o.status == OrderModel.statusCompleted ||
+                                o.status == OrderModel.statusReturned)
+                            .toList();
+
+                        final cancelled = all
+                            .where((o) =>
+                                o.status == OrderModel.statusCancelled)
                             .toList();
 
                         return Column(children: [
@@ -142,34 +155,44 @@ class _ClientOrdersScreenState extends State<ClientOrdersScreen> {
                                 ),
                                 const SizedBox(width: 8),
                                 _TabChip(
-                                  label: tr('Завершённые', 'Аяқталған'),
-                                  count: completed.length,
+                                  label: tr('Полученные', 'Алынған'),
+                                  count: received.length,
                                   active: _tabIndex == 1,
                                   onTap: () =>
                                       setState(() => _tabIndex = 1),
                                 ),
                                 const SizedBox(width: 8),
                                 _TabChip(
-                                  label: tr('Возвраты', 'Қайтарулар'),
-                                  count: retSnap.data?.length ?? 0,
+                                  label: tr('Отменённые', 'Бас тартылған'),
+                                  count: cancelled.length,
                                   active: _tabIndex == 2,
                                   onTap: () =>
                                       setState(() => _tabIndex = 2),
+                                ),
+                                const SizedBox(width: 8),
+                                _TabChip(
+                                  label: tr('Возвраты', 'Қайтарулар'),
+                                  count: retSnap.data?.length ?? 0,
+                                  active: _tabIndex == 3,
+                                  onTap: () =>
+                                      setState(() => _tabIndex = 3),
                                 ),
                               ]),
                             ),
                           ),
                           Expanded(
-                            child: _tabIndex == 2
+                            child: _tabIndex == 3
                                 ? const ClientReturnsHistoryScreen()
-                                : _buildOrderList(
-                                    context,
-                                    _tabIndex == 0
-                                        ? active
-                                        : completed,
-                                    returnStatusByOrder,
-                                    widget.highlightOrderId,
-                                  ),
+                                : _tabIndex == 0
+                                    ? _buildActiveList(context, active,
+                                        widget.highlightOrderId)
+                                    : _buildHistoryList(
+                                        context,
+                                        _tabIndex == 1 ? received : cancelled,
+                                        returnStatusByOrder,
+                                        widget.highlightOrderId,
+                                        showActions: _tabIndex == 1,
+                                      ),
                           ),
                         ]);
                       },
@@ -181,58 +204,71 @@ class _ClientOrdersScreenState extends State<ClientOrdersScreen> {
     );
   }
 
-  Widget _buildOrderList(
-      BuildContext context,
-      List<OrderModel> orders,
-      Map<String, ReturnStatus> returnStatusByOrder,
-      String? highlightOrderId) {
-    if (orders.isEmpty) {
-      return Center(
-          child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-            const Icon(Icons.receipt_long_outlined,
-                size: 56, color: cInk3),
-            const SizedBox(height: 12),
-            Text(tr('Заказов нет', 'Тапсырыс жоқ'),
-                style: manrope(16, FontWeight.w500, color: cInk2)),
-          ]));
-    }
+  Widget _empty() => Center(
+      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        const Icon(Icons.receipt_long_outlined, size: 56, color: cInk3),
+        const SizedBox(height: 12),
+        Text(tr('Заказов нет', 'Тапсырыс жоқ'),
+            style: manrope(16, FontWeight.w500, color: cInk2)),
+      ]));
+
+  /// Белсенді тізім — толық карточка: төлем, QR, бас тарту, таймлайн. Мұнда
+  /// клиенттен ӘРЕКЕТ күтілуі мүмкін, сол себепті бәрі қол астында тұрады.
+  Widget _buildActiveList(
+      BuildContext context, List<OrderModel> orders, String? highlightOrderId) {
+    if (orders.isEmpty) return _empty();
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
       itemCount: orders.length,
       itemBuilder: (_, i) {
         final o = orders[i];
-        // 14-day window: use createdAt as proxy since there is no completedAt field.
-        final withinWindow = DateTime.now()
-                .difference(o.createdAt)
-                .inDays <=
-            14;
-        final canReturn = o.status == OrderModel.statusCompleted &&
-            withinWindow;
-        final returnStatus =
-            o.id.isNotEmpty ? returnStatusByOrder[o.id] : null;
-        final hasReturn = returnStatus != null;
-        // Қайтарылған (refunded) — аяқталған; басқасы (requested/approved/received)
-        // — өңделуде. Екеуінде де қайтаруды қайталауға болмайды.
-        final returnDone = returnStatus == ReturnStatus.refunded;
         return _OrderCard(
           key: ValueKey(o.id),
           order: o,
-          canReturn: canReturn,
-          hasActiveReturn: hasReturn,
-          returnDone: returnDone,
           highlighted: highlightOrderId != null && o.id == highlightOrderId,
-          onReturnTap: canReturn && !hasReturn
-              ? () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) =>
-                          ClientReturnFormScreen(order: o)))
-              : null,
         );
       },
     );
+  }
+
+  /// Тарих тізімі (алынған/бас тартылған) — ЫҚШАМ карточка. Егжей-тегжейі
+  /// [ClientOrderDetailScreen]-де: тізімді бір қараған сәтте шолып шығу керек.
+  Widget _buildHistoryList(
+    BuildContext context,
+    List<OrderModel> orders,
+    Map<String, ReturnStatus> returnStatusByOrder,
+    String? highlightOrderId, {
+    required bool showActions,
+  }) {
+    if (orders.isEmpty) return _empty();
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+      itemCount: orders.length,
+      itemBuilder: (_, i) {
+        final o = orders[i];
+        return _HistoryOrderCard(
+          key: ValueKey(o.id),
+          order: o,
+          returnStatus: o.id.isEmpty ? null : returnStatusByOrder[o.id],
+          highlighted: highlightOrderId != null && o.id == highlightOrderId,
+          showActions: showActions,
+          onOpen: () => _openDetail(o),
+        );
+      },
+    );
+  }
+
+  /// Тапсырыстың жеке беті. `true` қайтса — клиент «Себетке өту» деді:
+  /// себет табына ауыстырамыз (жеке бет push-стекте тұр, оның өзі shell-дің
+  /// табын ауыстыра алмайды).
+  Future<void> _openDetail(OrderModel o) async {
+    final toCart = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => ClientOrderDetailScreen(order: o)),
+    );
+    if (toCart == true && mounted) {
+      context.findAncestorStateOfType<ClientShellState>()?.setIndex(2);
+    }
   }
 }
 
@@ -284,23 +320,19 @@ class _TabChip extends StatelessWidget {
       );
 }
 
-// ── Order card ─────────────────────────────────────────────────────────────────
+// ── Белсенді тапсырыс карточкасы ───────────────────────────────────────────────
+//  ⚠️ Мұнда БҰРЫН «Қайтару жасау» батырмасы да болатын. Ол енді жоқ: қайтару
+//  тек АЛЫНҒАН тапсырыста мүмкін, ал ол тапсырыстар бұл тізімге түспейді —
+//  батырма мәңгі көрінбейтін өлі код еді. Қайтару енді жеке бетте
+//  (client_order_detail_screen.dart).
 class _OrderCard extends StatefulWidget {
   final OrderModel order;
-  final bool canReturn;
-  final bool hasActiveReturn;
-  final bool returnDone;
   /// Push deep-link арқылы ашылғанда: дәл осы тапсырысты бөлектейміз.
   final bool highlighted;
-  final VoidCallback? onReturnTap;
   const _OrderCard({
     super.key,
     required this.order,
-    this.canReturn = false,
-    this.hasActiveReturn = false,
-    this.returnDone = false,
     this.highlighted = false,
-    this.onReturnTap,
   });
 
   @override
@@ -897,42 +929,263 @@ class _OrderCardState extends State<_OrderCard> {
             ),
           ],
 
-          // Return button for completed orders within 14-day window
-          if (widget.canReturn) ...[
-            const SizedBox(height: 8),
-            if (widget.hasActiveReturn)
-              widget.returnDone
-                  ? QPill(
-                      tr('Возвращён', 'Қайтарылды'),
-                      tone: 'green',
-                      icon: const Icon(Icons.check_circle_outline_rounded,
-                          size: 12, color: cGreenDeep),
-                    )
-                  : QPill(
-                      tr('В обработке', 'Өңдеуде'),
-                      tone: 'amber',
-                      icon: const Icon(Icons.loop_rounded,
-                          size: 12, color: Color(0xFF92400E)),
-                    )
-            else
-              SizedBox(
-                width: double.infinity,
-                height: 40,
-                child: OutlinedButton.icon(
-                  onPressed: widget.onReturnTap,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: cGreen,
-                    side: BorderSide(color: cGreen.withValues(alpha: 0.5)),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(11)),
+        ]),
+      ),
+    );
+  }
+}
+
+// ── Тарих карточкасы (алынған / бас тартылған) ─────────────────────────────────
+/// Ықшам карточка: нөмір, күй, дүкен, сома, алу түрі, тауарлардың МИНИ ФОТОСЫ.
+/// Бәрін бір қараған сәтте тану үшін — фото атаудан тез танылады.
+///
+/// Толық ақпарат (есеп-қисап, таймлайн, қайтару) — карточканы басқанда
+/// ашылатын жеке бетте. Тізім солай оқылатын күйде қалады.
+class _HistoryOrderCard extends StatefulWidget {
+  final OrderModel order;
+  final ReturnStatus? returnStatus;
+  final bool highlighted;
+  /// «Себетке» / «Қайталау» батырмалары (тек АЛЫНҒАН тапсырыстарда).
+  final bool showActions;
+  final VoidCallback onOpen;
+
+  const _HistoryOrderCard({
+    super.key,
+    required this.order,
+    required this.onOpen,
+    this.returnStatus,
+    this.highlighted = false,
+    this.showActions = false,
+  });
+
+  @override
+  State<_HistoryOrderCard> createState() => _HistoryOrderCardState();
+}
+
+class _HistoryOrderCardState extends State<_HistoryOrderCard> {
+  // Тізімде көрсетілетін фото саны. Қалғаны «+N» болып жиналады.
+  static const int _maxThumbs = 2;
+
+  bool _busy = false;
+
+  OrderModel get o => widget.order;
+
+  String get _typeLabel {
+    switch (o.orderType) {
+      case OrderModel.typeClickCollect:
+        return tr('Самовывоз', 'Өзім барып аламын');
+      case OrderModel.typeSmartReservation:
+        return tr('Бронь', 'Бронь');
+      case OrderModel.typeDelivery:
+        return tr('Доставка', 'Жеткізу');
+      default:
+        return o.orderType;
+    }
+  }
+
+  String get _typeTone {
+    switch (o.orderType) {
+      case OrderModel.typeClickCollect:
+        return 'green';
+      case OrderModel.typeDelivery:
+        return 'amber';
+      default:
+        return 'blue';
+    }
+  }
+
+  /// Тапсырысты себетке қайта салады (ҚАЗІРГІ баға/партиямен).
+  /// [goToCart] — сәтті болса себет табына ауысамыз.
+  Future<void> _reorder({required bool goToCart}) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      final res = await ClientService().resolveReorder(o);
+      if (!mounted) return;
+      if (res.items.isEmpty) {
+        _snack(
+            tr('Этих товаров сейчас нет в наличии',
+                'Бұл тауарлар қазір қоймада жоқ'),
+            cRed);
+        return;
+      }
+      final cart = context.read<CartProvider>();
+      for (final i in res.items) {
+        cart.addItem(i);
+      }
+      HapticFeedback.lightImpact();
+      _snack(
+          res.unavailable.isEmpty
+              ? tr('${res.items.length} товар(ов) в корзине',
+                  '${res.items.length} тауар себетке салынды')
+              : tr('В корзине: ${res.items.length}. Нет в наличии: ${res.unavailable.join(', ')}',
+                  'Себетке: ${res.items.length}. Қоймада жоқ: ${res.unavailable.join(', ')}'),
+          res.unavailable.isEmpty ? cGreen : cAmber);
+      if (goToCart && mounted) {
+        context.findAncestorStateOfType<ClientShellState>()?.setIndex(2);
+      }
+    } catch (e) {
+      if (mounted) _snack(friendlyError(e), cRed);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  void _snack(String msg, Color color) =>
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(msg),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+      ));
+
+  @override
+  Widget build(BuildContext context) {
+    final items = o.items;
+    final thumbs = items.take(_maxThumbs).toList();
+    final more = items.length - thumbs.length;
+
+    return GestureDetector(
+      onTap: widget.onOpen,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: cSurface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: widget.highlighted ? cGreen : cLine,
+            width: widget.highlighted ? 2 : 1,
+          ),
+          boxShadow: kShadowSm,
+        ),
+        padding: const EdgeInsets.all(14),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Expanded(
+              child: Text(
+                o.orderNumber > 0
+                    ? '${tr('Заказ', 'Тапсырыс')} №${o.orderNumber.toString().padLeft(5, '0')}'
+                    : '${tr('Заказ', 'Тапсырыс')} №—',
+                style: manrope(15.5, FontWeight.w800, color: cInk),
+              ),
+            ),
+            QPill(
+              o.status == OrderModel.statusCancelled
+                  ? cancelledByLabel(o, viewerUid: AppUser.current.uid)
+                  : orderStatusLabel(o.status),
+              tone: orderStatusTone(o.status),
+            ),
+          ]),
+          const SizedBox(height: 10),
+          Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+            // Мини фотолар — тауарды атауынан тез танытады.
+            ...thumbs.map((it) => Padding(
+                  padding: const EdgeInsets.only(right: 7),
+                  child: SizedBox(
+                    width: 44,
+                    height: 44,
+                    child: QShoeImage(
+                      imageUrl: it.imageUrl.isNotEmpty ? it.imageUrl : null,
+                      height: 44,
+                      tone: it.productId.hashCode % 5,
+                    ),
                   ),
-                  icon: const Icon(Icons.assignment_return_outlined,
-                      size: 16, color: cGreen),
-                  label: Text(tr('Оформить возврат', 'Қайтару жасау'),
-                      style: manrope(13, FontWeight.w700, color: cGreen)),
+                )),
+            if (more > 0)
+              Container(
+                width: 44,
+                height: 44,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: cBg,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: cLine),
+                ),
+                child: Text('+$more',
+                    style: manrope(13, FontWeight.w800, color: cInk2)),
+              ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(money(o.finalTotal),
+                        style: manrope(15.5, FontWeight.w800, color: cInk)),
+                    const SizedBox(height: 4),
+                    QPill(_typeLabel, tone: _typeTone),
+                  ]),
+            ),
+          ]),
+          if (widget.returnStatus != null) ...[
+            const SizedBox(height: 10),
+            widget.returnStatus == ReturnStatus.refunded
+                ? QPill(tr('Возвращён', 'Қайтарылды'),
+                    tone: 'green',
+                    icon: const Icon(Icons.check_circle_outline_rounded,
+                        size: 12, color: cGreenDeep))
+                : QPill(tr('Возврат в обработке', 'Қайтару өңдеуде'),
+                    tone: 'amber',
+                    icon: const Icon(Icons.loop_rounded,
+                        size: 12, color: Color(0xFF92400E))),
+          ],
+          if (widget.showActions) ...[
+            const SizedBox(height: 12),
+            Row(children: [
+              Expanded(
+                child: SizedBox(
+                  height: 40,
+                  child: OutlinedButton.icon(
+                    onPressed: _busy ? null : () => _reorder(goToCart: false),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: cGreenDeep,
+                      side: BorderSide(color: cGreen.withValues(alpha: 0.45)),
+                      padding: EdgeInsets.zero,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(11)),
+                    ),
+                    icon: const Icon(Icons.add_shopping_cart_rounded,
+                        size: 15, color: cGreenDeep),
+                    label: Text(tr('В корзину', 'Себетке'),
+                        style:
+                            manrope(12, FontWeight.w700, color: cGreenDeep)),
+                  ),
                 ),
               ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: SizedBox(
+                  height: 40,
+                  child: ElevatedButton.icon(
+                    onPressed: _busy ? null : () => _reorder(goToCart: true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: cGreen,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: EdgeInsets.zero,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(11)),
+                    ),
+                    icon: _busy
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(
+                                color: Colors.white, strokeWidth: 2))
+                        : const Icon(Icons.replay_rounded, size: 15),
+                    label: Text(tr('Повторить', 'Қайталау'),
+                        style:
+                            manrope(12, FontWeight.w700, color: Colors.white)),
+                  ),
+                ),
+              ),
+            ]),
           ],
+          const SizedBox(height: 10),
+          Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+            Text(tr('Подробнее', 'Толығырақ'),
+                style: manrope(12, FontWeight.w800, color: cGreenDeep)),
+            const Icon(Icons.chevron_right_rounded, size: 18, color: cGreenDeep),
+          ]),
         ]),
       ),
     );
