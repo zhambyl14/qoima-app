@@ -260,6 +260,28 @@ class _ReturnCard extends StatelessWidget {
                 Text(dateStr,
                     style: manrope(12, FontWeight.w500, color: cInk3)),
               ]),
+              // ── ҚАЙ САТЫЛЫМНАН қайтарылды (0061) ────────────────────────
+              //  Бір тауар күніне бірнеше рет сатылады — чек нөмірінсіз
+              //  қайсысы қайтарылғанын анықтау мүмкін емес.
+              if (ret.receiptNumber.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Row(children: [
+                  const Icon(Icons.receipt_long_outlined,
+                      size: 14, color: cInk3),
+                  const SizedBox(width: 4),
+                  Text(
+                      tr('Чек ${ret.receiptNumber}',
+                          '${ret.receiptNumber} чегі'),
+                      style: manrope(12.5, FontWeight.w800, color: cInk2)),
+                  if (ret.orderNumber != null) ...[
+                    const SizedBox(width: 8),
+                    Text(
+                        tr('Заказ №${ret.orderNumber}',
+                            '№${ret.orderNumber} тапсырыс'),
+                        style: manrope(12, FontWeight.w600, color: cInk3)),
+                  ],
+                ]),
+              ],
               if (ret.clientName.isNotEmpty || ret.clientPhone.isNotEmpty) ...[
                 const SizedBox(height: 6),
                 Row(children: [

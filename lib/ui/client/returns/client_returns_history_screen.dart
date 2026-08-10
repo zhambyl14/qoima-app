@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/app_user.dart';
 import '../../../core/l10n_ext.dart';
+import '../../../core/lang.dart';
 import '../../../data/models/return_model.dart';
 import '../../../data/services/return_service.dart';
 import '../../../theme/qoima_design.dart';
@@ -115,7 +116,10 @@ class _ReturnCard extends StatelessWidget {
                             style: manrope(14, FontWeight.w700, color: cInk),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis),
-                        Text(dateStr,
+                        Text(
+                            ret.receiptNumber.isEmpty
+                                ? dateStr
+                                : '$dateStr  ·  ${tr('заказ', 'тапсырыс')} ${ret.receiptNumber}',
                             style: manrope(11.5, FontWeight.w500, color: cInk3)),
                       ],
                     ),

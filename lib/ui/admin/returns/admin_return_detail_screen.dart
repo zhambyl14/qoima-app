@@ -172,7 +172,11 @@ class _DetailBodyState extends State<_DetailBody> {
                       Text(r.id,
                           style: manrope(20, FontWeight.w800,
                               color: Colors.white, letterSpacing: -0.5)),
-                      Text(dateStr,
+                      // Қай сатылымнан қайтарылғаны — тақырыптың өзінде.
+                      Text(
+                          r.receiptNumber.isEmpty
+                              ? dateStr
+                              : '$dateStr  ·  ${tr('чек', 'чек')} ${r.receiptNumber}',
                           style: manrope(12, FontWeight.w500,
                               color: Colors.white.withValues(alpha: 0.75))),
                     ],

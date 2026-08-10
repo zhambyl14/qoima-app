@@ -711,7 +711,20 @@ class _SaleCard extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                       sale.isReturn
-                          ? tr('Возврат · $timeStr', 'Қайтару · $timeStr')
+                          // ⚠️ Возврат сатылыммен БІРДЕЙ таныла алуы керек:
+                          //    қай чек, қай өлшем. Бұрын мұнда тек «Возврат ·
+                          //    14:39» тұратын да, бір тауар күніне бірнеше рет
+                          //    сатылса, сатушы қай сатылым қайтарылғанын
+                          //    анықтай алмайтын.
+                          ? [
+                              tr('Возврат', 'Қайтару'),
+                              if (sale.receiptNumber.isNotEmpty)
+                                sale.receiptNumber,
+                              if (sale.sizesSold.entries
+                                  .any((e) => e.value > 0))
+                                '${tr('Р', 'Ө')}: ${sale.sizesSold.entries.where((e) => e.value > 0).map((e) => e.key).join(', ')}',
+                              timeStr,
+                            ].join('  ·  ')
                           : sale.isWriteOff
                               ? tr('Списание · ${sale.quantity} шт. · $timeStr', 'Списание · ${sale.quantity} дана · $timeStr')
                               : sale.isService

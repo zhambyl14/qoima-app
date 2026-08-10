@@ -164,6 +164,13 @@ class ReturnModel {
   final ReturnPickup pickup;
   final RefundMethod refundMethod;
 
+  // ── Возврат ҚАЙ САТЫЛЫМНАН екені (0061 снапшоты) ─────────────────────────
+  //  Тізімде тек «RET-2026-0018 · New Balance 530» тұратын: бір тауар күніне
+  //  бірнеше рет сатылса, сатушы қай чек қайтарылғанын анықтай алмайтын.
+  //  Серверде `fill_return_source_ref` триггері толтырады.
+  final int? orderNumber;
+  final String receiptNumber;
+
   final ReturnStatus status;
 
   final DateTime createdAt;
@@ -211,6 +218,8 @@ class ReturnModel {
     required this.clientName,
     required this.clientPhone,
     this.orderId,
+    this.orderNumber,
+    this.receiptNumber = '',
     this.saleId,
     required this.type,
     required this.items,
@@ -277,6 +286,8 @@ class ReturnModel {
         clientName: d['client_name'] as String? ?? '',
         clientPhone: d['client_phone'] as String? ?? '',
         orderId: d['order_id'] as String?,
+        orderNumber: (d['order_number'] as num?)?.toInt(),
+        receiptNumber: d['receipt_number'] as String? ?? '',
         saleId: d['sale_id'] as String?,
         type: _parseType(d['type'] as String? ?? ''),
         items: (d['items'] as List<dynamic>? ?? [])
@@ -358,6 +369,8 @@ class ReturnModel {
     String? clientName,
     String? clientPhone,
     String? orderId,
+    int? orderNumber,
+    String? receiptNumber,
     String? saleId,
     ReturnType? type,
     List<ReturnItem>? items,
@@ -398,6 +411,8 @@ class ReturnModel {
         clientName: clientName ?? this.clientName,
         clientPhone: clientPhone ?? this.clientPhone,
         orderId: orderId ?? this.orderId,
+        orderNumber: orderNumber ?? this.orderNumber,
+        receiptNumber: receiptNumber ?? this.receiptNumber,
         saleId: saleId ?? this.saleId,
         type: type ?? this.type,
         items: items ?? this.items,
