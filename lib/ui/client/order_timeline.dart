@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/lang.dart';
+import '../../data/models/cart_item_model.dart';
 import '../../data/models/order_model.dart';
 import '../../theme/qoima_design.dart';
 
@@ -17,6 +18,11 @@ class OrderTimeline extends StatelessWidget {
   Widget build(BuildContext context) {
     final steps = _steps();
     if (steps.isEmpty) return const SizedBox.shrink();
+    // Түсініктеме ТЕК ағымдағы қадамда керек: болашақ қадамдардың астындағы
+    // мәтін («Тапсырыс курьерлерге көрінеді») әлі болмаған нәрсені түсіндіріп,
+    // тізімді оқылмайтын мәтін қабырғасына айналдырады. Дерек тасушы
+    // түсініктемелер (өлшемдер, бас тарту себебі) әрқашан қалады.
+    final current = steps.indexWhere((s) => !s.done);
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
       decoration: BoxDecoration(
@@ -30,6 +36,7 @@ class OrderTimeline extends StatelessWidget {
         ...steps.asMap().entries.map((e) => _StepRow(
               step: e.value,
               last: e.key == steps.length - 1,
+              showSubtitle: e.value.keepSubtitle || e.key == current,
             )),
       ]),
     );
@@ -131,38 +138,28 @@ class OrderTimeline extends StatelessWidget {
       done: onWay,
     ));
 
-    if (o.hasFitting && !completed) {
-      final f = o.items.where((i) => i.hasAltSize).toList();
-      steps.add(_Step(
-        icon: Icons.checkroom_rounded,
-        title: tr('Примерка: везём два размера',
-            'Өлшеп көру: екі өлшем әкелінеді'),
-        subtitle: f
-            .map((i) => '${i.productName}: ${i.size} + ${i.altSize}')
-            .join('\n'),
-        done: false,
-        tone: 'amber',
-      ));
-    }
-
+    // «Өлшеп көру» — БӨЛЕК қадам ЕМЕС: ол жеткізудің қасиеті ғана. Курьер
+    // екі өлшемді бір жолы әкеледі, сондықтан жеткізу қадамының өзінде
+    // жазылады.
+    final fitting = o.hasFitting && !completed
+        ? o.items.where((i) => i.hasAltSize).toList()
+        : <CartItemModel>[];
     steps.add(_Step(
       icon: Icons.done_all_rounded,
       title: tr('Заказ доставлен', 'Тапсырыс жеткізілді'),
+      subtitle: fitting.isEmpty
+          ? null
+          : fitting
+              .map((i) => tr('${i.productName}: привезём ${i.size} и ${i.altSize} — примерите',
+                  '${i.productName}: ${i.size} және ${i.altSize} әкелеміз — өлшеп көресіз'))
+              .join('\n'),
       done: completed,
+      keepSubtitle: true,
     ));
 
-    // ── Примеркадан кейін: қайсысы қалды, қайсысы қайтады ──────────────────
+    // ── Примеркадан кейін: қайсысы қалды, қайсысы қайтады — БІР қадам ──────
     if (o.hasReturnLeg) {
       final kept = o.items.where((i) => i.fittingResolved).toList();
-      steps.add(_Step(
-        icon: Icons.check_circle_rounded,
-        title: tr('Вы выбрали размер', 'Сіз өлшемді таңдадыңыз'),
-        subtitle: kept
-            .map((i) => tr('${i.productName}: остался ${i.size}',
-                '${i.productName}: ${i.size} қалды'))
-            .join('\n'),
-        done: true,
-      ));
       steps.add(_Step(
         icon: Icons.u_turn_left_rounded,
         title: o.returnLegDone
@@ -171,11 +168,13 @@ class OrderTimeline extends StatelessWidget {
             : tr('Второй размер везёт курьер обратно',
                 'Екінші өлшемді курьер қайтарып апара жатыр'),
         subtitle: kept
-            .map((i) => tr('${i.productName}: ${i.returningSize} — возврат',
-                '${i.productName}: ${i.returningSize} — қайтады'))
+            .map((i) => tr(
+                '${i.productName}: ${i.size} у вас · ${i.returningSize} возврат',
+                '${i.productName}: ${i.size} сізде · ${i.returningSize} қайтады'))
             .join('\n'),
         done: o.returnLegDone,
         tone: o.returnLegDone ? 'green' : 'blue',
+        keepSubtitle: true,
       ));
     }
 
@@ -186,6 +185,7 @@ class OrderTimeline extends StatelessWidget {
         subtitle: o.rejectionReason.isEmpty ? null : o.rejectionReason,
         done: true,
         tone: 'red',
+        keepSubtitle: true,
       ));
     }
     return steps;
@@ -198,19 +198,30 @@ class _Step {
   final String? subtitle;
   final bool done;
   final String tone;
+
+  /// Түсініктеме дерек тасиды (өлшемдер, себеп) — ағымдағы қадам болмаса да
+  /// көрсетіледі. Жай «не болатынын» түсіндіретін мәтін үшін false.
+  final bool keepSubtitle;
+
   const _Step({
     required this.icon,
     required this.title,
     this.subtitle,
     required this.done,
     this.tone = 'green',
+    this.keepSubtitle = false,
   });
 }
 
 class _StepRow extends StatelessWidget {
   final _Step step;
   final bool last;
-  const _StepRow({required this.step, required this.last});
+  final bool showSubtitle;
+  const _StepRow({
+    required this.step,
+    required this.last,
+    this.showSubtitle = true,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -254,7 +265,9 @@ class _StepRow extends StatelessWidget {
                   Text(step.title,
                       style: manrope(12.5, FontWeight.w800,
                           color: active ? cInk : cInk3)),
-                  if (step.subtitle != null && step.subtitle!.isNotEmpty)
+                  if (showSubtitle &&
+                      step.subtitle != null &&
+                      step.subtitle!.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(top: 2),
                       child: Text(step.subtitle!,

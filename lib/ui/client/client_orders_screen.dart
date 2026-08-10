@@ -16,7 +16,6 @@ import 'returns/client_returns_history_screen.dart';
 import '../../core/lang.dart';
 import '../../core/error_text.dart';
 import '../shared/error_view.dart';
-import '../shared/courier_info_banner.dart';
 import '../shared/order_money_card.dart';
 import 'order_timeline.dart';
 
@@ -364,9 +363,17 @@ class _OrderCardState extends State<_OrderCard> {
   }
 
   String get _statusTone => orderStatusTone(o.status);
-  String get _statusLabel => o.status == OrderModel.statusCancelled
-      ? cancelledByLabel(o, viewerUid: AppUser.current.uid)
-      : orderStatusLabel(o.status);
+
+  /// Күй — БІР жерде. Чек тіркелген «pending» — бұл «төлем күтілуде» емес,
+  /// «чек тексеруде»: бұрын мұны бөлек көк баннер айтатын, енді пиллдің өзі
+  /// дұрысын жазады.
+  String get _statusLabel {
+    if (o.status == OrderModel.statusCancelled) {
+      return cancelledByLabel(o, viewerUid: AppUser.current.uid);
+    }
+    if (_awaitingReview) return tr('Чек на проверке', 'Чек тексеруде');
+    return orderStatusLabel(o.status);
+  }
 
   IconData get _statusIcon {
     switch (o.status) {
@@ -636,7 +643,9 @@ class _OrderCardState extends State<_OrderCard> {
             hint: o.isDelivery && !_expanded ? _shortStatusHint(o) : '',
           ),
 
-          if (_expanded && o.promoDiscount > 0) ...[
+          // Промокод — жеке жол ТЕК жеткізу емес тапсырыста: жеткізуде оны
+          // төмендегі «Есеп-қисап» картасы әлдеқайда толық көрсетеді.
+          if (_expanded && !o.isDelivery && o.promoDiscount > 0) ...[
             const SizedBox(height: 6),
             Container(height: 1, color: cLine2),
             const SizedBox(height: 6),
@@ -656,8 +665,10 @@ class _OrderCardState extends State<_OrderCard> {
             // қанша беріледі. Клиент екі бөлек төлемді анық көреді.
             OrderMoneyCard(order: o, audience: 'client'),
             const SizedBox(height: 8),
-            CourierInfoBanner(order: o),
-            const SizedBox(height: 8),
+            // ⚠️ Курьер баннері МҰНДА ЖОҚ: клиент үшін ол таймлайнмен түгел
+            // қайталанатын («Курьер іздеудеміз», өлшеп көру, қайтатын өлшем) —
+            // бір ақпаратты екі рет оқыту. Дүкен/сатушы экрандарында ол
+            // қалады: онда беру коды мен «Қабылдадым» батырмасы бар.
             OrderTimeline(order: o),
           ],
 
@@ -708,52 +719,10 @@ class _OrderCardState extends State<_OrderCard> {
             ),
           ],
 
-          if (_needsReceipt) ...[
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFFBEB),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: cAmber.withValues(alpha: 0.3)),
-              ),
-              child: Row(children: [
-                const Icon(Icons.payment_outlined, color: cAmber, size: 16),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    o.status == OrderModel.statusRejected
-                        ? tr('Прикрепите новый чек об оплате', 'Жаңа төлем чегін тіркеңіз')
-                        : tr('Переведите оплату на карту и прикрепите чек', 'Төлемді картаға аударып, чекті тіркеңіз'),
-                    style: manrope(12, FontWeight.w500,
-                        color: const Color(0xFF92400E)),
-                  ),
-                ),
-              ]),
-            ),
-          ],
-
-          if (_awaitingReview) ...[
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: cBlueTint,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Row(children: [
-                const Icon(Icons.hourglass_top_rounded,
-                    color: cBlue, size: 16),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    tr('Чек на проверке — магазин подтвердит оплату', 'Чек тексерілуде — дүкен төлемді растайды'),
-                    style: manrope(12, FontWeight.w500, color: cBlue),
-                  ),
-                ),
-              ]),
-            ),
-          ],
+          // ⚠️ Мұнда бұрын «Төлемді картаға аударып, чекті тіркеңіз» деген сары
+          // баннер мен «Чек тексерілуде» деген көк баннер тұратын. Екеуі де
+          // артық: біріншісін төмендегі жасыл батырманың ӨЗІ айтады, екіншісін
+          // жоғарыдағы күй пиллі жазады. Бір нәрсені үш рет айтпаймыз.
 
           if (!o.isDelivery &&
               (o.warehouseAddress.isNotEmpty || o.storePhone.isNotEmpty)) ...[

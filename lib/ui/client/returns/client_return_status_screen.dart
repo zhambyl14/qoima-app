@@ -193,8 +193,8 @@ class _StatusBodyState extends State<_StatusBody> {
                         r.pickup.label(context)),
                     _Row(context.l10n.returnRefundMethodLabel,
                         r.refundMethod.label(context)),
-                    if (r.orderId != null && r.orderId!.isNotEmpty)
-                      _Row(tr('Заказ ID', 'Тапсырыс ID'), r.orderId!),
+                    // «Заказ ID» (UUID) көрсетілмейді: клиент үшін ол мағынасыз
+                    // 36 таңбалы жол ғана — тапсырысты нөмірімен табады.
                   ],
                 ),
               ),

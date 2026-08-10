@@ -1771,84 +1771,79 @@ class _PaymentSheet extends StatelessWidget {
             ]),
           ),
         ],
-        if (isDelivery) ...[
+        // Курьер жеткізуін қайта түсіндірмейміз — жоғарыдағы белгі мен
+        // «Доставка» пиллі айтып тұр. Ал «дүкен өзі жеткізеді» — БАСҚА ереже,
+        // ол айтылуы керек.
+        if (isDelivery && kazpost) ...[
           const SizedBox(height: 6),
           Text(
-            kazpost
-                ? tr('Магазин доставит сам или отправит — условия согласуете после оплаты',
-                    'Дүкен өзі жеткізеді немесе жөнелтеді — шартын төлемнен кейін келісесіз')
-                : tr('Курьер заберёт заказ со склада и привезёт вам',
-                    'Курьер тапсырысты қоймадан алып, сізге жеткізеді'),
+            tr('Магазин доставит сам — условия согласуете после оплаты',
+                'Дүкен өзі жеткізеді — шартын төлемнен кейін келісесіз'),
             textAlign: TextAlign.center,
             style: manrope(13, FontWeight.w500, color: cInk3),
           ),
         ],
-        const SizedBox(height: 16),
-        Container(height: 1, color: cLine),
+        // ── Жіктелу: ТЕК қосымша мән берсе ──────────────────────────────────
+        //  Жеңілдік те, «өлшеп көру» де жоқ болса «Аралық сома» мен «Дүкенге
+        //  аударыммен» — жоғарыдағы үлкен санның дәл өзі. Үш жерде бір санды
+        //  көрсетудің қажеті жоқ.
+        if (_promoDiscount > 0 || _fittingFee > 0 || multiStore) ...[
+          const SizedBox(height: 16),
+          Container(height: 1, color: cLine),
+          const SizedBox(height: 12),
+          if (_promoDiscount > 0 || _fittingFee > 0) ...[
+            _SummaryLine(tr('Подытог', 'Аралық сома'), money(_subtotal),
+                color: cInk2),
+            if (_promoDiscount > 0)
+              _SummaryLine(
+                  promoCode.isNotEmpty ? 'Промокод $promoCode' : 'Промокод',
+                  '−${money(_promoDiscount)}',
+                  color: cGreen),
+            if (_fittingFee > 0)
+              _SummaryLine(tr('Примерка', 'Өлшеп көру'),
+                  '+${money(_fittingFee)}',
+                  color: cInk2),
+            const SizedBox(height: 8),
+          ],
+          // ── Дүкендер: әрқайсысы жеке жол (бір дүкенде — жоғарыда) ─────────
+          ...stores.entries.map((e) {
+            final list = e.value;
+            final amount = list.fold(0.0, (s, p) => s + p.storeAmount);
+            return _SummaryLine(
+                multiStore
+                    ? tr('«${list.first.storeName}» переводом',
+                        '«${list.first.storeName}» аударыммен')
+                    : tr('Магазину переводом', 'Дүкенге аударыммен'),
+                money(amount),
+                color: cInk,
+                bold: true);
+          }),
+          // Курьер жолы — тек бірнеше дүкенде: бір дүкенде ол жоғарыда белгі
+          // ретінде тұр.
+          if (deliveryFee > 0 && multiStore)
+            _SummaryLine(
+                plans.where((p) => p.courierFee > 0).length > 1
+                    ? tr('Курьерам при получении (${plans.where((p) => p.courierFee > 0).length} доставки)',
+                        'Курьерлерге алғанда (${plans.where((p) => p.courierFee > 0).length} жеткізу)')
+                    : tr('Курьеру при получении', 'Курьерге алғанда'),
+                money(deliveryFee),
+                color: cAmber, bold: true),
+        ],
         const SizedBox(height: 12),
-        // ── Кім не алады: әр дүкен бөлек, курьер бөлек ──────────────────────
-        _SummaryLine(tr('Подытог', 'Аралық сома'), money(_subtotal),
-            color: cInk2),
-        if (_promoDiscount > 0)
-          _SummaryLine(
-              promoCode.isNotEmpty ? 'Промокод $promoCode' : 'Промокод',
-              '−${money(_promoDiscount)}',
-              color: cGreen),
-        if (_fittingFee > 0)
-          _SummaryLine(
-              tr('Примерка (запасной размер)', 'Өлшеп көру (қосалқы өлшем)'),
-              money(_fittingFee),
-              color: cInk2),
-        const SizedBox(height: 8),
-        // ── Дүкендер: әрқайсысы жеке жол ────────────────────────────────────
-        ...stores.entries.map((e) {
-          final list = e.value;
-          final amount = list.fold(0.0, (s, p) => s + p.storeAmount);
-          return _SummaryLine(
-              multiStore
-                  ? tr('«${list.first.storeName}» переводом',
-                      '«${list.first.storeName}» аударыммен')
-                  : tr('Магазину переводом', 'Дүкенге аударыммен'),
-              money(amount),
-              color: cInk,
-              bold: true);
-        }),
-        // ── Курьер: әр қойма — жеке соғу, жеке ақы ──────────────────────────
-        if (deliveryFee > 0)
-          _SummaryLine(
-              plans.where((p) => p.courierFee > 0).length > 1
-                  ? tr('Курьерам наличными (${plans.where((p) => p.courierFee > 0).length} доставки)',
-                      'Курьерлерге қолма-қол (${plans.where((p) => p.courierFee > 0).length} жеткізу)')
-                  : tr('Курьеру наличными при получении',
-                      'Курьерге алғанда қолма-қол'),
-              money(deliveryFee),
-              color: cAmber, bold: true),
-        if (deliveryFee > 0)
-          _SummaryLine(tr('Всего расходов', 'Жалпы шығын'),
-              money(deposit + deliveryFee),
-              color: cInk3),
-        const SizedBox(height: 8),
         // Жеткізу ақысы курьердің жол шығыны — бас тартқанда қайтпайды.
-        // Клиент мұны ТӨЛЕМГЕ ДЕЙІН көруі керек.
+        // Клиент мұны ТӨЛЕМГЕ ДЕЙІН көруі керек (бір қысқа сөйлем жетеді).
         if (deliveryFee > 0) ...[
-          Container(
-            padding: const EdgeInsets.all(11),
-            decoration: BoxDecoration(
-              color: cAmberTint,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Icon(Icons.info_outline_rounded, color: cAmber, size: 17),
-              const SizedBox(width: 9),
-              Expanded(
-                child: Text(
-                  tr('Доставку ${money(deliveryFee)} вы платите курьеру напрямую при получении — магазину её переводить не нужно. Если откажетесь от заказа при доставке, доставка не возвращается.',
-                      'Жеткізу ақысын (${money(deliveryFee)}) тапсырысты алғанда курьерге тікелей төлейсіз — дүкенге аударудың қажеті жоқ. Жеткізу кезінде бас тартсаңыз, бұл ақы қайтарылмайды.'),
-                  style: manrope(12, FontWeight.w600, color: cInk2, height: 1.35),
-                ),
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Icon(Icons.info_outline_rounded, color: cInk3, size: 15),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                tr('Доставку получает курьер, а не магазин. При отказе она не возвращается.',
+                    'Жеткізу ақысын дүкен емес, курьер алады. Бас тартсаңыз, ол қайтарылмайды.'),
+                style: manrope(11.5, FontWeight.w600, color: cInk3, height: 1.3),
               ),
-            ]),
-          ),
+            ),
+          ]),
           const SizedBox(height: 12),
         ],
         if (!isDelivery && warehouseAddress.isNotEmpty)
@@ -1858,30 +1853,19 @@ class _PaymentSheet extends StatelessWidget {
           _InfoRow(Icons.local_shipping_outlined, tr('Доставка', 'Жеткізу'), deliveryAddress),
         if (isSmartRes)
           _InfoRow(Icons.timer_outlined, tr('Срок брони', 'Бронь мерзімі'), tr('1 час', '1 сағат')),
-        const SizedBox(height: 16),
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: cBg,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Icon(Icons.credit_card_rounded, color: cGreen, size: 18),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                tr('Оплата переводом на карту. На следующем шаге появятся реквизиты и кнопка «Прикрепить чек».',
-                    'Төлем — картаға аударым. Келесі қадамда реквизиттер мен «Чекті тіркеу» батырмасы шығады.'),
-                style: manrope(12.5, FontWeight.w500, color: cInk2),
-              ),
-            ),
-          ]),
-        ),
         const SizedBox(height: 14),
         QPrimaryButton(
           label: tr('Продолжить к оплате', 'Төлемге өту'),
           onPressed: () => Navigator.pop(context, true),
           height: 52,
+        ),
+        const SizedBox(height: 7),
+        // Келесі қадам не екені — бір жол (бұрын бүтін карточка болатын).
+        Text(
+          tr('Дальше — QR для перевода и «Прикрепить чек»',
+              'Әрі қарай — аударым QR-ы және «Чекті тіркеу»'),
+          textAlign: TextAlign.center,
+          style: manrope(11.5, FontWeight.w600, color: cInk3),
         ),
         const SizedBox(height: 8),
         TextButton(

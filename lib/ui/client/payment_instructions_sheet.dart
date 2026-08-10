@@ -480,8 +480,8 @@ class _PaymentInstructionsSheetState extends State<_PaymentInstructionsSheet> {
                           const SizedBox(width: 7),
                           Expanded(
                             child: Text(
-                              tr('Отсканируйте QR любым банковским приложением и переведите сумму.',
-                                  'QR-ды кез келген банк қосымшасымен сканерлеп, соманы аударыңыз.'),
+                              tr('Отсканируйте QR любым банковским приложением',
+                                  'QR-ды кез келген банк қосымшасымен сканерлеңіз'),
                               style: manrope(11.5, FontWeight.w600,
                                   color: cGreenDeep),
                             ),
@@ -517,8 +517,8 @@ class _PaymentInstructionsSheetState extends State<_PaymentInstructionsSheet> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    tr('После перевода прикрепите чек (скриншот или PDF). Магазин проверит оплату и подтвердит заказ.',
-                        'Аударымнан кейін чекті тіркеңіз (скриншот немесе PDF). Дүкен төлемді тексеріп, тапсырысты растайды.'),
+                    tr('После перевода прикрепите чек — магазин проверит и подтвердит заказ.',
+                        'Аударымнан кейін чекті тіркеңіз — дүкен тексеріп, тапсырысты растайды.'),
                     style: manrope(12.5, FontWeight.w500, color: cInk2),
                   ),
                 ),

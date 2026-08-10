@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/banks.dart';
 import '../../core/lang.dart';
 import '../../data/models/order_model.dart';
 import '../../theme/qoima_design.dart';
@@ -26,29 +27,46 @@ class OrderMoneyCard extends StatelessWidget {
   bool get _isStore => audience == 'store';
   bool get _isCourier => audience == 'courier';
 
+  /// Төлем әдісі — «Kaspi», «Картой», «Наличными». Бос болса бос жол.
+  String get _payMethod {
+    final m = order.paymentBank.trim();
+    if (m.isEmpty) return '';
+    final low = m.toLowerCase();
+    if (low == 'card' || low.contains('карт')) return tr('Картой', 'Картамен');
+    if (low == 'cash' || low.contains('налич')) {
+      return tr('Наличными', 'Қолма-қол');
+    }
+    return bankName(low);
+  }
+
   @override
   Widget build(BuildContext context) {
     final o = order;
     final isRes = o.isSmartReservation;
     final rows = <Widget>[];
 
-    // ── 1) Тауар ─────────────────────────────────────────────────────────────
-    rows.add(_row(tr('Товары', 'Тауарлар'), money(o.total)));
-    if (o.promoDiscount > 0) {
-      rows.add(_row(
-          o.promoCode.isEmpty
-              ? tr('Промокод', 'Промокод')
-              : tr('Промокод ${o.promoCode}', 'Промокод ${o.promoCode}'),
-          '−${money(o.promoDiscount)}',
-          color: cGreen));
-    }
-    if (o.fittingFee > 0) {
-      rows.add(_row(tr('Примерка (услуга магазина)', 'Өлшеп көру (дүкен қызметі)'),
-          money(o.fittingFee)));
+    // ── 1) Тауар жіктелуі — ТЕК қосымша мән берсе ────────────────────────────
+    //  Жеңілдік те, «өлшеп көру» де жоқ болса «Товары» жолы төмендегі «Дүкенге»
+    //  блогымен ДӘЛ бірдей санды қайталайды — оны көрсету шу ғана.
+    final hasBreakdown = o.promoDiscount > 0 || o.fittingFee > 0 || isRes;
+    if (hasBreakdown) {
+      rows.add(_row(tr('Товары', 'Тауарлар'), money(o.total)));
+      if (o.promoDiscount > 0) {
+        rows.add(_row(
+            o.promoCode.isEmpty
+                ? tr('Промокод', 'Промокод')
+                : tr('Промокод ${o.promoCode}', 'Промокод ${o.promoCode}'),
+            '−${money(o.promoDiscount)}',
+            color: cGreen));
+      }
+      if (o.fittingFee > 0) {
+        rows.add(_row(tr('Примерка', 'Өлшеп көру'), '+${money(o.fittingFee)}'));
+      }
+      rows.add(const SizedBox(height: 6));
     }
 
     // ── 2) Дүкенге тиесілі ───────────────────────────────────────────────────
-    rows.add(const SizedBox(height: 6));
+    //  Төлем әдісі — АТАУДЫҢ ЖАНЫНДА, бөлек «Оплачено через» жолы емес.
     rows.add(_bucket(
       icon: Icons.storefront_rounded,
       tone: 'green',
@@ -59,7 +77,7 @@ class OrderMoneyCard extends StatelessWidget {
       note: isRes
           ? tr('Доплата в магазине: ${money(o.remainingAmount)}',
               'Дүкенде доплата: ${money(o.remainingAmount)}')
-          : (o.paymentBank.isEmpty ? '' : o.paymentBank),
+          : _payMethod,
       strong: _isStore,
     ));
 
@@ -71,24 +89,15 @@ class OrderMoneyCard extends StatelessWidget {
         tone: 'amber',
         title: tr('Курьеру — при получении', 'Курьерге — алғанда'),
         amount: o.courierAmount,
+        // Клиентке қосымша түсініктеме керек емес — атаудың өзі айтып тұр.
         note: o.deliveryFeeCollected
             ? tr('Получено курьером', 'Курьер алды')
             : (_isStore
-                ? tr('Клиент платит курьеру напрямую — в вашу кассу не идёт',
-                    'Клиент курьерге тікелей төлейді — сіздің кассаға түспейді')
-                : tr('Наличными курьеру', 'Курьерге қолма-қол')),
+                ? tr('Не идёт в вашу кассу', 'Сіздің кассаға түспейді')
+                : ''),
         strong: _isCourier,
         done: o.deliveryFeeCollected,
       ));
-    }
-
-    // ── 4) Клиенттің жалпы шығыны ────────────────────────────────────────────
-    if (o.courierAmount > 0) {
-      rows.add(const SizedBox(height: 8));
-      rows.add(_row(
-          tr('Всего расходов клиента', 'Клиенттің жалпы шығыны'),
-          money(isRes ? o.depositAmount + o.courierAmount : o.clientTotal),
-          color: cInk3));
     }
 
     return Container(

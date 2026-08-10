@@ -595,6 +595,11 @@ class _OrderCard extends StatefulWidget {
 class _OrderCardState extends State<_OrderCard> {
   bool _loading = false;
 
+  /// Аяқталған тапсырыстың егжей-тегжейі ашық па (белсендісі әрқашан ашық —
+  /// сатушы онымен жұмыс істейді, ал аяқталғандар тек тарих).
+  bool _expanded = false;
+  bool get _showDetails => _isActive || _expanded;
+
   OrderModel get o => widget.order;
 
   String get _typeTone {
@@ -911,6 +916,25 @@ class _OrderCardState extends State<_OrderCard> {
 
           const Divider(height: 16, color: cLine),
 
+          // Аяқталған тапсырыс — бір жол қорытынды, қалғаны «Толығырақ» астында.
+          if (!_showDetails)
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => setState(() => _expanded = true),
+              child: Row(children: [
+                Expanded(
+                  child: Text(
+                      '${o.items.length} ${tr('поз.', 'поз.')} · ${money(o.finalTotal)}',
+                      style: manrope(13, FontWeight.w700, color: cInk2)),
+                ),
+                Text(tr('Подробнее', 'Толығырақ'),
+                    style: manrope(12, FontWeight.w800, color: cGreen)),
+                const Icon(Icons.keyboard_arrow_down_rounded,
+                    size: 18, color: cGreen),
+              ]),
+            ),
+
+          if (_showDetails) ...[
           // ── Позициялар: фото + бренд/түс/түрі + артикул ─────────────────
           //  Атаудың өзі жеткіліксіз: бір атаумен қоймада бірнеше түс пен
           //  модификация тұрады, сатушы қатесіз таба алуы керек.
@@ -934,32 +958,18 @@ class _OrderCardState extends State<_OrderCard> {
             _PayRow(
                 label: 'Депозит (10%)',
                 value: '${o.depositAmount.toStringAsFixed(0)} ₸',
-                valueColor: cGreen),
-            if (o.paymentBank.isNotEmpty)
-              _PayRow(
-                  label: tr('Депозит через', 'Депозит әдісі'),
-                  value: _payMethodLabel(o.paymentBank),
-                  valueColor: _payMethodColor(o.paymentBank)),
+                valueColor: cGreen,
+                method: o.paymentBank),
             _PayRow(
                 label: tr('Доплата в магазине', 'Дүкенде доплата'),
                 value: '${o.remainingAmount.toStringAsFixed(0)} ₸',
                 valueColor: cAmber,
-                bold: true),
-            if (o.inStorePaymentMethod.isNotEmpty)
-              _PayRow(
-                  label: tr('Доплата через', 'Доплата әдісі'),
-                  value: _payMethodLabel(o.inStorePaymentMethod),
-                  valueColor: _payMethodColor(o.inStorePaymentMethod)),
+                bold: true,
+                method: o.inStorePaymentMethod),
           ] else if (o.isDelivery) ...[
             // Ақшаның толық жіктелуі: дүкенге не тиесілі, курьерге не тиесілі.
+            // Төлем әдісі сол картаның ішінде тұр — бөлек жол қажет емес.
             OrderMoneyCard(order: o, audience: 'store'),
-            if (o.paymentBank.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              _PayRow(
-                  label: tr('Оплачено через', 'Төлем әдісі'),
-                  value: _payMethodLabel(o.paymentBank),
-                  valueColor: _payMethodColor(o.paymentBank)),
-            ],
             const SizedBox(height: 10),
             CourierInfoBanner(
               order: o,
@@ -994,12 +1004,9 @@ class _OrderCardState extends State<_OrderCard> {
                 label: tr('Итого оплачено', 'Барлығы төленді'),
                 value: '${o.finalTotal.toStringAsFixed(0)} ₸',
                 valueColor: cGreen,
-                bold: true),
-            if (o.paymentBank.isNotEmpty)
-              _PayRow(
-                  label: tr('Оплачено через', 'Төлем әдісі'),
-                  value: _payMethodLabel(o.paymentBank),
-                  valueColor: _payMethodColor(o.paymentBank)),
+                bold: true,
+                method: o.paymentBank),
+          ],
           ],
 
           // Action buttons (курьер алып кеткен соң қолжетімсіз)
@@ -1101,26 +1108,38 @@ class _PayRow extends StatelessWidget {
   final String label, value;
   final Color? valueColor;
   final bool bold;
+
+  /// Төлем әдісі — соманың ЖАНЫНДА (бөлек «Оплачено через» жолы емес).
+  final String method;
+
   const _PayRow(
       {required this.label,
       required this.value,
       this.valueColor,
-      this.bold = false});
+      this.bold = false,
+      this.method = ''});
 
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 2),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(label,
                 style: manrope(12, FontWeight.w500, color: cInk2)),
-            Text(value,
-                style: manrope(
-                  13,
-                  bold ? FontWeight.w700 : FontWeight.w500,
-                  color: valueColor ?? cInk,
-                )),
+            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              Text(value,
+                  style: manrope(
+                    13,
+                    bold ? FontWeight.w700 : FontWeight.w500,
+                    color: valueColor ?? cInk,
+                  )),
+              if (method.isNotEmpty)
+                Text(_payMethodLabel(method),
+                    style: manrope(10.5, FontWeight.w700,
+                        color: _payMethodColor(method))),
+            ]),
           ],
         ),
       );
