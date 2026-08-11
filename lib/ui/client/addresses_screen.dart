@@ -6,13 +6,51 @@ import '../../data/services/client_service.dart';
 import '../../theme/qoima_design.dart';
 import 'address_map_picker_screen.dart';
 
+import '../../core/error_text.dart';
 import '../../core/lang.dart';
-class AddressesScreen extends StatelessWidget {
+
+/// ⚠️ ӨШІРУ REALTIME-ҒА ТӘУЕЛДІ ЕМЕС (нақты багта табылды).
+///
+/// Бұрын «Өшіру» батырмасы `service.deleteAddress(id)` дегенді `await`-сыз,
+/// қатесін ұстамай шақыратын да, тізім тек `.stream()` арқылы жаңаратын.
+/// Екі ақау бірден шықты:
+///   1) DELETE серверде орындалса да, Supabase realtime оқиғасы `client_uid`
+///      сүзгісіне сәйкес келмей ЖОҒАЛАТЫН (RLS + DELETE тіркесімі) — мекенжай
+///      экраннан кетпейтін;
+///   2) DELETE мүлде орындалмаса да (желі/RLS), клиент ЕШТЕҢЕ көрмейтін.
+/// Енді өшіру бірден жергілікті түрде жасырылады ([_removed]), нәтижесі
+/// `await` арқылы тексеріледі, сәтсіз болса — қайта көрсетіліп, қате айтылады.
+class AddressesScreen extends StatefulWidget {
   const AddressesScreen({super.key});
 
   @override
+  State<AddressesScreen> createState() => _AddressesScreenState();
+}
+
+class _AddressesScreenState extends State<AddressesScreen> {
+  final ClientService service = ClientService();
+
+  /// Жергілікті өшірілгендер — realtime оқиғасы келмесе де тізімнен кетеді.
+  final Set<String> _removed = {};
+
+  Future<void> _delete(String id) async {
+    setState(() => _removed.add(id));
+    try {
+      await service.deleteAddress(id);
+    } catch (e) {
+      // Шынымен өшпеді — қайта көрсетіп, себебін айтамыз.
+      if (!mounted) return;
+      setState(() => _removed.remove(id));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(friendlyError(e)),
+        backgroundColor: cRed,
+        behavior: SnackBarBehavior.floating,
+      ));
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final service = ClientService();
     return Scaffold(
       backgroundColor: cBg,
       floatingActionButton: FloatingActionButton.extended(
@@ -49,7 +87,9 @@ class AddressesScreen extends StatelessWidget {
               if (snap.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator(color: cGreen));
               }
-              final items = snap.data ?? [];
+              final items = (snap.data ?? [])
+                  .where((a) => !_removed.contains(a['id'] as String))
+                  .toList();
               if (items.isEmpty) {
                 return Center(
                   child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -135,7 +175,7 @@ class AddressesScreen extends StatelessWidget {
                               ],
                             ),
                           );
-                          if (ok == true) service.deleteAddress(id);
+                          if (ok == true) await _delete(id);
                         },
                         child: Padding(
                           padding: const EdgeInsets.all(4),

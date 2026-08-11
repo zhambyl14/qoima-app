@@ -1034,16 +1034,18 @@ class _HistoryOrderCardState extends State<_HistoryOrderCard> {
   //  Бағаланбаса — контур жұлдыз (басуға болады). Бағаланса — қойылған
   //  бағасы көрінеді де, оны ЕНДІ ӨЗГЕРТЕ АЛМАЙДЫ (тек көрсету).
 
-  Future<void> _rateOrder() async {
+  /// Жолақтағы [stars]-ыншы жұлдызды басу: форма СОЛ бағамен ашылады.
+  Future<void> _rateOrder(int stars) async {
     if (_ratingBusy) return;
     final items = o.items;
     if (items.isEmpty) return;
     setState(() => _ratingBusy = true);
     try {
       if (items.length == 1) {
-        await _rateItem(items.first);
+        await _rateItem(items.first, stars);
       } else {
-        // Бірнеше тауар — әрқайсысын жеке бағалау бетінде (детальде) көрсетеміз.
+        // Бірнеше тауар — әрқайсысының өз бағасы бар, сондықтан таңдауды жеке
+        // бетке жібереміз (онда әр тауар жеке жолмен бағаланады).
         widget.onOpen();
       }
     } finally {
@@ -1051,7 +1053,7 @@ class _HistoryOrderCardState extends State<_HistoryOrderCard> {
     }
   }
 
-  Future<void> _rateItem(CartItemModel item) async {
+  Future<void> _rateItem(CartItemModel item, int stars) async {
     final service = ClientService();
     try {
       final product = await service.getProductById(o.adminUid, item.productId);
@@ -1068,6 +1070,7 @@ class _HistoryOrderCardState extends State<_HistoryOrderCard> {
         product: product,
         store: store,
         clientName: AppUser.current.name,
+        initialRating: stars,
       );
       if (result == 'saved') widget.onRatingsChanged();
     } catch (e) {
@@ -1075,56 +1078,63 @@ class _HistoryOrderCardState extends State<_HistoryOrderCard> {
     }
   }
 
-  Widget? _ratingBadge() {
+  /// Карточканың АСТЫНДАҒЫ бөлек жолақ: тақырып + 5 жұлдыз.
+  ///
+  /// Бағаланбаған: контур жұлдыздар, қайсысын бассаң — форма сол бағамен
+  /// ашылады. Бағаланған: қойылған баға толық жұлдызбен көрінеді де,
+  /// БАСЫЛМАЙДЫ (клиенттің талабы — қойылған бағаны өзгертпейміз).
+  Widget? _ratingStrip() {
     if (o.status != OrderModel.statusCompleted) return null;
     final items = o.items;
     if (items.isEmpty) return null;
-    final ratedItems =
+
+    final rated =
         items.where((it) => widget.ratings.containsKey(it.productId)).toList();
+    final allRated = rated.length == items.length;
+    // Бірнеше тауар болса — орташа баға (толық/жарты жұлдызбен көрсетіледі).
+    final avg = allRated
+        ? rated.fold<int>(0, (s, it) => s + widget.ratings[it.productId]!) /
+            rated.length
+        : 0.0;
 
-    if (ratedItems.length == items.length) {
-      final avg = ratedItems.fold<int>(0, (s, it) => s + widget.ratings[it.productId]!) /
-          ratedItems.length;
-      final label =
-          avg == avg.roundToDouble() ? avg.toStringAsFixed(0) : avg.toStringAsFixed(1);
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-        decoration: BoxDecoration(
-          color: const Color(0xFFFFF3DC),
-          borderRadius: BorderRadius.circular(9),
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const SizedBox(height: 10),
+      Container(height: 1, color: cLine2),
+      const SizedBox(height: 10),
+      Row(children: [
+        Text(
+            allRated
+                ? tr('Ваша оценка', 'Сіздің бағаңыз')
+                : tr('Оцените товар', 'Тауарды бағалаңыз'),
+            style: manrope(12, FontWeight.w700, color: cInk2)),
+        if (_ratingBusy) ...[
+          const SizedBox(width: 8),
+          const SizedBox(
+              width: 12,
+              height: 12,
+              child:
+                  CircularProgressIndicator(strokeWidth: 2, color: cInk3)),
+        ],
+      ]),
+      const SizedBox(height: 6),
+      if (allRated)
+        RatingStars(rating: avg, size: 26)
+      else
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: List.generate(5, (i) {
+            return GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: _ratingBusy ? null : () => _rateOrder(i + 1),
+              child: Padding(
+                padding: const EdgeInsets.only(right: 6),
+                child: Icon(Icons.star_outline_rounded,
+                    size: 26, color: cInk3),
+              ),
+            );
+          }),
         ),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          const Icon(Icons.star_rounded, size: 14, color: Color(0xFFF6A609)),
-          const SizedBox(width: 4),
-          Text(label,
-              style: manrope(12, FontWeight.w800, color: const Color(0xFF92600A))),
-        ]),
-      );
-    }
-
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: _ratingBusy ? null : _rateOrder,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-        decoration: BoxDecoration(
-          color: cSurface,
-          borderRadius: BorderRadius.circular(9),
-          border: Border.all(color: cLine),
-        ),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          _ratingBusy
-              ? const SizedBox(
-                  width: 13,
-                  height: 13,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: cInk3))
-              : const Icon(Icons.star_outline_rounded, size: 14, color: cInk3),
-          const SizedBox(width: 4),
-          Text(tr('Оценить', 'Бағалау'),
-              style: manrope(12, FontWeight.w800, color: cInk2)),
-        ]),
-      ),
-    );
+    ]);
   }
 
   /// Тапсырысты себетке қайта салады (ҚАЗІРГІ баға/партиямен).
@@ -1209,12 +1219,6 @@ class _HistoryOrderCardState extends State<_HistoryOrderCard> {
               tone: orderStatusTone(o.status),
             ),
           ]),
-          // Бағалау белгісі — карточканың СЫРТҚЫ көрінісінде (детальге кірмей-ақ
-          // көрінеді), тек АЛЫНҒАН тапсырыста.
-          if (_ratingBadge() case final badge?) ...[
-            const SizedBox(height: 8),
-            Align(alignment: Alignment.centerLeft, child: badge),
-          ],
           const SizedBox(height: 10),
           Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
             // Мини фотолар — тауарды атауынан тез танытады.
@@ -1267,6 +1271,9 @@ class _HistoryOrderCardState extends State<_HistoryOrderCard> {
                     icon: const Icon(Icons.loop_rounded,
                         size: 12, color: Color(0xFF92400E))),
           ],
+          // Бағалау жолағы — карточканың СЫРТҚЫ көрінісінде (детальге кірмей-ақ
+          // көрінеді әрі бағаланады), тек АЛЫНҒАН тапсырыста.
+          if (_ratingStrip() case final strip?) strip,
           if (widget.showActions) ...[
             const SizedBox(height: 12),
             Row(children: [

@@ -12,6 +12,9 @@ import 'report_sheet.dart';
 
 /// Пікір/баға жазу sheet-ін кез келген экраннан ашу (мыс. алынған тапсырыс
 /// бетінен — тауар детальіне кірмей-ақ). [existing] берілсе — өңдеу режимі.
+///
+/// [initialRating] — тапсырыс карточкасындағы жұлдыз жолағынан келгенде: клиент
+/// қай жұлдызды басса, форма сол бағамен АШЫЛАДЫ (қайта таңдатпаймыз).
 /// Нәтиже: 'saved' | 'deleted' | null (болдырмады).
 Future<String?> showWriteReviewSheet(
   BuildContext context, {
@@ -19,6 +22,7 @@ Future<String?> showWriteReviewSheet(
   required StoreModel store,
   required String clientName,
   ReviewModel? existing,
+  int initialRating = 0,
 }) =>
     showModalBottomSheet<String>(
       context: context,
@@ -29,6 +33,7 @@ Future<String?> showWriteReviewSheet(
         store: store,
         clientName: clientName,
         existing: existing,
+        initialRating: initialRating,
       ),
     );
 
@@ -421,11 +426,13 @@ class _WriteReviewSheet extends StatefulWidget {
   final StoreModel store;
   final String clientName;
   final ReviewModel? existing;
+  final int initialRating;
   const _WriteReviewSheet({
     required this.product,
     required this.store,
     required this.clientName,
     this.existing,
+    this.initialRating = 0,
   });
 
   @override
@@ -434,7 +441,7 @@ class _WriteReviewSheet extends StatefulWidget {
 
 class _WriteReviewSheetState extends State<_WriteReviewSheet> {
   final _service = ClientService();
-  late int _rating = widget.existing?.rating ?? 0;
+  late int _rating = widget.existing?.rating ?? widget.initialRating;
   late final _commentCtrl =
       TextEditingController(text: widget.existing?.comment ?? '');
   bool _saving = false;

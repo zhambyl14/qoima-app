@@ -351,7 +351,14 @@ class _ClientOrderDetailScreenState extends State<ClientOrderDetailScreen> {
                 const SizedBox(height: 12),
               ] else
                 ..._plainMoney(),
+              // «Где забрать / Позвонить» — тек тауар ӘЛІ АЛЫНБАҒАН тапсырыста
+              // мағыналы. Алынған/қайтарылған/бас тартылған тапсырыста клиент
+              // тауарды қолына алып қойған (немесе алмайды), сол себепті
+              // «қайдан алу керек» деген блок артық әрі шатастырады.
               if (!o.isDelivery &&
+                  o.status != OrderModel.statusCompleted &&
+                  o.status != OrderModel.statusReturned &&
+                  o.status != OrderModel.statusCancelled &&
                   (o.warehouseAddress.isNotEmpty || o.storePhone.isNotEmpty))
                 _pickupCard(),
               if (o.isDelivery && o.address.trim().isNotEmpty) _addressCard(),
