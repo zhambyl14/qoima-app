@@ -1015,6 +1015,15 @@ class ClientService {
     return rows.map(ReviewModel.fromMap).toList();
   }
 
+  /// Клиенттің ӨЗІ жазған барлық пікірлері (тауарлар бойынша) — тапсырыс
+  /// тізімінде «бағаланды ма» белгісін көрсету үшін бір сұраныспен аламыз.
+  Future<List<ReviewModel>> getMyReviews() async {
+    if (_uid.isEmpty) return [];
+    final rows =
+        await _sb.from('product_reviews').select().eq('client_uid', _uid);
+    return rows.map(ReviewModel.fromMap).toList();
+  }
+
   /// Клиент осы тауарды сатып алған ба (completed тапсырыс бар ма)?
   /// RPC — RLS insert саясатымен бір логика (бір ақиқат көзі).
   Future<bool> canReviewProduct(String productId) async {

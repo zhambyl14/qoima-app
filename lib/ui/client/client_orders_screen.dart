@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/app_user.dart';
+import '../../data/models/cart_item_model.dart';
 import '../../data/models/order_model.dart';
 import '../../data/models/return_model.dart';
 import '../../data/services/client_service.dart';
@@ -15,6 +16,7 @@ import 'client_shell.dart';
 import 'payment_instructions_sheet.dart';
 import 'reservation_timer_widget.dart';
 import 'returns/client_returns_history_screen.dart';
+import 'reviews_section.dart';
 
 import '../../core/lang.dart';
 import '../../core/error_text.dart';
@@ -52,6 +54,27 @@ class _ClientOrdersScreenState extends State<ClientOrdersScreen> {
       _service.watchClientOrders(_uid);
   late final Stream<List<ReturnModel>> _returnsStream =
       ReturnService().watchClientReturns(AppUser.current.uid);
+
+  // Клиенттің ӨЗІ қойған бағалары (productId → rating) — «Алынған» тізіміндегі
+  // әр карточкада бағалау белгісін (жұлдыз/«Бағалау») көрсету үшін.
+  Map<String, int> _myRatings = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMyRatings();
+  }
+
+  Future<void> _loadMyRatings() async {
+    try {
+      final reviews = await _service.getMyReviews();
+      if (mounted) {
+        setState(() {
+          _myRatings = {for (final r in reviews) r.productId: r.rating};
+        });
+      }
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -252,6 +275,8 @@ class _ClientOrdersScreenState extends State<ClientOrdersScreen> {
           returnStatus: o.id.isEmpty ? null : returnStatusByOrder[o.id],
           highlighted: highlightOrderId != null && o.id == highlightOrderId,
           showActions: showActions,
+          ratings: _myRatings,
+          onRatingsChanged: _loadMyRatings,
           onOpen: () => _openDetail(o),
         );
       },
@@ -266,6 +291,8 @@ class _ClientOrdersScreenState extends State<ClientOrdersScreen> {
       context,
       MaterialPageRoute(builder: (_) => ClientOrderDetailScreen(order: o)),
     );
+    // Детальде тауар бағаланған болуы мүмкін — тізімдегі белгіні жаңартамыз.
+    await _loadMyRatings();
     if (toCart == true && mounted) {
       context.findAncestorStateOfType<ClientShellState>()?.setIndex(2);
     }
@@ -947,12 +974,18 @@ class _HistoryOrderCard extends StatefulWidget {
   final bool highlighted;
   /// «Себетке» / «Қайталау» батырмалары (тек АЛЫНҒАН тапсырыстарда).
   final bool showActions;
+  /// Клиенттің ӨЗІ қойған бағалары (productId → rating) — бағалау белгісі осыдан.
+  final Map<String, int> ratings;
+  /// Жаңа баға қойылғаннан кейін тізімдегі [ratings] картасын қайта жүктеу.
+  final VoidCallback onRatingsChanged;
   final VoidCallback onOpen;
 
   const _HistoryOrderCard({
     super.key,
     required this.order,
     required this.onOpen,
+    required this.ratings,
+    required this.onRatingsChanged,
     this.returnStatus,
     this.highlighted = false,
     this.showActions = false,
@@ -967,6 +1000,7 @@ class _HistoryOrderCardState extends State<_HistoryOrderCard> {
   static const int _maxThumbs = 2;
 
   bool _busy = false;
+  bool _ratingBusy = false;
 
   OrderModel get o => widget.order;
 
@@ -992,6 +1026,105 @@ class _HistoryOrderCardState extends State<_HistoryOrderCard> {
       default:
         return 'blue';
     }
+  }
+
+  // ── Бағалау белгісі ──────────────────────────────────────────────────────
+  //  Клиенттің бұрын айтқан талабы: бағалау жұлдызы АЯҚТАЛҒАН тапсырыстың
+  //  ІШІНДЕ емес, тізімдегі карточканың СЫРТҚЫ көрінісінде тұруы керек.
+  //  Бағаланбаса — контур жұлдыз (басуға болады). Бағаланса — қойылған
+  //  бағасы көрінеді де, оны ЕНДІ ӨЗГЕРТЕ АЛМАЙДЫ (тек көрсету).
+
+  Future<void> _rateOrder() async {
+    if (_ratingBusy) return;
+    final items = o.items;
+    if (items.isEmpty) return;
+    setState(() => _ratingBusy = true);
+    try {
+      if (items.length == 1) {
+        await _rateItem(items.first);
+      } else {
+        // Бірнеше тауар — әрқайсысын жеке бағалау бетінде (детальде) көрсетеміз.
+        widget.onOpen();
+      }
+    } finally {
+      if (mounted) setState(() => _ratingBusy = false);
+    }
+  }
+
+  Future<void> _rateItem(CartItemModel item) async {
+    final service = ClientService();
+    try {
+      final product = await service.getProductById(o.adminUid, item.productId);
+      final store = await service.getStoreByAdminUid(o.adminUid);
+      if (product == null || store == null) {
+        if (mounted) {
+          _snack(tr('Товар больше недоступен', 'Тауар енді қолжетімсіз'), cRed);
+        }
+        return;
+      }
+      if (!mounted) return;
+      final result = await showWriteReviewSheet(
+        context,
+        product: product,
+        store: store,
+        clientName: AppUser.current.name,
+      );
+      if (result == 'saved') widget.onRatingsChanged();
+    } catch (e) {
+      if (mounted) _snack(friendlyError(e), cRed);
+    }
+  }
+
+  Widget? _ratingBadge() {
+    if (o.status != OrderModel.statusCompleted) return null;
+    final items = o.items;
+    if (items.isEmpty) return null;
+    final ratedItems =
+        items.where((it) => widget.ratings.containsKey(it.productId)).toList();
+
+    if (ratedItems.length == items.length) {
+      final avg = ratedItems.fold<int>(0, (s, it) => s + widget.ratings[it.productId]!) /
+          ratedItems.length;
+      final label =
+          avg == avg.roundToDouble() ? avg.toStringAsFixed(0) : avg.toStringAsFixed(1);
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFF3DC),
+          borderRadius: BorderRadius.circular(9),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(Icons.star_rounded, size: 14, color: Color(0xFFF6A609)),
+          const SizedBox(width: 4),
+          Text(label,
+              style: manrope(12, FontWeight.w800, color: const Color(0xFF92600A))),
+        ]),
+      );
+    }
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: _ratingBusy ? null : _rateOrder,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+        decoration: BoxDecoration(
+          color: cSurface,
+          borderRadius: BorderRadius.circular(9),
+          border: Border.all(color: cLine),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          _ratingBusy
+              ? const SizedBox(
+                  width: 13,
+                  height: 13,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: cInk3))
+              : const Icon(Icons.star_outline_rounded, size: 14, color: cInk3),
+          const SizedBox(width: 4),
+          Text(tr('Оценить', 'Бағалау'),
+              style: manrope(12, FontWeight.w800, color: cInk2)),
+        ]),
+      ),
+    );
   }
 
   /// Тапсырысты себетке қайта салады (ҚАЗІРГІ баға/партиямен).
@@ -1076,6 +1209,12 @@ class _HistoryOrderCardState extends State<_HistoryOrderCard> {
               tone: orderStatusTone(o.status),
             ),
           ]),
+          // Бағалау белгісі — карточканың СЫРТҚЫ көрінісінде (детальге кірмей-ақ
+          // көрінеді), тек АЛЫНҒАН тапсырыста.
+          if (_ratingBadge() case final badge?) ...[
+            const SizedBox(height: 8),
+            Align(alignment: Alignment.centerLeft, child: badge),
+          ],
           const SizedBox(height: 10),
           Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
             // Мини фотолар — тауарды атауынан тез танытады.

@@ -51,6 +51,9 @@ class _ClientOrderDetailScreenState extends State<ClientOrderDetailScreen> {
   bool _returnLoaded = false;
   bool _reordering = false;
   String? _warehouseNote;
+  // Клиенттің ӨЗІ қойған бағалары (productId → rating) — бағаланған тауар
+  // жұлдызы енді ӨЗГЕРТІЛМЕЙДІ, тек көрсетіледі.
+  Map<String, int> _myRatings = {};
 
   OrderModel get o => _order;
 
@@ -72,6 +75,18 @@ class _ClientOrderDetailScreenState extends State<ClientOrderDetailScreen> {
     });
     _loadReturnStatus();
     _loadWarehouseNote();
+    _loadMyRatings();
+  }
+
+  Future<void> _loadMyRatings() async {
+    try {
+      final reviews = await _service.getMyReviews();
+      if (mounted) {
+        setState(() {
+          _myRatings = {for (final r in reviews) r.productId: r.rating};
+        });
+      }
+    } catch (_) {}
   }
 
   @override
@@ -237,6 +252,8 @@ class _ClientOrderDetailScreenState extends State<ClientOrderDetailScreen> {
         existing: mine,
       );
       if (result != null && mounted) {
+        await _loadMyRatings();
+        if (!mounted) return;
         _snack(
             result == 'deleted'
                 ? tr('Отзыв удалён', 'Пікір өшірілді')
@@ -417,6 +434,7 @@ class _ClientOrderDetailScreenState extends State<ClientOrderDetailScreen> {
 
   Widget _itemRow(CartItemModel item) {
     final fav = _favIds.contains(item.productId);
+    final myRating = _myRatings[item.productId];
     return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
       SizedBox(
         width: 54,
@@ -447,17 +465,30 @@ class _ClientOrderDetailScreenState extends State<ClientOrderDetailScreen> {
       ),
       // Тауарды бағалау — ТЕК АЛЫНҒАН тапсырыста (RPC сатып алушыға ғана
       // рұқсат береді). Осы жол клиенттің тауар бетіне кірмей-ақ пікір
-      // қалдыруының ең қысқа жолы.
+      // қалдыруының ең қысқа жолы. Бағаланған болса — тек көрсету, ЕНДІ
+      // ӨЗГЕРТЕ АЛМАЙДЫ (клиенттің талабы).
       if (o.status == OrderModel.statusCompleted)
-        GestureDetector(
-          onTap: _ratingBusy ? null : () => _rateProduct(item),
-          behavior: HitTestBehavior.opaque,
-          child: Padding(
+        if (myRating != null)
+          Padding(
             padding: const EdgeInsets.only(left: 6, top: 2),
-            child: Icon(Icons.star_rounded,
-                size: 21, color: const Color(0xFFF6A609)),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.star_rounded,
+                  size: 18, color: Color(0xFFF6A609)),
+              const SizedBox(width: 2),
+              Text('$myRating',
+                  style: manrope(12.5, FontWeight.w800, color: cInk2)),
+            ]),
+          )
+        else
+          GestureDetector(
+            onTap: _ratingBusy ? null : () => _rateProduct(item),
+            behavior: HitTestBehavior.opaque,
+            child: Padding(
+              padding: const EdgeInsets.only(left: 6, top: 2),
+              child: Icon(Icons.star_outline_rounded,
+                  size: 21, color: cInk3),
+            ),
           ),
-        ),
       // Ұнады ма — тауарды таңдаулыға. Қайта сатып алудың ең қысқа жолы.
       GestureDetector(
         onTap: () => _toggleFavorite(item),
