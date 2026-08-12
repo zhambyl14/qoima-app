@@ -817,6 +817,13 @@ class QMenuItem extends StatelessWidget {
   final VoidCallback? onTap;
   final bool danger;
 
+  /// Оқылмаған/күтілетін сан (мыс. жауапсыз пікір саны). null/0 — жасырын.
+  /// Тізімдегі бүкіл ескерту белгілерінің БІРДЕЙ көрінуі үшін (мыс. басты
+  /// беттегі «Онлайн-заказы» блогындағы дөңгелек саны) осы жерде де
+  /// дәл сол қатты қызыл дөңгелек қолданылады — бұрын кейбір жерде
+  /// (жеке _QMenuItem) ашық пінк «чип» болатын да, назар аудармайтын еді.
+  final int? badgeCount;
+
   const QMenuItem({
     super.key,
     required this.icon,
@@ -826,6 +833,7 @@ class QMenuItem extends StatelessWidget {
     this.value,
     this.onTap,
     this.danger = false,
+    this.badgeCount,
   });
 
   Color _iconColor() {
@@ -891,6 +899,20 @@ class QMenuItem extends StatelessWidget {
               const SizedBox(width: 8),
               Text(value!, style: manrope(13, FontWeight.w700, color: cInk2)),
               const SizedBox(width: 4),
+            ],
+            if ((badgeCount ?? 0) > 0) ...[
+              Container(
+                constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                decoration: BoxDecoration(
+                    color: cRed, borderRadius: BorderRadius.circular(kRPill)),
+                child: Center(
+                  child: Text('$badgeCount',
+                      style: manrope(11.5, FontWeight.w800,
+                          color: Colors.white, height: 1.1)),
+                ),
+              ),
+              const SizedBox(width: 6),
             ],
             Icon(Icons.chevron_right_rounded,
                 color: danger ? cRed.withValues(alpha: 0.5) : cInk3, size: 20),

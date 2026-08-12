@@ -9,6 +9,7 @@ import '../../data/services/firestore_service.dart';
 import '../../theme/qoima_design.dart';
 import '../client/reservation_timer_widget.dart';
 import '../shared/courier_info_banner.dart';
+import '../shared/fitting_swap_sheet.dart';
 import '../shared/order_item_row.dart';
 import '../shared/order_money_card.dart';
 import '../../data/models/return_model.dart';
@@ -16,6 +17,7 @@ import '../../data/services/return_service.dart';
 
 import '../../core/lang.dart';
 import '../../core/error_text.dart';
+
 class SellerOnlineScreen extends StatefulWidget {
   /// Push deep-link арқылы ашылғанда: осы orderId-ды тізімнен тауып,
   /// «Заказ найден» баннерінде бірден көрсетеміз (id бойынша — push
@@ -83,12 +85,12 @@ class _SellerOnlineScreenState extends State<SellerOnlineScreen> {
     try {
       final order = await _service.lookupOnlineOrder(code);
       if (!mounted) return;
-      final found =
-          (order != null && order.warehouseId == whId) ? order : null;
+      final found = (order != null && order.warehouseId == whId) ? order : null;
       setState(() {
         _lookupResult = found;
         _lookupError = order != null && found == null
-            ? tr('Этот заказ не относится к вашему складу', 'Бұл тапсырыс сіздің қоймаңызға тиесілі емес')
+            ? tr('Этот заказ не относится к вашему складу',
+                'Бұл тапсырыс сіздің қоймаңызға тиесілі емес')
             : found == null
                 ? tr('Заказ не найден', 'Тапсырыс табылмады')
                 : null;
@@ -135,9 +137,8 @@ class _SellerOnlineScreenState extends State<SellerOnlineScreen> {
 
   /// Филтрленген тізім, «Заказ найден» баннерінде бөлек көрсетілген
   /// тапсырысты алып тастап (қайталанбауы үшін).
-  List<OrderModel> _restList(List<OrderModel> all) => _applyFilter(all)
-      .where((o) => o.id != _lookupResult?.id)
-      .toList();
+  List<OrderModel> _restList(List<OrderModel> all) =>
+      _applyFilter(all).where((o) => o.id != _lookupResult?.id).toList();
 
   @override
   Widget build(BuildContext context) {
@@ -162,7 +163,8 @@ class _SellerOnlineScreenState extends State<SellerOnlineScreen> {
                     GestureDetector(
                       onTap: () => Navigator.maybePop(context),
                       child: Container(
-                        width: 38, height: 38,
+                        width: 38,
+                        height: 38,
                         margin: const EdgeInsets.only(right: 10),
                         decoration: BoxDecoration(
                           color: Colors.white.withValues(alpha: 0.16),
@@ -193,17 +195,19 @@ class _SellerOnlineScreenState extends State<SellerOnlineScreen> {
                         context: context,
                         isScrollControlled: true,
                         shape: const RoundedRectangleBorder(
-                            borderRadius:
-                                BorderRadius.vertical(top: Radius.circular(22))),
+                            borderRadius: BorderRadius.vertical(
+                                top: Radius.circular(22))),
                         builder: (ctx) => Padding(
                           padding: EdgeInsets.only(
                             left: 20,
                             right: 20,
                             top: 16,
-                            bottom:
-                                MediaQuery.of(ctx).viewInsets.bottom + MediaQuery.of(ctx).padding.bottom + 28,
+                            bottom: MediaQuery.of(ctx).viewInsets.bottom +
+                                MediaQuery.of(ctx).padding.bottom +
+                                28,
                           ),
-                          child: Column(mainAxisSize: MainAxisSize.min, children: [
+                          child:
+                              Column(mainAxisSize: MainAxisSize.min, children: [
                             Center(
                                 child: Container(
                                     width: 36,
@@ -213,16 +217,18 @@ class _SellerOnlineScreenState extends State<SellerOnlineScreen> {
                                         borderRadius:
                                             BorderRadius.circular(2)))),
                             const SizedBox(height: 14),
-                            Text(tr('Введите код заказа', 'Тапсырыс кодын енгізіңіз'),
-                                style: manrope(16, FontWeight.w700, color: cInk)),
+                            Text(
+                                tr('Введите код заказа',
+                                    'Тапсырыс кодын енгізіңіз'),
+                                style:
+                                    manrope(16, FontWeight.w700, color: cInk)),
                             const SizedBox(height: 12),
                             Container(
                               height: 52,
                               decoration: BoxDecoration(
                                 color: cSurface,
                                 borderRadius: BorderRadius.circular(14),
-                                border:
-                                    Border.all(color: cLine, width: 1.5),
+                                border: Border.all(color: cLine, width: 1.5),
                               ),
                               child: Row(children: [
                                 const SizedBox(width: 14),
@@ -236,9 +242,9 @@ class _SellerOnlineScreenState extends State<SellerOnlineScreen> {
                                     style: manrope(15, FontWeight.w600,
                                         color: cInk),
                                     decoration: InputDecoration(
-                                      hintText: tr('Код заказа...', 'Тапсырыс коды...'),
-                                      hintStyle: manrope(
-                                          15, FontWeight.w500,
+                                      hintText: tr(
+                                          'Код заказа...', 'Тапсырыс коды...'),
+                                      hintStyle: manrope(15, FontWeight.w500,
                                           color: cInk3),
                                       filled: false,
                                       border: InputBorder.none,
@@ -278,8 +284,7 @@ class _SellerOnlineScreenState extends State<SellerOnlineScreen> {
                   stream: _ordersStream,
                   builder: (_, snap) {
                     final all = (snap.data ?? [])
-                        .where(
-                            (o) => whId.isEmpty || o.warehouseId == whId)
+                        .where((o) => whId.isEmpty || o.warehouseId == whId)
                         .toList();
                     final active = all.where(_needsAttention).length;
                     final done = all
@@ -288,13 +293,13 @@ class _SellerOnlineScreenState extends State<SellerOnlineScreen> {
                             !o.returnLegPending)
                         .length;
                     final cancelled = all
-                        .where(
-                            (o) => o.status == OrderModel.statusCancelled)
+                        .where((o) => o.status == OrderModel.statusCancelled)
                         .length;
 
                     return Row(children: [
                       _FilterChip(
-                          label: tr('Все ${all.length}', 'Барлығы ${all.length}'),
+                          label:
+                              tr('Все ${all.length}', 'Барлығы ${all.length}'),
                           value: 'all',
                           current: _filter,
                           onTap: (v) => setState(() {
@@ -321,7 +326,8 @@ class _SellerOnlineScreenState extends State<SellerOnlineScreen> {
                               })),
                       const SizedBox(width: 8),
                       _FilterChip(
-                          label: tr('Отменено $cancelled', 'Бас тартылды $cancelled'),
+                          label: tr(
+                              'Отменено $cancelled', 'Бас тартылды $cancelled'),
                           value: 'cancelled',
                           current: _filter,
                           onTap: (v) => setState(() {
@@ -377,195 +383,199 @@ class _SellerOnlineScreenState extends State<SellerOnlineScreen> {
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(14, 14, 14, 24),
                   children: [
-                  // Returns banner
-                  StreamBuilder<List<ReturnModel>>(
-                    stream: _returnsStream,
-                    builder: (_, rSnap) {
-                      final pending = (rSnap.data ?? [])
-                          .where((r) => r.status == ReturnStatus.requested)
-                          .length;
-                      if (pending == 0) return const SizedBox.shrink();
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: cAmberTint,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                              color: cAmber.withValues(alpha: 0.35)),
-                        ),
-                        child: Row(children: [
-                          const Icon(Icons.assignment_return_rounded,
-                              color: cAmber, size: 20),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              tr('$pending возвратов ждут решения', '$pending қайтарым шешімді күтуде'),
-                              style: manrope(13.5, FontWeight.w700,
-                                  color: const Color(0xFF92400E)),
-                            ),
-                          ),
-                        ]),
-                      );
-                    },
-                  ),
-                  // Stats row
-                  Row(children: [
-                    Expanded(
-                      child: QCard(
-                        padding: const EdgeInsets.all(14),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('$waiting',
-                                style: manrope(24, FontWeight.w800,
-                                    color: cGreen)),
-                            Text(tr('Ждут выдачи', 'Беруді күтуде'),
-                                style: manrope(12, FontWeight.w600,
-                                    color: cInk3)),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: QCard(
-                        padding: const EdgeInsets.all(14),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('$doneToday',
-                                style: manrope(24, FontWeight.w800,
-                                    color: cInk)),
-                            Text(tr('Выдано сегодня', 'Бүгін берілді'),
-                                style: manrope(12, FontWeight.w600,
-                                    color: cInk3)),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ]),
-                  const SizedBox(height: 16),
-
-                  // Lookup error
-                  if (_lookupError != null) ...[
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: cRedTint,
-                        borderRadius: BorderRadius.circular(12),
-                        border:
-                            Border.all(color: cRed.withValues(alpha: 0.3)),
-                      ),
-                      child: Row(children: [
-                        const Icon(Icons.error_outline,
-                            color: cRed, size: 18),
-                        const SizedBox(width: 8),
-                        Expanded(
-                            child: Text(_lookupError!,
-                                style:
-                                    manrope(13, FontWeight.w500, color: cRed))),
-                        GestureDetector(
-                            onTap: () => setState(() {
-                                  _lookupError = null;
-                                  _codeCtrl.clear();
-                                }),
-                            child: const Icon(Icons.close,
-                                color: cRed, size: 18)),
-                      ]),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-
-                  // Lookup result
-                  if (_lookupResult != null) ...[
-                    Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: cGreen, width: 2),
-                      ),
-                      child: Column(children: [
-                        Container(
+                    // Returns banner
+                    StreamBuilder<List<ReturnModel>>(
+                      stream: _returnsStream,
+                      builder: (_, rSnap) {
+                        final pending = (rSnap.data ?? [])
+                            .where((r) => r.status == ReturnStatus.requested)
+                            .length;
+                        if (pending == 0) return const SizedBox.shrink();
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 12),
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 8),
+                              horizontal: 14, vertical: 12),
                           decoration: BoxDecoration(
-                            color: cGreen,
-                            borderRadius: const BorderRadius.vertical(
-                                top: Radius.circular(16)),
+                            color: cAmberTint,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                                color: cAmber.withValues(alpha: 0.35)),
                           ),
                           child: Row(children: [
-                            const Icon(Icons.check_circle_outline,
-                                color: Colors.white, size: 16),
-                            const SizedBox(width: 8),
-                            Text(tr('Заказ найден', 'Тапсырыс табылды'),
-                                style: manrope(13, FontWeight.w700,
-                                    color: Colors.white)),
-                            const Spacer(),
-                            GestureDetector(
-                                onTap: () => setState(() {
-                                      _lookupResult = null;
-                                      _codeCtrl.clear();
-                                    }),
-                                child: const Icon(Icons.close,
-                                    color: Colors.white, size: 18)),
+                            const Icon(Icons.assignment_return_rounded,
+                                color: cAmber, size: 20),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                tr('$pending возвратов ждут решения',
+                                    '$pending қайтарым шешімді күтуде'),
+                                style: manrope(13.5, FontWeight.w700,
+                                    color: const Color(0xFF92400E)),
+                              ),
+                            ),
                           ]),
-                        ),
-                        _OrderCard(
-                          order: _lookupResult!,
-                          service: _service,
-                          onChanged: () => setState(() {
-                            _lookupResult = null;
-                            _codeCtrl.clear();
-                          }),
-                        ),
-                      ]),
+                        );
+                      },
                     ),
+                    // Stats row
+                    Row(children: [
+                      Expanded(
+                        child: QCard(
+                          padding: const EdgeInsets.all(14),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('$waiting',
+                                  style: manrope(24, FontWeight.w800,
+                                      color: cGreen)),
+                              Text(tr('Ждут выдачи', 'Беруді күтуде'),
+                                  style: manrope(12, FontWeight.w600,
+                                      color: cInk3)),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: QCard(
+                          padding: const EdgeInsets.all(14),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('$doneToday',
+                                  style: manrope(24, FontWeight.w800,
+                                      color: cInk)),
+                              Text(tr('Выдано сегодня', 'Бүгін берілді'),
+                                  style: manrope(12, FontWeight.w600,
+                                      color: cInk3)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ]),
                     const SizedBox(height: 16),
-                  ],
 
-                  // Section label. «Заказ найден» ретінде жоғарыда көрсетілген
-                  // тапсырыс мұнда ҚАЙТАЛАНБАУЫ керек (екі виджет бір
-                  // тапсырысты басқарса, әрекеттер бір-бірінен жасырын қалады).
-                  if (_restList(all).isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: QSecLabel(tr('В выдаче', 'Беруде')),
-                    ),
-
-                  // Orders list
-                  ..._restList(all).map((order) => _OrderCard(
-                        key: ValueKey(order.id),
-                        order: order,
-                        service: _service,
-                        onChanged: () => setState(() {}),
-                      )),
-
-                  if (_restList(all).isEmpty && _lookupResult == null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 48),
-                      child: Column(children: [
-                        Container(
-                          width: 72,
-                          height: 72,
-                          decoration: const BoxDecoration(
-                              color: cLine2, shape: BoxShape.circle),
-                          child: const Icon(Icons.inbox_outlined,
-                              size: 34, color: cInk3),
+                    // Lookup error
+                    if (_lookupError != null) ...[
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: cRedTint,
+                          borderRadius: BorderRadius.circular(12),
+                          border:
+                              Border.all(color: cRed.withValues(alpha: 0.3)),
                         ),
-                        const SizedBox(height: 12),
-                        Text(
-                          _filter == 'active'
-                              ? tr('Нет активных заказов', 'Белсенді тапсырыс жоқ')
-                              : _filter == 'done'
-                                  ? tr('Нет завершённых заказов', 'Аяқталған тапсырыс жоқ')
-                                  : _filter == 'cancelled'
-                                      ? tr('Нет отменённых заказов', 'Бас тартылған тапсырыс жоқ')
-                                      : tr('Заказов нет', 'Тапсырыс жоқ'),
-                          style: manrope(15, FontWeight.w500, color: cInk2),
+                        child: Row(children: [
+                          const Icon(Icons.error_outline,
+                              color: cRed, size: 18),
+                          const SizedBox(width: 8),
+                          Expanded(
+                              child: Text(_lookupError!,
+                                  style: manrope(13, FontWeight.w500,
+                                      color: cRed))),
+                          GestureDetector(
+                              onTap: () => setState(() {
+                                    _lookupError = null;
+                                    _codeCtrl.clear();
+                                  }),
+                              child: const Icon(Icons.close,
+                                  color: cRed, size: 18)),
+                        ]),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+
+                    // Lookup result
+                    if (_lookupResult != null) ...[
+                      Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(color: cGreen, width: 2),
                         ),
-                      ]),
-                    ),
+                        child: Column(children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: cGreen,
+                              borderRadius: const BorderRadius.vertical(
+                                  top: Radius.circular(16)),
+                            ),
+                            child: Row(children: [
+                              const Icon(Icons.check_circle_outline,
+                                  color: Colors.white, size: 16),
+                              const SizedBox(width: 8),
+                              Text(tr('Заказ найден', 'Тапсырыс табылды'),
+                                  style: manrope(13, FontWeight.w700,
+                                      color: Colors.white)),
+                              const Spacer(),
+                              GestureDetector(
+                                  onTap: () => setState(() {
+                                        _lookupResult = null;
+                                        _codeCtrl.clear();
+                                      }),
+                                  child: const Icon(Icons.close,
+                                      color: Colors.white, size: 18)),
+                            ]),
+                          ),
+                          _OrderCard(
+                            order: _lookupResult!,
+                            service: _service,
+                            onChanged: () => setState(() {
+                              _lookupResult = null;
+                              _codeCtrl.clear();
+                            }),
+                          ),
+                        ]),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+
+                    // Section label. «Заказ найден» ретінде жоғарыда көрсетілген
+                    // тапсырыс мұнда ҚАЙТАЛАНБАУЫ керек (екі виджет бір
+                    // тапсырысты басқарса, әрекеттер бір-бірінен жасырын қалады).
+                    if (_restList(all).isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: QSecLabel(tr('В выдаче', 'Беруде')),
+                      ),
+
+                    // Orders list
+                    ..._restList(all).map((order) => _OrderCard(
+                          key: ValueKey(order.id),
+                          order: order,
+                          service: _service,
+                          onChanged: () => setState(() {}),
+                        )),
+
+                    if (_restList(all).isEmpty && _lookupResult == null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 48),
+                        child: Column(children: [
+                          Container(
+                            width: 72,
+                            height: 72,
+                            decoration: const BoxDecoration(
+                                color: cLine2, shape: BoxShape.circle),
+                            child: const Icon(Icons.inbox_outlined,
+                                size: 34, color: cInk3),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            _filter == 'active'
+                                ? tr('Нет активных заказов',
+                                    'Белсенді тапсырыс жоқ')
+                                : _filter == 'done'
+                                    ? tr('Нет завершённых заказов',
+                                        'Аяқталған тапсырыс жоқ')
+                                    : _filter == 'cancelled'
+                                        ? tr('Нет отменённых заказов',
+                                            'Бас тартылған тапсырыс жоқ')
+                                        : tr('Заказов нет', 'Тапсырыс жоқ'),
+                            style: manrope(15, FontWeight.w500, color: cInk2),
+                          ),
+                        ]),
+                      ),
                   ],
                 ),
               );
@@ -687,15 +697,27 @@ class _OrderCardState extends State<_OrderCard> {
           o.courierStatus == OrderModel.courierPickedUp);
 
   Future<void> _handOver() async {
+    // Примерка болса — алдымен клиент нақты қай өлшемді алғанын сұраймыз
+    // (курьермен жеткізгенде де осылай сұралады; сатушы өзі бергенде де
+    // қойма/сатылым дұрыс есептелуі үшін керек).
+    List<int> swaps = const [];
+    if (o.hasFitting) {
+      final result = await showFittingSwapSheet(context, o);
+      if (result == null || !mounted) return;
+      swaps = result;
+    }
+
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(tr('Выдача товара', 'Тауар беру')),
         content: Text(o.isSmartReservation && o.inStorePaymentMethod.isNotEmpty
-            ? tr('Выдать товар клиенту?\n\nДоплата: ${_payMethodLabel(o.inStorePaymentMethod)}', 'Тауарды клиентке беру керек пе?\n\nДоплата: ${_payMethodLabel(o.inStorePaymentMethod)}')
-            : tr('Выдать товар клиенту? Оплата подтверждена.', 'Тауарды клиентке беру керек пе? Төлем расталды.')),
+            ? tr(
+                'Выдать товар клиенту?\n\nДоплата: ${_payMethodLabel(o.inStorePaymentMethod)}',
+                'Тауарды клиентке беру керек пе?\n\nДоплата: ${_payMethodLabel(o.inStorePaymentMethod)}')
+            : tr('Выдать товар клиенту? Оплата подтверждена.',
+                'Тауарды клиентке беру керек пе? Төлем расталды.')),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),
@@ -711,7 +733,7 @@ class _OrderCardState extends State<_OrderCard> {
     if (ok != true || !mounted) return;
     setState(() => _loading = true);
     try {
-      await widget.service.markHandedOver(o);
+      await widget.service.markHandedOver(o, swappedIndexes: swaps);
       if (mounted) {
         setState(() => _loading = false);
         HapticFeedback.lightImpact();
@@ -729,6 +751,13 @@ class _OrderCardState extends State<_OrderCard> {
   }
 
   Future<void> _handOverReserved() async {
+    List<int> swaps = const [];
+    if (o.hasFitting) {
+      final result = await showFittingSwapSheet(context, o);
+      if (result == null || !mounted) return;
+      swaps = result;
+    }
+
     final method = await showModalBottomSheet<String>(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -736,20 +765,28 @@ class _OrderCardState extends State<_OrderCard> {
       builder: (ctx) => Padding(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(width: 36, height: 4,
+          Container(
+              width: 36,
+              height: 4,
               decoration: BoxDecoration(
                   color: cLine, borderRadius: BorderRadius.circular(2))),
           const SizedBox(height: 16),
-          Text(tr('Выдача товара · Доплата ${o.remainingAmount.toStringAsFixed(0)} ₸', 'Тауар беру · Доплата ${o.remainingAmount.toStringAsFixed(0)} ₸'),
+          Text(
+              tr('Выдача товара · Доплата ${o.remainingAmount.toStringAsFixed(0)} ₸',
+                  'Тауар беру · Доплата ${o.remainingAmount.toStringAsFixed(0)} ₸'),
               style: manrope(16, FontWeight.w800, color: cInk)),
           const SizedBox(height: 4),
           Text(tr('Как клиент внёс доплату?', 'Клиент доплату қалай берді?'),
               style: manrope(13, FontWeight.w500, color: cInk2)),
           const SizedBox(height: 20),
-          _PayBtn(label: tr('💵  Наличный', '💵  Қолма-қол'), color: cGreen,
+          _PayBtn(
+              label: tr('💵  Наличный', '💵  Қолма-қол'),
+              color: cGreen,
               onTap: () => Navigator.pop(ctx, 'cash')),
           const SizedBox(height: 10),
-          _PayBtn(label: '📱  Kaspi', color: const Color(0xFFEB3333),
+          _PayBtn(
+              label: '📱  Kaspi',
+              color: const Color(0xFFEB3333),
               onTap: () => Navigator.pop(ctx, 'kaspi')),
         ]),
       ),
@@ -757,7 +794,8 @@ class _OrderCardState extends State<_OrderCard> {
     if (method == null || !mounted) return;
     setState(() => _loading = true);
     try {
-      await widget.service.handOverWithDoplate(o, method);
+      await widget.service
+          .handOverWithDoplate(o, method, swappedIndexes: swaps);
       if (mounted) {
         setState(() => _loading = false);
         HapticFeedback.mediumImpact();
@@ -778,11 +816,10 @@ class _OrderCardState extends State<_OrderCard> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(tr('Отмена заказа', 'Тапсырысты болдырмау')),
-        content:
-            Text(tr('Заказ будет отменён, товар вернётся на склад.', 'Тапсырыс болдырылмайды, тауар қоймаға оралады.')),
+        content: Text(tr('Заказ будет отменён, товар вернётся на склад.',
+            'Тапсырыс болдырылмайды, тауар қоймаға оралады.')),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),
@@ -821,8 +858,7 @@ class _OrderCardState extends State<_OrderCard> {
         margin: const EdgeInsets.only(bottom: 12),
         child: QCard(
           padding: const EdgeInsets.all(24),
-          child: const Center(
-              child: CircularProgressIndicator(color: cGreen)),
+          child: const Center(child: CircularProgressIndicator(color: cGreen)),
         ),
       );
     }
@@ -831,19 +867,19 @@ class _OrderCardState extends State<_OrderCard> {
     // бөлігі емес, orderNumber (00021 түрінде) көрсетеміз.
     final shortId = o.orderNumber > 0
         ? o.orderNumber.toString().padLeft(5, '0')
-        : (o.id.length > 6 ? o.id.substring(0, 6).toUpperCase() : o.id.toUpperCase());
+        : (o.id.length > 6
+            ? o.id.substring(0, 6).toUpperCase()
+            : o.id.toUpperCase());
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       child: QCard(
         padding: const EdgeInsets.all(14),
-        border: Border.all(
-            color: cGreen.withValues(alpha: 0.2), width: 1.5),
+        border: Border.all(color: cGreen.withValues(alpha: 0.2), width: 1.5),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           // Order number + type pill
           Row(children: [
-            Text('#$shortId',
-                style: manrope(16, FontWeight.w800, color: cInk)),
+            Text('#$shortId', style: manrope(16, FontWeight.w800, color: cInk)),
             const Spacer(),
             QPill(_typeLabel, tone: _typeTone),
             const SizedBox(width: 8),
@@ -856,7 +892,9 @@ class _OrderCardState extends State<_OrderCard> {
             const Icon(Icons.person_outline, size: 15, color: cInk3),
             const SizedBox(width: 6),
             Text(
-              o.clientName.isNotEmpty ? o.clientName : tr('Имя не указано', 'Аты көрсетілмеген'),
+              o.clientName.isNotEmpty
+                  ? o.clientName
+                  : tr('Имя не указано', 'Аты көрсетілмеген'),
               style: manrope(13.5, FontWeight.w600, color: cInk2),
             ),
           ]),
@@ -873,12 +911,12 @@ class _OrderCardState extends State<_OrderCard> {
               onTap: () {
                 Clipboard.setData(ClipboardData(text: o.clientPhone));
                 ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                    content: Text(tr('Телефон скопирован', 'Телефон көшірілді')),
+                    content:
+                        Text(tr('Телефон скопирован', 'Телефон көшірілді')),
                     behavior: SnackBarBehavior.floating,
                     duration: Duration(seconds: 1)));
               },
-              child: const Icon(Icons.copy_outlined,
-                  size: 14, color: cInk3),
+              child: const Icon(Icons.copy_outlined, size: 14, color: cInk3),
             ),
           ]),
 
@@ -906,8 +944,7 @@ class _OrderCardState extends State<_OrderCard> {
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Row(children: [
-                const Icon(Icons.access_time_rounded,
-                    size: 15, color: cBlue),
+                const Icon(Icons.access_time_rounded, size: 15, color: cBlue),
                 const SizedBox(width: 6),
                 ReservationTimerWidget(expiresAt: o.expiresAt),
               ]),
@@ -935,78 +972,79 @@ class _OrderCardState extends State<_OrderCard> {
             ),
 
           if (_showDetails) ...[
-          // ── Позициялар: фото + бренд/түс/түрі + артикул ─────────────────
-          //  Атаудың өзі жеткіліксіз: бір атаумен қоймада бірнеше түс пен
-          //  модификация тұрады, сатушы қатесіз таба алуы керек.
-          ...o.items.map((item) => OrderItemRow(item: item)),
+            // ── Позициялар: фото + бренд/түс/түрі + артикул ─────────────────
+            //  Атаудың өзі жеткіліксіз: бір атаумен қоймада бірнеше түс пен
+            //  модификация тұрады, сатушы қатесіз таба алуы керек.
+            ...o.items.map((item) => OrderItemRow(item: item)),
 
-          // Жеткізу — ҚАЛАСЫМЕН (басқа қала болса жөнелту қызметі керек).
-          if (o.isDelivery)
-            OrderDestinationCard(
-              city: o.clientCity,
-              address: o.address,
-              byCourier: o.byPlatformCourier,
-            ),
+            // Жеткізу — ҚАЛАСЫМЕН (басқа қала болса жөнелту қызметі керек).
+            if (o.isDelivery)
+              OrderDestinationCard(
+                city: o.clientCity,
+                address: o.address,
+                byCourier: o.byPlatformCourier,
+              ),
 
-          const Divider(height: 16, color: cLine),
+            const Divider(height: 16, color: cLine),
 
-          // Payment summary
-          if (o.isSmartReservation) ...[
-            _PayRow(
-                label: tr('Сумма товаров', 'Тауар сомасы'),
-                value: '${o.total.toStringAsFixed(0)} ₸'),
-            _PayRow(
-                label: 'Депозит (10%)',
-                value: '${o.depositAmount.toStringAsFixed(0)} ₸',
-                valueColor: cGreen,
-                method: o.paymentBank),
-            _PayRow(
-                label: tr('Доплата в магазине', 'Дүкенде доплата'),
-                value: '${o.remainingAmount.toStringAsFixed(0)} ₸',
-                valueColor: cAmber,
-                bold: true,
-                method: o.inStorePaymentMethod),
-          ] else if (o.isDelivery) ...[
-            // Ақшаның толық жіктелуі: дүкенге не тиесілі, курьерге не тиесілі.
-            // Төлем әдісі сол картаның ішінде тұр — бөлек жол қажет емес.
-            OrderMoneyCard(order: o, audience: 'store'),
-            const SizedBox(height: 10),
-            CourierInfoBanner(
-              order: o,
-              forStore: true,
-              onConfirmReturnLeg: () async {
-                try {
-                  await widget.service.confirmReturnLeg(o);
-                  widget.onChanged();
-                } catch (e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                        content: Text(friendlyError(e)),
-                        backgroundColor: cRed,
-                        behavior: SnackBarBehavior.floating));
-                  }
-                }
-              },
-            ),
-          ] else ...[
-            // ⚠️ ТҮЗЕТУ: бұрын `o.total` (промокодқа дейінгі толық сома)
-            // көрсетілетін. Енді `o.finalTotal` — deposit_amount-пен сәйкес.
-            if (o.promoDiscount > 0) ...[
+            // Payment summary
+            if (o.isSmartReservation) ...[
               _PayRow(
                   label: tr('Сумма товаров', 'Тауар сомасы'),
                   value: '${o.total.toStringAsFixed(0)} ₸'),
               _PayRow(
-                  label: tr('Промокод ${o.promoCode}', 'Промокод ${o.promoCode}'),
-                  value: '−${o.promoDiscount.toStringAsFixed(0)} ₸',
-                  valueColor: cGreen),
+                  label: 'Депозит (10%)',
+                  value: '${o.depositAmount.toStringAsFixed(0)} ₸',
+                  valueColor: cGreen,
+                  method: o.paymentBank),
+              _PayRow(
+                  label: tr('Доплата в магазине', 'Дүкенде доплата'),
+                  value: '${o.remainingAmount.toStringAsFixed(0)} ₸',
+                  valueColor: cAmber,
+                  bold: true,
+                  method: o.inStorePaymentMethod),
+            ] else if (o.isDelivery) ...[
+              // Ақшаның толық жіктелуі: дүкенге не тиесілі, курьерге не тиесілі.
+              // Төлем әдісі сол картаның ішінде тұр — бөлек жол қажет емес.
+              OrderMoneyCard(order: o, audience: 'store'),
+              const SizedBox(height: 10),
+              CourierInfoBanner(
+                order: o,
+                forStore: true,
+                onConfirmReturnLeg: () async {
+                  try {
+                    await widget.service.confirmReturnLeg(o);
+                    widget.onChanged();
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                          content: Text(friendlyError(e)),
+                          backgroundColor: cRed,
+                          behavior: SnackBarBehavior.floating));
+                    }
+                  }
+                },
+              ),
+            ] else ...[
+              // ⚠️ ТҮЗЕТУ: бұрын `o.total` (промокодқа дейінгі толық сома)
+              // көрсетілетін. Енді `o.finalTotal` — deposit_amount-пен сәйкес.
+              if (o.promoDiscount > 0) ...[
+                _PayRow(
+                    label: tr('Сумма товаров', 'Тауар сомасы'),
+                    value: '${o.total.toStringAsFixed(0)} ₸'),
+                _PayRow(
+                    label: tr(
+                        'Промокод ${o.promoCode}', 'Промокод ${o.promoCode}'),
+                    value: '−${o.promoDiscount.toStringAsFixed(0)} ₸',
+                    valueColor: cGreen),
+              ],
+              _PayRow(
+                  label: tr('Итого оплачено', 'Барлығы төленді'),
+                  value: '${o.finalTotal.toStringAsFixed(0)} ₸',
+                  valueColor: cGreen,
+                  bold: true,
+                  method: o.paymentBank),
             ],
-            _PayRow(
-                label: tr('Итого оплачено', 'Барлығы төленді'),
-                value: '${o.finalTotal.toStringAsFixed(0)} ₸',
-                valueColor: cGreen,
-                bold: true,
-                method: o.paymentBank),
-          ],
           ],
 
           // Action buttons (курьер алып кеткен соң қолжетімсіз)
@@ -1055,7 +1093,9 @@ class _OrderCardState extends State<_OrderCard> {
             // reserved → выдать + доплата (одним шагом)
             if (o.status == OrderModel.statusReserved)
               QPrimaryButton(
-                label: tr('Выдать товар · доплата ${o.remainingAmount.toStringAsFixed(0)} ₸', 'Тауар беру · доплата ${o.remainingAmount.toStringAsFixed(0)} ₸'),
+                label: tr(
+                    'Выдать товар · доплата ${o.remainingAmount.toStringAsFixed(0)} ₸',
+                    'Тауар беру · доплата ${o.remainingAmount.toStringAsFixed(0)} ₸'),
                 height: 46,
                 icon: const Icon(Icons.check_circle_outline_rounded,
                     color: Colors.white, size: 18),
@@ -1074,7 +1114,8 @@ class _OrderCardState extends State<_OrderCard> {
                   border: Border.all(color: cLine),
                 ),
                 child: Text(
-                  tr('Ожидает подтверждения оплаты администратором', 'Әкімшінің төлем растауы күтілуде'),
+                  tr('Ожидает подтверждения оплаты администратором',
+                      'Әкімшінің төлем растауы күтілуде'),
                   textAlign: TextAlign.center,
                   style: manrope(12.5, FontWeight.w600, color: cInk3),
                 ),
@@ -1126,8 +1167,7 @@ class _PayRow extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(label,
-                style: manrope(12, FontWeight.w500, color: cInk2)),
+            Text(label, style: manrope(12, FontWeight.w500, color: cInk2)),
             Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
               Text(value,
                   style: manrope(
@@ -1163,9 +1203,7 @@ class _FilterChip extends StatelessWidget {
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
         decoration: BoxDecoration(
-          color: active
-              ? Colors.white
-              : Colors.white.withValues(alpha: 0.18),
+          color: active ? Colors.white : Colors.white.withValues(alpha: 0.18),
           borderRadius: BorderRadius.circular(11),
         ),
         child: Text(label,
@@ -1192,20 +1230,29 @@ String _normMethod(String m) {
 
 String _payMethodLabel(String method) {
   switch (_normMethod(method)) {
-    case 'kaspi': return '📱 Kaspi';
-    case 'halyk': return '📱 Halyk Bank';
-    case 'card':  return tr('💳 Оплата картой', '💳 Картамен төлем');
-    case 'cash':  return tr('💵 Наличный', '💵 Қолма-қол');
-    default:      return method.isNotEmpty ? method : '—';
+    case 'kaspi':
+      return '📱 Kaspi';
+    case 'halyk':
+      return '📱 Halyk Bank';
+    case 'card':
+      return tr('💳 Оплата картой', '💳 Картамен төлем');
+    case 'cash':
+      return tr('💵 Наличный', '💵 Қолма-қол');
+    default:
+      return method.isNotEmpty ? method : '—';
   }
 }
 
 Color _payMethodColor(String method) {
   switch (_normMethod(method)) {
-    case 'kaspi': return const Color(0xFFEB3333);
-    case 'halyk': return const Color(0xFF00A550);
-    case 'card':  return const Color(0xFF3B82F6);
-    default:      return cGreen;
+    case 'kaspi':
+      return const Color(0xFFEB3333);
+    case 'halyk':
+      return const Color(0xFF00A550);
+    case 'card':
+      return const Color(0xFF3B82F6);
+    default:
+      return cGreen;
   }
 }
 
@@ -1225,8 +1272,8 @@ class _PayBtn extends StatelessWidget {
           style: ElevatedButton.styleFrom(
             backgroundColor: color,
             foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             elevation: 0,
           ),
           child: Text(label,

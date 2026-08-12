@@ -58,7 +58,9 @@ class FirestoreService {
     final uid = AppUser.current.ownerUid.isNotEmpty
         ? AppUser.current.ownerUid
         : (_sb.auth.currentUser?.id ?? '');
-    if (uid.isEmpty) throw Exception(tr('Пользователь не авторизован.', 'Пайдаланушы авторизацияланбаған.'));
+    if (uid.isEmpty)
+      throw Exception(tr(
+          'Пользователь не авторизован.', 'Пайдаланушы авторизацияланбаған.'));
     return uid;
   }
 
@@ -201,8 +203,7 @@ class FirestoreService {
         continue;
       }
       var s = SearchHelper.score(p.name, q);
-      if (s <= 0 &&
-          !SearchHelper.allWordsMatch('${p.name} ${p.brand}', q)) {
+      if (s <= 0 && !SearchHelper.allWordsMatch('${p.name} ${p.brand}', q)) {
         continue;
       }
       if (brand.trim().isNotEmpty &&
@@ -302,7 +303,9 @@ class FirestoreService {
             .where((u) => u.isNotEmpty)
             .toList() ??
         <String>[];
-    await _sb.from('products').update({'images': imageUrls}).eq('id', productId);
+    await _sb
+        .from('products')
+        .update({'images': imageUrls}).eq('id', productId);
     return oldImgs;
   }
 
@@ -426,10 +429,8 @@ class FirestoreService {
     required DiscountModel discount,
   }) async {
     if (productIds.isEmpty) return;
-    await _sb
-        .from('batches')
-        .update({'discount': discount.toMapJson()}).inFilter(
-            'product_id', productIds);
+    await _sb.from('batches').update(
+        {'discount': discount.toMapJson()}).inFilter('product_id', productIds);
   }
 
   Future<void> removeDiscountBulk(List<String> productIds) async {
@@ -480,9 +481,12 @@ class FirestoreService {
 
   Future<String> createPromo(PromoModel promo) async {
     final code = promo.code.trim().toUpperCase();
-    if (code.isEmpty) throw SaleException(tr('Введите код промокода', 'Промокод кодын енгізіңіз'));
+    if (code.isEmpty)
+      throw SaleException(
+          tr('Введите код промокода', 'Промокод кодын енгізіңіз'));
     if (!await isPromoCodeUnique(code)) {
-      throw SaleException(tr('Такой промокод уже существует', 'Мұндай промокод бұрыннан бар'));
+      throw SaleException(
+          tr('Такой промокод уже существует', 'Мұндай промокод бұрыннан бар'));
     }
     final row = await _sb
         .from('promos')
@@ -511,7 +515,8 @@ class FirestoreService {
   Future<void> updatePromo(PromoModel promo) async {
     final code = promo.code.trim().toUpperCase();
     if (!await isPromoCodeUnique(code, exceptId: promo.id)) {
-      throw SaleException(tr('Такой промокод уже существует', 'Мұндай промокод бұрыннан бар'));
+      throw SaleException(
+          tr('Такой промокод уже существует', 'Мұндай промокод бұрыннан бар'));
     }
     await _sb
         .from('promos')
@@ -563,9 +568,9 @@ class FirestoreService {
         .from('orders')
         .select('id, items')
         .inFilter('status', activeStatuses);
-    final activeOrders = activeOrdersRaw.where((o) => (o['items'] as List? ??
-            [])
-        .any((it) => (it as Map)['batchId'] == batchId));
+    final activeOrders = activeOrdersRaw.where((o) =>
+        (o['items'] as List? ?? [])
+            .any((it) => (it as Map)['batchId'] == batchId));
     if (activeOrders.isNotEmpty) {
       throw SaleException(tr(
           'По этой партии есть неоплаченный/незавершённый заказ. Сначала отмените или дождитесь его завершения.',
@@ -585,8 +590,9 @@ class FirestoreService {
           .update({'sizes_quantity': <String, int>{}}).eq('id', batchId);
       await _sb
           .rpc('recompute_product_status', params: {'p_product': productId});
-      throw SaleException(
-          tr('По этой партии есть продажи. Партия не удалена, а перемещена в архив — аналитика сохранена.', 'Бұл партия бойынша сатылымдар бар. Партия өшірілмеді, архивке жылжытылды — аналитика сақталды.'));
+      throw SaleException(tr(
+          'По этой партии есть продажи. Партия не удалена, а перемещена в архив — аналитика сохранена.',
+          'Бұл партия бойынша сатылымдар бар. Партия өшірілмеді, архивке жылжытылды — аналитика сақталды.'));
     }
     await _sb.from('batches').delete().eq('id', batchId);
 
@@ -675,7 +681,8 @@ class FirestoreService {
       });
     } on PostgrestException catch (e) {
       if (e.message.contains('insufficient_stock')) {
-        throw SaleException(tr('Недостаточно остатка на складе.', 'Қоймада қалдық жеткіліксіз.'));
+        throw SaleException(tr(
+            'Недостаточно остатка на складе.', 'Қоймада қалдық жеткіліксіз.'));
       }
       rethrow;
     }
@@ -736,8 +743,7 @@ class FirestoreService {
         .order('sale_date', ascending: false)
         .map((rows) => rows
             .map(SaleModel.fromMap)
-            .where((s) =>
-                !s.saleDate.isBefore(from) && s.saleDate.isBefore(to))
+            .where((s) => !s.saleDate.isBefore(from) && s.saleDate.isBefore(to))
             .toList()));
   }
 
@@ -765,7 +771,8 @@ class FirestoreService {
     final missing = Map<String, int>.fromEntries(
         sizesMissing.entries.where((e) => e.value > 0));
     if (missing.isEmpty) {
-      throw SaleException(tr('Укажите количество недостачи', 'Жетіспеушілік санын көрсетіңіз'));
+      throw SaleException(
+          tr('Укажите количество недостачи', 'Жетіспеушілік санын көрсетіңіз'));
     }
     await _sb.from('revisions').insert({
       'owner_uid': _ownerUid,
@@ -806,7 +813,8 @@ class FirestoreService {
     }
     final srcRows = await bq.order('date_arrived', ascending: true);
     if (srcRows.isEmpty) {
-      throw SaleException(tr('Недостаточно остатка для списания', 'Списаниеге қалдық жеткіліксіз'));
+      throw SaleException(tr('Недостаточно остатка для списания',
+          'Списаниеге қалдық жеткіліксіз'));
     }
     final cost = await resolveBatchCost(owner, srcRows.first['id'] as String);
 
@@ -839,7 +847,8 @@ class FirestoreService {
       if (remaining.values.every((v) => v == 0)) break;
     }
     if (remaining.values.any((v) => v > 0)) {
-      throw SaleException(tr('Недостаточно остатка для списания', 'Списаниеге қалдық жеткіліксіз'));
+      throw SaleException(tr('Недостаточно остатка для списания',
+          'Списаниеге қалдық жеткіліксіз'));
     }
 
     final qty = rev.sizesMissing.values.fold(0, (a, b) => a + b);
@@ -876,7 +885,8 @@ class FirestoreService {
       'status': RevisionModel.statusWrittenOff,
       'written_off_at': DateTime.now().toIso8601String(),
     }).eq('id', rev.id);
-    await _sb.rpc('recompute_product_status', params: {'p_product': rev.productId});
+    await _sb
+        .rpc('recompute_product_status', params: {'p_product': rev.productId});
   }
 
   Future<(Map<String, List<BatchModel>>, Map<String, String>)>
@@ -884,7 +894,8 @@ class FirestoreService {
     final owner = _ownerUid;
     final prods =
         await _sb.from('products').select('id,name').eq('owner_uid', owner);
-    final allBatches = await _sb.from('batches').select().eq('owner_uid', owner);
+    final allBatches =
+        await _sb.from('batches').select().eq('owner_uid', owner);
     final batches = <String, List<BatchModel>>{};
     final names = <String, String>{};
     for (final p in prods) {
@@ -906,14 +917,20 @@ class FirestoreService {
   Future<List<DemandSignalEntry>> getDemandSignals() async {
     final owner = _ownerUid;
     final results = await Future.wait([
-      _sb.from('products').select('id,name,images,storefront_hidden').eq('owner_uid', owner),
+      _sb
+          .from('products')
+          .select('id,name,images,storefront_hidden')
+          .eq('owner_uid', owner),
       _sb.from('favorites').select('product_id').eq('admin_uid', owner),
       _sb
           .from('sales_history')
           .select('product_id,quantity')
           .eq('owner_uid', owner)
           .eq('type', 'sale'),
-      _sb.from('batches').select('product_id,sizes_quantity,reserved_sizes').eq('owner_uid', owner),
+      _sb
+          .from('batches')
+          .select('product_id,sizes_quantity,reserved_sizes')
+          .eq('owner_uid', owner),
     ]);
     final products = results[0] as List;
     final favRows = results[1] as List;
@@ -930,7 +947,8 @@ class FirestoreService {
     for (final r in saleRows) {
       final pid = r['product_id'] as String?;
       if (pid == null) continue;
-      soldQty[pid] = (soldQty[pid] ?? 0) + ((r['quantity'] as num?)?.toInt() ?? 0);
+      soldQty[pid] =
+          (soldQty[pid] ?? 0) + ((r['quantity'] as num?)?.toInt() ?? 0);
     }
     final availQty = <String, int>{};
     for (final r in batchRows) {
@@ -973,7 +991,8 @@ class FirestoreService {
     for (final r in rows) {
       final pid = r['product_id'] as String?;
       if (pid == null) continue;
-      result[pid] = (result[pid] ?? 0) + ((r['quantity'] as num?)?.toInt() ?? 0);
+      result[pid] =
+          (result[pid] ?? 0) + ((r['quantity'] as num?)?.toInt() ?? 0);
     }
     return result;
   }
@@ -995,8 +1014,10 @@ class FirestoreService {
   }
 
   Future<double> getTotalRevenue({DateTime? from, DateTime? to}) async {
-    var q =
-        _sb.from('sales_history').select('total_price').eq('owner_uid', _ownerUid);
+    var q = _sb
+        .from('sales_history')
+        .select('total_price')
+        .eq('owner_uid', _ownerUid);
     if (from != null) q = q.gte('sale_date', from.toIso8601String());
     if (to != null) q = q.lte('sale_date', to.toIso8601String());
     final rows = await q;
@@ -1098,7 +1119,9 @@ class FirestoreService {
     required double lat,
     required double lng,
   }) =>
-      _sb.from('warehouses').update({'lat': lat, 'lng': lng}).eq('id', warehouseId);
+      _sb
+          .from('warehouses')
+          .update({'lat': lat, 'lng': lng}).eq('id', warehouseId);
 
   Future<void> deleteWarehouse(String warehouseId) =>
       _sb.from('warehouses').delete().eq('id', warehouseId);
@@ -1115,32 +1138,35 @@ class FirestoreService {
 
   /// Товарлар + ӨЗ batch-тарымен. [warehouseId] берілсе — сол қойма бойынша сүзіледі.
   Stream<List<({ProductModel product, List<BatchModel> batches})>>
-      watchProductsWithBatches({String warehouseId = ''}) => retryStream(() => _sb
-          .from('products')
-          .stream(primaryKey: ['id'])
-          .eq('owner_uid', _ownerUid)
-          .order('name', ascending: true)
-          .asyncMap((prows) async {
-            final products = prows.map(ProductModel.fromMap).toList();
-            var bq = _sb.from('batches').select().eq('owner_uid', _ownerUid);
-            if (warehouseId.isNotEmpty) {
-              bq = bq.eq('warehouse_id', warehouseId);
-            }
-            final brows = await bq;
-            final byProduct = <String, List<BatchModel>>{};
-            for (final b in brows) {
-              final pid = b['product_id'] as String?;
-              if (pid == null) continue;
-              (byProduct[pid] ??= []).add(BatchModel.fromMap(b));
-            }
-            final out = <({ProductModel product, List<BatchModel> batches})>[];
-            for (final p in products) {
-              final batches = byProduct[p.id] ?? [];
-              if (warehouseId.isNotEmpty && batches.isEmpty) continue;
-              out.add((product: p, batches: batches));
-            }
-            return out;
-          }));
+      watchProductsWithBatches({String warehouseId = ''}) =>
+          retryStream(() => _sb
+              .from('products')
+              .stream(primaryKey: ['id'])
+              .eq('owner_uid', _ownerUid)
+              .order('name', ascending: true)
+              .asyncMap((prows) async {
+                final products = prows.map(ProductModel.fromMap).toList();
+                var bq =
+                    _sb.from('batches').select().eq('owner_uid', _ownerUid);
+                if (warehouseId.isNotEmpty) {
+                  bq = bq.eq('warehouse_id', warehouseId);
+                }
+                final brows = await bq;
+                final byProduct = <String, List<BatchModel>>{};
+                for (final b in brows) {
+                  final pid = b['product_id'] as String?;
+                  if (pid == null) continue;
+                  (byProduct[pid] ??= []).add(BatchModel.fromMap(b));
+                }
+                final out =
+                    <({ProductModel product, List<BatchModel> batches})>[];
+                for (final p in products) {
+                  final batches = byProduct[p.id] ?? [];
+                  if (warehouseId.isNotEmpty && batches.isEmpty) continue;
+                  out.add((product: p, batches: batches));
+                }
+                return out;
+              }));
 
   Stream<List<ProductWithStock>> watchProductsInWarehouse(String warehouseId) =>
       watchProductsWithBatches(warehouseId: warehouseId).map((list) => list
@@ -1210,11 +1236,13 @@ class FirestoreService {
         .eq('code', businessCode.trim().toUpperCase())
         .maybeSingle();
     if (codeDoc == null) {
-      throw tr('Бизнес-код не найден. Введите корректный код.', 'Бизнес-код табылмады. Дұрыс кодты енгізіңіз.');
+      throw tr('Бизнес-код не найден. Введите корректный код.',
+          'Бизнес-код табылмады. Дұрыс кодты енгізіңіз.');
     }
     final adminUid = codeDoc['admin_uid'] as String?;
     if (adminUid == null || adminUid.isEmpty) {
-      throw tr('Код недействителен. Обратитесь к владельцу магазина.', 'Код жарамсыз. Дүкен иесіне хабарлаңыз.');
+      throw tr('Код недействителен. Обратитесь к владельцу магазина.',
+          'Код жарамсыз. Дүкен иесіне хабарлаңыз.');
     }
 
     // (seller_uid, admin_uid) бойынша unique — қайта жіберу жаңа жол қоспай,
@@ -1296,8 +1324,7 @@ class FirestoreService {
   Future<void> rejectLeaveRequest(String requestId) async {
     await _sb
         .from('join_requests')
-        .update({'status': 'approved'})
-        .eq('id', requestId);
+        .update({'status': 'approved'}).eq('id', requestId);
   }
 
   /// Ағымдағы сатушының join_requests статусы (leave_pending/approved/removed/...).
@@ -1412,7 +1439,8 @@ class FirestoreService {
         .eq('product_id', productId)
         .eq('warehouse_id', fromWarehouseId)
         .order('date_arrived', ascending: true);
-    if (srcRows.isEmpty) throw SaleException(tr('Недостаточно остатка', 'Қалдық жеткіліксіз'));
+    if (srcRows.isEmpty)
+      throw SaleException(tr('Недостаточно остатка', 'Қалдық жеткіліксіз'));
 
     final double transferCost =
         await resolveBatchCost(owner, srcRows.first['id'] as String);
@@ -1480,8 +1508,11 @@ class FirestoreService {
   // ── Store ─────────────────────────────────────────────────────────────────────
 
   Future<StoreModel?> getStore() async {
-    final row =
-        await _sb.from('stores').select().eq('admin_uid', _adminUid).maybeSingle();
+    final row = await _sb
+        .from('stores')
+        .select()
+        .eq('admin_uid', _adminUid)
+        .maybeSingle();
     return row == null ? null : StoreModel.fromMap(row);
   }
 
@@ -1695,7 +1726,9 @@ class FirestoreService {
   // ── Payment receipt flow ─────────────────────────────────────────────────────
 
   Future<void> submitReceipt(OrderModel o, String receiptUrl) async {
-    await _claimOrder(o.id, const [OrderModel.statusPending, OrderModel.statusRejected],
+    await _claimOrder(
+        o.id,
+        const [OrderModel.statusPending, OrderModel.statusRejected],
         OrderModel.statusPending);
     await _sb.from('orders').update({
       'receipt_url': receiptUrl,
@@ -1758,14 +1791,24 @@ class FirestoreService {
     }).eq('id', o.id);
   }
 
-  Future<void> handOverWithDoplate(OrderModel order, String doplaMethod) =>
+  Future<void> handOverWithDoplate(OrderModel order, String doplaMethod,
+          {List<int> swappedIndexes = const []}) =>
       _completeOrder(
         order.copyWith(inStorePaymentMethod: doplaMethod),
         expected: const [OrderModel.statusReserved],
+        swappedIndexes: swappedIndexes,
       );
 
-  Future<void> markHandedOver(OrderModel order) => _completeOrder(order,
-      expected: const [OrderModel.statusConfirmed]);
+  /// [swappedIndexes] — «өлшеп көру» позицияларының items ішіндегі
+  /// индекстері, ОНДА клиент негізгі емес, ҚОСАЛҚЫ (altSize) өлшемді алып
+  /// кеткен. Дүкен/сатушы курьерсіз өзі бергенде де осы ақпарат керек —
+  /// әйтпесе қойма/сатылым қате есептеледі (бұрынғы қате: әрқашан негізгі
+  /// өлшем сатылды деп есептелетін).
+  Future<void> markHandedOver(OrderModel order,
+          {List<int> swappedIndexes = const []}) =>
+      _completeOrder(order,
+          expected: const [OrderModel.statusConfirmed],
+          swappedIndexes: swappedIndexes);
 
   /// «Өлшеп көру» кезінде клиент таңдамаған өлшемді курьер қоймаға әкелді —
   /// дүкен қабылдады (0052). ТЕК осы сәтте қалдық қайта қолжетімді болады:
@@ -1773,14 +1816,18 @@ class FirestoreService {
   Future<void> confirmReturnLeg(OrderModel order) =>
       _sb.rpc('store_confirm_return_leg', params: {'p_order': order.id});
 
-  Future<void> confirmOnlineOrder(OrderModel order) => _completeOrder(order,
-      expected: const [OrderModel.statusPending, OrderModel.statusReserved]);
+  Future<void> confirmOnlineOrder(OrderModel order,
+          {List<int> swappedIndexes = const []}) =>
+      _completeOrder(order,
+          expected: const [OrderModel.statusPending, OrderModel.statusReserved],
+          swappedIndexes: swappedIndexes);
 
   /// Online тапсырысты аяқтайды: бронь болса қойманы азайтады, sales_history
   /// жазады, статусты completed қылады, чек нөмірін береді. [expected] —
   /// шақырылған жол бойынша нақты рұқсат етілген бастапқы статус(тар).
   Future<void> _completeOrder(OrderModel order,
-      {required List<String> expected}) async {
+      {required List<String> expected,
+      List<int> swappedIndexes = const []}) async {
     await _claimOrder(order.id, expected, OrderModel.statusCompleted);
     final seller = AppUser.current;
     // Онлайн-тапсырыстың чегіне БӨЛЕК санақ бермейміз — тапсырыс клиентке,
@@ -1815,11 +1862,14 @@ class FirestoreService {
       }
     }
 
-    // «Өлшеп көру» броні босайды (0050): дүкен өзі берген жағдайда своп
-    // болмайды — қосымша өлшемдер бірден қоймаға оралуы керек.
+    // «Өлшеп көру»: [swappedIndexes] бойынша своп есептеледі — қосалқы
+    // өлшемді алған позиция САТЫЛДЫ (қоймадан шығады), негізгі өлшем ДӘЛ
+    // ҚАЗІР дүкенге қайтады (курьер жоқ, кідіріс керек емес). release_fitting_holds-тан
+    // айырмашылығы — бұл своп-хабардар (0064).
     if (order.hasFitting) {
       try {
-        await _sb.rpc('release_fitting_holds', params: {'p_order': order.id});
+        await _sb.rpc('store_handover_fitting',
+            params: {'p_order': order.id, 'p_swaps': swappedIndexes});
       } catch (_) {}
     }
 
@@ -1850,7 +1900,13 @@ class FirestoreService {
         : '';
 
     final sales = <Map<String, dynamic>>[];
-    for (final item in order.items) {
+    for (var idx = 0; idx < order.items.length; idx++) {
+      final item = order.items[idx];
+      // Своп болса — іс жүзінде сатылған өлшем altSize, item.size емес
+      // (store_handover_fitting дәл осылай қоймадан шығарады).
+      final soldSize = swappedIndexes.contains(idx) && item.hasAltSize
+          ? item.altSize
+          : item.size;
       sales.add({
         'owner_uid': order.adminUid,
         'product_id': item.productId,
@@ -1864,8 +1920,8 @@ class FirestoreService {
         'total_price': item.subtotal * promoFactor,
         'discount_amount': item.originalSubtotal - item.subtotal * promoFactor,
         'quantity': item.qty,
-        'selected_size': item.size,
-        'sizes_sold': {item.size: item.qty},
+        'selected_size': soldSize,
+        'sizes_sold': {soldSize: item.qty},
         'sale_date': DateTime.now().toIso8601String(),
         'warehouse_id': order.warehouseId.isEmpty ? null : order.warehouseId,
         'product_name': item.productName,
@@ -2035,10 +2091,9 @@ extension RefreshX on FirestoreService {
 // ── Returns ────────────────────────────────────────────────────────────────────
 extension ReturnsX on FirestoreService {
   /// 'requested' күйіндегі қайтарулар саны (AdminHome badge).
-  Stream<int> watchNewReturnsCount() => Supabase.instance.client
-      .from('returns')
-      .stream(primaryKey: ['id'])
-      .map((rows) => rows.where((r) => r['status'] == 'requested').length);
+  Stream<int> watchNewReturnsCount() =>
+      Supabase.instance.client.from('returns').stream(primaryKey: ['id']).map(
+          (rows) => rows.where((r) => r['status'] == 'requested').length);
 }
 
 class _ProductsCache {

@@ -16,6 +16,7 @@ import 'my_store/admin_my_store_hub_screen.dart';
 import '../onboarding/my_store_gate.dart';
 
 import '../../core/lang.dart';
+
 class AdminHomeScreen extends StatefulWidget {
   const AdminHomeScreen({super.key});
 
@@ -41,8 +42,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       _service.watchActiveSellers();
   late final Stream<List<SaleModel>> _salesStream =
       _service.watchSalesForMonth(DateTime.now());
-  late final Stream<int> _onlineCountStream =
-      _service.watchActiveOnlineCount();
+  late final Stream<int> _onlineCountStream = _service.watchActiveOnlineCount();
   late final Stream<List<WarehouseModel>> _warehousesStream =
       _service.watchWarehouses();
   late final Stream<List<ReturnModel>> _returnsStream =
@@ -85,7 +85,9 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   @override
   Widget build(BuildContext context) {
     final appUser = context.watch<AppUser>();
-    final name = appUser.name.isNotEmpty ? appUser.name : tr('Добрый день', 'Қайырлы күн');
+    final name = appUser.name.isNotEmpty
+        ? appUser.name
+        : tr('Добрый день', 'Қайырлы күн');
 
     return Scaffold(
       backgroundColor: cBg,
@@ -111,11 +113,15 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                             children: [
                               Text(name,
                                   style: manrope(23, FontWeight.w800,
-                                      color: Colors.white, letterSpacing: -0.5)),
+                                      color: Colors.white,
+                                      letterSpacing: -0.5)),
                               if (storeName.isNotEmpty)
-                                Text(tr('Магазин «$storeName»', '«$storeName» дүкені'),
+                                Text(
+                                    tr('Магазин «$storeName»',
+                                        '«$storeName» дүкені'),
                                     style: manrope(13, FontWeight.w500,
-                                        color: Colors.white.withValues(alpha: 0.78))),
+                                        color: Colors.white
+                                            .withValues(alpha: 0.78))),
                             ],
                           );
                         },
@@ -151,8 +157,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               QIconTile(
-                                icon: const Icon(Icons.account_balance_wallet_outlined,
-                                    color: cGreen, size: 19),
+                                icon: const Icon(
+                                    Icons.account_balance_wallet_outlined,
+                                    color: cGreen,
+                                    size: 19),
                                 tone: 'green',
                                 size: 38,
                               ),
@@ -217,7 +225,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                         icon: Icons.storefront_outlined,
                         tone: 'green',
                         title: tr('Мой магазин', 'Менің дүкенім'),
-                        sub: tr('Открыть интернет-магазин', 'Интернет-дүкен ашу'),
+                        sub: tr(
+                            'Открыть интернет-магазин', 'Интернет-дүкен ашу'),
                         onTap: () => Navigator.push(
                             context,
                             MaterialPageRoute(
@@ -237,8 +246,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                             tone: store.isPublished ? 'green' : 'ink',
                             title: tr('Мой магазин', 'Менің дүкенім'),
                             sub: store.isPublished
-                                ? tr('«${store.storeName}» · онлайн', '«${store.storeName}» · онлайн')
-                                : tr('«${store.storeName}» · офлайн', '«${store.storeName}» · офлайн'),
+                                ? tr('«${store.storeName}» · онлайн',
+                                    '«${store.storeName}» · онлайн')
+                                : tr('«${store.storeName}» · офлайн',
+                                    '«${store.storeName}» · офлайн'),
                             badge: unread > 0 ? '$unread' : null,
                             onTap: () => Navigator.push(
                                 context,
@@ -289,8 +300,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                                         color: cInk)),
                                 Text(
                                   count == 0
-                                      ? tr('Нет новых заказов', 'Жаңа тапсырыс жоқ')
-                                      : tr('$count новых ждут подтверждения', '$count жаңасы растауды күтуде'),
+                                      ? tr('Нет новых заказов',
+                                          'Жаңа тапсырыс жоқ')
+                                      : tr('$count новых ждут подтверждения',
+                                          '$count жаңасы растауды күтуде'),
                                   style: manrope(12.5, FontWeight.w500,
                                       color: cInk3),
                                 ),
@@ -361,8 +374,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                                         color: cInk)),
                                 Text(
                                   newCount == 0
-                                      ? tr('Нет новых запросов', 'Жаңа сұраныс жоқ')
-                                      : tr('$newCount новых запросов', '$newCount жаңа сұраныс'),
+                                      ? tr('Нет новых запросов',
+                                          'Жаңа сұраныс жоқ')
+                                      : tr('$newCount новых запросов',
+                                          '$newCount жаңа сұраныс'),
                                   style: manrope(12.5, FontWeight.w500,
                                       color: cInk3),
                                 ),
@@ -430,8 +445,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                                         color: cInk)),
                                 Text(
                                   openCount == 0
-                                      ? tr('Недостачи и списание товара', 'Жетіспеушілік және тауар списаниесі')
-                                      : tr('$openCount недостач ждут списания', '$openCount жетіспеушілік списаниені күтуде'),
+                                      ? tr('Недостачи и списание товара',
+                                          'Жетіспеушілік және тауар списаниесі')
+                                      : tr('$openCount недостач ждут списания',
+                                          '$openCount жетіспеушілік списаниені күтуде'),
                                   style: manrope(12.5, FontWeight.w500,
                                       color: cInk3),
                                 ),
@@ -480,7 +497,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                           icon: Icons.group_outlined,
                           tone: 'green',
                           title: tr('Продавцы', 'Сатушылар'),
-                          sub: tr('$active активных · $pending запросов', '$active белсенді · $pending сұраныс'),
+                          sub: tr('$active активных · $pending запросов',
+                              '$active белсенді · $pending сұраныс'),
                           badge: pending > 0 ? '$pending' : null,
                           onTap: () => Navigator.push(
                               context,
@@ -507,7 +525,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                           icon: Icons.storefront_outlined,
                           tone: 'blue',
                           title: tr('Склады', 'Қоймалар'),
-                          sub: tr('${whs.length} складов · $total шт.', '${whs.length} қойма · $total дана'),
+                          sub: tr('${whs.length} складов · $total шт.',
+                              '${whs.length} қойма · $total дана'),
                           onTap: () => Navigator.push(
                               context,
                               MaterialPageRoute(
@@ -574,14 +593,19 @@ class _QMenuItem extends StatelessWidget {
               ),
             ),
             if (badge != null) ...[
+              // Бұрын ашық пінк «чип» еді — назар аудармайтын. Енді
+              // осы бетте (Онлайн-заказы) басқа жерде қолданылатын
+              // қатты қызыл дөңгелекпен БІРДЕЙ стиль.
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
+                padding: const EdgeInsets.symmetric(horizontal: 6),
                 decoration: BoxDecoration(
-                    color: cRedTint, borderRadius: BorderRadius.circular(9)),
-                child: Text(badge!,
-                    style: manrope(11.5, FontWeight.w700,
-                        color: const Color(0xFFB11A2B))),
+                    color: cRed, borderRadius: BorderRadius.circular(kRPill)),
+                child: Center(
+                  child: Text(badge!,
+                      style: manrope(11.5, FontWeight.w800,
+                          color: Colors.white, height: 1.1)),
+                ),
               ),
               const SizedBox(width: 6),
             ],

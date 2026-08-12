@@ -37,8 +37,8 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _signIn() async {
     if (!isValidKzPhone(_phoneCtrl.text)) {
       setState(() {
-        _errorMessage =
-            tr('Введите номер телефона полностью', 'Телефон нөмірін толық енгізіңіз');
+        _errorMessage = tr('Введите номер телефона полностью',
+            'Телефон нөмірін толық енгізіңіз');
       });
       return;
     }
@@ -64,16 +64,16 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() => _errorMessage = e.message);
     } catch (_) {
       if (mounted) {
-        setState(() =>
-            _errorMessage = tr('Неизвестная ошибка', 'Белгісіз қате'));
+        setState(
+            () => _errorMessage = tr('Неизвестная ошибка', 'Белгісіз қате'));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  void _goToRegister() => Navigator.push(
-      context, MaterialPageRoute(builder: (_) => const RegisterChooserScreen()));
+  void _goToRegister() => Navigator.push(context,
+      MaterialPageRoute(builder: (_) => const RegisterChooserScreen()));
 
   @override
   Widget build(BuildContext context) {
@@ -155,7 +155,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ]),
               const SizedBox(height: 18),
-
               AuthField(
                 controller: _phoneCtrl,
                 label: tr('Номер телефона', 'Телефон нөмірі'),
@@ -171,7 +170,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 textInputAction: TextInputAction.next,
               ),
               const SizedBox(height: 16),
-
               AuthPasswordField(
                 controller: _passwordCtrl,
                 label: tr('Пароль', 'Құпиясөз'),
@@ -187,40 +185,52 @@ class _LoginScreenState extends State<LoginScreen> {
                       context,
                       MaterialPageRoute(
                           builder: (_) => const ForgotPasswordScreen())),
-                  child: Text(
-                      tr('Забыли пароль?', 'Құпиясөзді ұмыттыңыз ба?'),
+                  child: Text(tr('Забыли пароль?', 'Құпиясөзді ұмыттыңыз ба?'),
                       style: manrope(13, FontWeight.w700, color: cGreen)),
                 ),
               ),
-
               if (_errorMessage != null) ...[
                 const SizedBox(height: 14),
                 AuthErrorBox(_errorMessage!),
               ],
-
               const SizedBox(height: 22),
               AuthPrimaryButton(
                 label: tr('Войти', 'Кіру'),
                 isLoading: _isLoading,
                 onPressed: _signIn,
               ),
-
               const SizedBox(height: 22),
               Container(height: 1, color: cLine),
               const SizedBox(height: 18),
-
               Center(
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(tr('Нет аккаунта?', 'Аккаунтыңыз жоқ па?'),
                         style: manrope(14, FontWeight.w600, color: cInk2)),
-                    const SizedBox(width: 5),
-                    GestureDetector(
-                      onTap: _goToRegister,
-                      child: Text(tr('Регистрация', 'Тіркелу'),
-                          style:
-                              manrope(14, FontWeight.w800, color: cGreen)),
+                    const SizedBox(width: 8),
+                    // Бұрын жай мәтін еді — кнопка екені көрінбейтін. Енді
+                    // айқын жиегі бар «таблетка» — басуға болатыны бірден
+                    // көзге түседі.
+                    Material(
+                      color: cGreenTint,
+                      borderRadius: BorderRadius.circular(kRPill),
+                      child: InkWell(
+                        onTap: _goToRegister,
+                        borderRadius: BorderRadius.circular(kRPill),
+                        splashColor: cGreen.withValues(alpha: 0.12),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 7),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(kRPill),
+                            border: Border.all(color: cGreenTint2, width: 1.4),
+                          ),
+                          child: Text(tr('Регистрация', 'Тіркелу'),
+                              style: manrope(13.5, FontWeight.w800,
+                                  color: cGreenDeep)),
+                        ),
+                      ),
                     ),
                   ],
                 ),

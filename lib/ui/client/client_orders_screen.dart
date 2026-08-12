@@ -26,13 +26,18 @@ import 'order_timeline.dart';
 
 class ClientOrdersScreen extends StatefulWidget {
   final VoidCallback? onBack;
+
   /// Push deep-link арқылы ашылғанда (order_status): дұрыс табты бірден
   /// ашамыз (0=белсенді, 1=алынған, 2=бас тартылған, 3=қайтарулар).
   final int initialTabIndex;
+
   /// Push data-дағы orderId — сол тапсырыстың карточкасын бөлектейміз.
   final String? highlightOrderId;
   const ClientOrdersScreen(
-      {super.key, this.onBack, this.initialTabIndex = 0, this.highlightOrderId});
+      {super.key,
+      this.onBack,
+      this.initialTabIndex = 0,
+      this.highlightOrderId});
 
   @override
   State<ClientOrdersScreen> createState() => _ClientOrdersScreenState();
@@ -113,11 +118,9 @@ class _ClientOrdersScreenState extends State<ClientOrdersScreen> {
                     return StreamBuilder<List<OrderModel>>(
                       stream: _ordersStream,
                       builder: (context, snap) {
-                        if (snap.connectionState ==
-                            ConnectionState.waiting) {
+                        if (snap.connectionState == ConnectionState.waiting) {
                           return const Center(
-                              child: CircularProgressIndicator(
-                                  color: cGreen));
+                              child: CircularProgressIndicator(color: cGreen));
                         }
                         // Желі жоқ болса ағын қатемен келеді — бұрын бұл
                         // «тапсырыс жоқ» болып көрінетін (жаңылыстыратын).
@@ -158,14 +161,13 @@ class _ClientOrdersScreenState extends State<ClientOrdersScreen> {
                             .toList();
 
                         final cancelled = all
-                            .where((o) =>
-                                o.status == OrderModel.statusCancelled)
+                            .where(
+                                (o) => o.status == OrderModel.statusCancelled)
                             .toList();
 
                         return Column(children: [
                           Padding(
-                            padding:
-                                const EdgeInsets.fromLTRB(16, 14, 16, 4),
+                            padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
                             child: SingleChildScrollView(
                               scrollDirection: Axis.horizontal,
                               child: Row(children: [
@@ -173,32 +175,28 @@ class _ClientOrdersScreenState extends State<ClientOrdersScreen> {
                                   label: tr('Активные', 'Белсенді'),
                                   count: active.length,
                                   active: _tabIndex == 0,
-                                  onTap: () =>
-                                      setState(() => _tabIndex = 0),
+                                  onTap: () => setState(() => _tabIndex = 0),
                                 ),
                                 const SizedBox(width: 8),
                                 _TabChip(
                                   label: tr('Полученные', 'Алынған'),
                                   count: received.length,
                                   active: _tabIndex == 1,
-                                  onTap: () =>
-                                      setState(() => _tabIndex = 1),
+                                  onTap: () => setState(() => _tabIndex = 1),
                                 ),
                                 const SizedBox(width: 8),
                                 _TabChip(
                                   label: tr('Отменённые', 'Бас тартылған'),
                                   count: cancelled.length,
                                   active: _tabIndex == 2,
-                                  onTap: () =>
-                                      setState(() => _tabIndex = 2),
+                                  onTap: () => setState(() => _tabIndex = 2),
                                 ),
                                 const SizedBox(width: 8),
                                 _TabChip(
                                   label: tr('Возвраты', 'Қайтарулар'),
                                   count: retSnap.data?.length ?? 0,
                                   active: _tabIndex == 3,
-                                  onTap: () =>
-                                      setState(() => _tabIndex = 3),
+                                  onTap: () => setState(() => _tabIndex = 3),
                                 ),
                               ]),
                             ),
@@ -228,7 +226,7 @@ class _ClientOrdersScreenState extends State<ClientOrdersScreen> {
   }
 
   Widget _empty() => Center(
-      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
         const Icon(Icons.receipt_long_outlined, size: 56, color: cInk3),
         const SizedBox(height: 12),
         Text(tr('Заказов нет', 'Тапсырыс жоқ'),
@@ -315,8 +313,7 @@ class _TabChip extends StatelessWidget {
   Widget build(BuildContext context) => GestureDetector(
         onTap: onTap,
         child: Container(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
           decoration: BoxDecoration(
             color: active ? cInk : cSurface,
             borderRadius: BorderRadius.circular(11),
@@ -329,12 +326,10 @@ class _TabChip extends StatelessWidget {
             if (count > 0) ...[
               const SizedBox(width: 6),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: active
-                      ? Colors.white.withValues(alpha: 0.2)
-                      : cGreenTint,
+                  color:
+                      active ? Colors.white.withValues(alpha: 0.2) : cGreenTint,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text('$count',
@@ -354,6 +349,7 @@ class _TabChip extends StatelessWidget {
 //  (client_order_detail_screen.dart).
 class _OrderCard extends StatefulWidget {
   final OrderModel order;
+
   /// Push deep-link арқылы ашылғанда: дәл осы тапсырысты бөлектейміз.
   final bool highlighted;
   const _OrderCard({
@@ -370,6 +366,7 @@ class _OrderCardState extends State<_OrderCard> {
   bool _showQr = false;
   bool _cancelling = false;
   bool _uploading = false;
+
   /// Егжей-тегжей (есеп кестесі, курьер, таймлайн) ашық па. Әдепкі — ЖИНАУЛЫ:
   /// тізімді бір қараған сәтте шолып шығу мүмкін болуы керек.
   bool _expanded = false;
@@ -415,7 +412,8 @@ class _OrderCardState extends State<_OrderCard> {
   Future<void> _loadWarehouseNote() async {
     if (o.isDelivery || o.warehouseId.isEmpty || o.adminUid.isEmpty) return;
     try {
-      final wh = await ClientService().getWarehouseById(o.adminUid, o.warehouseId);
+      final wh =
+          await ClientService().getWarehouseById(o.adminUid, o.warehouseId);
       final note = wh?.note?.trim() ?? '';
       if (note.isNotEmpty && mounted) setState(() => _warehouseNote = note);
     } catch (_) {}
@@ -497,7 +495,8 @@ class _OrderCardState extends State<_OrderCard> {
       builder: (_) => AlertDialog(
         title: Text(tr('Отменить заказ', 'Тапсырысты болдырмау'),
             style: manrope(17, FontWeight.w700, color: cInk)),
-        content: Text(tr('Отменить этот заказ?', 'Осы тапсырысты болдырмау керек пе?'),
+        content: Text(
+            tr('Отменить этот заказ?', 'Осы тапсырысты болдырмау керек пе?'),
             style: manrope(14, FontWeight.w500, color: cInk2)),
         actions: [
           TextButton(
@@ -540,7 +539,8 @@ class _OrderCardState extends State<_OrderCard> {
       );
       if (attached == true && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(tr('Чек отправлен на проверку ✓', 'Чек тексеруге жіберілді ✓')),
+          content: Text(
+              tr('Чек отправлен на проверку ✓', 'Чек тексеруге жіберілді ✓')),
           backgroundColor: cGreen,
           behavior: SnackBarBehavior.floating,
         ));
@@ -630,8 +630,7 @@ class _OrderCardState extends State<_OrderCard> {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                const Icon(Icons.receipt_long_outlined,
-                    size: 13, color: cBlue),
+                const Icon(Icons.receipt_long_outlined, size: 13, color: cBlue),
                 const SizedBox(width: 4),
                 Text(
                   '${tr('Чек', 'Чек')} №${o.receiptNumber.replaceAll('#', '')}',
@@ -708,14 +707,12 @@ class _OrderCardState extends State<_OrderCard> {
             const SizedBox(height: 6),
             Container(height: 1, color: cLine2),
             const SizedBox(height: 6),
-            Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('Промокод ${o.promoCode}',
-                      style: manrope(12, FontWeight.w500, color: cInk2)),
-                  Text('−${money(o.promoDiscount)}',
-                      style: manrope(12, FontWeight.w700, color: cGreen)),
-                ]),
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              Text('Промокод ${o.promoCode}',
+                  style: manrope(12, FontWeight.w500, color: cInk2)),
+              Text('−${money(o.promoDiscount)}',
+                  style: manrope(12, FontWeight.w700, color: cGreen)),
+            ]),
           ],
 
           if (_expanded && o.isDelivery) ...[
@@ -735,22 +732,18 @@ class _OrderCardState extends State<_OrderCard> {
             const SizedBox(height: 6),
             Container(height: 1, color: cLine2),
             const SizedBox(height: 6),
-            Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('Депозит (10%)',
-                      style: manrope(12, FontWeight.w500, color: cInk2)),
-                  Text('${o.depositAmount.toStringAsFixed(0)} ₸',
-                      style: manrope(12, FontWeight.w600, color: cGreen)),
-                ]),
-            Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(tr('Доплата в магазине', 'Дүкенде доплата'),
-                      style: manrope(12, FontWeight.w500, color: cInk2)),
-                  Text('${o.remainingAmount.toStringAsFixed(0)} ₸',
-                      style: manrope(12, FontWeight.w700, color: cAmber)),
-                ]),
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              Text('Депозит (10%)',
+                  style: manrope(12, FontWeight.w500, color: cInk2)),
+              Text('${o.depositAmount.toStringAsFixed(0)} ₸',
+                  style: manrope(12, FontWeight.w600, color: cGreen)),
+            ]),
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              Text(tr('Доплата в магазине', 'Дүкенде доплата'),
+                  style: manrope(12, FontWeight.w500, color: cInk2)),
+              Text('${o.remainingAmount.toStringAsFixed(0)} ₸',
+                  style: manrope(12, FontWeight.w700, color: cAmber)),
+            ]),
           ],
 
           if (o.status == OrderModel.statusRejected &&
@@ -763,18 +756,18 @@ class _OrderCardState extends State<_OrderCard> {
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: cRed.withValues(alpha: 0.2)),
               ),
-              child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(Icons.error_outline, color: cRed, size: 16),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        tr('Причина отклонения: ${o.rejectionReason}', 'Қабылданбау себебі: ${o.rejectionReason}'),
-                        style: manrope(12, FontWeight.w500, color: cRed),
-                      ),
-                    ),
-                  ]),
+              child:
+                  Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Icon(Icons.error_outline, color: cRed, size: 16),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    tr('Причина отклонения: ${o.rejectionReason}',
+                        'Қабылданбау себебі: ${o.rejectionReason}'),
+                    style: manrope(12, FontWeight.w500, color: cRed),
+                  ),
+                ),
+              ]),
             ),
           ],
 
@@ -811,16 +804,18 @@ class _OrderCardState extends State<_OrderCard> {
                   // Склад түсініктемесі («1-қабат, 304 бутик») — табуға көмек.
                   if (_warehouseNote != null && _warehouseNote!.isNotEmpty) ...[
                     const SizedBox(height: 8),
-                    Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      const Icon(Icons.tips_and_updates_outlined,
-                          color: cGreenDeep, size: 16),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(_warehouseNote!,
-                            style: manrope(13, FontWeight.w700,
-                                color: cGreenDeep, height: 1.3)),
-                      ),
-                    ]),
+                    Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.tips_and_updates_outlined,
+                              color: cGreenDeep, size: 16),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(_warehouseNote!,
+                                style: manrope(13, FontWeight.w700,
+                                    color: cGreenDeep, height: 1.3)),
+                          ),
+                        ]),
                   ],
                   // Телефон — қоңырау шалады.
                   if (o.storePhone.isNotEmpty) ...[
@@ -875,13 +870,15 @@ class _OrderCardState extends State<_OrderCard> {
                 o.orderNumber > 0
                     ? '#${o.orderNumber.toString().padLeft(5, '0')}'
                     : '',
-                style: manrope(22, FontWeight.w800, color: cInk,
-                    letterSpacing: 2),
+                style:
+                    manrope(22, FontWeight.w800, color: cInk, letterSpacing: 2),
               ),
             ),
             const SizedBox(height: 4),
             Center(
-              child: Text(tr('Покажите продавцу этот QR код', 'Сатушыға осы QR кодты көрсетіңіз'),
+              child: Text(
+                  tr('Покажите продавцу этот QR код',
+                      'Сатушыға осы QR кодты көрсетіңіз'),
                   style: manrope(12, FontWeight.w500, color: cInk2)),
             ),
           ],
@@ -890,12 +887,12 @@ class _OrderCardState extends State<_OrderCard> {
 
           if (_showQrBtn)
             QSoftButton(
-              label: _showQr ? tr('Скрыть QR-код', 'QR-кодты жасыру') : tr('Показать QR-код', 'QR-кодты көрсету'),
+              label: _showQr
+                  ? tr('Скрыть QR-код', 'QR-кодты жасыру')
+                  : tr('Показать QR-код', 'QR-кодты көрсету'),
               height: 44,
               icon: Icon(
-                _showQr
-                    ? Icons.visibility_off_outlined
-                    : Icons.qr_code_rounded,
+                _showQr ? Icons.visibility_off_outlined : Icons.qr_code_rounded,
                 color: cGreenDeep,
                 size: 18,
               ),
@@ -933,29 +930,24 @@ class _OrderCardState extends State<_OrderCard> {
 
           if (_canCancel) ...[
             const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
+            // Бұрын жалаң OutlinedButton еді — сыртқы тема мен жергілікті
+            // стиль қабаттасып, мәтін ашық фонда КӨРІНБЕЙ қалатын (нашар
+            // контраст). QSoftButton қатты пінк фон беретіндіктен бұл
+            // мүлде мүмкін емес.
+            QSoftButton(
+              label: tr('Отменить заказ', 'Тапсырысты болдырмау'),
+              tone: 'red',
               height: 40,
-              child: OutlinedButton(
-                onPressed: _cancelling ? null : _cancel,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: cRed,
-                  side: const BorderSide(color: cRed),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(11)),
-                ),
-                child: _cancelling
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                            color: cRed, strokeWidth: 2))
-                    : Text(tr('Отменить заказ', 'Тапсырысты болдырмау'),
-                        style: manrope(13, FontWeight.w700, color: cRed)),
-              ),
+              onPressed: _cancelling ? null : _cancel,
+              icon: _cancelling
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                          color: cRedInk, strokeWidth: 2))
+                  : null,
             ),
           ],
-
         ]),
       ),
     );
@@ -972,10 +964,13 @@ class _HistoryOrderCard extends StatefulWidget {
   final OrderModel order;
   final ReturnStatus? returnStatus;
   final bool highlighted;
+
   /// «Себетке» / «Қайталау» батырмалары (тек АЛЫНҒАН тапсырыстарда).
   final bool showActions;
+
   /// Клиенттің ӨЗІ қойған бағалары (productId → rating) — бағалау белгісі осыдан.
   final Map<String, int> ratings;
+
   /// Жаңа баға қойылғаннан кейін тізімдегі [ratings] картасын қайта жүктеу.
   final VoidCallback onRatingsChanged;
   final VoidCallback onOpen;
@@ -1112,8 +1107,7 @@ class _HistoryOrderCardState extends State<_HistoryOrderCard> {
           const SizedBox(
               width: 12,
               height: 12,
-              child:
-                  CircularProgressIndicator(strokeWidth: 2, color: cInk3)),
+              child: CircularProgressIndicator(strokeWidth: 2, color: cInk3)),
         ],
       ]),
       const SizedBox(height: 6),
@@ -1128,8 +1122,7 @@ class _HistoryOrderCardState extends State<_HistoryOrderCard> {
               onTap: _ratingBusy ? null : () => _rateOrder(i + 1),
               child: Padding(
                 padding: const EdgeInsets.only(right: 6),
-                child: Icon(Icons.star_outline_rounded,
-                    size: 26, color: cInk3),
+                child: Icon(Icons.star_outline_rounded, size: 26, color: cInk3),
               ),
             );
           }),
@@ -1161,7 +1154,8 @@ class _HistoryOrderCardState extends State<_HistoryOrderCard> {
           res.unavailable.isEmpty
               ? tr('${res.items.length} товар(ов) в корзине',
                   '${res.items.length} тауар себетке салынды')
-              : tr('В корзине: ${res.items.length}. Нет в наличии: ${res.unavailable.join(', ')}',
+              : tr(
+                  'В корзине: ${res.items.length}. Нет в наличии: ${res.unavailable.join(', ')}',
                   'Себетке: ${res.items.length}. Қоймада жоқ: ${res.unavailable.join(', ')}'),
           res.unavailable.isEmpty ? cGreen : cAmber);
       if (goToCart && mounted) {
@@ -1249,14 +1243,13 @@ class _HistoryOrderCardState extends State<_HistoryOrderCard> {
               ),
             const SizedBox(width: 10),
             Expanded(
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(money(o.finalTotal),
-                        style: manrope(15.5, FontWeight.w800, color: cInk)),
-                    const SizedBox(height: 4),
-                    QPill(_typeLabel, tone: _typeTone),
-                  ]),
+              child:
+                  Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                Text(money(o.finalTotal),
+                    style: manrope(15.5, FontWeight.w800, color: cInk)),
+                const SizedBox(height: 4),
+                QPill(_typeLabel, tone: _typeTone),
+              ]),
             ),
           ]),
           if (widget.returnStatus != null) ...[
@@ -1292,8 +1285,7 @@ class _HistoryOrderCardState extends State<_HistoryOrderCard> {
                     icon: const Icon(Icons.add_shopping_cart_rounded,
                         size: 15, color: cGreenDeep),
                     label: Text(tr('В корзину', 'Себетке'),
-                        style:
-                            manrope(12, FontWeight.w700, color: cGreenDeep)),
+                        style: manrope(12, FontWeight.w700, color: cGreenDeep)),
                   ),
                 ),
               ),
@@ -1330,7 +1322,8 @@ class _HistoryOrderCardState extends State<_HistoryOrderCard> {
           Row(mainAxisAlignment: MainAxisAlignment.end, children: [
             Text(tr('Подробнее', 'Толығырақ'),
                 style: manrope(12, FontWeight.w800, color: cGreenDeep)),
-            const Icon(Icons.chevron_right_rounded, size: 18, color: cGreenDeep),
+            const Icon(Icons.chevron_right_rounded,
+                size: 18, color: cGreenDeep),
           ]),
         ]),
       ),
@@ -1365,8 +1358,8 @@ class _CollapseToggle extends StatelessWidget {
               Container(
                 width: 6,
                 height: 6,
-                decoration: const BoxDecoration(
-                    color: cGreen, shape: BoxShape.circle),
+                decoration:
+                    const BoxDecoration(color: cGreen, shape: BoxShape.circle),
               ),
               const SizedBox(width: 7),
               Flexible(
@@ -1379,9 +1372,7 @@ class _CollapseToggle extends StatelessWidget {
             ],
             const Spacer(),
             Text(
-                expanded
-                    ? tr('Свернуть', 'Жию')
-                    : tr('Подробнее', 'Толығырақ'),
+                expanded ? tr('Свернуть', 'Жию') : tr('Подробнее', 'Толығырақ'),
                 style: manrope(12, FontWeight.w800, color: cGreenDeep)),
             const SizedBox(width: 2),
             Icon(
@@ -1419,8 +1410,8 @@ class _PickupRow extends StatelessWidget {
         const SizedBox(width: 8),
         Expanded(
           child: Text(value,
-              style: manrope(14, FontWeight.w700, color: cGreenDeep,
-                  height: 1.25),
+              style:
+                  manrope(14, FontWeight.w700, color: cGreenDeep, height: 1.25),
               maxLines: 2,
               overflow: TextOverflow.ellipsis),
         ),
@@ -1442,4 +1433,3 @@ class _PickupRow extends StatelessWidget {
     );
   }
 }
-

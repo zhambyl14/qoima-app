@@ -1,9 +1,11 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../../core/warehouse_context.dart';
 import '../../../data/models/store_discount_model.dart';
 import '../../../data/models/store_model.dart';
+import '../../../data/repositories/admin_questions_repository.dart';
+import '../../../data/repositories/admin_reviews_repository.dart';
 import '../../../data/repositories/my_store_repository.dart';
 import '../../../data/services/firestore_service.dart';
 import '../../../theme/qoima_design.dart';
@@ -20,6 +22,7 @@ import 'storefront_manage_screen.dart';
 import 'store_data_screen.dart';
 
 import '../../../core/lang.dart';
+
 class AdminMyStoreHubScreen extends StatelessWidget {
   const AdminMyStoreHubScreen({super.key});
 
@@ -27,6 +30,15 @@ class AdminMyStoreHubScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final service = FirestoreService();
     final repo = MyStoreRepository();
+    // Басты беттегі «Мой магазин» белгісіндегі сан (пікір+сұрақ қосындысы)
+    // осында ЕКІГЕ бөлініп көрсетіледі — пайдаланушы «5» қайдан шыққанын
+    // тікелей осы екі пункттен көреді.
+    final unansweredReviews = AdminReviewsRepository()
+        .watchStoreReviews()
+        .map((list) => list.where((r) => !r.hasReply).length);
+    final unansweredQuestions = AdminQuestionsRepository()
+        .watchStoreQuestions()
+        .map((list) => list.where((q) => !q.hasAnswer).length);
 
     return Scaffold(
       backgroundColor: cBg,
@@ -52,7 +64,8 @@ class AdminMyStoreHubScreen extends StatelessWidget {
                       GestureDetector(
                         onTap: () => Navigator.maybePop(context),
                         child: Container(
-                          width: 38, height: 38,
+                          width: 38,
+                          height: 38,
                           margin: const EdgeInsets.only(right: 12),
                           decoration: BoxDecoration(
                             color: Colors.white.withValues(alpha: 0.16),
@@ -71,7 +84,8 @@ class AdminMyStoreHubScreen extends StatelessWidget {
                                     color: Colors.white, letterSpacing: -0.5)),
                             Text(name,
                                 style: manrope(13, FontWeight.w500,
-                                    color: Colors.white.withValues(alpha: 0.75))),
+                                    color:
+                                        Colors.white.withValues(alpha: 0.75))),
                           ],
                         ),
                       ),
@@ -120,7 +134,9 @@ class AdminMyStoreHubScreen extends StatelessWidget {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(tr('Магазин заблокирован', 'Дүкен блокталған'),
+                                    Text(
+                                        tr('Магазин заблокирован',
+                                            'Дүкен блокталған'),
                                         style: manrope(13.5, FontWeight.w800,
                                             color: const Color(0xFFB11A2B))),
                                     if (store.blockReason.isNotEmpty)
@@ -136,42 +152,73 @@ class AdminMyStoreHubScreen extends StatelessWidget {
                         ],
                         // Quick stats
                         Row(children: [
-                          _HubStat(icon: Icons.percent_rounded, val: '$disc', lbl: 'Акция', tone: 'red'),
+                          _HubStat(
+                              icon: Icons.percent_rounded,
+                              val: '$disc',
+                              lbl: 'Акция',
+                              tone: 'red'),
                           const SizedBox(width: 10),
-                          _HubStat(icon: Icons.warehouse_outlined, val: '$whTotal', lbl: tr('Склад', 'Қойма'), tone: 'green'),
+                          _HubStat(
+                              icon: Icons.warehouse_outlined,
+                              val: '$whTotal',
+                              lbl: tr('Склад', 'Қойма'),
+                              tone: 'green'),
                           const SizedBox(width: 10),
-                          _HubStat(icon: Icons.language_rounded, val: isOnline ? 'ON' : 'OFF', lbl: 'Витрина', tone: 'blue'),
+                          _HubStat(
+                              icon: Icons.language_rounded,
+                              val: isOnline ? 'ON' : 'OFF',
+                              lbl: 'Витрина',
+                              tone: 'blue'),
                         ]),
                         const SizedBox(height: 20),
 
                         QSecLabel(tr('Акции', 'Акциялар')),
                         const SizedBox(height: 8),
                         QMenuItem(
-                          icon: Icons.percent_rounded, tone: 'red',
-                          title: tr('Скидки на товары', 'Тауарларға жеңілдіктер'),
-                          subtitle: disc > 0 ? tr('$disc активных', '$disc белсенді') : tr('Нет активных скидок', 'Белсенді жеңілдік жоқ'),
-                          onTap: () => Navigator.push(context,
-                              MaterialPageRoute(builder: (_) => const AdminMyStoreDiscountsScreen())),
+                          icon: Icons.percent_rounded,
+                          tone: 'red',
+                          title:
+                              tr('Скидки на товары', 'Тауарларға жеңілдіктер'),
+                          subtitle: disc > 0
+                              ? tr('$disc активных', '$disc белсенді')
+                              : tr('Нет активных скидок',
+                                  'Белсенді жеңілдік жоқ'),
+                          onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) =>
+                                      const AdminMyStoreDiscountsScreen())),
                         ),
                         const SizedBox(height: 10),
                         QMenuItem(
-                          icon: Icons.local_activity_outlined, tone: 'purple',
+                          icon: Icons.local_activity_outlined,
+                          tone: 'purple',
                           title: tr('Промокоды', 'Промокодтар'),
-                          subtitle: tr('Коды со скидкой для клиентов', 'Клиенттерге жеңілдік кодтары'),
-                          onTap: () => Navigator.push(context,
-                              MaterialPageRoute(builder: (_) => const PromosScreen())),
+                          subtitle: tr('Коды со скидкой для клиентов',
+                              'Клиенттерге жеңілдік кодтары'),
+                          onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const PromosScreen())),
                         ),
                         const SizedBox(height: 10),
                         QMenuItem(
-                          icon: Icons.campaign_outlined, tone: 'green',
-                          title: tr('Рассылка клиентам', 'Клиенттерге хабарлама'),
-                          subtitle: tr('Push-уведомление о новинках/акциях', 'Жаңалық/акция туралы push'),
-                          onTap: () => Navigator.push(context,
-                              MaterialPageRoute(builder: (_) => const StoreBroadcastScreen())),
+                          icon: Icons.campaign_outlined,
+                          tone: 'green',
+                          title:
+                              tr('Рассылка клиентам', 'Клиенттерге хабарлама'),
+                          subtitle: tr('Push-уведомление о новинках/акциях',
+                              'Жаңалық/акция туралы push'),
+                          onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) =>
+                                      const StoreBroadcastScreen())),
                         ),
                         const SizedBox(height: 10),
                         QMenuItem(
-                          icon: Icons.card_giftcard_outlined, tone: 'amber',
+                          icon: Icons.card_giftcard_outlined,
+                          tone: 'amber',
                           title: tr('Приведи друга', 'Досыңды шақыр'),
                           subtitle: (store?.referralEnabled ?? false)
                               ? tr('Включено · −${store?.referralPercent}%',
@@ -183,67 +230,111 @@ class AdminMyStoreHubScreen extends StatelessWidget {
                               : () => Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                      builder: (_) =>
-                                          ReferralSettingsScreen(store: store))),
+                                      builder: (_) => ReferralSettingsScreen(
+                                          store: store))),
                         ),
                         const SizedBox(height: 20),
 
                         QSecLabel(tr('Покупатели', 'Сатып алушылар')),
                         const SizedBox(height: 8),
-                        QMenuItem(
-                          icon: Icons.rate_review_outlined, tone: 'amber',
-                          title: tr('Отзывы покупателей', 'Сатып алушы пікірлері'),
-                          subtitle: tr('Читайте и отвечайте на отзывы', 'Пікірлерді оқып, жауап беріңіз'),
-                          onTap: () => Navigator.push(context,
-                              MaterialPageRoute(builder: (_) => const AdminReviewsScreen())),
+                        StreamBuilder<int>(
+                          stream: unansweredReviews,
+                          builder: (_, rSnap) {
+                            final n = rSnap.data ?? 0;
+                            return QMenuItem(
+                              icon: Icons.rate_review_outlined,
+                              tone: 'amber',
+                              title: tr('Отзывы покупателей',
+                                  'Сатып алушы пікірлері'),
+                              subtitle: n > 0
+                                  ? tr('$n без ответа', '$n жауапсыз')
+                                  : tr('Читайте и отвечайте на отзывы',
+                                      'Пікірлерді оқып, жауап беріңіз'),
+                              badgeCount: n,
+                              onTap: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (_) =>
+                                          const AdminReviewsScreen())),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 10),
+                        StreamBuilder<int>(
+                          stream: unansweredQuestions,
+                          builder: (_, qSnap) {
+                            final n = qSnap.data ?? 0;
+                            return QMenuItem(
+                              icon: Icons.help_outline_rounded,
+                              tone: 'green',
+                              title: tr('Вопросы о товарах', 'Тауар сұрақтары'),
+                              subtitle: n > 0
+                                  ? tr('$n без ответа', '$n жауапсыз')
+                                  : tr('Отвечайте на вопросы покупателей',
+                                      'Сатып алушы сұрақтарына жауап беріңіз'),
+                              badgeCount: n,
+                              onTap: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (_) =>
+                                          const AdminQuestionsScreen())),
+                            );
+                          },
                         ),
                         const SizedBox(height: 10),
                         QMenuItem(
-                          icon: Icons.help_outline_rounded, tone: 'green',
-                          title: tr('Вопросы о товарах', 'Тауар сұрақтары'),
-                          subtitle: tr('Отвечайте на вопросы покупателей', 'Сатып алушы сұрақтарына жауап беріңіз'),
-                          onTap: () => Navigator.push(context,
-                              MaterialPageRoute(builder: (_) => const AdminQuestionsScreen())),
-                        ),
-                        const SizedBox(height: 10),
-                        QMenuItem(
-                          icon: Icons.favorite_outline_rounded, tone: 'red',
+                          icon: Icons.favorite_outline_rounded,
+                          tone: 'red',
                           title: tr('Спрос клиентов', 'Клиенттер сұранысы'),
-                          subtitle: tr('Что добавляют в избранное', 'Таңдаулыға не қосады'),
-                          onTap: () => Navigator.push(context,
-                              MaterialPageRoute(builder: (_) => const DemandSignalsScreen())),
-                        ),
-                        const SizedBox(height: 10),
-                        QMenuItem(
-                          icon: Icons.storefront_outlined, tone: 'blue',
-                          title: tr('Витрина магазина', 'Дүкен витринасы'),
-                          subtitle: tr('Какие товары видны онлайн + просмотр', 'Қай тауар онлайн көрінеді + қарау'),
+                          subtitle: tr('Что добавляют в избранное',
+                              'Таңдаулыға не қосады'),
                           onTap: () => Navigator.push(
                               context,
                               MaterialPageRoute(
-                                  builder: (_) => StorefrontManageScreen(
-                                      store: store))),
+                                  builder: (_) => const DemandSignalsScreen())),
+                        ),
+                        const SizedBox(height: 10),
+                        QMenuItem(
+                          icon: Icons.storefront_outlined,
+                          tone: 'blue',
+                          title: tr('Витрина магазина', 'Дүкен витринасы'),
+                          subtitle: tr('Какие товары видны онлайн + просмотр',
+                              'Қай тауар онлайн көрінеді + қарау'),
+                          onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) =>
+                                      StorefrontManageScreen(store: store))),
                         ),
                         const SizedBox(height: 20),
 
                         QSecLabel(tr('Магазин', 'Дүкен')),
                         const SizedBox(height: 8),
                         QMenuItem(
-                          icon: Icons.warehouse_outlined, tone: 'green',
+                          icon: Icons.warehouse_outlined,
+                          tone: 'green',
                           title: tr('Склады витрины', 'Витрина қоймалары'),
                           subtitle: whVisible > 0
-                              ? tr('$whVisible / $whTotal складов отображается', '$whVisible / $whTotal қойма көрсетілген')
+                              ? tr('$whVisible / $whTotal складов отображается',
+                                  '$whVisible / $whTotal қойма көрсетілген')
                               : tr('Склад не выбран', 'Қойма таңдалмаған'),
-                          onTap: () => Navigator.push(context,
-                              MaterialPageRoute(builder: (_) => const AdminStoreVisibilityScreen())),
+                          onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) =>
+                                      const AdminStoreVisibilityScreen())),
                         ),
                         const SizedBox(height: 10),
                         QMenuItem(
-                          icon: Icons.storefront_rounded, tone: 'blue',
+                          icon: Icons.storefront_rounded,
+                          tone: 'blue',
                           title: tr('Данные магазина', 'Дүкен деректері'),
-                          subtitle: tr('Реквизиты и владелец', 'Реквизиттер мен иесі'),
-                          onTap: () => Navigator.push(context,
-                              MaterialPageRoute(builder: (_) => const StoreDataScreen())),
+                          subtitle: tr(
+                              'Реквизиты и владелец', 'Реквизиттер мен иесі'),
+                          onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const StoreDataScreen())),
                         ),
                         const SizedBox(height: 32),
                       ],
@@ -263,10 +354,23 @@ class AdminMyStoreHubScreen extends StatelessWidget {
 class _HubStat extends StatelessWidget {
   final IconData icon;
   final String val, lbl, tone;
-  const _HubStat({required this.icon, required this.val, required this.lbl, required this.tone});
+  const _HubStat(
+      {required this.icon,
+      required this.val,
+      required this.lbl,
+      required this.tone});
 
-  Color get _bg => {'red': cRedTint, 'purple': cPurpleTint, 'blue': cBlueTint, 'green': cGreenTint}[tone] ?? cGreenTint;
-  Color get _fg => {'red': cRed, 'purple': cPurple, 'blue': cBlue, 'green': cGreen}[tone] ?? cGreen;
+  Color get _bg =>
+      {
+        'red': cRedTint,
+        'purple': cPurpleTint,
+        'blue': cBlueTint,
+        'green': cGreenTint
+      }[tone] ??
+      cGreenTint;
+  Color get _fg =>
+      {'red': cRed, 'purple': cPurple, 'blue': cBlue, 'green': cGreen}[tone] ??
+      cGreen;
 
   @override
   Widget build(BuildContext context) => Expanded(
@@ -274,12 +378,16 @@ class _HubStat extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 13),
           child: Column(children: [
             Container(
-              width: 36, height: 36,
-              decoration: BoxDecoration(color: _bg, borderRadius: BorderRadius.circular(11)),
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                  color: _bg, borderRadius: BorderRadius.circular(11)),
               child: Icon(icon, color: _fg, size: 17),
             ),
             const SizedBox(height: 8),
-            Text(val, style: manrope(20, FontWeight.w800, color: cInk, letterSpacing: -0.3)),
+            Text(val,
+                style: manrope(20, FontWeight.w800,
+                    color: cInk, letterSpacing: -0.3)),
             const SizedBox(height: 1),
             Text(lbl, style: manrope(11.5, FontWeight.w600, color: cInk3)),
           ]),
@@ -347,16 +455,19 @@ class _OnlineToggleRowState extends State<_OnlineToggleRow> {
       child: Row(children: [
         AnimatedContainer(
           duration: const Duration(milliseconds: 300),
-          width: 10, height: 10,
+          width: 10,
+          height: 10,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: isOnline
                 ? const Color(0xFF4AFF98)
                 : Colors.white.withValues(alpha: 0.35),
             boxShadow: isOnline
-                ? [BoxShadow(
-                    color: const Color(0xFF4AFF98).withValues(alpha: 0.4),
-                    blurRadius: 8)]
+                ? [
+                    BoxShadow(
+                        color: const Color(0xFF4AFF98).withValues(alpha: 0.4),
+                        blurRadius: 8)
+                  ]
                 : [],
           ),
         ),
@@ -380,4 +491,3 @@ class _OnlineToggleRowState extends State<_OnlineToggleRow> {
     );
   }
 }
-
