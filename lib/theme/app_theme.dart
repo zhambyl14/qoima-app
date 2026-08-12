@@ -5,108 +5,113 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
+/// НАЗАР: түстердің ЖАЛҒЫЗ көзі — theme/qoima_design.dart. Мұндағы мәндер
+/// сол токендердің көшірмесі (бұл файл ескі экрандар үшін қалды, дизайн
+/// жүйесіне тәуелділік енгізбеу үшін hex күйінде қайталанады). Бірін
+/// өзгертсең — екіншісін де түзет.
 class AppTheme {
   // ── Brand ────────────────────────────────────────────────────────────────────
-  static const Color primary = Color(0xFF1E3A8A);
-  static const Color primaryDark = Color(0xFF0F1F5C);
-  static const Color primaryLight = Color(0xFF3B5FCC);
-  static const Color primarySoft = Color(0xFFEEF1FB);
-  static const Color primaryHair = Color(0xFFD5DDF3);
+  static const Color primary = Color(0xFF00A862);
+  static const Color primaryDark = Color(0xFF00713F);
+  static const Color primaryLight = Color(0xFF16D888);
+  static const Color primarySoft = Color(0xFFE9FBF2);
+  static const Color primaryHair = Color(0xFFD3F4E3);
 
   // ── Semantic ─────────────────────────────────────────────────────────────────
-  static const Color success = Color(0xFF0F9D58);
-  static const Color successDark = Color(0xFF0A6E3E);
-  static const Color successSoft = Color(0xFFE5F4ED);
+  static const Color success = Color(0xFF00A862);
+  static const Color successDark = Color(0xFF00713F);
+  static const Color successSoft = Color(0xFFE9FBF2);
 
-  static const Color hot = Color(0xFFF26B5C);
-  static const Color hotDark = Color(0xFFC84A3D);
-  static const Color hotSoft = Color(0xFFFEEDEA);
+  static const Color hot = Color(0xFFFF6B4A);
+  static const Color hotDark = Color(0xFFD44021);
+  static const Color hotSoft = Color(0xFFFFEDE7);
 
-  static const Color warning = Color(0xFFD97706);
-  static const Color warningSoft = Color(0xFFFFF7E6);
-  static const Color warningInk = Color(0xFF92400E);
+  static const Color warning = Color(0xFFFFA51F);
+  static const Color warningSoft = Color(0xFFFFF4DE);
+  static const Color warningInk = Color(0xFF8F6103);
 
-  static const Color danger = Color(0xFFEF4444);
-  static const Color dangerSoft = Color(0xFFFEF2F2);
+  static const Color danger = Color(0xFFF23B4F);
+  static const Color dangerSoft = Color(0xFFFFEBEE);
 
   // ── Surface ──────────────────────────────────────────────────────────────────
-  static const Color background = Color(0xFFF5F7FB);
+  static const Color background = Color(0xFFF4F7F6);
   static const Color surface = Color(0xFFFFFFFF);
-  static const Color surface2 = Color(0xFFFAFBFD);
-  static const Color border = Color(0xFFE6EAF1);
-  static const Color borderDark = Color(0xFFD1D5DB);
+  static const Color surface2 = Color(0xFFF3F7F5);
+  static const Color border = Color(0xFFE9EFEC);
+  static const Color borderDark = Color(0xFFDCE4E0);
 
   // ── Text ─────────────────────────────────────────────────────────────────────
-  static const Color text = Color(0xFF0F172A);
-  static const Color text2 = Color(0xFF1E293B);
-  static const Color textMuted = Color(0xFF475569);
-  static const Color textHint = Color(0xFF94A3B8);
+  static const Color text = Color(0xFF0B1512);
+  static const Color text2 = Color(0xFF1B2B25);
+  static const Color textMuted = Color(0xFF4A5F57);
+  static const Color textHint = Color(0xFF7C8F87);
 
   // ── Backward-compat aliases ──────────────────────────────────────────────────
-  static const Color textPrimary = Color(0xFF1F2937);
-  static const Color textSecondary = Color(0xFF6B7280);
+  static const Color textPrimary = Color(0xFF0B1512);
+  static const Color textSecondary = Color(0xFF4A5F57);
   static const Color successLight = successSoft;
-  static const Color dangerLight = Color(0xFFFEE2E2);
-  static const Color warningLight = Color(0xFFFEF3C7);
+  static const Color dangerLight = Color(0xFFFFE0E4);
+  static const Color warningLight = Color(0xFFFFF0D2);
 
   // ── Gradients ────────────────────────────────────────────────────────────────
   static const LinearGradient gradBrand = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [Color(0xFF0F1F5C), Color(0xFF1E3A8A), Color(0xFF2D4FB5)],
+    colors: [Color(0xFF00693C), Color(0xFF00A862), Color(0xFF16CC80)],
   );
   static const LinearGradient gradSuccess = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [Color(0xFF0A6E3E), Color(0xFF0F9D58)],
+    colors: [Color(0xFF00713F), Color(0xFF00A862)],
   );
   static const LinearGradient gradHot = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [Color(0xFFC84A3D), Color(0xFFF26B5C)],
+    colors: [Color(0xFFD44021), Color(0xFFFF6B4A)],
   );
   // backward-compat alias
   static const LinearGradient primaryGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [Color(0xFF2D4FB5), Color(0xFF1E3A8A)],
+    colors: [Color(0xFF00B96A), Color(0xFF00814B)],
   );
 
   // ── Shadows (premium multi-layer) ────────────────────────────────────────────
   static List<BoxShadow> get shadowSm => const [
         BoxShadow(
-            color: Color(0x0A0F172A), blurRadius: 2, offset: Offset(0, 1)),
-        BoxShadow(color: Color(0x080F172A), blurRadius: 1),
+            color: Color(0x0A0B1512), blurRadius: 3, offset: Offset(0, 1)),
+        BoxShadow(
+            color: Color(0x0D0B1512), blurRadius: 12, offset: Offset(0, 4)),
       ];
   static List<BoxShadow> get shadowMd => const [
         BoxShadow(
-            color: Color(0x0D0F172A), blurRadius: 3, offset: Offset(0, 1)),
+            color: Color(0x0D0B1512), blurRadius: 4, offset: Offset(0, 2)),
         BoxShadow(
-            color: Color(0x0D0F172A), blurRadius: 24, offset: Offset(0, 8)),
+            color: Color(0x140B1512), blurRadius: 24, offset: Offset(0, 10)),
       ];
   static List<BoxShadow> get shadowLg => const [
         BoxShadow(
-            color: Color(0x100F172A), blurRadius: 8, offset: Offset(0, 4)),
+            color: Color(0x100B1512), blurRadius: 8, offset: Offset(0, 4)),
         BoxShadow(
-            color: Color(0x140F172A), blurRadius: 48, offset: Offset(0, 24)),
+            color: Color(0x1A0B1512), blurRadius: 40, offset: Offset(0, 20)),
       ];
   static List<BoxShadow> get shadowBrand => const [
         BoxShadow(
-            color: Color(0x471E3A8A), blurRadius: 20, offset: Offset(0, 8)),
+            color: Color(0x4700A862), blurRadius: 22, offset: Offset(0, 9)),
         BoxShadow(
-            color: Color(0x0F000000), blurRadius: 2, offset: Offset(0, 1)),
+            color: Color(0x140B1512), blurRadius: 3, offset: Offset(0, 1)),
       ];
   static List<BoxShadow> get shadowSuccess => const [
         BoxShadow(
-            color: Color(0x470F9D58), blurRadius: 20, offset: Offset(0, 8)),
+            color: Color(0x4700A862), blurRadius: 22, offset: Offset(0, 9)),
         BoxShadow(
-            color: Color(0x0F000000), blurRadius: 2, offset: Offset(0, 1)),
+            color: Color(0x140B1512), blurRadius: 3, offset: Offset(0, 1)),
       ];
   static List<BoxShadow> get shadowHot => const [
         BoxShadow(
-            color: Color(0x47F26B5C), blurRadius: 20, offset: Offset(0, 8)),
+            color: Color(0x47FF6B4A), blurRadius: 22, offset: Offset(0, 9)),
         BoxShadow(
-            color: Color(0x0F000000), blurRadius: 2, offset: Offset(0, 1)),
+            color: Color(0x140B1512), blurRadius: 3, offset: Offset(0, 1)),
       ];
   // backward-compat aliases
   static List<BoxShadow> get shadowButton => shadowBrand;
@@ -118,9 +123,9 @@ class AppTheme {
   static List<BoxShadow> get premiumShadow => shadowLg;
 
   // ── Radius ───────────────────────────────────────────────────────────────────
-  static const double radius = 14.0;
-  static const double radiusLg = 18.0;
-  static const double radiusXl = 22.0;
+  static const double radius = 16.0;
+  static const double radiusLg = 20.0;
+  static const double radiusXl = 24.0;
   // backward-compat radius names
   static const double r8 = 8.0;
   static const double r12 = 12.0;
@@ -169,35 +174,54 @@ class AppTheme {
               borderRadius: BorderRadius.circular(radius)),
           margin: EdgeInsets.zero,
         ),
+        // Типографиялық баспалдақ: тақырып неғұрлым ірі болса, әріп аралығы
+        // тығызырақ әрі жол биіктігі жинақы; кіші мәтінде — керісінше,
+        // жолдар арасы ауқымды (оқуға жеңіл).
         textTheme: const TextTheme(
           displayLarge: TextStyle(
               fontSize: 32,
               fontWeight: FontWeight.w800,
               color: textPrimary,
-              letterSpacing: -0.5),
+              letterSpacing: -1.0,
+              height: 1.14),
           headlineLarge: TextStyle(
               fontSize: 24,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w800,
               color: textPrimary,
-              letterSpacing: -0.3),
+              letterSpacing: -0.7,
+              height: 1.18),
           headlineMedium: TextStyle(
               fontSize: 20,
+              fontWeight: FontWeight.w700,
+              color: textPrimary,
+              letterSpacing: -0.5,
+              height: 1.2),
+          titleLarge: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w700,
+              color: textPrimary,
+              letterSpacing: -0.4,
+              height: 1.24),
+          titleMedium: TextStyle(
+              fontSize: 15,
               fontWeight: FontWeight.w600,
               color: textPrimary,
-              letterSpacing: -0.2),
-          titleLarge: TextStyle(
-              fontSize: 17, fontWeight: FontWeight.w600, color: textPrimary),
-          titleMedium: TextStyle(
-              fontSize: 15, fontWeight: FontWeight.w500, color: textPrimary),
-          bodyLarge: TextStyle(fontSize: 15, color: textPrimary),
-          bodyMedium: TextStyle(fontSize: 13, color: textSecondary),
+              letterSpacing: -0.15,
+              height: 1.28),
+          bodyLarge: TextStyle(fontSize: 15, color: textPrimary, height: 1.4),
+          bodyMedium:
+              TextStyle(fontSize: 13, color: textSecondary, height: 1.42),
           labelLarge: TextStyle(
-              fontSize: 13, fontWeight: FontWeight.w600, color: textPrimary),
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: textPrimary,
+              height: 1.3),
           labelSmall: TextStyle(
               fontSize: 11,
-              fontWeight: FontWeight.w500,
+              fontWeight: FontWeight.w600,
               color: textHint,
-              letterSpacing: 0.3),
+              letterSpacing: 0.4,
+              height: 1.3),
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
@@ -239,13 +263,16 @@ class AppTheme {
           elevation: 0,
         ),
         chipTheme: ChipThemeData(
-          backgroundColor: background,
-          selectedColor: primary.withValues(alpha: 0.12),
-          labelStyle:
-              const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(r8)),
+          backgroundColor: surface,
+          selectedColor: primarySoft,
+          checkmarkColor: primaryDark,
+          labelStyle: const TextStyle(
+              fontSize: 13, fontWeight: FontWeight.w600, color: textMuted),
+          secondaryLabelStyle: const TextStyle(
+              fontSize: 13, fontWeight: FontWeight.w700, color: primaryDark),
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+          // Толық дөңгелек чип — сүзгі жолағы жеңіл әрі заманауи көрінеді.
+          shape: const StadiumBorder(side: BorderSide(color: border)),
           side: BorderSide.none,
         ),
         dividerTheme: const DividerThemeData(

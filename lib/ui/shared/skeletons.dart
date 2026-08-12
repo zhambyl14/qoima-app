@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
-import '../../theme/app_theme.dart';
+import '../../theme/qoima_design.dart';
 
 class ProductsSkeleton extends StatelessWidget {
   const ProductsSkeleton({super.key});
 
   @override
   Widget build(BuildContext context) => Shimmer.fromColors(
-        baseColor: Colors.grey.shade200,
-        highlightColor: Colors.grey.shade50,
+        baseColor: const Color(0xFFE7EEEA),
+        highlightColor: const Color(0xFFF7FBF9),
         child: ListView.builder(
           padding: const EdgeInsets.fromLTRB(14, 14, 14, 20),
           itemCount: 6,
@@ -17,7 +17,7 @@ class ProductsSkeleton extends StatelessWidget {
             height: 96,
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(AppTheme.r16),
+              borderRadius: BorderRadius.circular(kR20),
             ),
           ),
         ),
@@ -31,8 +31,8 @@ class CatalogGridSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Shimmer.fromColors(
-        baseColor: Colors.grey.shade200,
-        highlightColor: Colors.grey.shade50,
+        baseColor: const Color(0xFFE7EEEA),
+        highlightColor: const Color(0xFFF7FBF9),
         child: GridView.builder(
           padding: const EdgeInsets.fromLTRB(12, 14, 12, 20),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -45,7 +45,7 @@ class CatalogGridSkeleton extends StatelessWidget {
           itemBuilder: (_, __) => Container(
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(AppTheme.r16),
+              borderRadius: BorderRadius.circular(kR20),
             ),
           ),
         ),

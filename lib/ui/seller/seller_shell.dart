@@ -11,6 +11,7 @@ import '../../data/services/firestore_service.dart';
 import '../../theme/qoima_design.dart';
 
 import '../../core/lang.dart';
+
 class SellerShell extends StatefulWidget {
   const SellerShell({super.key});
   @override
@@ -46,8 +47,7 @@ class _SellerShellState extends State<SellerShell> {
         title: Text(tr('Вы удалены из магазина', 'Сіз дүкеннен шығарылдыңыз'),
             style: manrope(16, FontWeight.w800, color: cInk)),
         content: Text(
-            tr(
-                'Владелец подтвердил ваш выход из магазина. Сейчас вы будете выведены из аккаунта.',
+            tr('Владелец подтвердил ваш выход из магазина. Сейчас вы будете выведены из аккаунта.',
                 'Дүкен иесі сіздің шығуыңызды растады. Қазір аккаунттан шығасыз.'),
             style: manrope(13.5, FontWeight.w500, color: cInk2, height: 1.4)),
         actions: [
@@ -116,19 +116,21 @@ class _SellerShellState extends State<SellerShell> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Stack(clipBehavior: Clip.none, children: [
-                          Icon(
-                            active ? _tabs[i].activeIcon : _tabs[i].icon,
-                            color: active ? cGreen : cInk3,
-                            size: 24,
-                          ),
-                          if (i == 2)
-                            Positioned(
-                              top: -4,
-                              right: -6,
-                              child: _OnlineBadge(),
-                            ),
-                        ]),
+                        QNavPill(
+                            active: active,
+                            child: Stack(clipBehavior: Clip.none, children: [
+                              Icon(
+                                active ? _tabs[i].activeIcon : _tabs[i].icon,
+                                color: active ? cGreen : cInk3,
+                                size: 24,
+                              ),
+                              if (i == 2)
+                                Positioned(
+                                  top: -4,
+                                  right: -6,
+                                  child: _OnlineBadge(),
+                                ),
+                            ])),
                         const SizedBox(height: 3),
                         // FittedBox — үлкен жүйелік шрифтте лейбл екі жолға
                         // бөлінбей, таб еніне сыйып кішірейеді.

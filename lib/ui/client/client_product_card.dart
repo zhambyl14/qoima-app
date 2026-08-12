@@ -13,6 +13,7 @@ import '../shared/favorite_fly_animation.dart';
 import 'client_shell.dart';
 
 import '../../core/lang.dart';
+
 /// Wildberries-стиль карточка группы: одна карточка на товар, цветовые
 /// варианты (same name+brand+type) переключаются точками под названием.
 class ProductGroupCard extends StatefulWidget {
@@ -57,8 +58,8 @@ class _ProductGroupCardState extends State<ProductGroupCard> {
   // Карточка өз түсінен (initialIndex) басталады. Қолмен ауыстырған түс
   // қайта құру (іздеу/жүктелу) кезінде сақталуы үшін — шақырушы тұрақты
   // ValueKey береді (нұсқаның product id-і), сол арқылы State жоғалмайды.
-  late int _selectedIndex = widget.initialIndex.clamp(
-      0, widget.group.variants.length - 1);
+  late int _selectedIndex =
+      widget.initialIndex.clamp(0, widget.group.variants.length - 1);
 
   List<ProductModel> get _variants => widget.group.variants;
   ProductModel get _product => _variants[_selectedIndex];
@@ -126,8 +127,10 @@ class _ProductGroupCardState extends State<ProductGroupCard> {
   // орнына сол өлшем көрсетіледі. >1 бөлек өлшем болса — жай жасыл нүкте.
   Widget _buildQuickAddButton() {
     final cart = context.watch<CartProvider>();
-    final sizesInCart =
-        cart.items.where((i) => i.productId == _product.id).map((i) => i.size).toSet();
+    final sizesInCart = cart.items
+        .where((i) => i.productId == _product.id)
+        .map((i) => i.size)
+        .toSet();
     final singleSize = sizesInCart.length == 1 ? sizesInCart.first : null;
 
     return GestureDetector(
@@ -141,8 +144,17 @@ class _ProductGroupCardState extends State<ProductGroupCard> {
         decoration: BoxDecoration(
           // Себетте бар күй (нақты бір өлшем) — қанық жасыл + белгі, «+»
           // әдепкі күйден анық ажыратылу үшін (бұрын екеуі бір түсте еді).
-          color: singleSize != null ? cGreenDeep : cGreen,
-          borderRadius: BorderRadius.circular(10),
+          gradient: singleSize != null
+              ? const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFF00925A), Color(0xFF00693C)])
+              : kGradBtn,
+          borderRadius: BorderRadius.circular(11),
+          boxShadow: const [
+            BoxShadow(
+                color: Color(0x3300A862), blurRadius: 10, offset: Offset(0, 4)),
+          ],
         ),
         child: Center(
           child: singleSize != null
@@ -156,8 +168,8 @@ class _ProductGroupCardState extends State<ProductGroupCard> {
               : Stack(clipBehavior: Clip.none, children: [
                   const Padding(
                     padding: EdgeInsets.all(7),
-                    child: Icon(Icons.add_rounded,
-                        color: Colors.white, size: 18),
+                    child:
+                        Icon(Icons.add_rounded, color: Colors.white, size: 18),
                   ),
                   if (sizesInCart.isNotEmpty)
                     Positioned(
@@ -187,7 +199,7 @@ class _ProductGroupCardState extends State<ProductGroupCard> {
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
           color: cSurface,
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(kR20),
           border: Border.all(color: cLine),
           boxShadow: kShadowSm,
         ),
@@ -201,88 +213,95 @@ class _ProductGroupCardState extends State<ProductGroupCard> {
             // ШЫҚПАЙДЫ (бұрын height:130 бекітулі болып, контент тасып кететін).
             Expanded(
               child: Stack(children: [
-              QShoeImage(
-                imageUrl:
-                    _product.images.isNotEmpty ? _product.images.first : null,
-                height: double.infinity,
-                tone: widget.tone,
-              ),
-              Positioned(
-                bottom: 7,
-                left: 7,
-                child: QCategoryTag(
-                  category: categoryByKey(_product.effectiveCategoryKey),
-                  fontSize: 10,
+                QShoeImage(
+                  imageUrl:
+                      _product.images.isNotEmpty ? _product.images.first : null,
+                  height: double.infinity,
+                  tone: widget.tone,
                 ),
-              ),
-              if (_hasDiscount)
-                Positioned(
-                  top: 7,
-                  left: 7,
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: cRed,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text('−$_discountPct%',
-                        style: manrope(11.5, FontWeight.w800,
-                            color: Colors.white)),
-                  ),
-                ),
-              Positioned(
-                top: 7,
-                right: 7,
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    final adding = !widget.isFavorite;
-                    widget.onToggleFavorite?.call(_product);
-                    // Тек ҚОСҚАНДА ұшады — өшіргенде емес.
-                    if (adding) {
-                      flyToFavorites(context, _favKey,
-                          imageUrl: _product.images.isNotEmpty
-                              ? _product.images.first
-                              : '');
-                    }
-                  },
-                  child: Container(
-                    key: _favKey,
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.9),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      widget.isFavorite
-                          ? Icons.favorite_rounded
-                          : Icons.favorite_border_rounded,
-                      size: 18,
-                      color: widget.isFavorite ? cRed : cInk3,
-                    ),
-                  ),
-                ),
-              ),
-              // 3+ нұсқа болса — «{n} түс» бейджі (суреттің астыңғы оң бұрышы)
-              if (variantCount >= 3)
                 Positioned(
                   bottom: 7,
-                  right: 7,
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: cInk.withValues(alpha: 0.72),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(tr('$variantCount цв.', '$variantCount түс'),
-                        style:
-                            manrope(10, FontWeight.w800, color: Colors.white)),
+                  left: 7,
+                  child: QCategoryTag(
+                    category: categoryByKey(_product.effectiveCategoryKey),
+                    fontSize: 10,
                   ),
                 ),
+                if (_hasDiscount)
+                  Positioned(
+                    top: 7,
+                    left: 7,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 7, vertical: 3),
+                      decoration: BoxDecoration(
+                        gradient: kGradDanger,
+                        borderRadius: BorderRadius.circular(kRPill),
+                        boxShadow: const [
+                          BoxShadow(
+                              color: Color(0x33F23B4F),
+                              blurRadius: 8,
+                              offset: Offset(0, 3)),
+                        ],
+                      ),
+                      child: Text('−$_discountPct%',
+                          style: manrope(11.5, FontWeight.w800,
+                              color: Colors.white)),
+                    ),
+                  ),
+                Positioned(
+                  top: 7,
+                  right: 7,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      final adding = !widget.isFavorite;
+                      widget.onToggleFavorite?.call(_product);
+                      // Тек ҚОСҚАНДА ұшады — өшіргенде емес.
+                      if (adding) {
+                        flyToFavorites(context, _favKey,
+                            imageUrl: _product.images.isNotEmpty
+                                ? _product.images.first
+                                : '');
+                      }
+                    },
+                    child: Container(
+                      key: _favKey,
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.94),
+                        shape: BoxShape.circle,
+                        boxShadow: kShadowXs,
+                      ),
+                      child: Icon(
+                        widget.isFavorite
+                            ? Icons.favorite_rounded
+                            : Icons.favorite_border_rounded,
+                        size: 18,
+                        color: widget.isFavorite ? cRed : cInk3,
+                      ),
+                    ),
+                  ),
+                ),
+                // 3+ нұсқа болса — «{n} түс» бейджі (суреттің астыңғы оң бұрышы)
+                if (variantCount >= 3)
+                  Positioned(
+                    bottom: 7,
+                    right: 7,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 7, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: cInk.withValues(alpha: 0.7),
+                        borderRadius: BorderRadius.circular(kRPill),
+                      ),
+                      child: Text(tr('$variantCount цв.', '$variantCount түс'),
+                          style: manrope(10, FontWeight.w800,
+                              color: Colors.white)),
+                    ),
+                  ),
               ]),
             ),
             const SizedBox(height: 8),
@@ -452,7 +471,8 @@ class _SizePickerSheetState extends State<_SizePickerSheet> {
     cart.removeByProductAndSize(widget.product.id, widget.initialSize!);
     Navigator.pop(context);
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(tr('${widget.product.name} удалён из корзины', '${widget.product.name} себеттен өшірілді')),
+      content: Text(tr('${widget.product.name} удалён из корзины',
+          '${widget.product.name} себеттен өшірілді')),
       backgroundColor: cInk2,
       behavior: SnackBarBehavior.floating,
       duration: const Duration(seconds: 2),
@@ -511,7 +531,8 @@ class _SizePickerSheetState extends State<_SizePickerSheet> {
     ));
     navigator.pop();
     messenger.showSnackBar(SnackBar(
-      content: Text(tr('${widget.product.name} ($size) добавлен в корзину', '${widget.product.name} ($size) себетке қосылды')),
+      content: Text(tr('${widget.product.name} ($size) добавлен в корзину',
+          '${widget.product.name} ($size) себетке қосылды')),
       backgroundColor: cGreen,
       behavior: SnackBarBehavior.floating,
       duration: const Duration(seconds: 2),
@@ -528,7 +549,8 @@ class _SizePickerSheetState extends State<_SizePickerSheet> {
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         Container(
-          width: 36, height: 4,
+          width: 36,
+          height: 4,
           margin: const EdgeInsets.only(bottom: 14),
           decoration: BoxDecoration(
               color: cLine, borderRadius: BorderRadius.circular(2)),
@@ -538,27 +560,33 @@ class _SizePickerSheetState extends State<_SizePickerSheet> {
             ClipRRect(
               borderRadius: BorderRadius.circular(10),
               child: Image.network(widget.product.images.first,
-                  width: 48, height: 48, fit: BoxFit.cover,
+                  width: 48,
+                  height: 48,
+                  fit: BoxFit.cover,
                   errorBuilder: (_, __, ___) => Container(
-                      width: 48, height: 48,
+                      width: 48,
+                      height: 48,
                       decoration: BoxDecoration(
                           color: cGreenTint,
                           borderRadius: BorderRadius.circular(10)))),
             )
           else
             Container(
-              width: 48, height: 48,
+              width: 48,
+              height: 48,
               decoration: BoxDecoration(
-                  color: cGreenTint,
-                  borderRadius: BorderRadius.circular(10)),
-              child: const Icon(Icons.inventory_2_outlined, color: cGreen, size: 22),
+                  color: cGreenTint, borderRadius: BorderRadius.circular(10)),
+              child: const Icon(Icons.inventory_2_outlined,
+                  color: cGreen, size: 22),
             ),
           const SizedBox(width: 12),
           Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(widget.product.name,
                   style: manrope(14, FontWeight.w700, color: cInk),
-                  maxLines: 1, overflow: TextOverflow.ellipsis),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis),
               Text(money(widget.price),
                   style: manrope(13.5, FontWeight.w800, color: cGreen)),
             ]),
@@ -581,8 +609,7 @@ class _SizePickerSheetState extends State<_SizePickerSheet> {
                 decoration: BoxDecoration(
                   color: sel ? cGreenTint : cSurface,
                   borderRadius: BorderRadius.circular(13),
-                  border: Border.all(
-                      color: sel ? cGreen : cLine, width: 1.5),
+                  border: Border.all(color: sel ? cGreen : cLine, width: 1.5),
                 ),
                 child: Stack(clipBehavior: Clip.none, children: [
                   Center(
@@ -618,11 +645,10 @@ class _SizePickerSheetState extends State<_SizePickerSheet> {
         const SizedBox(height: 20),
         QPrimaryButton(
           label: tr('Добавить в корзину', 'Себетке қосу'),
-          onPressed: (_selected != null &&
-                  _selected != widget.initialSize &&
-                  !_saving)
-              ? _confirm
-              : null,
+          onPressed:
+              (_selected != null && _selected != widget.initialSize && !_saving)
+                  ? _confirm
+                  : null,
           height: 52,
           icon: const Icon(Icons.shopping_cart_outlined,
               color: Colors.white, size: 18),
@@ -636,15 +662,35 @@ class _SizePickerSheetState extends State<_SizePickerSheet> {
 class ClientEmptyState extends StatelessWidget {
   final IconData icon;
   final String message;
-  const ClientEmptyState({super.key, required this.icon, required this.message});
+  const ClientEmptyState(
+      {super.key, required this.icon, required this.message});
 
   @override
   Widget build(BuildContext context) => Center(
-        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Icon(icon, size: 56, color: cInk3),
-          const SizedBox(height: 12),
-          Text(message,
-              style: manrope(15, FontWeight.w500, color: cInk2)),
-        ]),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            // Иконка жалаң тұрғанда «сынған бет» әсерін беретін — жұмсақ
+            // жасыл шеңберге отырғызылды.
+            Container(
+              width: 92,
+              height: 92,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFFF2FDF8), cGreenTint],
+                ),
+              ),
+              child:
+                  Icon(icon, size: 40, color: cGreen.withValues(alpha: 0.75)),
+            ),
+            const SizedBox(height: 16),
+            Text(message,
+                textAlign: TextAlign.center,
+                style: manrope(14.5, FontWeight.w600, color: cInk2)),
+          ]),
+        ),
       );
 }

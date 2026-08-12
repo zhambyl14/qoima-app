@@ -89,16 +89,15 @@ class CartProvider extends ChangeNotifier {
   }
 
   void removeByProductAndSize(String productId, String size) {
-    final idx = _items
-        .indexWhere((e) => e.productId == productId && e.size == size);
+    final idx =
+        _items.indexWhere((e) => e.productId == productId && e.size == size);
     if (idx >= 0) removeAt(idx);
   }
 
   // ── Тапсырысқа таңдау (Wildberries/Kaspi стилі чекбокс) ──────────────────
   void toggleSelected(int index) {
     if (index < 0 || index >= _items.length) return;
-    _items[index] =
-        _items[index].copyWith(selected: !_items[index].selected);
+    _items[index] = _items[index].copyWith(selected: !_items[index].selected);
     notifyListeners();
     _persist();
   }
@@ -152,9 +151,8 @@ class CartProvider extends ChangeNotifier {
   /// Тапсырыс сәтті болған соң тек ТАПСЫРЫСҚА кірген жолдарды алып тастайды —
   /// таңдалмаған қалған товарлар себетте қалады (Wildberries/Kaspi стилі).
   void removeItems(Iterable<CartItemModel> toRemove) {
-    final keys = toRemove
-        .map((i) => '${i.productId}_${i.batchId}_${i.size}')
-        .toSet();
+    final keys =
+        toRemove.map((i) => '${i.productId}_${i.batchId}_${i.size}').toSet();
     _items.removeWhere(
         (i) => keys.contains('${i.productId}_${i.batchId}_${i.size}'));
     notifyListeners();
@@ -259,37 +257,39 @@ class ClientShellState extends State<ClientShell> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Stack(
-                          clipBehavior: Clip.none,
-                          children: [
-                            Icon(
-                              // Профиль табы: таңдаулыға қосу анимациясы
-                              // осы иконканың орнына қарай ұшады.
-                              key: i == 3 ? FavoriteFlyTarget.key : null,
-                              active ? _tabs[i].activeIcon : _tabs[i].icon,
-                              color: active ? cGreen : cInk3,
-                              size: 24,
-                            ),
-                            if (i == _cartTabIndex && cartCount > 0)
-                              Positioned(
-                                top: -4,
-                                right: -6,
-                                child: Container(
-                                  width: 14,
-                                  height: 14,
-                                  decoration: const BoxDecoration(
-                                      color: cRed, shape: BoxShape.circle),
-                                  child: Center(
-                                    child: Text(
-                                      cartCount > 9 ? '9+' : '$cartCount',
-                                      style: manrope(8, FontWeight.w800,
-                                          color: Colors.white),
+                        QNavPill(
+                            active: active,
+                            child: Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                Icon(
+                                  // Профиль табы: таңдаулыға қосу анимациясы
+                                  // осы иконканың орнына қарай ұшады.
+                                  key: i == 3 ? FavoriteFlyTarget.key : null,
+                                  active ? _tabs[i].activeIcon : _tabs[i].icon,
+                                  color: active ? cGreen : cInk3,
+                                  size: 24,
+                                ),
+                                if (i == _cartTabIndex && cartCount > 0)
+                                  Positioned(
+                                    top: -4,
+                                    right: -6,
+                                    child: Container(
+                                      width: 14,
+                                      height: 14,
+                                      decoration: const BoxDecoration(
+                                          color: cRed, shape: BoxShape.circle),
+                                      child: Center(
+                                        child: Text(
+                                          cartCount > 9 ? '9+' : '$cartCount',
+                                          style: manrope(8, FontWeight.w800,
+                                              color: Colors.white),
+                                        ),
+                                      ),
                                     ),
                                   ),
-                                ),
-                              ),
-                          ],
-                        ),
+                              ],
+                            )),
                         const SizedBox(height: 3),
                         // FittedBox — үлкен жүйелік шрифтте лейбл екі жолға
                         // бөлінбей, таб еніне сыйып кішірейеді.

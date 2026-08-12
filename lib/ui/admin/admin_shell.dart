@@ -12,6 +12,7 @@ import '../../data/services/return_service.dart';
 import '../../theme/qoima_design.dart';
 
 import '../../core/lang.dart';
+
 class AdminShell extends StatefulWidget {
   const AdminShell({super.key});
   @override
@@ -83,17 +84,21 @@ class _AdminShellState extends State<AdminShell> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Stack(clipBehavior: Clip.none, children: [
-                          Icon(
-                            active ? _tabs[i].activeIcon : _tabs[i].icon,
-                            color: active ? cGreen : cInk3,
-                            size: 24,
-                          ),
-                          if (i == 0) Positioned(
-                            top: -4, right: -6,
-                            child: _OnlineBadge(),
-                          ),
-                        ]),
+                        QNavPill(
+                            active: active,
+                            child: Stack(clipBehavior: Clip.none, children: [
+                              Icon(
+                                active ? _tabs[i].activeIcon : _tabs[i].icon,
+                                color: active ? cGreen : cInk3,
+                                size: 24,
+                              ),
+                              if (i == 0)
+                                Positioned(
+                                  top: -4,
+                                  right: -6,
+                                  child: _OnlineBadge(),
+                                ),
+                            ])),
                         const SizedBox(height: 3),
                         // FittedBox — үлкен жүйелік шрифтте лейбл екі жолға
                         // бөлінбей, таб еніне сыйып кішірейеді.

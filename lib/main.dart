@@ -9,6 +9,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
 import 'core/supabase_config.dart';
 import 'theme/app_theme.dart';
+import 'theme/qoima_design.dart';
 import 'ui/auth/blocked_screen.dart';
 import 'ui/auth/seller_join_screen.dart';
 import 'ui/auth/subscription_gate.dart';
@@ -116,8 +117,8 @@ class _QoimaBootState extends State<QoimaBoot> {
     });
     // Сақталған тіл — алғашқы кадрдан дұрыс тілмен ашылу үшін.
     try {
-      _locale = await LocaleContext.loadSaved()
-          .timeout(const Duration(seconds: 5));
+      _locale =
+          await LocaleContext.loadSaved().timeout(const Duration(seconds: 5));
     } catch (e) {
       debugPrint('boot: locale load skipped: $e');
     }
@@ -191,7 +192,7 @@ class _QoimaBootState extends State<QoimaBoot> {
       case _BootStage.failed:
         return _BootShell(
           child: Scaffold(
-            backgroundColor: const Color(0xFFF1F4F3),
+            backgroundColor: cBg,
             body: SafeArea(
               child: AppErrorView(error: _error, onRetry: _boot),
             ),
@@ -234,7 +235,7 @@ class _UiErrorBox extends StatelessWidget {
   Widget build(BuildContext context) => Directionality(
         textDirection: TextDirection.ltr,
         child: Container(
-          color: const Color(0xFFF1F4F3),
+          color: cBg,
           alignment: Alignment.center,
           padding: const EdgeInsets.all(24),
           child: Text(
@@ -243,7 +244,7 @@ class _UiErrorBox extends StatelessWidget {
             textAlign: TextAlign.center,
             style: const TextStyle(
                 fontSize: 14,
-                color: Color(0xFF566B61),
+                color: cInk2,
                 fontWeight: FontWeight.w500,
                 decoration: TextDecoration.none),
           ),
@@ -268,59 +269,156 @@ class QoimaApp extends StatelessWidget {
       navigatorKey: rootNavigatorKey,
       title: 'Qoima',
       debugShowCheckedModeBanner: false,
+      // Жаһандық тема — түстер мен радиустар theme/qoima_design.dart
+      // токендерінен алынады (бұрын осы жерде hex-тер қайта жазылып,
+      // дизайн жүйесінен ажырап қалатын).
       theme: AppTheme.theme.copyWith(
         textTheme: GoogleFonts.interTextTheme(AppTheme.theme.textTheme),
-        scaffoldBackgroundColor: const Color(0xFFF1F4F3),
+        scaffoldBackgroundColor: cBg,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF00A862),
+          seedColor: cGreen,
           brightness: Brightness.light,
+          surface: cSurface,
         ),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF00713F),
+        splashColor: cGreen.withValues(alpha: 0.08),
+        highlightColor: cGreen.withValues(alpha: 0.04),
+        appBarTheme: AppBarTheme(
+          backgroundColor: cGreenDeep,
           foregroundColor: Colors.white,
           elevation: 0,
           centerTitle: false,
-          titleTextStyle: TextStyle(
-            color: Colors.white,
-            fontSize: 20,
-            fontWeight: FontWeight.w700,
-            letterSpacing: -0.3,
+          systemOverlayStyle: SystemUiOverlayStyle.light.copyWith(
+            statusBarColor: Colors.transparent,
+            statusBarIconBrightness: Brightness.light,
+            statusBarBrightness: Brightness.dark,
           ),
-          iconTheme: IconThemeData(color: Colors.white),
+          titleTextStyle: manrope(19.5, FontWeight.w800, color: Colors.white),
+          iconTheme: const IconThemeData(color: Colors.white),
         ),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
-          fillColor: Colors.white,
+          fillColor: cSurface,
           contentPadding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
           border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFFE7ECEA))),
+              borderRadius: BorderRadius.circular(kR14),
+              borderSide: const BorderSide(color: cLine)),
           enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFFE7ECEA))),
+              borderRadius: BorderRadius.circular(kR14),
+              borderSide: const BorderSide(color: cLine)),
           focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide:
-                  const BorderSide(color: Color(0xFF00A862), width: 1.5)),
+              borderRadius: BorderRadius.circular(kR14),
+              borderSide: const BorderSide(color: cGreen, width: 1.6)),
           errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFFF0384B))),
-          labelStyle: const TextStyle(color: Color(0xFF566B61), fontSize: 14),
-          prefixIconColor: const Color(0xFF00A862),
+              borderRadius: BorderRadius.circular(kR14),
+              borderSide: const BorderSide(color: cRed)),
+          focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(kR14),
+              borderSide: const BorderSide(color: cRed, width: 1.6)),
+          labelStyle: manrope(14, FontWeight.w500, color: cInk2),
+          hintStyle: manrope(14, FontWeight.w500, color: cInk3),
+          errorStyle: manrope(12, FontWeight.w600, color: cRedInk),
+          prefixIconColor: cGreen,
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF00A862),
+            backgroundColor: cGreen,
             foregroundColor: Colors.white,
+            disabledBackgroundColor: cLine,
+            disabledForegroundColor: cInk3,
             elevation: 0,
-            padding:
-                const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+            shadowColor: Colors.transparent,
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 15),
             shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14)),
-            textStyle:
-                const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                borderRadius: BorderRadius.circular(kR16)),
+            textStyle: manrope(15, FontWeight.w700, color: Colors.white),
           ),
+        ),
+        outlinedButtonTheme: OutlinedButtonThemeData(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: cGreenDeep,
+            side: const BorderSide(color: cGreenTint2, width: 1.4),
+            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 15),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(kR16)),
+            textStyle: manrope(14.5, FontWeight.w700, color: cGreenDeep),
+          ),
+        ),
+        textButtonTheme: TextButtonThemeData(
+          style: TextButton.styleFrom(
+            foregroundColor: cGreenDeep,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(kR12)),
+            textStyle: manrope(14, FontWeight.w700, color: cGreenDeep),
+          ),
+        ),
+        // Хабарлама «қалқымалы» әрі дөңгелек — экран түбіне жабысып
+        // тұрған тікбұрышты жолақтан гөрі жеңіл көрінеді.
+        snackBarTheme: SnackBarThemeData(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: cInk,
+          contentTextStyle: manrope(13.5, FontWeight.w600, color: Colors.white),
+          actionTextColor: cGreenBright,
+          elevation: 6,
+          insetPadding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(kR14)),
+        ),
+        dialogTheme: DialogThemeData(
+          backgroundColor: cSurface,
+          surfaceTintColor: Colors.transparent,
+          elevation: 12,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(kR24)),
+          titleTextStyle: manrope(18, FontWeight.w800, color: cInk),
+          contentTextStyle: manrope(14, FontWeight.w500, color: cInk2),
+        ),
+        bottomSheetTheme: const BottomSheetThemeData(
+          backgroundColor: cSurface,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.vertical(top: Radius.circular(kR24))),
+        ),
+        dividerTheme: const DividerThemeData(
+          color: cLine,
+          thickness: 1,
+          space: 1,
+        ),
+        // Курьер қабығы Material NavigationBar қолданады — қалған үш
+        // қабықтағы қолдан жасалған навбармен бірдей көрінуі үшін.
+        navigationBarTheme: NavigationBarThemeData(
+          backgroundColor: cSurface,
+          surfaceTintColor: Colors.transparent,
+          indicatorColor: cGreenTint,
+          indicatorShape: const StadiumBorder(),
+          elevation: 0,
+          height: 68,
+          labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+          iconTheme: WidgetStateProperty.resolveWith((s) => IconThemeData(
+              size: 24,
+              color: s.contains(WidgetState.selected) ? cGreenDeep : cInk3)),
+          labelTextStyle: WidgetStateProperty.resolveWith((s) => manrope(
+              11,
+              s.contains(WidgetState.selected)
+                  ? FontWeight.w700
+                  : FontWeight.w600,
+              color: s.contains(WidgetState.selected) ? cGreen : cInk3)),
+        ),
+        progressIndicatorTheme: const ProgressIndicatorThemeData(
+          color: cGreen,
+          circularTrackColor: cGreenTint,
+        ),
+        switchTheme: SwitchThemeData(
+          thumbColor: WidgetStateProperty.resolveWith((s) =>
+              s.contains(WidgetState.selected) ? Colors.white : cSurface),
+          trackColor: WidgetStateProperty.resolveWith(
+              (s) => s.contains(WidgetState.selected) ? cGreen : cLine),
+          trackOutlineColor: WidgetStateProperty.resolveWith((s) =>
+              s.contains(WidgetState.selected)
+                  ? cGreen
+                  : const Color(0xFFDCE4E0)),
         ),
       ),
       // Жүйелік «үлкен шрифт» баптауы интерфейсті бұзбауы үшін мәтін
@@ -419,7 +517,8 @@ class _RootGateState extends State<_RootGate> {
               // Admin тіркелген соң бірден офлайн жұмысқа кіреді.
               // Мерзімі жаңа өткендерге (0–3 күн) — жабылатын ескерту.
               if (user.isAdmin) {
-                return const SubscriptionExpiryNotice(child: _AdminHomeRouter());
+                return const SubscriptionExpiryNotice(
+                    child: _AdminHomeRouter());
               }
               if (user.joinStatus == 'active') {
                 return const SubscriptionExpiryNotice(child: MainShell());
@@ -547,7 +646,7 @@ class _SessionErrorScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        backgroundColor: const Color(0xFFF1F4F3),
+        backgroundColor: cBg,
         body: SafeArea(
           child: Column(
             children: [
@@ -558,7 +657,7 @@ class _SessionErrorScreen extends StatelessWidget {
                   onPressed: () => AuthService().signOut(),
                   child: Text(
                     tr('Выйти из аккаунта', 'Аккаунттан шығу'),
-                    style: const TextStyle(color: Color(0xFF93A39B)),
+                    style: const TextStyle(color: cInk3),
                   ),
                 ),
               ),

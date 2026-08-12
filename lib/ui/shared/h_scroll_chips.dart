@@ -6,7 +6,8 @@ class HChip {
   final String label;
   final bool selected;
   final VoidCallback onTap;
-  const HChip({required this.label, required this.selected, required this.onTap});
+  const HChip(
+      {required this.label, required this.selected, required this.onTap});
 }
 
 /// Ұсыныс чиптерін БІР жолда, ЖЫЛЖЫМАЛЫ (горизонталь скролл) рамканың ішінде
@@ -20,10 +21,10 @@ class HScrollChips extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 42,
+      height: 44,
       decoration: BoxDecoration(
-        color: cBg,
-        borderRadius: BorderRadius.circular(12),
+        color: cLine2,
+        borderRadius: BorderRadius.circular(kR14),
         border: Border.all(color: cLine),
       ),
       child: ListView(
@@ -51,13 +52,25 @@ class _Chip extends StatelessWidget {
     final sel = chip.selected;
     return GestureDetector(
       onTap: chip.onTap,
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        curve: Curves.easeOut,
         alignment: Alignment.center,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 13),
         decoration: BoxDecoration(
-          color: sel ? cGreen : Colors.white,
-          borderRadius: BorderRadius.circular(9),
-          border: Border.all(color: sel ? cGreen : cLine, width: 1.2),
+          gradient: sel ? kGradBtn : null,
+          color: sel ? null : Colors.white,
+          borderRadius: BorderRadius.circular(kRPill),
+          border:
+              Border.all(color: sel ? Colors.transparent : cLine, width: 1.2),
+          boxShadow: sel
+              ? const [
+                  BoxShadow(
+                      color: Color(0x3300A862),
+                      blurRadius: 8,
+                      offset: Offset(0, 3)),
+                ]
+              : null,
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           if (sel) ...[
@@ -79,7 +92,10 @@ class HActionChip extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
   const HActionChip(
-      {super.key, required this.label, required this.icon, required this.onTap});
+      {super.key,
+      required this.label,
+      required this.icon,
+      required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -90,14 +106,13 @@ class HActionChip extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
           color: cGreenTint,
-          borderRadius: BorderRadius.circular(9),
-          border: Border.all(color: cGreen.withValues(alpha: 0.4), width: 1.2),
+          borderRadius: BorderRadius.circular(kRPill),
+          border: Border.all(color: cGreenTint2, width: 1.2),
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Icon(icon, size: 14, color: cGreenDeep),
           const SizedBox(width: 4),
-          Text(label,
-              style: manrope(12.5, FontWeight.w700, color: cGreenDeep)),
+          Text(label, style: manrope(12.5, FontWeight.w700, color: cGreenDeep)),
         ]),
       ),
     );

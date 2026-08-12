@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -19,6 +19,7 @@ import '../../widgets/image_crop_screen.dart';
 import 'restock_screen.dart';
 
 import '../../../core/lang.dart';
+
 class AddProductScreen extends StatefulWidget {
   const AddProductScreen({super.key});
   @override
@@ -77,7 +78,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
   // (мыс. «Белый#1»); нақты түсі _variantColorOf-та, белгісі _variantNoteOf-та.
   final List<String> _selectedColors = [];
   final Map<String, String> _variantColorOf = {}; // кілт → түс аты
-  final Map<String, String> _variantHexOf = {}; // кілт → custom HEX ('' = стандарт)
+  final Map<String, String> _variantHexOf =
+      {}; // кілт → custom HEX ('' = стандарт)
   final Map<String, TextEditingController> _variantNoteOf = {}; // кілт → белгі
   // кілт → жылдам код (0062). Әр нұсқа — БӨЛЕК тауар, сондықтан коды да бөлек:
   // сатушы «103» деп тергенде дәл сол түс шығуы керек.
@@ -131,8 +133,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
   // Ағымдағы категорияға тиесілі пресеттер ғана (индексімен қоса — ✕ өшіру
   // дәл сол элементті табу үшін). Категориясыз (осы түзетуден бұрын
   // сақталған) ескі пресеттер қайта сақталғанша көрсетілмейді.
-  List<MapEntry<int, Map<String, dynamic>>> get _presetsForCategory =>
-      [
+  List<MapEntry<int, Map<String, dynamic>>> get _presetsForCategory => [
         for (var i = 0; i < _customPresets.length; i++)
           if ((_customPresets[i]['category'] as String?) == _categoryKey)
             MapEntry(i, _customPresets[i]),
@@ -163,8 +164,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
   // ── «Мұндай тауар бар» іздеу (терген сайын, кідіріспен) ────────────────
   void _scheduleSimilarSearch() {
     _similarDebounce?.cancel();
-    _similarDebounce =
-        Timer(const Duration(milliseconds: 450), _searchSimilar);
+    _similarDebounce = Timer(const Duration(milliseconds: 450), _searchSimilar);
   }
 
   Future<void> _searchSimilar() async {
@@ -220,8 +220,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
         final m = e as Map;
         return <String, dynamic>{
           'name': (m['name'] as String?) ?? '',
-          'sizes': ((m['sizes'] as Map?) ?? {}).map(
-              (k, v) => MapEntry(k.toString(), (v as num).toInt())),
+          'sizes': ((m['sizes'] as Map?) ?? {})
+              .map((k, v) => MapEntry(k.toString(), (v as num).toInt())),
           // Осы түзетуден бұрын сақталған пресеттерде жоқ (null қалады —
           // ешбір категорияға сәйкес келмейді, қайта сақталғанша жасырын).
           'category': m['category'] as String?,
@@ -456,8 +456,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
   void _copySizesFrom(String donor) {
     final color = _activeColor;
     if (color == null || donor == color) return;
-    setState(() =>
-        _variantSizes[color] = Map<String, int>.from(_variantSizes[donor] ?? {}));
+    setState(() => _variantSizes[color] =
+        Map<String, int>.from(_variantSizes[donor] ?? {}));
   }
 
   int get _totalPairs => _activeSizes.values.fold(0, (a, b) => a + b);
@@ -589,8 +589,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
                     ),
                     icon: const Icon(Icons.check_rounded, size: 18),
                     label: Text(tr('Готово', 'Дайын'),
-                        style: manrope(14, FontWeight.w700,
-                            color: Colors.white)),
+                        style:
+                            manrope(14, FontWeight.w700, color: Colors.white)),
                   ),
                 ),
               ),
@@ -616,8 +616,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
           builder: (_) => ImageCropScreen(
             raw: raw,
             outputSize: _cropSize,
-            title:
-                toAdd.length > 1 ? tr('Фото ${i + 1} из ${toAdd.length}', 'Фото ${i + 1} / ${toAdd.length}') : null,
+            title: toAdd.length > 1
+                ? tr('Фото ${i + 1} из ${toAdd.length}',
+                    'Фото ${i + 1} / ${toAdd.length}')
+                : null,
           ),
         ),
       );
@@ -625,7 +627,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
         setState(() => _variantImages[_activeColor!]!.add(cropped));
       }
     }
-    if (overflow && mounted) _err(tr('Добавлено только $_remainingSlots — лимит $_maxImages фото', 'Тек $_remainingSlots қосылды — лимит $_maxImages фото'));
+    if (overflow && mounted) {
+      _err(tr('Добавлено только $_remainingSlots — лимит $_maxImages фото',
+          'Тек $_remainingSlots қосылды — лимит $_maxImages фото'));
+    }
   }
 
   void _showImageOptions() {
@@ -650,8 +655,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                   decoration: BoxDecoration(
                       color: cGreen.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8)),
-                  child: const Icon(Icons.camera_alt_outlined,
-                      color: cGreen)),
+                  child: const Icon(Icons.camera_alt_outlined, color: cGreen)),
               title: Text(tr('Сфотографировать', 'Суретке түсіру'),
                   style: TextStyle(fontWeight: FontWeight.w500)),
               subtitle: Text(tr('Камера телефона', 'Телефон камерасы')),
@@ -662,11 +666,12 @@ class _AddProductScreenState extends State<AddProductScreen> {
                   decoration: BoxDecoration(
                       color: cGreen.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8)),
-                  child: const Icon(Icons.photo_library_outlined,
-                      color: cGreen)),
+                  child:
+                      const Icon(Icons.photo_library_outlined, color: cGreen)),
               title: Text(tr('Из галереи', 'Галереядан'),
                   style: TextStyle(fontWeight: FontWeight.w500)),
-              subtitle: Text(tr('До $_remainingSlots фото сразу', 'Бірден $_remainingSlots фотоға дейін')),
+              subtitle: Text(tr('До $_remainingSlots фото сразу',
+                  'Бірден $_remainingSlots фотоға дейін')),
               onTap: _pickFromGallery),
           const SizedBox(height: 8),
         ]),
@@ -693,7 +698,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
         return false;
       }
       if (categoryByKey(_categoryKey).hasAudience && _targetGroup == null) {
-        _err(tr('Выберите, кому предназначен товар', 'Тауар кімге арналғанын таңдаңыз'));
+        _err(tr('Выберите, кому предназначен товар',
+            'Тауар кімге арналғанын таңдаңыз'));
         return false;
       }
       if (_selectedColors.isEmpty) {
@@ -909,7 +915,12 @@ class _AddProductScreenState extends State<AddProductScreen> {
   // ── Build ─────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    final steps = [tr('Товар', 'Тауар'), tr('Цены', 'Бағалар'), tr('Размеры', 'Өлшемдер'), 'Фото'];
+    final steps = [
+      tr('Товар', 'Тауар'),
+      tr('Цены', 'Бағалар'),
+      tr('Размеры', 'Өлшемдер'),
+      'Фото'
+    ];
     return PopScope(
       canPop: !_hasUnsavedData(),
       onPopInvokedWithResult: (didPop, _) async {
@@ -918,197 +929,203 @@ class _AddProductScreenState extends State<AddProductScreen> {
         if (await _confirmDiscard()) navigator.pop();
       },
       child: Scaffold(
-      backgroundColor: cBg,
-      body: SafeArea(
-          child: Column(children: [
-        // Header
-        Container(
-          decoration: const BoxDecoration(gradient: kGrad),
-          child: SafeArea(
-            bottom: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 6, 20, 16),
-              child: Column(children: [
-                Row(children: [
-                  GestureDetector(
-                    onTap: () async {
-                      final navigator = Navigator.of(context);
-                      if (await _confirmDiscard()) navigator.pop();
-                    },
-                    child: Container(
-                      width: 38,
-                      height: 38,
-                      decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.16),
-                          borderRadius: BorderRadius.circular(12)),
-                      child: const Icon(Icons.chevron_left_rounded,
-                          color: Colors.white, size: 22),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(tr('Новый товар', 'Жаңа тауар'),
-                        style: manrope(23, FontWeight.w800,
-                            color: Colors.white, letterSpacing: -0.5)),
-                  ),
-                  if (_isLoading)
-                    const SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(
-                            color: Colors.white, strokeWidth: 2))
-                  else
+        backgroundColor: cBg,
+        body: SafeArea(
+            child: Column(children: [
+          // Header
+          Container(
+            decoration: const BoxDecoration(gradient: kGrad),
+            child: SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 6, 20, 16),
+                child: Column(children: [
+                  Row(children: [
                     GestureDetector(
-                      onTap: () {
-                        if (!_validateStep()) return;
-                        if (_step < 3) {
-                          setState(() => _step++);
-                        } else {
-                          _save();
-                        }
+                      onTap: () async {
+                        final navigator = Navigator.of(context);
+                        if (await _confirmDiscard()) navigator.pop();
                       },
-                      child: Text(
-                        _step < 3 ? tr('Далее →', 'Әрі қарай →') : tr('Сохранить', 'Сақтау'),
-                        style: manrope(14.5, FontWeight.w700,
-                            color: Colors.white),
+                      child: Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.16),
+                            borderRadius: BorderRadius.circular(12)),
+                        child: const Icon(Icons.chevron_left_rounded,
+                            color: Colors.white, size: 22),
                       ),
                     ),
-                ]),
-                const SizedBox(height: 14),
-                Row(
-                    children: List.generate(steps.length, (i) {
-              final done = i < _step;
-              final active = i == _step;
-              return Expanded(
-                  child: Row(children: [
-                Expanded(
-                    child: GestureDetector(
-                  onTap: () {
-                    if (i < _step) setState(() => _step = i);
-                  },
-                  child: Column(children: [
-                    AnimatedContainer(
-                        duration: const Duration(milliseconds: 250),
-                        width: active ? 32 : 26,
-                        height: active ? 32 : 26,
-                        decoration: BoxDecoration(
-                            color: done
-                                ? cGreen
-                                : active
-                                    ? Colors.white
-                                    : Colors.white.withValues(alpha: 0.2),
-                            shape: BoxShape.circle,
-                            border: active
-                                ? null
-                                : Border.all(
-                                    color: Colors.white.withValues(alpha: 0.4),
-                                    width: 1.5)),
-                        child: Center(
-                            child: done
-                                ? const Icon(Icons.check,
-                                    color: Colors.white, size: 14)
-                                : Text('${i + 1}',
-                                    style: TextStyle(
-                                        color: active
-                                            ? cGreen
-                                            : Colors.white,
-                                        fontSize: active ? 13 : 11,
-                                        fontWeight: FontWeight.w700)))),
-                    const SizedBox(height: 4),
-                    Text(steps[i],
-                        style: TextStyle(
-                            color: active
-                                ? Colors.white
-                                : Colors.white.withValues(alpha: 0.5),
-                            fontSize: 10,
-                            fontWeight:
-                                active ? FontWeight.w700 : FontWeight.w400)),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(tr('Новый товар', 'Жаңа тауар'),
+                          style: manrope(23, FontWeight.w800,
+                              color: Colors.white, letterSpacing: -0.5)),
+                    ),
+                    if (_isLoading)
+                      const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                              color: Colors.white, strokeWidth: 2))
+                    else
+                      GestureDetector(
+                        onTap: () {
+                          if (!_validateStep()) return;
+                          if (_step < 3) {
+                            setState(() => _step++);
+                          } else {
+                            _save();
+                          }
+                        },
+                        child: Text(
+                          _step < 3
+                              ? tr('Далее →', 'Әрі қарай →')
+                              : tr('Сохранить', 'Сақтау'),
+                          style: manrope(14.5, FontWeight.w700,
+                              color: Colors.white),
+                        ),
+                      ),
                   ]),
-                )),
-                if (i < steps.length - 1)
-                  Container(
-                      height: 1.5,
-                      width: 20,
-                      color: i < _step
-                          ? cGreen
-                          : Colors.white.withValues(alpha: 0.25)),
-              ]));
-            })),
-          ]),
+                  const SizedBox(height: 14),
+                  Row(
+                      children: List.generate(steps.length, (i) {
+                    final done = i < _step;
+                    final active = i == _step;
+                    return Expanded(
+                        child: Row(children: [
+                      Expanded(
+                          child: GestureDetector(
+                        onTap: () {
+                          if (i < _step) setState(() => _step = i);
+                        },
+                        child: Column(children: [
+                          AnimatedContainer(
+                              duration: const Duration(milliseconds: 250),
+                              width: active ? 32 : 26,
+                              height: active ? 32 : 26,
+                              decoration: BoxDecoration(
+                                  color: done
+                                      ? cGreen
+                                      : active
+                                          ? Colors.white
+                                          : Colors.white.withValues(alpha: 0.2),
+                                  shape: BoxShape.circle,
+                                  border: active
+                                      ? null
+                                      : Border.all(
+                                          color: Colors.white
+                                              .withValues(alpha: 0.4),
+                                          width: 1.5)),
+                              child: Center(
+                                  child: done
+                                      ? const Icon(Icons.check,
+                                          color: Colors.white, size: 14)
+                                      : Text('${i + 1}',
+                                          style: TextStyle(
+                                              color: active
+                                                  ? cGreen
+                                                  : Colors.white,
+                                              fontSize: active ? 13 : 11,
+                                              fontWeight: FontWeight.w700)))),
+                          const SizedBox(height: 4),
+                          Text(steps[i],
+                              style: TextStyle(
+                                  color: active
+                                      ? Colors.white
+                                      : Colors.white.withValues(alpha: 0.5),
+                                  fontSize: 10,
+                                  fontWeight: active
+                                      ? FontWeight.w700
+                                      : FontWeight.w400)),
+                        ]),
+                      )),
+                      if (i < steps.length - 1)
+                        Container(
+                            height: 1.5,
+                            width: 20,
+                            color: i < _step
+                                ? cGreen
+                                : Colors.white.withValues(alpha: 0.25)),
+                    ]));
+                  })),
+                ]),
+              ),
             ),
           ),
-        ),
 
-        // Content
-        Expanded(
-            child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 300),
-            child: KeyedSubtree(key: ValueKey(_step), child: _buildStep()),
-          ),
-        )),
+          // Content
+          Expanded(
+              child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              child: KeyedSubtree(key: ValueKey(_step), child: _buildStep()),
+            ),
+          )),
 
-        // Bottom buttons
-        Container(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-          decoration: BoxDecoration(color: Colors.white, boxShadow: [
-            BoxShadow(
-                color: Colors.black.withValues(alpha: 0.06),
-                blurRadius: 12,
-                offset: const Offset(0, -3))
-          ]),
-          child: Row(children: [
-            if (_step > 0)
+          // Bottom buttons
+          Container(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            decoration: BoxDecoration(color: Colors.white, boxShadow: [
+              BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.06),
+                  blurRadius: 12,
+                  offset: const Offset(0, -3))
+            ]),
+            child: Row(children: [
+              if (_step > 0)
+                Expanded(
+                    flex: 1,
+                    child: OutlinedButton(
+                        onPressed: () => setState(() => _step--),
+                        style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: cLine),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12)),
+                            padding: const EdgeInsets.symmetric(vertical: 14)),
+                        child: Text(tr('Назад', 'Артқа'),
+                            style: TextStyle(color: cInk2)))),
+              if (_step > 0) const SizedBox(width: 12),
               Expanded(
-                  flex: 1,
-                  child: OutlinedButton(
-                      onPressed: () => setState(() => _step--),
-                      style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: cLine),
+                  flex: 2,
+                  child: ElevatedButton(
+                      onPressed: _isLoading
+                          ? null
+                          : () {
+                              if (!_validateStep()) return;
+                              if (_step < 3) {
+                                setState(() => _step++);
+                              } else {
+                                _save();
+                              }
+                            },
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: cGreen,
+                          foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12)),
-                          padding: const EdgeInsets.symmetric(vertical: 14)),
-                      child: Text(tr('Назад', 'Артқа'),
-                          style: TextStyle(color: cInk2)))),
-            if (_step > 0) const SizedBox(width: 12),
-            Expanded(
-                flex: 2,
-                child: ElevatedButton(
-                    onPressed: _isLoading
-                        ? null
-                        : () {
-                            if (!_validateStep()) return;
-                            if (_step < 3) {
-                              setState(() => _step++);
-                            } else {
-                              _save();
-                            }
-                          },
-                    style: ElevatedButton.styleFrom(
-                        backgroundColor: cGreen,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        elevation: 0),
-                    child: Text(
-                        _isLoading && _step == 3
-                            ? (_selectedColors.length > 1
-                                ? tr('Сохранение $_savingIndex/${_selectedColors.length}…',
-                                    'Сақталуда $_savingIndex/${_selectedColors.length}…')
-                                : tr('Сохранение…', 'Сақталуда…'))
-                            : _step == 3
-                                ? (_selectedColors.length > 1
-                                    ? tr('Сохранить ${_selectedColors.length} варианта',
-                                        '${_selectedColors.length} вариантты сақтау')
-                                    : tr('Сохранить товар', 'Тауарды сақтау'))
-                                : tr('Далее →', 'Әрі қарай →'),
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w700, fontSize: 15)))),
-          ]),
-        ),
-      ])),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          elevation: 0),
+                      child: Text(
+                          _isLoading && _step == 3
+                              ? (_selectedColors.length > 1
+                                  ? tr(
+                                      'Сохранение $_savingIndex/${_selectedColors.length}…',
+                                      'Сақталуда $_savingIndex/${_selectedColors.length}…')
+                                  : tr('Сохранение…', 'Сақталуда…'))
+                              : _step == 3
+                                  ? (_selectedColors.length > 1
+                                      ? tr(
+                                          'Сохранить ${_selectedColors.length} варианта',
+                                          '${_selectedColors.length} вариантты сақтау')
+                                      : tr('Сохранить товар', 'Тауарды сақтау'))
+                                  : tr('Далее →', 'Әрі қарай →'),
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w700, fontSize: 15)))),
+            ]),
+          ),
+        ])),
       ),
     );
   }
@@ -1183,8 +1200,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(p.name,
-                                style: manrope(13, FontWeight.w800,
-                                    color: cInk),
+                                style:
+                                    manrope(13, FontWeight.w800, color: cInk),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis),
                             Text(
@@ -1249,8 +1266,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
       ),
     );
     if (ok != true || !mounted) return;
-    Navigator.pushReplacement(context,
-        MaterialPageRoute(builder: (_) => RestockScreen(product: p)));
+    Navigator.pushReplacement(
+        context, MaterialPageRoute(builder: (_) => RestockScreen(product: p)));
   }
 
   // ── Шаг 1: Информация о товаре ────────────────────────────────────────
@@ -1259,7 +1276,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
         _StepHeader(
             icon: Icons.label_outline,
             title: tr('Информация о товаре', 'Тауар туралы ақпарат'),
-            subtitle: tr('Сначала категория, затем название', 'Алдымен категория, сосын атауы')),
+            subtitle: tr('Сначала категория, затем название',
+                'Алдымен категория, сосын атауы')),
         const SizedBox(height: 20),
         // ⚠️ КАТЕГОРИЯ — ЕҢ АЛДЫМЕН. Одан кейінгі бүкіл форма соған тәуелді:
         // тип тізімі, материалдар, «кімге», размер торы, тіпті бренд ұсыныстары
@@ -1275,7 +1293,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
           const SizedBox(height: 8),
           _buildTypeDropdown(),
         ],
-        if (_categoryKey != null && categoryByKey(_categoryKey).hasAudience) ...[
+        if (_categoryKey != null &&
+            categoryByKey(_categoryKey).hasAudience) ...[
           const SizedBox(height: 16),
           _Label(tr('Кому *', 'Кімге *')),
           const SizedBox(height: 8),
@@ -1314,7 +1333,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
           _Field(
               controller: _brandCtrl,
               label: 'Бренд',
-              hint: tr('Напр: Nike, Adidas, New Balance', 'Мыс: Nike, Adidas, New Balance'),
+              hint: tr('Напр: Nike, Adidas, New Balance',
+                  'Мыс: Nike, Adidas, New Balance'),
               icon: Icons.workspace_premium_outlined),
           // Бұрын қолданылған брендтер — бір жолда жылжымалы (шашылмайды).
           if (_brandSuggestions.isNotEmpty) ...[
@@ -1351,26 +1371,22 @@ class _AddProductScreenState extends State<AddProductScreen> {
           const SizedBox(height: 16),
           _Label(tr('Материал (необязательно)', 'Материал (міндетті емес)')),
           const SizedBox(height: 8),
-          Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                // Списка может не хватать — своё значение тоже показываем.
-                ...[
-                  ..._currentMaterials,
-                  if (_material != null &&
-                      !_currentMaterials.contains(_material))
-                    _material!,
-                ].map((m) => _SelectChip(
-                    label: trValue(m),
-                    selected: _material == m,
-                    onTap: () =>
-                        setState(() => _material = _material == m ? null : m))),
-                _SelectChip(
-                    label: tr('✏️ Свой', '✏️ Өз нұсқасы'),
-                    selected: false,
-                    onTap: _promptCustomMaterial),
-              ]),
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            // Списка может не хватать — своё значение тоже показываем.
+            ...[
+              ..._currentMaterials,
+              if (_material != null && !_currentMaterials.contains(_material))
+                _material!,
+            ].map((m) => _SelectChip(
+                label: trValue(m),
+                selected: _material == m,
+                onTap: () =>
+                    setState(() => _material = _material == m ? null : m))),
+            _SelectChip(
+                label: tr('✏️ Свой', '✏️ Өз нұсқасы'),
+                selected: false,
+                onTap: _promptCustomMaterial),
+          ]),
         ],
         const SizedBox(height: 16),
         _Label(tr('Сезон (необязательно)', 'Сезон (міндетті емес)')),
@@ -1388,8 +1404,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
         const SizedBox(height: 16),
         _Field(
             controller: _countryCtrl,
-            label: tr('Страна производства (необязательно)', 'Өндірілген ел (міндетті емес)'),
-            hint: tr('Напр: Вьетнам, Китай, Турция', 'Мыс: Вьетнам, Қытай, Түркия'),
+            label: tr('Страна производства (необязательно)',
+                'Өндірілген ел (міндетті емес)'),
+            hint: tr(
+                'Напр: Вьетнам, Китай, Турция', 'Мыс: Вьетнам, Қытай, Түркия'),
             icon: Icons.public_outlined),
         const SizedBox(height: 12),
         // «Ұқсас сөздер» — клиент тауарды НЕ ДЕП іздесе де табылуы үшін.
@@ -1414,9 +1432,12 @@ class _AddProductScreenState extends State<AddProductScreen> {
             textCapitalization: TextCapitalization.sentences,
             style: const TextStyle(fontSize: 15, color: cInk),
             decoration: InputDecoration(
-                labelText: tr('Описание (необязательно)', 'Сипаттама (міндетті емес)'),
+                labelText:
+                    tr('Описание (необязательно)', 'Сипаттама (міндетті емес)'),
                 alignLabelWithHint: true,
-                hintText: tr('Расскажите о товаре: посадка, особенности, с чем носить…', 'Тауар туралы айтыңыз: пішімі, ерекшеліктері, немен киюге болады…'),
+                hintText: tr(
+                    'Расскажите о товаре: посадка, особенности, с чем носить…',
+                    'Тауар туралы айтыңыз: пішімі, ерекшеліктері, немен киюге болады…'),
                 filled: true,
                 fillColor: Colors.white,
                 border: OutlineInputBorder(
@@ -1427,8 +1448,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                     borderSide: const BorderSide(color: cLine)),
                 focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide:
-                        const BorderSide(color: cGreen, width: 1.5)))),
+                    borderSide: const BorderSide(color: cGreen, width: 1.5)))),
       ]);
 
   static const Map<String, String> _seasonIcons = {
@@ -1464,9 +1484,11 @@ class _AddProductScreenState extends State<AddProductScreen> {
           Expanded(
             child: Text(
               _selectedColors.isEmpty
-                  ? tr('Нажмите на цвет, чтобы добавить вариант. Один цвет можно добавить несколько раз.',
+                  ? tr(
+                      'Нажмите на цвет, чтобы добавить вариант. Один цвет можно добавить несколько раз.',
                       'Вариант қосу үшін түсті басыңыз. Бір түсті бірнеше рет қосуға болады.')
-                  : tr('Выбрано ${_selectedColors.length} вариант(ов) — размеры и фото укажете для каждого',
+                  : tr(
+                      'Выбрано ${_selectedColors.length} вариант(ов) — размеры и фото укажете для каждого',
                       '${_selectedColors.length} нұсқа таңдалды — размерлер мен фотоны әрқайсысына бөлек енгізесіз'),
               style: manrope(11.5, FontWeight.w600, color: cBlue),
             ),
@@ -1506,7 +1528,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
           width: 18,
           height: 18,
           decoration: BoxDecoration(
-              color: swatch, shape: BoxShape.circle, border: Border.all(color: cLine)),
+              color: swatch,
+              shape: BoxShape.circle,
+              border: Border.all(color: cLine)),
         ),
         const SizedBox(width: 8),
         SizedBox(
@@ -1553,64 +1577,61 @@ class _AddProductScreenState extends State<AddProductScreen> {
       runSpacing: 10,
       children: [
         ...ProductModel.colorOptions.map((opt) {
-        final name = opt['name'] as String;
-        final hexValue = opt['hex'] as int;
-        final color = Color(hexValue);
-        final count = _selectedColors.where((k) => _baseColor(k) == name).length;
-        final selected = count > 0;
-        final isLight = color.computeLuminance() > 0.7;
-        return GestureDetector(
-          onTap: () => _addColorVariant(name),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: selected ? color : Colors.white,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: selected ? color : cLine,
-                width: selected ? 2 : 1,
-              ),
-              boxShadow: selected
-                  ? [
-                      BoxShadow(
-                          color: color.withValues(alpha: 0.35),
-                          blurRadius: 8,
-                          offset: const Offset(0, 3))
-                    ]
-                  : [],
-            ),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Container(
-                width: 14,
-                height: 14,
-                decoration: BoxDecoration(
-                  color: color,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                      color:
-                          isLight ? Colors.grey.shade300 : Colors.transparent,
-                      width: 1),
+          final name = opt['name'] as String;
+          final hexValue = opt['hex'] as int;
+          final color = Color(hexValue);
+          final count =
+              _selectedColors.where((k) => _baseColor(k) == name).length;
+          final selected = count > 0;
+          final isLight = color.computeLuminance() > 0.7;
+          return GestureDetector(
+            onTap: () => _addColorVariant(name),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: selected ? color : Colors.white,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: selected ? color : cLine,
+                  width: selected ? 2 : 1,
                 ),
+                boxShadow: selected
+                    ? [
+                        BoxShadow(
+                            color: color.withValues(alpha: 0.35),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3))
+                      ]
+                    : [],
               ),
-              const SizedBox(width: 7),
-              Text(count > 1 ? '${trValue(name)} ×$count' : trValue(name),
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: selected
-                        ? (isLight ? cInk : Colors.white)
-                        : cInk2,
-                  )),
-              const SizedBox(width: 5),
-              Icon(selected ? Icons.check_rounded : Icons.add_rounded,
-                  size: 14,
-                  color: selected
-                      ? (isLight ? cInk : Colors.white)
-                      : cInk3),
-            ]),
-          ),
-        );
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Container(
+                  width: 14,
+                  height: 14,
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                        color:
+                            isLight ? Colors.grey.shade300 : Colors.transparent,
+                        width: 1),
+                  ),
+                ),
+                const SizedBox(width: 7),
+                Text(count > 1 ? '${trValue(name)} ×$count' : trValue(name),
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: selected ? (isLight ? cInk : Colors.white) : cInk2,
+                    )),
+                const SizedBox(width: 5),
+                Icon(selected ? Icons.check_rounded : Icons.add_rounded,
+                    size: 14,
+                    color: selected ? (isLight ? cInk : Colors.white) : cInk3),
+              ]),
+            ),
+          );
         }),
         // + Свой цвет (HSV палитра, ерекше түстер үшін)
         GestureDetector(
@@ -1620,8 +1641,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
             decoration: BoxDecoration(
               color: cGreenTint,
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                  color: cGreen.withValues(alpha: 0.4), width: 1),
+              border:
+                  Border.all(color: cGreen.withValues(alpha: 0.4), width: 1),
             ),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
               const Icon(Icons.palette_outlined, size: 15, color: cGreenDeep),
@@ -1650,15 +1671,12 @@ class _AddProductScreenState extends State<AddProductScreen> {
             padding: const EdgeInsets.fromLTRB(10, 8, 13, 8),
             decoration: BoxDecoration(
               color: isOn ? tone.tint : Colors.white,
-              border: Border.all(
-                  color: isOn ? tone.deep : cLine, width: 1.5),
+              border: Border.all(color: isOn ? tone.deep : cLine, width: 1.5),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
               CategoryIcon(
-                  kind: c.iconKey,
-                  size: 15,
-                  color: isOn ? tone.deep : cInk3),
+                  kind: c.iconKey, size: 15, color: isOn ? tone.deep : cInk3),
               const SizedBox(width: 6),
               Text(c.short,
                   style: manrope(12.5, FontWeight.w700,
@@ -1706,8 +1724,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
         filled: true,
         fillColor: Colors.white,
         hintText: tr('Выберите тип', 'Түрін таңдаңыз'),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
         border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
             borderSide: const BorderSide(color: cLine)),
@@ -1719,8 +1736,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
             borderSide: const BorderSide(color: cGreen, width: 1.5)),
       ),
       items: [
-        ...types.map(
-            (e) => DropdownMenuItem(value: e, child: Text(trValue(e)))),
+        ...types
+            .map((e) => DropdownMenuItem(value: e, child: Text(trValue(e)))),
         DropdownMenuItem(
           value: _customTypeOption,
           child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -1769,7 +1786,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
       _StepHeader(
           icon: Icons.monetization_on_outlined,
           title: tr('Ценообразование', 'Баға белгілеу'),
-          subtitle: tr('Закупочная и продажная цена', 'Сатып алу және сату бағасы')),
+          subtitle:
+              tr('Закупочная и продажная цена', 'Сатып алу және сату бағасы')),
       const SizedBox(height: 20),
 
       // Дата поставки
@@ -1793,16 +1811,12 @@ class _AddProductScreenState extends State<AddProductScreen> {
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(tr('Дата поставки', 'Жеткізілім күні'),
                   style: TextStyle(
-                      fontSize: 12,
-                      color: cInk2,
-                      fontWeight: FontWeight.w500)),
+                      fontSize: 12, color: cInk2, fontWeight: FontWeight.w500)),
               const SizedBox(height: 2),
               Text(
                   '${_dateArrived.day.toString().padLeft(2, '0')}.${_dateArrived.month.toString().padLeft(2, '0')}.${_dateArrived.year}',
                   style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: cInk)),
+                      fontSize: 16, fontWeight: FontWeight.w700, color: cInk)),
             ]),
             const Spacer(),
             const Icon(Icons.edit_outlined, color: cGreen, size: 18),
@@ -1824,23 +1838,21 @@ class _AddProductScreenState extends State<AddProductScreen> {
               Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                      color: cRedTint,
-                      borderRadius: BorderRadius.circular(8)),
+                      color: cRedTint, borderRadius: BorderRadius.circular(8)),
                   child: const Icon(Icons.arrow_downward_rounded,
                       color: cRed, size: 18)),
               const SizedBox(width: 10),
-              Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(tr('Закупочная цена', 'Сатып алу бағасы'),
-                        style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
-                            color: cInk)),
-                    Text(tr('Сколько заплатили за партию', 'Партияға қанша төледіңіз'),
-                        style: TextStyle(
-                            fontSize: 11, color: cInk2)),
-                  ]),
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(tr('Закупочная цена', 'Сатып алу бағасы'),
+                    style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                        color: cInk)),
+                Text(
+                    tr('Сколько заплатили за партию',
+                        'Партияға қанша төледіңіз'),
+                    style: TextStyle(fontSize: 11, color: cInk2)),
+              ]),
             ]),
             const SizedBox(height: 12),
             TextField(
@@ -1852,16 +1864,12 @@ class _AddProductScreenState extends State<AddProductScreen> {
                 ],
                 onChanged: (_) => setState(() {}),
                 style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
-                    color: cInk),
+                    fontSize: 22, fontWeight: FontWeight.w700, color: cInk),
                 decoration: const InputDecoration(
                     hintText: '0',
-                    hintStyle:
-                        TextStyle(color: cInk3, fontSize: 22),
+                    hintStyle: TextStyle(color: cInk3, fontSize: 22),
                     suffixText: '₸',
-                    suffixStyle:
-                        TextStyle(fontSize: 18, color: cInk2),
+                    suffixStyle: TextStyle(fontSize: 18, color: cInk2),
                     border: InputBorder.none,
                     enabledBorder: InputBorder.none,
                     focusedBorder: InputBorder.none,
@@ -1890,18 +1898,17 @@ class _AddProductScreenState extends State<AddProductScreen> {
                   child: const Icon(Icons.arrow_upward_rounded,
                       color: cGreen, size: 18)),
               const SizedBox(width: 10),
-              Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(tr('Цена продажи', 'Сату бағасы'),
-                        style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
-                            color: cInk)),
-                    Text(tr('По какой цене будете продавать', 'Қандай бағамен сатасыз'),
-                        style: TextStyle(
-                            fontSize: 11, color: cInk2)),
-                  ]),
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(tr('Цена продажи', 'Сату бағасы'),
+                    style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                        color: cInk)),
+                Text(
+                    tr('По какой цене будете продавать',
+                        'Қандай бағамен сатасыз'),
+                    style: TextStyle(fontSize: 11, color: cInk2)),
+              ]),
             ]),
             const SizedBox(height: 12),
             TextField(
@@ -1913,16 +1920,12 @@ class _AddProductScreenState extends State<AddProductScreen> {
                 ],
                 onChanged: (_) => setState(() {}),
                 style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
-                    color: cInk),
+                    fontSize: 22, fontWeight: FontWeight.w700, color: cInk),
                 decoration: const InputDecoration(
                     hintText: '0',
-                    hintStyle:
-                        TextStyle(color: cInk3, fontSize: 22),
+                    hintStyle: TextStyle(color: cInk3, fontSize: 22),
                     suffixText: '₸',
-                    suffixStyle:
-                        TextStyle(fontSize: 18, color: cInk2),
+                    suffixStyle: TextStyle(fontSize: 18, color: cInk2),
                     border: InputBorder.none,
                     enabledBorder: InputBorder.none,
                     focusedBorder: InputBorder.none,
@@ -1955,17 +1958,14 @@ class _AddProductScreenState extends State<AddProductScreen> {
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(tr('Маржа с одного товара', 'Бір тауардан маржа'),
                   style: TextStyle(
-                      fontSize: 12,
-                      color: profit >= 0 ? cGreen : cRed)),
+                      fontSize: 12, color: profit >= 0 ? cGreen : cRed)),
               Text(
                   '${profit >= 0 ? "+" : ""}${profit.toStringAsFixed(0)} ₸  '
                   '(${margin.toStringAsFixed(1)}%)',
                   style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w800,
-                      color: profit >= 0
-                          ? const Color(0xFF065F46)
-                          : cRed)),
+                      color: profit >= 0 ? const Color(0xFF065F46) : cRed)),
             ]),
           ]),
         ),
@@ -1985,8 +1985,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
           autofocus: true,
           decoration: InputDecoration(
             hintText: tr('Например: 42', 'Мысалы: 42'),
-            border:
-                OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
           ),
         ),
         actions: [
@@ -2047,21 +2046,26 @@ class _AddProductScreenState extends State<AddProductScreen> {
                 24, 16, 24, 32 + MediaQuery.of(ctx).viewInsets.bottom),
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               Container(
-                  width: 36, height: 4,
+                  width: 36,
+                  height: 4,
                   margin: const EdgeInsets.only(bottom: 14),
                   decoration: BoxDecoration(
                       color: cLine, borderRadius: BorderRadius.circular(2))),
               Text(tr('Размер ${trValue(size)}', 'Өлшем ${trValue(size)}'),
                   style: manrope(17, FontWeight.w700, color: cInk)),
-              Text(tr('Нажмите на число, чтобы ввести вручную',
+              Text(
+                  tr('Нажмите на число, чтобы ввести вручную',
                       'Қолмен енгізу үшін санды басыңыз'),
                   style: manrope(11.5, FontWeight.w500, color: cInk3)),
               const SizedBox(height: 20),
               Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                 GestureDetector(
-                  onTap: () { if (tempQty > 0) setQty(tempQty - 1); },
+                  onTap: () {
+                    if (tempQty > 0) setQty(tempQty - 1);
+                  },
                   child: Container(
-                      width: 48, height: 48,
+                      width: 48,
+                      height: 48,
                       decoration: BoxDecoration(
                           color: tempQty > 0 ? cGreenTint : cLine2,
                           borderRadius: BorderRadius.circular(14)),
@@ -2081,8 +2085,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
                         FilteringTextInputFormatter.digitsOnly,
                         LengthLimitingTextInputFormatter(4),
                       ],
-                      style: manrope(34, FontWeight.w800, color: cInk,
-                          letterSpacing: -1),
+                      style: manrope(34, FontWeight.w800,
+                          color: cInk, letterSpacing: -1),
                       decoration: const InputDecoration(
                         isDense: true,
                         hintText: '0',
@@ -2100,7 +2104,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
                 GestureDetector(
                   onTap: () => setQty(tempQty + 1),
                   child: Container(
-                      width: 48, height: 48,
+                      width: 48,
+                      height: 48,
                       decoration: BoxDecoration(
                           color: cGreen,
                           borderRadius: BorderRadius.circular(14)),
@@ -2156,8 +2161,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
                 decoration: BoxDecoration(
                   color: active ? cGreenTint : Colors.white,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                      color: active ? cGreen : cLine, width: 1.5),
+                  border:
+                      Border.all(color: active ? cGreen : cLine, width: 1.5),
                 ),
                 child: Row(children: [
                   Container(
@@ -2166,8 +2171,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
                     decoration: BoxDecoration(
                       color: dot,
                       shape: BoxShape.circle,
-                      border: Border.all(
-                          color: const Color(0xFFE0E0E0), width: 1),
+                      border:
+                          Border.all(color: const Color(0xFFE0E0E0), width: 1),
                     ),
                   ),
                   const SizedBox(width: 7),
@@ -2179,8 +2184,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
                           color: active ? cGreenDeep : cInk2)),
                   const SizedBox(width: 6),
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 6, vertical: 2),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
                       color: done ? cGreen : cRedTint,
                       borderRadius: BorderRadius.circular(6),
@@ -2253,8 +2258,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                         overflow: TextOverflow.ellipsis),
                     const SizedBox(height: 2),
                     Text(desc,
-                        style:
-                            const TextStyle(fontSize: 10, color: cInk2)),
+                        style: const TextStyle(fontSize: 10, color: cInk2)),
                   ]))),
       if (onDelete != null)
         Positioned(
@@ -2281,7 +2285,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
         const SizedBox(height: 40),
         const Icon(Icons.arrow_back, size: 48, color: cInk3),
         const SizedBox(height: 12),
-        Text(tr('Вернитесь и выберите тип товара и цвет', 'Артқа оралып, тауар түрі мен түсін таңдаңыз'),
+        Text(
+            tr('Вернитесь и выберите тип товара и цвет',
+                'Артқа оралып, тауар түрі мен түсін таңдаңыз'),
             style: const TextStyle(color: cInk2, fontSize: 15)),
         const SizedBox(height: 16),
         ElevatedButton(
@@ -2292,9 +2298,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
 
     final activeColor = _activeColor!;
     final keys = _activeSizes.keys.toList();
-    final catLabel = _isShoes
-        ? (_targetGroup ?? '')
-        : categoryByKey(_categoryKey).name;
+    final catLabel =
+        _isShoes ? (_targetGroup ?? '') : categoryByKey(_categoryKey).name;
     final multi = _selectedColors.length > 1;
     // Көшіруге болатын донор: белсенді бос, басқасында сан бар.
     String? donor;
@@ -2311,18 +2316,18 @@ class _AddProductScreenState extends State<AddProductScreen> {
       _StepHeader(
           icon: Icons.straighten_outlined,
           title: tr('Размеры и количество', 'Өлшемдер мен саны'),
-          subtitle: tr('$catLabel · ${keys.length} размеров', '$catLabel · ${keys.length} өлшем')),
+          subtitle: tr('$catLabel · ${keys.length} размеров',
+              '$catLabel · ${keys.length} өлшем')),
       const SizedBox(height: 16),
       // Түс табтары (әр түстің өз размерлері)
       _buildColorTabs(photosStep: false),
       Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                  colors: [Color(0xFF00A862), Color(0xFF3B5FCC)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight),
-              borderRadius: BorderRadius.circular(14)),
+              // Бұрын жасыл→КӨК градиент еді (ескі көк темадан қалған) —
+              // енді бренд градиенті.
+              gradient: kGrad,
+              borderRadius: BorderRadius.circular(kR16)),
           child: Row(children: [
             const Icon(Icons.inventory_2_outlined,
                 color: Colors.white70, size: 20),
@@ -2330,7 +2335,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
             Expanded(
               child: Text(
                   multi
-                      ? tr('${trValue(activeColor)}:', '${trValue(activeColor)}:')
+                      ? tr('${trValue(activeColor)}:',
+                          '${trValue(activeColor)}:')
                       : tr('Итого в партии:', 'Партияда барлығы:'),
                   style: const TextStyle(color: Colors.white70, fontSize: 13)),
             ),
@@ -2342,14 +2348,12 @@ class _AddProductScreenState extends State<AddProductScreen> {
             if (multi) ...[
               const SizedBox(width: 10),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.18),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Text(
-                    tr('Всего: $_grandTotal', 'Барлығы: $_grandTotal'),
+                child: Text(tr('Всего: $_grandTotal', 'Барлығы: $_grandTotal'),
                     style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w700,
@@ -2412,39 +2416,39 @@ class _AddProductScreenState extends State<AddProductScreen> {
               style: manrope(11.5, FontWeight.w600, color: cInk3)),
         )
       else
-      SizedBox(
-          height: 84,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            children: [
-              // Сатушының сақталған пресеттері (нақты таралу; ✕ өшіру) — ТЕК
-              // ағымдағы категорияға (мыс. аяқ киім/киім размер шкаласы бөлек).
-              ..._presetsForCategory.map((entry) {
-                final i = entry.key;
-                final p = entry.value;
-                final sizes = (p['sizes'] as Map).map(
-                    (k, v) => MapEntry(k.toString(), (v as num).toInt()));
-                final total = sizes.values.fold(0, (a, b) => a + b);
-                final preview = (sizes.entries.toList()
-                      ..sort((a, b) => (int.tryParse(a.key) ?? 0)
-                          .compareTo(int.tryParse(b.key) ?? 0)))
-                    .take(4)
-                    .map((e) => '${e.key}·${e.value}')
-                    .join(' ');
-                return _presetCard(
-                  label: (p['name'] as String?)?.isNotEmpty == true
-                      ? p['name'] as String
-                      : tr('$total шт', '$total дана'),
-                  desc: preview,
-                  onTap: () => _applyCustomPreset(sizes),
-                  onDelete: () {
-                    setState(() => _customPresets.removeAt(i));
-                    _persistCustomPresets();
-                  },
-                );
-              }),
-            ],
-          )),
+        SizedBox(
+            height: 84,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: [
+                // Сатушының сақталған пресеттері (нақты таралу; ✕ өшіру) — ТЕК
+                // ағымдағы категорияға (мыс. аяқ киім/киім размер шкаласы бөлек).
+                ..._presetsForCategory.map((entry) {
+                  final i = entry.key;
+                  final p = entry.value;
+                  final sizes = (p['sizes'] as Map).map(
+                      (k, v) => MapEntry(k.toString(), (v as num).toInt()));
+                  final total = sizes.values.fold(0, (a, b) => a + b);
+                  final preview = (sizes.entries.toList()
+                        ..sort((a, b) => (int.tryParse(a.key) ?? 0)
+                            .compareTo(int.tryParse(b.key) ?? 0)))
+                      .take(4)
+                      .map((e) => '${e.key}·${e.value}')
+                      .join(' ');
+                  return _presetCard(
+                    label: (p['name'] as String?)?.isNotEmpty == true
+                        ? p['name'] as String
+                        : tr('$total шт', '$total дана'),
+                    desc: preview,
+                    onTap: () => _applyCustomPreset(sizes),
+                    onDelete: () {
+                      setState(() => _customPresets.removeAt(i));
+                      _persistCustomPresets();
+                    },
+                  );
+                }),
+              ],
+            )),
       const SizedBox(height: 14),
       Row(children: [
         _Label(tr('Размеры', 'Өлшемдер')),
@@ -2456,8 +2460,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                    color: cGreenTint,
-                    borderRadius: BorderRadius.circular(6)),
+                    color: cGreenTint, borderRadius: BorderRadius.circular(6)),
                 child: Text(tr('+ Свой размер', '+ Өз өлшемі'),
                     style: TextStyle(
                         fontSize: 11,
@@ -2470,8 +2473,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                    color: cRedTint,
-                    borderRadius: BorderRadius.circular(6)),
+                    color: cRedTint, borderRadius: BorderRadius.circular(6)),
                 child: Text(tr('Сбросить', 'Тазарту'),
                     style: TextStyle(
                         fontSize: 11,
@@ -2503,8 +2505,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                     color: qty > 0 ? cGreenTint : cSurface,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                        color: qty > 0 ? cGreen : cLine,
-                        width: 1.5)),
+                        color: qty > 0 ? cGreen : cLine, width: 1.5)),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -2533,8 +2534,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
                     padding: const EdgeInsets.all(3),
                     decoration: const BoxDecoration(
                         color: cRed, shape: BoxShape.circle),
-                    child: const Icon(Icons.close,
-                        color: Colors.white, size: 11),
+                    child:
+                        const Icon(Icons.close, color: Colors.white, size: 11),
                   ),
                 ),
               ),
@@ -2553,7 +2554,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
             subtitle: _selectedColors.length > 1
                 ? tr('Необязательно · для каждого цвета · до $_maxImages фото',
                     'Міндетті емес · әр түске бөлек · $_maxImages фотоға дейін')
-                : tr('Необязательно · до $_maxImages фото · кадр 1:1', 'Міндетті емес · $_maxImages фотоға дейін · кадр 1:1')),
+                : tr('Необязательно · до $_maxImages фото · кадр 1:1',
+                    'Міндетті емес · $_maxImages фотоға дейін · кадр 1:1')),
         const SizedBox(height: 14),
         Container(
           padding: const EdgeInsets.all(11),
@@ -2586,8 +2588,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                     color: cGreenTint,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                        color: cGreen.withValues(alpha: 0.3),
-                        width: 1.5)),
+                        color: cGreen.withValues(alpha: 0.3), width: 1.5)),
                 child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -2599,7 +2600,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
                               color: cGreen,
                               fontWeight: FontWeight.w600,
                               fontSize: 14)),
-                      Text(tr('Можно выбрать до $_remainingSlots сразу', 'Бірден $_remainingSlots дейін таңдауға болады'),
+                      Text(
+                          tr('Можно выбрать до $_remainingSlots сразу',
+                              'Бірден $_remainingSlots дейін таңдауға болады'),
                           style: const TextStyle(color: cInk3, fontSize: 11)),
                     ])),
           ),
@@ -2607,11 +2610,12 @@ class _AddProductScreenState extends State<AddProductScreen> {
         if (_activeImages.isNotEmpty) ...[
           Text(
               _selectedColors.length > 1
-                  ? tr('${trValue(_baseColor(_activeColor ?? ''))}: ${_activeImages.length} / $_maxImages фото',
+                  ? tr(
+                      '${trValue(_baseColor(_activeColor ?? ''))}: ${_activeImages.length} / $_maxImages фото',
                       '${trValue(_baseColor(_activeColor ?? ''))}: ${_activeImages.length} / $_maxImages фото')
-                  : tr('Добавлено: ${_activeImages.length} / $_maxImages фото', 'Қосылды: ${_activeImages.length} / $_maxImages фото'),
-              style: const TextStyle(
-                  fontWeight: FontWeight.w600, color: cInk)),
+                  : tr('Добавлено: ${_activeImages.length} / $_maxImages фото',
+                      'Қосылды: ${_activeImages.length} / $_maxImages фото'),
+              style: const TextStyle(fontWeight: FontWeight.w600, color: cInk)),
           const SizedBox(height: 10),
           GridView.builder(
             shrinkWrap: true,
@@ -2634,8 +2638,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
                     top: 4,
                     right: 4,
                     child: GestureDetector(
-                        onTap: () => setState(() =>
-                            _variantImages[_activeColor]?.removeAt(i)),
+                        onTap: () => setState(
+                            () => _variantImages[_activeColor]?.removeAt(i)),
                         child: Container(
                             decoration: const BoxDecoration(
                                 color: Colors.red, shape: BoxShape.circle),
@@ -2672,9 +2676,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(tr('Итоговые данные товара', 'Тауардың қорытынды деректері'),
                   style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                      color: cInk)),
+                      fontWeight: FontWeight.w700, fontSize: 14, color: cInk)),
               const SizedBox(height: 12),
               _SummaryRow(
                   label: tr('Название', 'Атауы'),
@@ -2687,11 +2689,18 @@ class _AddProductScreenState extends State<AddProductScreen> {
                   value: _categoryKey == null
                       ? '—'
                       : categoryByKey(_categoryKey).name),
-              _SummaryRow(label: tr('Тип товара', 'Тауар түрі'), value: _type == null ? '—' : trValue(_type!)),
-              if (_categoryKey != null && categoryByKey(_categoryKey).hasAudience)
-                _SummaryRow(label: tr('Кому', 'Кімге'), value: _targetGroup == null ? '—' : trValue(_targetGroup!)),
               _SummaryRow(
-                  label: _selectedColors.length > 1 ? tr('Цвета', 'Түстері') : tr('Цвет', 'Түсі'),
+                  label: tr('Тип товара', 'Тауар түрі'),
+                  value: _type == null ? '—' : trValue(_type!)),
+              if (_categoryKey != null &&
+                  categoryByKey(_categoryKey).hasAudience)
+                _SummaryRow(
+                    label: tr('Кому', 'Кімге'),
+                    value: _targetGroup == null ? '—' : trValue(_targetGroup!)),
+              _SummaryRow(
+                  label: _selectedColors.length > 1
+                      ? tr('Цвета', 'Түстері')
+                      : tr('Цвет', 'Түсі'),
                   value: _selectedColors.isEmpty
                       ? '—'
                       : _selectedColors.map(_variantLabel).join(', ')),
@@ -2706,9 +2715,12 @@ class _AddProductScreenState extends State<AddProductScreen> {
               if (_selectedColors.length > 1)
                 ..._selectedColors.map((c) => _SummaryRow(
                     label: '· ${_variantLabel(c)}',
-                    value: tr('${_variantTotal(c)} шт. · ${(_variantImages[c] ?? []).length} фото',
+                    value: tr(
+                        '${_variantTotal(c)} шт. · ${(_variantImages[c] ?? []).length} фото',
                         '${_variantTotal(c)} дана · ${(_variantImages[c] ?? []).length} фото'))),
-              _SummaryRow(label: tr('Всего товаров', 'Барлық тауар'), value: tr('$_grandTotal шт.', '$_grandTotal дана')),
+              _SummaryRow(
+                  label: tr('Всего товаров', 'Барлық тауар'),
+                  value: tr('$_grandTotal шт.', '$_grandTotal дана')),
             ])),
       ]);
 }
@@ -2731,12 +2743,8 @@ class _StepHeader extends StatelessWidget {
         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(title,
               style: const TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
-                  color: cInk)),
-          Text(subtitle,
-              style:
-                  const TextStyle(fontSize: 12, color: cInk2)),
+                  fontSize: 17, fontWeight: FontWeight.w700, color: cInk)),
+          Text(subtitle, style: const TextStyle(fontSize: 12, color: cInk2)),
         ]),
       ]);
 }
@@ -2747,9 +2755,7 @@ class _Label extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Text(text,
       style: const TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
-          color: cInk2));
+          fontSize: 13, fontWeight: FontWeight.w600, color: cInk2));
 }
 
 class _Field extends StatelessWidget {
@@ -2779,8 +2785,7 @@ class _Field extends StatelessWidget {
               borderSide: const BorderSide(color: cLine)),
           focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide:
-                  const BorderSide(color: cGreen, width: 1.5))));
+              borderSide: const BorderSide(color: cGreen, width: 1.5))));
 }
 
 class _SelectChip extends StatelessWidget {
@@ -2799,8 +2804,7 @@ class _SelectChip extends StatelessWidget {
               color: selected ? cGreen : Colors.white,
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
-                  color: selected ? cGreen : cLine,
-                  width: selected ? 1.5 : 1)),
+                  color: selected ? cGreen : cLine, width: selected ? 1.5 : 1)),
           child: Text(label,
               style: TextStyle(
                   fontSize: 13,
@@ -2815,15 +2819,10 @@ class _SummaryRow extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(children: [
-        Text(label,
-            style:
-                const TextStyle(fontSize: 13, color: cInk2)),
+        Text(label, style: const TextStyle(fontSize: 13, color: cInk2)),
         const Spacer(),
         Text(value,
             style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: cInk)),
+                fontSize: 13, fontWeight: FontWeight.w600, color: cInk)),
       ]));
 }
-

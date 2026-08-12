@@ -30,9 +30,12 @@ class GuestShellState extends State<GuestShell> {
 
   static const List<_TabDef> _tabs = [
     _TabDef(Icons.home_outlined, Icons.home_rounded, 'Басты', false),
-    _TabDef(Icons.grid_view_outlined, Icons.grid_view_rounded, 'Каталог', false),
-    _TabDef(Icons.shopping_bag_outlined, Icons.shopping_bag_rounded, 'Себет', false),
-    _TabDef(Icons.person_outline_rounded, Icons.person_rounded, 'Профиль', true),
+    _TabDef(
+        Icons.grid_view_outlined, Icons.grid_view_rounded, 'Каталог', false),
+    _TabDef(Icons.shopping_bag_outlined, Icons.shopping_bag_rounded, 'Себет',
+        false),
+    _TabDef(
+        Icons.person_outline_rounded, Icons.person_rounded, 'Профиль', true),
   ];
 
   // Тек ашық табтардың экрандары (0..2). «Профиль» (3) — locked.
@@ -93,40 +96,43 @@ class GuestShellState extends State<GuestShell> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Stack(clipBehavior: Clip.none, children: [
-                          Icon(
-                            active
-                                ? _tabs[i].activeIcon
-                                : _tabs[i].icon,
-                            color: locked
-                                ? cInk3.withValues(alpha: 0.45)
-                                : (active ? cGreen : cInk3),
-                            size: 24,
-                          ),
-                          if (i == 2 && cartCount > 0)
-                            Positioned(
-                              top: -4, right: -6,
-                              child: Container(
-                                width: 14, height: 14,
-                                decoration: const BoxDecoration(
-                                    color: cRed, shape: BoxShape.circle),
-                                child: Center(
-                                  child: Text(
-                                    cartCount > 9 ? '9+' : '$cartCount',
-                                    style: manrope(8, FontWeight.w800,
-                                        color: Colors.white),
+                        QNavPill(
+                            active: active,
+                            child: Stack(clipBehavior: Clip.none, children: [
+                              Icon(
+                                active ? _tabs[i].activeIcon : _tabs[i].icon,
+                                color: locked
+                                    ? cInk3.withValues(alpha: 0.45)
+                                    : (active ? cGreen : cInk3),
+                                size: 24,
+                              ),
+                              if (i == 2 && cartCount > 0)
+                                Positioned(
+                                  top: -4,
+                                  right: -6,
+                                  child: Container(
+                                    width: 14,
+                                    height: 14,
+                                    decoration: const BoxDecoration(
+                                        color: cRed, shape: BoxShape.circle),
+                                    child: Center(
+                                      child: Text(
+                                        cartCount > 9 ? '9+' : '$cartCount',
+                                        style: manrope(8, FontWeight.w800,
+                                            color: Colors.white),
+                                      ),
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ),
-                          if (locked)
-                            Positioned(
-                              top: -3, right: -5,
-                              child: Icon(Icons.lock_rounded,
-                                  size: 10,
-                                  color: cInk3.withValues(alpha: 0.55)),
-                            ),
-                        ]),
+                              if (locked)
+                                Positioned(
+                                  top: -3,
+                                  right: -5,
+                                  child: Icon(Icons.lock_rounded,
+                                      size: 10,
+                                      color: cInk3.withValues(alpha: 0.55)),
+                                ),
+                            ])),
                         const SizedBox(height: 3),
                         // FittedBox — үлкен жүйелік шрифтте лейбл екі жолға
                         // бөлінбей, таб еніне сыйып кішірейеді.

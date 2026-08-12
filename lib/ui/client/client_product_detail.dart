@@ -17,6 +17,7 @@ import 'questions_section.dart';
 import 'store_public_screen.dart';
 
 import '../../core/lang.dart';
+
 class ClientProductDetail extends StatefulWidget {
   final ProductModel product;
   final StoreModel store;
@@ -97,8 +98,7 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
 
   // Базовая (зачёркнутая) цена и итоговая цена со скидкой товара
   double get _basePrice => _priceBatch?.sellingPrice ?? 0.0;
-  double get _price =>
-      _priceBatch != null ? effectivePrice(_priceBatch!) : 0.0;
+  double get _price => _priceBatch != null ? effectivePrice(_priceBatch!) : 0.0;
   bool get _hasDiscount =>
       _priceBatch != null && hasActiveDiscount(_priceBatch!);
   int get _discountPct =>
@@ -298,7 +298,8 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
     }
     context.read<CartProvider>().addItem(_buildCartItem()!);
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(tr('${_currentProduct.name} добавлен в корзину', '${_currentProduct.name} себетке қосылды')),
+      content: Text(tr('${_currentProduct.name} добавлен в корзину',
+          '${_currentProduct.name} себетке қосылды')),
       backgroundColor: cGreen,
       behavior: SnackBarBehavior.floating,
     ));
@@ -346,7 +347,7 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
   Widget build(BuildContext context) {
     final images = _currentProduct.images;
     final allSizes = _allSizes; // барлық размерлер (0-дылар сызылған)
-    final avail = _available;  // тек қолжетімді (корзина/батырма үшін)
+    final avail = _available; // тек қолжетімді (корзина/батырма үшін)
 
     return Scaffold(
       backgroundColor: cBg,
@@ -363,51 +364,53 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
                     Container(
                       color: const Color(0xFFE4F7EE),
                       child: AspectRatio(
-                      aspectRatio: 1.1,
-                      child: images.isNotEmpty
-                          ? Stack(children: [
-                              PageView.builder(
-                                itemCount: images.length,
-                                onPageChanged: (i) =>
-                                    setState(() => _pageIndex = i),
-                                itemBuilder: (_, i) => Image.network(images[i],
-                                    fit: BoxFit.cover,
-                                    width: double.infinity,
-                                    height: double.infinity,
-                                    errorBuilder: (_, __, ___) =>
-                                        _shoePlaceholder()),
-                              ),
-                              if (images.length > 1)
-                                Positioned(
-                                  bottom: 12,
-                                  left: 0,
-                                  right: 0,
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: List.generate(
-                                        images.length,
-                                        (i) => AnimatedContainer(
-                                              duration: const Duration(
-                                                  milliseconds: 200),
-                                              width: i == _pageIndex ? 20 : 7,
-                                              height: 7,
-                                              margin:
-                                                  const EdgeInsets.symmetric(
-                                                      horizontal: 2),
-                                              decoration: BoxDecoration(
-                                                color: i == _pageIndex
-                                                    ? cGreen
-                                                    : cInk.withValues(
-                                                        alpha: 0.18),
-                                                borderRadius:
-                                                    BorderRadius.circular(4),
-                                              ),
-                                            )),
-                                  ),
+                        aspectRatio: 1.1,
+                        child: images.isNotEmpty
+                            ? Stack(children: [
+                                PageView.builder(
+                                  itemCount: images.length,
+                                  onPageChanged: (i) =>
+                                      setState(() => _pageIndex = i),
+                                  itemBuilder: (_, i) => Image.network(
+                                      images[i],
+                                      fit: BoxFit.cover,
+                                      width: double.infinity,
+                                      height: double.infinity,
+                                      errorBuilder: (_, __, ___) =>
+                                          _shoePlaceholder()),
                                 ),
-                            ])
-                          : _shoePlaceholder(),
-                    ),
+                                if (images.length > 1)
+                                  Positioned(
+                                    bottom: 12,
+                                    left: 0,
+                                    right: 0,
+                                    child: Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: List.generate(
+                                          images.length,
+                                          (i) => AnimatedContainer(
+                                                duration: const Duration(
+                                                    milliseconds: 200),
+                                                width: i == _pageIndex ? 20 : 7,
+                                                height: 7,
+                                                margin:
+                                                    const EdgeInsets.symmetric(
+                                                        horizontal: 2),
+                                                decoration: BoxDecoration(
+                                                  color: i == _pageIndex
+                                                      ? cGreen
+                                                      : cInk.withValues(
+                                                          alpha: 0.18),
+                                                  borderRadius:
+                                                      BorderRadius.circular(4),
+                                                ),
+                                              )),
+                                    ),
+                                  ),
+                              ])
+                            : _shoePlaceholder(),
+                      ),
                     ),
 
                     // ── Details ───────────────────────────────────────────
@@ -416,254 +419,267 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                      // Name
-                      Text(_currentProduct.name,
-                          style: manrope(22, FontWeight.w800,
-                              color: cInk, letterSpacing: -0.4)),
-                      if (_currentProduct.type.isNotEmpty)
-                        Text(_currentProduct.type,
-                            style: manrope(13.5, FontWeight.w500,
-                                color: cInk3)),
-                      if (_currentProduct.ratingCount > 0) ...[
-                        const SizedBox(height: 6),
-                        Row(children: [
-                          RatingStars(
-                              rating: _currentProduct.ratingAvg, size: 15),
-                          const SizedBox(width: 6),
-                          Text(
-                            '${_currentProduct.ratingAvg.toStringAsFixed(1)} · ${_currentProduct.ratingCount} ${tr('отзывов', 'пікір')}',
-                            style: manrope(12.5, FontWeight.w600,
-                                color: cInk3),
-                          ),
-                        ]),
-                      ],
-                      const SizedBox(height: 10),
-
-                      // Price (со скидкой товара — зачёркнутая старая + новая + бейдж)
-                      if (_price > 0)
-                        Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                          Text(money(_price),
-                              style: manrope(28, FontWeight.w800,
-                                  color: _hasDiscount ? cRed : cInk)),
-                          if (_hasDiscount) ...[
-                            const SizedBox(width: 10),
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 5),
-                              child: Text(money(_basePrice),
-                                  style: manrope(16, FontWeight.w600, color: cInk3)
-                                      .copyWith(
-                                          decoration:
-                                              TextDecoration.lineThrough)),
-                            ),
-                            const SizedBox(width: 8),
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 6),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 8, vertical: 3),
-                                decoration: BoxDecoration(
-                                  color: cRed,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Text('−$_discountPct%',
-                                    style: manrope(12.5, FontWeight.w800,
-                                        color: Colors.white)),
+                          // Name
+                          Text(_currentProduct.name,
+                              style: manrope(22, FontWeight.w800,
+                                  color: cInk, letterSpacing: -0.4)),
+                          if (_currentProduct.type.isNotEmpty)
+                            Text(_currentProduct.type,
+                                style: manrope(13.5, FontWeight.w500,
+                                    color: cInk3)),
+                          if (_currentProduct.ratingCount > 0) ...[
+                            const SizedBox(height: 6),
+                            Row(children: [
+                              RatingStars(
+                                  rating: _currentProduct.ratingAvg, size: 15),
+                              const SizedBox(width: 6),
+                              Text(
+                                '${_currentProduct.ratingAvg.toStringAsFixed(1)} · ${_currentProduct.ratingCount} ${tr('отзывов', 'пікір')}',
+                                style: manrope(12.5, FontWeight.w600,
+                                    color: cInk3),
                               ),
+                            ]),
+                          ],
+                          const SizedBox(height: 10),
+
+                          // Price (со скидкой товара — зачёркнутая старая + новая + бейдж)
+                          if (_price > 0)
+                            Row(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Text(money(_price),
+                                      style: manrope(28, FontWeight.w800,
+                                          color: _hasDiscount ? cRed : cInk)),
+                                  if (_hasDiscount) ...[
+                                    const SizedBox(width: 10),
+                                    Padding(
+                                      padding: const EdgeInsets.only(bottom: 5),
+                                      child: Text(money(_basePrice),
+                                          style: manrope(16, FontWeight.w600,
+                                                  color: cInk3)
+                                              .copyWith(
+                                                  decoration: TextDecoration
+                                                      .lineThrough)),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Padding(
+                                      padding: const EdgeInsets.only(bottom: 6),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 8, vertical: 3),
+                                        decoration: BoxDecoration(
+                                          color: cRed,
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                        ),
+                                        child: Text('−$_discountPct%',
+                                            style: manrope(
+                                                12.5, FontWeight.w800,
+                                                color: Colors.white)),
+                                      ),
+                                    ),
+                                  ],
+                                ]),
+
+                          const SizedBox(height: 16),
+
+                          // ── Нұсқалар (түс + айырмашылық белгісі) ─────────
+                          if (_variants.length > 1) ...[
+                            QSecLabel(
+                                _variants.any((v) => v.variantNote.isNotEmpty)
+                                    ? tr('Варианты', 'Нұсқалары')
+                                    : tr('Цвет', 'Түсі')),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: List.generate(_variants.length, (i) {
+                                final v = _variants[i];
+                                final selected = i == _variantIndex;
+                                final dot =
+                                    v.effectiveColor ?? const Color(0xFFBDBDBD);
+                                return GestureDetector(
+                                  onTap: () => _onSelectVariant(i),
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 150),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 11, vertical: 8),
+                                    decoration: BoxDecoration(
+                                      color: selected ? cGreenTint : cSurface,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                          color: selected ? cGreen : cLine,
+                                          width: 1.5),
+                                    ),
+                                    child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Container(
+                                            width: 16,
+                                            height: 16,
+                                            decoration: BoxDecoration(
+                                              color: dot,
+                                              shape: BoxShape.circle,
+                                              border: Border.all(
+                                                  color:
+                                                      const Color(0xFFE0E0E0),
+                                                  width: 1),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 7),
+                                          Text(_variantChipLabel(v, i),
+                                              style: manrope(
+                                                  13, FontWeight.w700,
+                                                  color: selected
+                                                      ? cGreenDeep
+                                                      : cInk)),
+                                        ]),
+                                  ),
+                                );
+                              }),
+                            ),
+                            const SizedBox(height: 16),
+                          ],
+
+                          // Sizes — барлық анықталған размерлер; қолжетімді
+                          // емес болса үсті сызылған күйде көрінеді.
+                          if (allSizes.isNotEmpty) ...[
+                            QSecLabel(tr('Размер', 'Өлшем')),
+                            Wrap(
+                              spacing: 9,
+                              runSpacing: 9,
+                              children: (allSizes.entries.toList()
+                                    ..sort((a, b) =>
+                                        (double.tryParse(a.key) ?? 0).compareTo(
+                                            double.tryParse(b.key) ?? 0)))
+                                  .map((e) {
+                                final isAvailable = e.value > 0;
+                                final selected = _selectedSize == e.key;
+                                return GestureDetector(
+                                  onTap: isAvailable
+                                      ? () =>
+                                          setState(() => _selectedSize = e.key)
+                                      : null,
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 150),
+                                    width: 56,
+                                    height: 50,
+                                    decoration: BoxDecoration(
+                                      color: !isAvailable
+                                          ? cLine2
+                                          : selected
+                                              ? cGreenTint
+                                              : cSurface,
+                                      borderRadius: BorderRadius.circular(13),
+                                      border: Border.all(
+                                        color: selected ? cGreen : cLine,
+                                        width: 1.5,
+                                      ),
+                                      boxShadow: selected
+                                          ? [
+                                              BoxShadow(
+                                                  color: cGreenTint,
+                                                  blurRadius: 0,
+                                                  spreadRadius: 3)
+                                            ]
+                                          : null,
+                                    ),
+                                    child: Stack(
+                                      alignment: Alignment.center,
+                                      children: [
+                                        Opacity(
+                                          opacity: isAvailable ? 1.0 : 0.38,
+                                          child: Text(e.key,
+                                              style: manrope(
+                                                  15.5, FontWeight.w800,
+                                                  color: cInk)),
+                                        ),
+                                        if (!isAvailable)
+                                          Positioned.fill(
+                                            child: CustomPaint(
+                                                painter: _StrikePainter()),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
                             ),
                           ],
-                        ]),
 
-                      const SizedBox(height: 16),
+                          // ── Описание (маркетплейс-стиль, жайылмалы) ─────
+                          if (_currentProduct.description.isNotEmpty)
+                            _DescriptionSection(
+                                text: _currentProduct.description),
 
-                      // ── Нұсқалар (түс + айырмашылық белгісі) ─────────
-                      if (_variants.length > 1) ...[
-                        QSecLabel(
-                            _variants.any((v) => v.variantNote.isNotEmpty)
-                                ? tr('Варианты', 'Нұсқалары')
-                                : tr('Цвет', 'Түсі')),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: List.generate(_variants.length, (i) {
-                            final v = _variants[i];
-                            final selected = i == _variantIndex;
-                            final dot =
-                                v.effectiveColor ?? const Color(0xFFBDBDBD);
-                            return GestureDetector(
-                              onTap: () => _onSelectVariant(i),
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 150),
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 11, vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: selected ? cGreenTint : cSurface,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                      color: selected ? cGreen : cLine,
-                                      width: 1.5),
-                                ),
-                                child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Container(
-                                        width: 16,
-                                        height: 16,
-                                        decoration: BoxDecoration(
-                                          color: dot,
-                                          shape: BoxShape.circle,
-                                          border: Border.all(
-                                              color: const Color(0xFFE0E0E0),
-                                              width: 1),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 7),
-                                      Text(
-                                          _variantChipLabel(v, i),
-                                          style: manrope(13, FontWeight.w700,
-                                              color: selected
-                                                  ? cGreenDeep
-                                                  : cInk)),
-                                    ]),
+                          // ── Характеристики ──────────────────────────────
+                          _SpecSection(product: _currentProduct),
+
+                          const SizedBox(height: 16),
+
+                          // Store card — дүкен парақшасына өтеді (тек осы дүкен
+                          // тауарлары). Дүкеннен ашылған болсақ — артқа оралады.
+                          GestureDetector(
+                            onTap: _openStore,
+                            child: Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: cGreenTint,
+                                borderRadius: BorderRadius.circular(18),
                               ),
-                            );
-                          }),
-                        ),
-                        const SizedBox(height: 16),
-                      ],
-
-                      // Sizes — барлық анықталған размерлер; қолжетімді
-                      // емес болса үсті сызылған күйде көрінеді.
-                      if (allSizes.isNotEmpty) ...[
-                        QSecLabel(tr('Размер', 'Өлшем')),
-                        Wrap(
-                          spacing: 9,
-                          runSpacing: 9,
-                          children: (allSizes.entries.toList()
-                                ..sort((a, b) =>
-                                    (double.tryParse(a.key) ?? 0)
-                                        .compareTo(double.tryParse(b.key) ?? 0)))
-                              .map((e) {
-                            final isAvailable = e.value > 0;
-                            final selected = _selectedSize == e.key;
-                            return GestureDetector(
-                              onTap: isAvailable
-                                  ? () => setState(() => _selectedSize = e.key)
-                                  : null,
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 150),
-                                width: 56,
-                                height: 50,
-                                decoration: BoxDecoration(
-                                  color: !isAvailable
-                                      ? cLine2
-                                      : selected
-                                          ? cGreenTint
-                                          : cSurface,
-                                  borderRadius: BorderRadius.circular(13),
-                                  border: Border.all(
-                                    color: selected ? cGreen : cLine,
-                                    width: 1.5,
-                                  ),
-                                  boxShadow: selected
-                                      ? [BoxShadow(
-                                          color: cGreenTint,
-                                          blurRadius: 0,
-                                          spreadRadius: 3)]
-                                      : null,
+                              child: Row(children: [
+                                const Icon(Icons.storefront_outlined,
+                                    color: cGreenDeep, size: 22),
+                                const SizedBox(width: 11),
+                                Expanded(
+                                  child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(widget.store.storeName,
+                                            style: manrope(
+                                                13.5, FontWeight.w700,
+                                                color: cGreenDeep)),
+                                        Text(
+                                            widget.store.address.isNotEmpty
+                                                ? widget.store.address
+                                                : tr('Перейти в магазин',
+                                                    'Дүкенге өту'),
+                                            style: manrope(12, FontWeight.w500,
+                                                color: cGreenDeep.withValues(
+                                                    alpha: 0.8))),
+                                      ]),
                                 ),
-                                child: Stack(
-                                  alignment: Alignment.center,
-                                  children: [
-                                    Opacity(
-                                      opacity: isAvailable ? 1.0 : 0.38,
-                                      child: Text(e.key,
-                                          style: manrope(15.5, FontWeight.w800,
-                                              color: cInk)),
-                                    ),
-                                    if (!isAvailable)
-                                      Positioned.fill(
-                                        child: CustomPaint(
-                                            painter: _StrikePainter()),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ],
-
-                      // ── Описание (маркетплейс-стиль, жайылмалы) ─────
-                      if (_currentProduct.description.isNotEmpty)
-                        _DescriptionSection(text: _currentProduct.description),
-
-                      // ── Характеристики ──────────────────────────────
-                      _SpecSection(product: _currentProduct),
-
-                      const SizedBox(height: 16),
-
-                      // Store card — дүкен парақшасына өтеді (тек осы дүкен
-                      // тауарлары). Дүкеннен ашылған болсақ — артқа оралады.
-                      GestureDetector(
-                        onTap: _openStore,
-                        child: Container(
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: cGreenTint,
-                            borderRadius: BorderRadius.circular(18),
-                          ),
-                          child: Row(children: [
-                            const Icon(Icons.storefront_outlined,
-                                color: cGreenDeep, size: 22),
-                            const SizedBox(width: 11),
-                            Expanded(
-                              child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(widget.store.storeName,
-                                        style: manrope(13.5, FontWeight.w700,
-                                            color: cGreenDeep)),
-                                    Text(
-                                        widget.store.address.isNotEmpty
-                                            ? widget.store.address
-                                            : tr('Перейти в магазин',
-                                                'Дүкенге өту'),
-                                        style: manrope(12, FontWeight.w500,
-                                            color: cGreenDeep.withValues(
-                                                alpha: 0.8))),
-                                  ]),
+                                const Icon(Icons.chevron_right_rounded,
+                                    color: cGreenDeep, size: 18),
+                              ]),
                             ),
-                            const Icon(Icons.chevron_right_rounded,
-                                color: cGreenDeep, size: 18),
-                          ]),
-                        ),
-                      ),
+                          ),
 
-                      // ── Отзывы (тек сатып алғандар жазады) ──────────
-                      // Key: түс нұсқасы ауысқанда секция қайта жүктеледі.
-                      ReviewsSection(
-                        key: ValueKey('reviews_${_currentProduct.id}'),
-                        product: _currentProduct,
-                        store: widget.store,
-                      ),
+                          // ── Отзывы (тек сатып алғандар жазады) ──────────
+                          // Key: түс нұсқасы ауысқанда секция қайта жүктеледі.
+                          ReviewsSection(
+                            key: ValueKey('reviews_${_currentProduct.id}'),
+                            product: _currentProduct,
+                            store: widget.store,
+                          ),
 
-                      // ── Вопросы и ответы (сатып алу міндетті емес) ──
-                      if (!widget.previewMode)
-                        QuestionsSection(
-                          key: ValueKey('questions_${_currentProduct.id}'),
-                          product: _currentProduct,
-                          store: widget.store,
-                        ),
+                          // ── Вопросы и ответы (сатып алу міндетті емес) ──
+                          if (!widget.previewMode)
+                            QuestionsSection(
+                              key: ValueKey('questions_${_currentProduct.id}'),
+                              product: _currentProduct,
+                              store: widget.store,
+                            ),
 
-                      // ── Ұқсас тауарлар (сол дүкеннен) ───────────────
-                      if (!widget.previewMode)
-                        RelatedProductsSection(
-                          key: ValueKey('related_${_currentProduct.id}'),
-                          product: _currentProduct,
-                          store: widget.store,
-                          excludeIds: _variants.map((v) => v.id).toSet(),
-                          onTap: _openRelated,
-                        ),
+                          // ── Ұқсас тауарлар (сол дүкеннен) ───────────────
+                          if (!widget.previewMode)
+                            RelatedProductsSection(
+                              key: ValueKey('related_${_currentProduct.id}'),
+                              product: _currentProduct,
+                              store: widget.store,
+                              excludeIds: _variants.map((v) => v.id).toSet(),
+                              onTap: _openRelated,
+                            ),
                         ],
                       ),
                     ),
@@ -714,6 +730,14 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
                 decoration: const BoxDecoration(
                   color: cSurface,
                   border: Border(top: BorderSide(color: cLine)),
+                  // Тауар суреті жолақтың астынан «жүзіп» өтпей, жолақ
+                  // мазмұннан айқын бөлінуі үшін жеңіл жоғарғы көлеңке.
+                  boxShadow: [
+                    BoxShadow(
+                        color: Color(0x0F0B1512),
+                        blurRadius: 18,
+                        offset: Offset(0, -6)),
+                  ],
                 ),
                 child: Row(children: [
                   // Cart icon button
@@ -724,7 +748,8 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
                       height: 52,
                       decoration: BoxDecoration(
                         color: cGreenTint,
-                        borderRadius: BorderRadius.circular(15),
+                        borderRadius: BorderRadius.circular(kR16),
+                        border: Border.all(color: cGreenTint2),
                       ),
                       child: const Icon(Icons.shopping_cart_outlined,
                           color: cGreenDeep, size: 22),
@@ -735,7 +760,8 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
                   Expanded(
                     child: QPrimaryButton(
                       label: _price > 0
-                          ? tr('Купить · ${money(_price)}', 'Сатып алу · ${money(_price)}')
+                          ? tr('Купить · ${money(_price)}',
+                              'Сатып алу · ${money(_price)}')
                           : tr('В корзину', 'Себетке'),
                       onPressed: _buyNow,
                       height: 52,
@@ -752,15 +778,15 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
         margin: const EdgeInsets.all(24),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
-            colors: [Color(0xFFE4F7EE), Color(0xFFC8EEDB)],
+            colors: [cGreenTint, Color(0xFFCCF0DF)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(kR20),
         ),
         child: const Center(
           child: Icon(Icons.inventory_2_outlined,
-              size: 64, color: Color(0x380C120F)),
+              size: 64, color: Color(0x380B1512)),
         ),
       );
 }
@@ -782,8 +808,9 @@ class _RoundBtn extends StatelessWidget {
           width: 40,
           height: 40,
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.85),
-            borderRadius: BorderRadius.circular(13),
+            color: Colors.white.withValues(alpha: 0.92),
+            shape: BoxShape.circle,
+            boxShadow: kShadowXs,
           ),
           child: Icon(icon, color: iconColor, size: 20),
         ),
@@ -840,9 +867,8 @@ class _DescriptionSectionState extends State<_DescriptionSection> {
                   widget.text,
                   style: style,
                   maxLines: _expanded ? null : _collapsedLines,
-                  overflow: _expanded
-                      ? TextOverflow.visible
-                      : TextOverflow.ellipsis,
+                  overflow:
+                      _expanded ? TextOverflow.visible : TextOverflow.ellipsis,
                 ),
               ),
               if (needsToggle)
@@ -882,15 +908,23 @@ class _SpecSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final rows = <_SpecRow>[
-      if (product.category.isNotEmpty) _SpecRow(tr('Для кого', 'Кімге'), trValue(product.category)),
-      if (product.material.isNotEmpty) _SpecRow('Материал', trValue(product.material)),
-      if (product.brand.isNotEmpty)    _SpecRow('Бренд', product.brand),
-      if (product.color.isNotEmpty)    _SpecRow(tr('Цвет', 'Түсі'), trValue(product.color)),
-      if (product.variantNote.trim().isNotEmpty) _SpecRow(tr('Особенность', 'Ерекшелігі'), product.variantNote.trim()),
-      if (product.type.isNotEmpty)     _SpecRow(tr('Тип', 'Түрі'), trValue(product.type)),
-      if (product.season.isNotEmpty)   _SpecRow(tr('Сезон', 'Маусым'), trValue(product.season)),
-      if (product.country.isNotEmpty)  _SpecRow(tr('Страна', 'Өндірілген ел'), product.country),
-      if (product.articul.isNotEmpty)  _SpecRow('Артикул', product.articul, copyable: true),
+      if (product.category.isNotEmpty)
+        _SpecRow(tr('Для кого', 'Кімге'), trValue(product.category)),
+      if (product.material.isNotEmpty)
+        _SpecRow('Материал', trValue(product.material)),
+      if (product.brand.isNotEmpty) _SpecRow('Бренд', product.brand),
+      if (product.color.isNotEmpty)
+        _SpecRow(tr('Цвет', 'Түсі'), trValue(product.color)),
+      if (product.variantNote.trim().isNotEmpty)
+        _SpecRow(tr('Особенность', 'Ерекшелігі'), product.variantNote.trim()),
+      if (product.type.isNotEmpty)
+        _SpecRow(tr('Тип', 'Түрі'), trValue(product.type)),
+      if (product.season.isNotEmpty)
+        _SpecRow(tr('Сезон', 'Маусым'), trValue(product.season)),
+      if (product.country.isNotEmpty)
+        _SpecRow(tr('Страна', 'Өндірілген ел'), product.country),
+      if (product.articul.isNotEmpty)
+        _SpecRow('Артикул', product.articul, copyable: true),
     ];
     if (rows.isEmpty) return const SizedBox.shrink();
 
@@ -923,20 +957,21 @@ class _SpecSection extends StatelessWidget {
                           Clipboard.setData(ClipboardData(text: rows[i].value));
                           HapticFeedback.selectionClick();
                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                            content: Text(tr('Артикул скопирован', 'Артикул көшірілді')),
+                            content: Text(
+                                tr('Артикул скопирован', 'Артикул көшірілді')),
                             behavior: SnackBarBehavior.floating,
                             backgroundColor: cGreen,
                           ));
                         },
                         child: const Padding(
                           padding: EdgeInsets.only(left: 6),
-                          child: Icon(Icons.copy_rounded, size: 16, color: cInk3),
+                          child:
+                              Icon(Icons.copy_rounded, size: 16, color: cInk3),
                         ),
                       ),
                   ]),
                 ),
-                if (i < rows.length - 1)
-                  Container(height: 1, color: cLine),
+                if (i < rows.length - 1) Container(height: 1, color: cLine),
               ],
             ],
           ),

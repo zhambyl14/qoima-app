@@ -8,11 +8,13 @@ import '../../theme/qoima_design.dart';
 /// экранға дейін popUntil жасайды ([popToLogin]).
 const String kLoginRouteName = 'auth/login';
 
-/// Auth-тың жасыл градиенті (дизайн: 158° #0A7B3C → #12934A → #25A85E).
+/// Auth-тың жасыл градиенті. Бұрын өз алдына бөлек реңде (#0A7B3C…#25A85E)
+/// еді де, логин беті қалған қосымшадан басқаша көрінетін — енді бренд
+/// градиентімен (kGrad) бір отбасында, тек бағыты айналдырылған.
 const LinearGradient kAuthGrad = LinearGradient(
   begin: Alignment.topRight,
   end: Alignment.bottomLeft,
-  colors: [Color(0xFF25A85E), Color(0xFF12934A), Color(0xFF0A7B3C)],
+  colors: [Color(0xFF16CC80), Color(0xFF00A862), Color(0xFF00693C)],
   stops: [0.0, 0.5, 1.0],
 );
 
@@ -37,7 +39,7 @@ class AuthLangSwitch extends StatelessWidget {
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.16),
-        borderRadius: BorderRadius.circular(11),
+        borderRadius: BorderRadius.circular(kRPill),
         border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -57,7 +59,7 @@ class AuthLangSwitch extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
           decoration: BoxDecoration(
             color: active ? Colors.white : Colors.transparent,
-            borderRadius: BorderRadius.circular(9),
+            borderRadius: BorderRadius.circular(kRPill),
           ),
           child: Text(label,
               style: manrope(11.5, FontWeight.w800,
@@ -67,7 +69,7 @@ class AuthLangSwitch extends StatelessWidget {
 }
 
 // ── Жапсырмалы енгізу өрісі (дизайн стилінде) ─────────────────────────────────
-class AuthField extends StatelessWidget {
+class AuthField extends StatefulWidget {
   final TextEditingController controller;
   final String label;
   final String hint;
@@ -98,37 +100,77 @@ class AuthField extends StatelessWidget {
   });
 
   @override
+  State<AuthField> createState() => _AuthFieldState();
+}
+
+class _AuthFieldState extends State<AuthField> {
+  // Өріс белсенді екені КӨРІНУІ керек: бұрын фокуста да, бос күйде де
+  // жиегі бірдей сұр болатын — енді жасыл жиек + жұмсақ жасыл шуақ.
+  final FocusNode _node = FocusNode();
+  bool _focused = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _node.addListener(() {
+      if (_node.hasFocus != _focused) {
+        setState(() => _focused = _node.hasFocus);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _node.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: manrope(13, FontWeight.w700, color: kFieldLabel)),
+        Text(widget.label,
+            style: manrope(13, FontWeight.w700,
+                color: _focused ? cGreenDeep : kFieldLabel)),
         const SizedBox(height: 7),
-        Container(
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          curve: Curves.easeOut,
           height: 54,
           decoration: BoxDecoration(
             color: cSurface,
-            borderRadius: BorderRadius.circular(15),
-            border: Border.all(color: cLine, width: 1.5),
+            borderRadius: BorderRadius.circular(kR16),
+            border: Border.all(
+                color: _focused ? cGreen : cLine, width: _focused ? 1.8 : 1.5),
+            boxShadow: _focused
+                ? const [
+                    BoxShadow(
+                        color: Color(0x2600A862),
+                        blurRadius: 16,
+                        offset: Offset(0, 4)),
+                  ]
+                : null,
           ),
           child: Row(children: [
             const SizedBox(width: 15),
-            Icon(icon, color: cGreen, size: 20),
+            Icon(widget.icon, color: _focused ? cGreen : cInk3, size: 20),
             const SizedBox(width: 10),
             Expanded(
               child: TextField(
-                controller: controller,
-                keyboardType: keyboardType,
-                inputFormatters: inputFormatters,
-                textCapitalization: capitalization,
-                obscureText: obscure,
-                autofocus: autofocus,
-                textInputAction: textInputAction,
-                onSubmitted: onSubmitted,
+                controller: widget.controller,
+                focusNode: _node,
+                keyboardType: widget.keyboardType,
+                inputFormatters: widget.inputFormatters,
+                textCapitalization: widget.capitalization,
+                obscureText: widget.obscure,
+                autofocus: widget.autofocus,
+                textInputAction: widget.textInputAction,
+                onSubmitted: widget.onSubmitted,
                 style: manrope(15, FontWeight.w600, color: cInk),
                 cursorColor: cGreen,
                 decoration: InputDecoration(
-                  hintText: hint,
+                  hintText: widget.hint,
                   hintStyle: manrope(15, FontWeight.w500, color: cInk3),
                   // Глобалды тема filled:true — оны өшіреміз, әйтпесе теманың
                   // тік бұрышты ақ толтыруы контейнердің дөңгелек бұрыштарынан
@@ -145,7 +187,10 @@ class AuthField extends StatelessWidget {
                 ),
               ),
             ),
-            if (suffix != null) ...[suffix!, const SizedBox(width: 8)],
+            if (widget.suffix != null) ...[
+              widget.suffix!,
+              const SizedBox(width: 8)
+            ],
           ]),
         ),
       ],
@@ -226,34 +271,25 @@ class AuthPrimaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final active = enabled && !isLoading && onPressed != null;
+    final tappable = enabled && !isLoading && onPressed != null;
+    // Жүктелу кезінде батырма жанып тұрады — әйтпесе ақ спиннер ашық
+    // фонда көрінбей қалады.
+    final active = tappable || isLoading;
     return SizedBox(
       width: double.infinity,
       height: 56,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          gradient: active
-              ? const LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Color(0xFF16A653), Color(0xFF0E8B42)])
-              : null,
-          color: active ? null : cInk3.withValues(alpha: 0.35),
-          borderRadius: BorderRadius.circular(15),
-          boxShadow: active
-              ? [
-                  BoxShadow(
-                      color: const Color(0xFF0E8B42).withValues(alpha: 0.45),
-                      blurRadius: 22,
-                      offset: const Offset(0, 12))
-                ]
-              : null,
+          gradient: active ? kGradBtn : null,
+          color: active ? null : cLine,
+          borderRadius: BorderRadius.circular(kR16),
+          boxShadow: active ? kShadowGreen : null,
         ),
         child: Material(
           color: Colors.transparent,
           child: InkWell(
-            borderRadius: BorderRadius.circular(15),
-            onTap: active ? onPressed : null,
+            borderRadius: BorderRadius.circular(kR16),
+            onTap: tappable ? onPressed : null,
             child: Center(
               child: isLoading
                   ? const SizedBox(
@@ -265,12 +301,15 @@ class AuthPrimaryButton extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         if (icon != null) ...[
-                          Icon(icon, color: Colors.white, size: 20),
+                          // Өшірулі күйде фон ашық — ақ мәтін көрінбей
+                          // қалмауы үшін рең күйге қарай таңдалады.
+                          Icon(icon,
+                              color: active ? Colors.white : cInk3, size: 20),
                           const SizedBox(width: 9),
                         ],
                         Text(label,
                             style: manrope(16, FontWeight.w800,
-                                color: Colors.white)),
+                                color: active ? Colors.white : cInk3)),
                       ],
                     ),
             ),
@@ -307,11 +346,18 @@ class AuthWizardHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(gradient: kAuthGrad),
+      decoration: const BoxDecoration(
+        gradient: kAuthGrad,
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(kR24)),
+        boxShadow: [
+          BoxShadow(
+              color: Color(0x2600713F), blurRadius: 20, offset: Offset(0, 8)),
+        ],
+      ),
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(22, 12, 22, 22),
+          padding: const EdgeInsets.fromLTRB(22, 12, 22, 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -322,11 +368,13 @@ class AuthWizardHeader extends StatelessWidget {
                     width: 42,
                     height: 42,
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.16),
-                      borderRadius: BorderRadius.circular(13),
+                      color: Colors.white.withValues(alpha: 0.18),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.16)),
                     ),
                     child: const Icon(Icons.arrow_back_rounded,
-                        color: Colors.white, size: 22),
+                        color: Colors.white, size: 21),
                   ),
                 ),
                 const Spacer(),
@@ -385,16 +433,17 @@ class AuthErrorBox extends StatelessWidget {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: cRedTint,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: cRed.withValues(alpha: 0.3)),
+          borderRadius: BorderRadius.circular(kR14),
+          border: Border.all(color: cRed.withValues(alpha: 0.28)),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            const Icon(Icons.error_outline, color: cRed, size: 18),
+            const Icon(Icons.error_outline_rounded, color: cRedInk, size: 18),
             const SizedBox(width: 8),
+            // cRed ашық фонда бозғылт көрінетін — қоюлау cRedInk оқуға жеңіл.
             Expanded(
                 child: Text(message,
-                    style: manrope(13, FontWeight.w500, color: cRed))),
+                    style: manrope(13, FontWeight.w600, color: cRedInk))),
           ]),
           if (actionLabel != null && onAction != null) ...[
             const SizedBox(height: 10),
@@ -409,8 +458,7 @@ class AuthErrorBox extends StatelessWidget {
                 ),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
                   Text(actionLabel!,
-                      style: manrope(13, FontWeight.w800,
-                          color: Colors.white)),
+                      style: manrope(13, FontWeight.w800, color: Colors.white)),
                   const SizedBox(width: 4),
                   const Icon(Icons.arrow_forward_rounded,
                       color: Colors.white, size: 15),

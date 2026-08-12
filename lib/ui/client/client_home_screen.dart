@@ -23,6 +23,7 @@ import 'stores_list_screen.dart';
 
 import '../../core/lang.dart';
 import '../shared/error_view.dart';
+
 // ── Filters state ──────────────────────────────────────────────────────────────
 class ClientFilters {
   final String search;
@@ -158,9 +159,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
     final f = _filters;
 
     if (f.activeCount > 0) {
-      final batchesById = {
-        for (final pr in _pairs) pr.product.id: pr.batches
-      };
+      final batchesById = {for (final pr in _pairs) pr.product.id: pr.batches};
       bool priceOk(ProductModel v) {
         final bs = batchesById[v.id] ?? const <BatchModel>[];
         if (bs.isEmpty) return false;
@@ -204,9 +203,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
     }
 
     if (f.sort != 'default') {
-      final batchesById = {
-        for (final pr in _pairs) pr.product.id: pr.batches
-      };
+      final batchesById = {for (final pr in _pairs) pr.product.id: pr.batches};
       double priceOf(ProductGroup g) {
         double best = double.infinity;
         for (final v in g.variants) {
@@ -242,7 +239,8 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
   }
 
   List<ProductGroup> _personalizedOrder(List<ProductGroup> groups) {
-    final shuffled = List<ProductGroup>.from(groups)..shuffle(Random(_shuffleSeed));
+    final shuffled = List<ProductGroup>.from(groups)
+      ..shuffle(Random(_shuffleSeed));
     final catAffinity = BrowsingSignalsService.instance.categoryAffinity();
     final brandAffinity = BrowsingSignalsService.instance.brandAffinity();
     if (catAffinity.isEmpty && brandAffinity.isEmpty) return shuffled;
@@ -308,8 +306,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
             .firstWhere((pr) => pr.product.id == p.id,
                 orElse: () => (product: p, batches: const <BatchModel>[]))
             .batches;
-        final price =
-            batches.isNotEmpty ? batches.first.sellingPrice : 0.0;
+        final price = batches.isNotEmpty ? batches.first.sellingPrice : 0.0;
         await _service.addFavorite(
           productId: p.id,
           productName: p.name,
@@ -383,8 +380,9 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
     _searchSignalDebounce?.cancel();
     if (_searchQuery.isEmpty) return;
     _searchSignalDebounce = Timer(const Duration(milliseconds: 700), () {
-      final matches =
-          _allGroups.where((g) => productGroupMatches(g, _searchQuery)).toList();
+      final matches = _allGroups
+          .where((g) => productGroupMatches(g, _searchQuery))
+          .toList();
       if (matches.isEmpty) return;
       final counts = <String, int>{};
       for (final g in matches) {
@@ -435,8 +433,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
           allStores.where((s) => !hiddenIds.contains(s.adminUid)).toList();
       _allStores = visible;
       final stores = visible
-          .where((s) =>
-              _cityFilter == null || s.city.trim() == _cityFilter)
+          .where((s) => _cityFilter == null || s.city.trim() == _cityFilter)
           .toList();
 
       final storesWithProducts =
@@ -499,253 +496,279 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
         : allFiltered;
     // Әр түс — жеке карточка.
     final cards = expandVariantCards(groups);
-    final batchesById = {
-      for (final pr in _pairs) pr.product.id: pr.batches
-    };
+    final batchesById = {for (final pr in _pairs) pr.product.id: pr.batches};
     final storeById = {
       for (final pr in _pairs) pr.product.id: _productStoreMap[pr.product.id]
     };
 
     return Scaffold(
       backgroundColor: cBg,
+      // top: false — жасыл хедер статус-бардың АСТЫНА дейін созылады
+      // (қалған экрандардағы QGradientHeader сияқты); жоғарғы шегініс
+      // хедердің өз ішіндегі SafeArea-мен беріледі.
       body: SafeArea(
+        top: false,
         child: Column(children: [
           // ── Gradient header: greeting + bell + search ───────────────────
           Container(
-            decoration: const BoxDecoration(gradient: kGrad),
-            child: Column(children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 6, 20, 0),
-                child: Row(children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          firstName.isEmpty
-                              ? tr('Привет 👋', 'Сәлем 👋')
-                              : tr('Привет, $firstName 👋', 'Сәлем, $firstName 👋'),
-                          style: manrope(13.5, FontWeight.w600,
-                              color: Colors.white.withValues(alpha: 0.85)),
-                        ),
-                        Text('Qoima',
-                            style: manrope(24, FontWeight.w800,
-                                color: Colors.white, letterSpacing: -0.5)),
-                      ],
-                    ),
-                  ),
-                ]),
-              ),
-              // Search row + фильтр батырмасы
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 10),
-                child: Row(children: [
-                  Expanded(
-                    child: Container(
-                      height: 46,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Row(children: [
-                        const SizedBox(width: 12),
-                        const Icon(Icons.search_rounded,
-                            color: cInk3, size: 19),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: TextField(
-                            controller: _searchCtrl,
-                            focusNode: _searchFocus,
-                            cursorColor: cGreen,
-                            textAlignVertical: TextAlignVertical.center,
-                            onChanged: _onSearchChanged,
-                            style:
-                                manrope(14.5, FontWeight.w600, color: cInk),
-                            decoration: InputDecoration(
-                              hintText: tr('Поиск товаров...',
-                                  'Тауарларды іздеу...'),
-                              hintStyle: manrope(14.5, FontWeight.w500,
-                                  color: cInk3),
-                              filled: false,
-                              border: InputBorder.none,
-                              enabledBorder: InputBorder.none,
-                              focusedBorder: InputBorder.none,
-                              disabledBorder: InputBorder.none,
-                              errorBorder: InputBorder.none,
-                              contentPadding: EdgeInsets.zero,
-                              isDense: true,
-                              suffixIcon: _searchQuery.isNotEmpty
-                                  ? GestureDetector(
-                                      onTap: () {
-                                        _searchCtrl.clear();
-                                        setState(() => _searchQuery = '');
-                                      },
-                                      child: const Icon(Icons.close_rounded,
-                                          color: cInk3, size: 18))
-                                  : null,
-                            ),
-                          ),
-                        ),
-                      ]),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  // Фильтр (санат, кому, баға, скидка, дүкен, сорт)
-                  GestureDetector(
-                    onTap: _openFilters,
-                    child: Container(
-                      width: 46,
-                      height: 46,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Stack(clipBehavior: Clip.none, children: [
-                        const Center(
-                            child: Icon(Icons.tune_rounded,
-                                color: cInk, size: 20)),
-                        if (_filters.activeCount > 0)
-                          Positioned(
-                            top: 7,
-                            right: 7,
-                            child: Container(
-                              width: 16,
-                              height: 16,
-                              decoration: const BoxDecoration(
-                                  color: cGreen, shape: BoxShape.circle),
-                              child: Center(
-                                child: Text('${_filters.activeCount}',
-                                    style: manrope(9.5, FontWeight.w800,
-                                        color: Colors.white)),
-                              ),
-                            ),
-                          ),
-                      ]),
-                    ),
-                  ),
-                ]),
-              ),
-
-              // Соңғы іздегендер — іздеу өрісі бассалғанда әрі бос болғанда
-              // ғана («осыны қарамайсыз ба?» ұсынысы, макс 4, чип басылса
-              // сол сұраныс бірден қолданылады).
-              if (_searchFocused &&
-                  _searchQuery.isEmpty &&
-                  BrowsingSignalsService.instance.recentSearches.isNotEmpty)
+            decoration: const BoxDecoration(
+              gradient: kGrad,
+              borderRadius:
+                  BorderRadius.vertical(bottom: Radius.circular(kR24)),
+              boxShadow: [
+                BoxShadow(
+                    color: Color(0x2600713F),
+                    blurRadius: 20,
+                    offset: Offset(0, 8)),
+              ],
+            ),
+            child: SafeArea(
+              bottom: false,
+              child: Column(children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        Text(
-                          tr('Недавние:', 'Соңғы іздегендер:'),
-                          style: manrope(12, FontWeight.w600,
-                              color: Colors.white.withValues(alpha: 0.85)),
-                        ),
-                        for (final q in BrowsingSignalsService
-                            .instance.recentSearches)
-                          GestureDetector(
-                            onTap: () => _applyRecentSearch(q),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 11, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.16),
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                    color: Colors.white
-                                        .withValues(alpha: 0.22)),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.history_rounded,
-                                      size: 13, color: Colors.white),
-                                  const SizedBox(width: 5),
-                                  Text(q,
-                                      style: manrope(12, FontWeight.w600,
-                                          color: Colors.white)),
-                                ],
-                              ),
-                            ),
+                  padding: const EdgeInsets.fromLTRB(20, 6, 20, 0),
+                  child: Row(children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            firstName.isEmpty
+                                ? tr('Привет 👋', 'Сәлем 👋')
+                                : tr('Привет, $firstName 👋',
+                                    'Сәлем, $firstName 👋'),
+                            style: manrope(13.5, FontWeight.w600,
+                                color: Colors.white.withValues(alpha: 0.85)),
                           ),
-                      ],
+                          Text('Qoima',
+                              style: manrope(24, FontWeight.w800,
+                                  color: Colors.white, letterSpacing: -0.5)),
+                        ],
+                      ),
                     ),
-                  ),
+                  ]),
                 ),
-
-              // ── Қала таңдау + Дүкендер қатары ───────────────────────────
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
-                child: Row(children: [
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: _openCitySheet,
+                // Search row + фильтр батырмасы
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 10),
+                  child: Row(children: [
+                    Expanded(
                       child: Container(
-                        height: 36,
-                        padding:
-                            const EdgeInsets.symmetric(horizontal: 12),
+                        height: 46,
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.16),
-                          borderRadius: BorderRadius.circular(11),
-                          border: Border.all(
-                              color:
-                                  Colors.white.withValues(alpha: 0.22)),
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(kR14),
+                          boxShadow: const [
+                            BoxShadow(
+                                color: Color(0x1A004025),
+                                blurRadius: 10,
+                                offset: Offset(0, 3)),
+                          ],
                         ),
                         child: Row(children: [
-                          const Icon(Icons.location_on_outlined,
-                              color: Colors.white, size: 16),
-                          const SizedBox(width: 6),
+                          const SizedBox(width: 12),
+                          const Icon(Icons.search_rounded,
+                              color: cInk3, size: 19),
+                          const SizedBox(width: 8),
                           Expanded(
-                            child: Text(
-                              _cityFilter ??
-                                  tr('Все города', 'Барлық қалалар'),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: manrope(12.5, FontWeight.w700,
-                                  color: Colors.white),
+                            child: TextField(
+                              controller: _searchCtrl,
+                              focusNode: _searchFocus,
+                              cursorColor: cGreen,
+                              textAlignVertical: TextAlignVertical.center,
+                              onChanged: _onSearchChanged,
+                              style:
+                                  manrope(14.5, FontWeight.w600, color: cInk),
+                              decoration: InputDecoration(
+                                hintText: tr(
+                                    'Поиск товаров...', 'Тауарларды іздеу...'),
+                                hintStyle: manrope(14.5, FontWeight.w500,
+                                    color: cInk3),
+                                filled: false,
+                                border: InputBorder.none,
+                                enabledBorder: InputBorder.none,
+                                focusedBorder: InputBorder.none,
+                                disabledBorder: InputBorder.none,
+                                errorBorder: InputBorder.none,
+                                contentPadding: EdgeInsets.zero,
+                                isDense: true,
+                                suffixIcon: _searchQuery.isNotEmpty
+                                    ? GestureDetector(
+                                        onTap: () {
+                                          _searchCtrl.clear();
+                                          setState(() => _searchQuery = '');
+                                        },
+                                        child: const Icon(Icons.close_rounded,
+                                            color: cInk3, size: 18))
+                                    : null,
+                              ),
                             ),
                           ),
-                          const Icon(Icons.expand_more_rounded,
-                              color: Colors.white, size: 18),
                         ]),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  GestureDetector(
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => StoresListScreen(
-                              initialCity: _cityFilter)),
-                    ),
-                    child: Container(
-                      height: 36,
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.16),
-                        borderRadius: BorderRadius.circular(11),
-                        border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.22)),
+                    const SizedBox(width: 10),
+                    // Фильтр (санат, кому, баға, скидка, дүкен, сорт)
+                    GestureDetector(
+                      onTap: _openFilters,
+                      child: Container(
+                        width: 46,
+                        height: 46,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(kR14),
+                          boxShadow: const [
+                            BoxShadow(
+                                color: Color(0x1A004025),
+                                blurRadius: 10,
+                                offset: Offset(0, 3)),
+                          ],
+                        ),
+                        child: Stack(clipBehavior: Clip.none, children: [
+                          const Center(
+                              child: Icon(Icons.tune_rounded,
+                                  color: cInk, size: 20)),
+                          if (_filters.activeCount > 0)
+                            Positioned(
+                              top: 7,
+                              right: 7,
+                              child: Container(
+                                width: 16,
+                                height: 16,
+                                decoration: const BoxDecoration(
+                                    color: cGreen, shape: BoxShape.circle),
+                                child: Center(
+                                  child: Text('${_filters.activeCount}',
+                                      style: manrope(9.5, FontWeight.w800,
+                                          color: Colors.white)),
+                                ),
+                              ),
+                            ),
+                        ]),
                       ),
-                      child: Row(children: [
-                        const Icon(Icons.storefront_outlined,
-                            color: Colors.white, size: 16),
-                        const SizedBox(width: 6),
-                        Text(tr('Магазины', 'Дүкендер'),
-                            style: manrope(12.5, FontWeight.w700,
-                                color: Colors.white)),
-                      ]),
+                    ),
+                  ]),
+                ),
+
+                // Соңғы іздегендер — іздеу өрісі бассалғанда әрі бос болғанда
+                // ғана («осыны қарамайсыз ба?» ұсынысы, макс 4, чип басылса
+                // сол сұраныс бірден қолданылады).
+                if (_searchFocused &&
+                    _searchQuery.isEmpty &&
+                    BrowsingSignalsService.instance.recentSearches.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Text(
+                            tr('Недавние:', 'Соңғы іздегендер:'),
+                            style: manrope(12, FontWeight.w600,
+                                color: Colors.white.withValues(alpha: 0.85)),
+                          ),
+                          for (final q
+                              in BrowsingSignalsService.instance.recentSearches)
+                            GestureDetector(
+                              onTap: () => _applyRecentSearch(q),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 11, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.16),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                      color:
+                                          Colors.white.withValues(alpha: 0.22)),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.history_rounded,
+                                        size: 13, color: Colors.white),
+                                    const SizedBox(width: 5),
+                                    Text(q,
+                                        style: manrope(12, FontWeight.w600,
+                                            color: Colors.white)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
-                ]),
-              ),
-            ]),
+
+                // ── Қала таңдау + Дүкендер қатары ───────────────────────────
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+                  child: Row(children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: _openCitySheet,
+                        child: Container(
+                          height: 36,
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.16),
+                            borderRadius: BorderRadius.circular(kRPill),
+                            border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.22)),
+                          ),
+                          child: Row(children: [
+                            const Icon(Icons.location_on_outlined,
+                                color: Colors.white, size: 16),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                _cityFilter ??
+                                    tr('Все города', 'Барлық қалалар'),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: manrope(12.5, FontWeight.w700,
+                                    color: Colors.white),
+                              ),
+                            ),
+                            const Icon(Icons.expand_more_rounded,
+                                color: Colors.white, size: 18),
+                          ]),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    GestureDetector(
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) =>
+                                StoresListScreen(initialCity: _cityFilter)),
+                      ),
+                      child: Container(
+                        height: 36,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.16),
+                          borderRadius: BorderRadius.circular(kRPill),
+                          border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.22)),
+                        ),
+                        child: Row(children: [
+                          const Icon(Icons.storefront_outlined,
+                              color: Colors.white, size: 16),
+                          const SizedBox(width: 6),
+                          Text(tr('Магазины', 'Дүкендер'),
+                              style: manrope(12.5, FontWeight.w700,
+                                  color: Colors.white)),
+                        ]),
+                      ),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
           ),
 
           // ── Body: banner carousel + recommendations grid ────────────────
@@ -759,8 +782,10 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                         ? ClientEmptyState(
                             icon: Icons.storefront_outlined,
                             message: _cityFilter != null
-                                ? tr('В городе $_cityFilter пока нет магазинов', '$_cityFilter қаласында әзірге дүкен жоқ')
-                                : tr('Активных магазинов нет', 'Белсенді дүкендер жоқ'))
+                                ? tr('В городе $_cityFilter пока нет магазинов',
+                                    '$_cityFilter қаласында әзірге дүкен жоқ')
+                                : tr('Активных магазинов нет',
+                                    'Белсенді дүкендер жоқ'))
                         : (_loadingProducts && _pairs.isEmpty)
                             ? const CatalogGridSkeleton()
                             : CustomScrollView(
@@ -772,7 +797,9 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                                     child: Padding(
                                       padding: const EdgeInsets.fromLTRB(
                                           16, 16, 16, 8),
-                                      child: Text(tr('Рекомендуем вам', 'Ұсынылады сізге'),
+                                      child: Text(
+                                          tr('Рекомендуем вам',
+                                              'Ұсынылады сізге'),
                                           style: manrope(17, FontWeight.w800,
                                               color: cInk)),
                                     ),
@@ -780,15 +807,18 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                                   if (groups.isEmpty)
                                     SliverToBoxAdapter(
                                       child: Padding(
-                                        padding:
-                                            const EdgeInsets.only(top: 60),
+                                        padding: const EdgeInsets.only(top: 60),
                                         child: ClientEmptyState(
                                           icon: Icons.search_off_rounded,
                                           message: _searchQuery.isNotEmpty
-                                              ? tr('«$_searchQuery» не найдено', '«$_searchQuery» табылмады')
+                                              ? tr('«$_searchQuery» не найдено',
+                                                  '«$_searchQuery» табылмады')
                                               : _filters.activeCount > 0
-                                                  ? tr('По выбранным фильтрам ничего не найдено', 'Таңдалған сүзгілер бойынша ештеңе табылмады')
-                                                  : tr('Товаров нет', 'Тауарлар жоқ'),
+                                                  ? tr(
+                                                      'По выбранным фильтрам ничего не найдено',
+                                                      'Таңдалған сүзгілер бойынша ештеңе табылмады')
+                                                  : tr('Товаров нет',
+                                                      'Тауарлар жоқ'),
                                         ),
                                       ),
                                     )
@@ -799,11 +829,10 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                                           padding: const EdgeInsets.fromLTRB(
                                               16, 0, 16, 4),
                                           child: Text(
-                                              tr(
-                                                  'Точных совпадений нет — вот похожие товары',
+                                              tr('Точных совпадений нет — вот похожие товары',
                                                   'Дәл сәйкестік табылмады — міне ұқсас тауарлар'),
-                                              style: manrope(12.5,
-                                                  FontWeight.w600,
+                                              style: manrope(
+                                                  12.5, FontWeight.w600,
                                                   color: cInk3)),
                                         ),
                                       ),
@@ -818,8 +847,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                                           crossAxisSpacing: 12,
                                           mainAxisSpacing: 12,
                                         ),
-                                        delegate:
-                                            SliverChildBuilderDelegate(
+                                        delegate: SliverChildBuilderDelegate(
                                           (_, i) {
                                             final variantId = cards[i]
                                                 .group
@@ -835,8 +863,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                                               onTap: _openProduct,
                                               isFavorite: _favoriteIds
                                                   .contains(variantId),
-                                              onToggleFavorite:
-                                                  _toggleFavorite,
+                                              onToggleFavorite: _toggleFavorite,
                                             );
                                           },
                                           childCount: cards.length,
@@ -907,7 +934,8 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
               children: [
                 ListTile(
                   leading: const Icon(Icons.public_rounded, color: cGreen),
-                  title: Text(tr('Все города Казахстана', 'Қазақстанның барлық қаласы'),
+                  title: Text(
+                      tr('Все города Казахстана', 'Қазақстанның барлық қаласы'),
                       style: manrope(14.5, FontWeight.w600, color: cInk)),
                   trailing: _cityFilter == null
                       ? const Icon(Icons.check_rounded, color: cGreen)
@@ -922,13 +950,13 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                           color: e.key == myCity ? cGreen : cInk3),
                       title: Text(
                           e.key == myCity
-                              ? tr('${e.key} (мой город)', '${e.key} (менің қалам)')
+                              ? tr('${e.key} (мой город)',
+                                  '${e.key} (менің қалам)')
                               : e.key,
                           style: manrope(14.5, FontWeight.w600, color: cInk)),
                       subtitle: Text(
                           tr('${e.value} магазинов', '${e.value} дүкен'),
-                          style:
-                              manrope(12, FontWeight.w500, color: cInk3)),
+                          style: manrope(12, FontWeight.w500, color: cInk3)),
                       trailing: _cityFilter == e.key
                           ? const Icon(Icons.check_rounded, color: cGreen)
                           : null,
@@ -961,8 +989,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
 
   /// Открывает деталь товара; «Купить сейчас» переключает на вкладку корзины.
   /// [variants] — все цветовые варианты группы (для переключателя цвета).
-  Future<void> _openProduct(
-      ProductModel p, List<ProductModel> variants) async {
+  Future<void> _openProduct(ProductModel p, List<ProductModel> variants) async {
     final store = _productStoreMap[p.id];
     if (store == null) return;
     BrowsingSignalsService.instance
@@ -1071,8 +1098,7 @@ class _BannerCarouselState extends State<BannerCarousel> {
                   ListTile(
                     leading:
                         const Icon(Icons.storefront_rounded, color: cGreen),
-                    title: Text(
-                        i < b.storeNames.length ? b.storeNames[i] : '',
+                    title: Text(i < b.storeNames.length ? b.storeNames[i] : '',
                         style: manrope(14.5, FontWeight.w600, color: cInk)),
                     onTap: () => Navigator.pop(ctx, b.storeAdminUids[i]),
                   ),
@@ -1164,23 +1190,19 @@ class _BannerCarouselState extends State<BannerCarousel> {
                                       Text(tr('В магазин', 'Дүкенге'),
                                           style: manrope(11, FontWeight.w800,
                                               color: Colors.white)),
-                                      const Icon(
-                                          Icons.chevron_right_rounded,
-                                          color: Colors.white,
-                                          size: 15),
+                                      const Icon(Icons.chevron_right_rounded,
+                                          color: Colors.white, size: 15),
                                     ]),
                               ),
                             ),
                         ])
                       : Padding(
-                          padding:
-                              const EdgeInsets.fromLTRB(18, 14, 18, 14),
+                          padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
                           child: Row(children: [
                             Expanded(
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
-                                crossAxisAlignment:
-                                    CrossAxisAlignment.start,
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   if (b.badge.isNotEmpty)
                                     Container(
@@ -1189,12 +1211,10 @@ class _BannerCarouselState extends State<BannerCarousel> {
                                       decoration: BoxDecoration(
                                         color: Colors.white
                                             .withValues(alpha: 0.22),
-                                        borderRadius:
-                                            BorderRadius.circular(7),
+                                        borderRadius: BorderRadius.circular(7),
                                       ),
                                       child: Text(b.badge,
-                                          style: manrope(10.5,
-                                              FontWeight.w800,
+                                          style: manrope(10.5, FontWeight.w800,
                                               color: Colors.white)),
                                     ),
                                   if (b.badge.isNotEmpty)
@@ -1208,8 +1228,7 @@ class _BannerCarouselState extends State<BannerCarousel> {
                                   if (b.subtitle.isNotEmpty) ...[
                                     const SizedBox(height: 2),
                                     Text(b.subtitle,
-                                        style: manrope(12.5,
-                                            FontWeight.w500,
+                                        style: manrope(12.5, FontWeight.w500,
                                             color: Colors.white
                                                 .withValues(alpha: 0.9)),
                                         maxLines: 2,
@@ -1223,21 +1242,17 @@ class _BannerCarouselState extends State<BannerCarousel> {
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 9, vertical: 5),
                                 decoration: BoxDecoration(
-                                  color:
-                                      Colors.white.withValues(alpha: 0.22),
+                                  color: Colors.white.withValues(alpha: 0.22),
                                   borderRadius: BorderRadius.circular(9),
                                 ),
                                 child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       Text(tr('В магазин', 'Дүкенге'),
-                                          style: manrope(11,
-                                              FontWeight.w800,
+                                          style: manrope(11, FontWeight.w800,
                                               color: Colors.white)),
-                                      const Icon(
-                                          Icons.chevron_right_rounded,
-                                          color: Colors.white,
-                                          size: 15),
+                                      const Icon(Icons.chevron_right_rounded,
+                                          color: Colors.white, size: 15),
                                     ]),
                               ),
                           ]),
