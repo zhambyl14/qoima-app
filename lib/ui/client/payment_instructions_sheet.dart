@@ -338,6 +338,15 @@ class _PaymentInstructionsSheetState extends State<_PaymentInstructionsSheet> {
               ]),
             ),
           ),
+        if (_done.length < _groups.length) ...[
+          const SizedBox(height: 4),
+          Text(
+            tr('Если не прикрепить чек — бронь автоматически снимется через ${OrderModel.receiptWindow.inMinutes} мин',
+                'Чек тіркелмесе — бронь ${OrderModel.receiptWindow.inMinutes} минуттан кейін өзінен-өзі алынып тасталады'),
+            textAlign: TextAlign.center,
+            style: manrope(11.5, FontWeight.w600, color: cInk3),
+          ),
+        ],
         const SizedBox(height: 8),
         TextButton(
           onPressed: _uploadingGroupId != null
