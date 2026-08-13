@@ -238,6 +238,21 @@ class _PaymentInstructionsSheetState extends State<_PaymentInstructionsSheet> {
     }
   }
 
+  /// Ең жақын мерзімге дейін қалған минут (топтар арасында ЕҢ АЗЫ — солай
+  /// ескерту әрдайым нақты, шын қауіп-қатерден асып кетпейді). Кеш ашылған
+  /// парақта (client_orders_screen-нен, тапсырыс орналастырудан кейін емес)
+  /// нақты уақыт әрқашан 30-дан аз болуы мүмкін, сондықтан тұрақты
+  /// [OrderModel.receiptWindow] орнына осыны қолданамыз.
+  int get _minutesLeft => widget.orders
+      .map((o) => o.minutesLeft)
+      .fold(60, (a, b) => a < b ? a : b);
+
+  /// Әлі чек тіркелмеген топтардың КЕМ ДЕГЕНДЕ біреуінде нақты төлеуге
+  /// болатын QR/реквизит бар ма — жоқ болса ескерту мағынасыз (клиент
+  /// ешқандай әрекет ете алмайды).
+  bool get _hasActionableGroup => _groups.any(
+      (g) => !_done.contains(g.id) && orderedBankQrs(g.bankQrs).isNotEmpty);
+
   @override
   Widget build(BuildContext context) {
     final multi = _groups.length > 1;
@@ -338,11 +353,13 @@ class _PaymentInstructionsSheetState extends State<_PaymentInstructionsSheet> {
               ]),
             ),
           ),
-        if (_done.length < _groups.length) ...[
+        if (_done.length < _groups.length &&
+            _hasActionableGroup &&
+            _minutesLeft > 0) ...[
           const SizedBox(height: 4),
           Text(
-            tr('Если не прикрепить чек — бронь автоматически снимется через ${OrderModel.receiptWindow.inMinutes} мин',
-                'Чек тіркелмесе — бронь ${OrderModel.receiptWindow.inMinutes} минуттан кейін өзінен-өзі алынып тасталады'),
+            tr('Если не прикрепить чек — бронь автоматически снимется через $_minutesLeft мин',
+                'Чек тіркелмесе — бронь $_minutesLeft минуттан кейін өзінен-өзі алынып тасталады'),
             textAlign: TextAlign.center,
             style: manrope(11.5, FontWeight.w600, color: cInk3),
           ),

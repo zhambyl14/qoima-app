@@ -79,6 +79,11 @@ Future<void> handlePushOpen(Map<String, dynamic> data) async {
         _openJoinRequest(nav, user);
         break;
       case 'order_status':
+      // Бронь/чек еске салғыштары да клиентті сол тапсырысы бар «Тапсырыстарым»
+      // экранына апарады — status өрісі жоқ болғандықтан _openOrderStatus
+      // әдепкі бойынша белсенді (0) табты ашады, дәл керегіндей.
+      case 'reservation_reminder':
+      case 'receipt_reminder':
         _openOrderStatus(nav, user, data);
         break;
       case 'return_window':
