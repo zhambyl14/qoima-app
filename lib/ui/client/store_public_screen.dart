@@ -277,7 +277,7 @@ class _StorePublicScreenState extends State<StorePublicScreen> {
           ],
         ),
       );
-      if (goLogin == true && context.mounted) {
+      if (goLogin == true && mounted) {
         Navigator.push(
             context, MaterialPageRoute(builder: (_) => const LoginScreen()));
       }

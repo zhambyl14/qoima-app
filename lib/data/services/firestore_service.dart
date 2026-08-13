@@ -58,9 +58,10 @@ class FirestoreService {
     final uid = AppUser.current.ownerUid.isNotEmpty
         ? AppUser.current.ownerUid
         : (_sb.auth.currentUser?.id ?? '');
-    if (uid.isEmpty)
+    if (uid.isEmpty) {
       throw Exception(tr(
           'Пользователь не авторизован.', 'Пайдаланушы авторизацияланбаған.'));
+    }
     return uid;
   }
 
@@ -481,9 +482,10 @@ class FirestoreService {
 
   Future<String> createPromo(PromoModel promo) async {
     final code = promo.code.trim().toUpperCase();
-    if (code.isEmpty)
+    if (code.isEmpty) {
       throw SaleException(
           tr('Введите код промокода', 'Промокод кодын енгізіңіз'));
+    }
     if (!await isPromoCodeUnique(code)) {
       throw SaleException(
           tr('Такой промокод уже существует', 'Мұндай промокод бұрыннан бар'));
@@ -1230,19 +1232,16 @@ class FirestoreService {
     final sellerUid = _sb.auth.currentUser?.id;
     if (sellerUid == null) throw tr('Не авторизован', 'Авторизацияланбаған');
 
-    final codeDoc = await _sb
-        .from('business_codes')
-        .select('admin_uid')
-        .eq('code', businessCode.trim().toUpperCase())
-        .maybeSingle();
-    if (codeDoc == null) {
+    // 0065: business_codes-ты бұрын кез келген тіркелген адам ТІЗІП оқи
+    // алатын (bc_select using(true)) — бизнес-код қосылу қақпасы болғандықтан
+    // қақпа мағынасыз болатын. Енді саясат иесіне ғана оқуға рұқсат етеді,
+    // ал қосылу ағыны ДӘЛ сәйкестікті тексеретін RPC арқылы жүреді (тізім
+    // қайтармайды).
+    final adminUid = await _sb.rpc('business_code_owner',
+        params: {'p_code': businessCode.trim().toUpperCase()}) as String?;
+    if (adminUid == null || adminUid.isEmpty) {
       throw tr('Бизнес-код не найден. Введите корректный код.',
           'Бизнес-код табылмады. Дұрыс кодты енгізіңіз.');
-    }
-    final adminUid = codeDoc['admin_uid'] as String?;
-    if (adminUid == null || adminUid.isEmpty) {
-      throw tr('Код недействителен. Обратитесь к владельцу магазина.',
-          'Код жарамсыз. Дүкен иесіне хабарлаңыз.');
     }
 
     // (seller_uid, admin_uid) бойынша unique — қайта жіберу жаңа жол қоспай,
@@ -1439,8 +1438,9 @@ class FirestoreService {
         .eq('product_id', productId)
         .eq('warehouse_id', fromWarehouseId)
         .order('date_arrived', ascending: true);
-    if (srcRows.isEmpty)
+    if (srcRows.isEmpty) {
       throw SaleException(tr('Недостаточно остатка', 'Қалдық жеткіліксіз'));
+    }
 
     final double transferCost =
         await resolveBatchCost(owner, srcRows.first['id'] as String);

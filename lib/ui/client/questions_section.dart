@@ -74,7 +74,7 @@ class _QuestionsSectionState extends State<QuestionsSection> {
           ],
         ),
       );
-      if (goLogin == true && context.mounted) {
+      if (goLogin == true && mounted) {
         Navigator.push(
             context, MaterialPageRoute(builder: (_) => const LoginScreen()));
       }
@@ -124,7 +124,7 @@ class _QuestionsSectionState extends State<QuestionsSection> {
         ],
       ),
     );
-    if (ok != true) return;
+    if (ok != true || !mounted) return;
     final messenger = ScaffoldMessenger.of(context);
     try {
       await _service.deleteMyQuestion(q.id);

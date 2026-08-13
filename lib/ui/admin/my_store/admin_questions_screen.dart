@@ -95,7 +95,7 @@ class _AdminQuestionsScreenState extends State<AdminQuestionsScreen> {
         ],
       ),
     );
-    if (ok != true) return;
+    if (ok != true || !mounted) return;
     final messenger = ScaffoldMessenger.of(context);
     try {
       await _repo.deleteQuestion(question.id);
