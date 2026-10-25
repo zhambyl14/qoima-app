@@ -19,6 +19,7 @@ import '../admin/my_store/admin_my_store_hub_screen.dart';
 import '../onboarding/my_store_gate.dart';
 import '../auth/account_security_screen.dart';
 import '../auth/legal_documents_screen.dart';
+import '../support/support_entry.dart';
 
 import '../../core/lang.dart';
 class ProfileScreen extends StatelessWidget {
@@ -267,6 +268,8 @@ class ProfileScreen extends StatelessWidget {
                             const LegalDocumentsScreen(forSeller: true))),
               ),
               const SizedBox(height: 8),
+              // Қолдау чаты (feature_support_chat өшік болса жасырын).
+              const SupportMenuTile(),
               QMenuItem(
                 icon: Icons.language_rounded,
                 tone: 'ink',
@@ -397,6 +400,8 @@ class ProfileScreen extends StatelessWidget {
                           const LegalDocumentsScreen(forSeller: true))),
             ),
             const SizedBox(height: 8),
+            // Қолдау чаты (feature_support_chat өшік болса жасырын).
+            const SupportMenuTile(),
             _MenuItem(
               icon: Icons.language_rounded,
               color: const Color(0xFF0891B2),

@@ -1,4 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/error_text.dart';
+import '../../core/lang.dart';
+import '../models/courier_change_request_model.dart';
 import '../models/order_model.dart';
 import '../models/return_model.dart';
 
@@ -9,12 +12,16 @@ import '../models/return_model.dart';
 class CourierStats {
   final int todayCount, weekCount, totalCount;
   final double todayFee, weekFee, totalFee;
+
   /// Жеткізуден жиналған ақы.
   final double deliveryFee;
+
   /// Возврат тасудан жиналған ақы.
   final double returnFee;
+
   /// Клиент әлі төлемеген (курьер алмаған) ақы.
   final double uncollected;
+
   /// Қоймаға қайтаруы керек, әлі тапсырылмаған өлшемдер саны.
   final int pendingLegs;
 
@@ -95,8 +102,9 @@ class CourierService {
 
   /// Қоймадан алу — дүкен көрсететін [code] (pickup_code) арқылы расталады:
   /// курьердің қоймаға НАҚТЫ келгенінің дәлелі.
-  Future<void> pickupOrder(String orderId, String code) => _sb.rpc(
-      'courier_pickup_order', params: {'p_order': orderId, 'p_code': code});
+  Future<void> pickupOrder(String orderId, String code) =>
+      _sb.rpc('courier_pickup_order',
+          params: {'p_order': orderId, 'p_code': code});
 
   /// Клиентке беру. [swappedIndexes] — «өлшеп көру» бойынша клиент қосымша
   /// өлшемді алған позициялардың items ішіндегі индекстері (мыс. 38-дің
@@ -159,4 +167,131 @@ class CourierService {
   /// Дүкенге тапсырды (одан әрі ақша қайтару дүкен экранында жүреді).
   Future<void> deliverReturn(String returnId) =>
       _sb.rpc('courier_deliver_return', params: {'p_return': returnId});
+
+  // ── Курьер деректері + өзгеріс сұраныстары — 0074 ─────────────────────────
+  //  Курьер өз деректерін ТІКЕЛЕЙ өзгерте алмайды (city guard-та құлыпталған):
+  //  ол сұраныс жібереді, superadmin бекітеді. Superadmin өзі де тікелей
+  //  түзей алады. Бәрі SECURITY DEFINER RPC арқылы, ақ тізім SQL-да.
+
+  /// Курьердің өз users жолы (realtime). RLS: users_select id = auth.uid().
+  Stream<CourierProfile?> watchMyProfile(String uid) => _sb
+      .from('users')
+      .stream(primaryKey: ['id'])
+      .eq('id', uid)
+      .map((rows) => rows.isEmpty ? null : CourierProfile.fromMap(rows.first));
+
+  /// Курьердің өз сұраныстары (жаңасы алда).
+  Stream<List<CourierChangeRequest>> watchMyRequests(String uid) => _sb
+      .from('courier_change_requests')
+      .stream(primaryKey: ['id'])
+      .eq('courier_uid', uid)
+      .order('created_at', ascending: false)
+      .map((rows) => rows.map(CourierChangeRequest.fromMap).toList());
+
+  /// Өзгеріс сұрау. [changes] — тек [kCourierChangeKeys] кілттері; ағымдағы
+  /// мәнмен бірдейлерін сервер өзі алып тастайды. Сұраныс id-ін қайтарады.
+  Future<String> requestChange(Map<String, String> changes,
+      {String reason = ''}) async {
+    final res = await _sb.rpc('courier_request_change', params: {
+      'p_changes': {
+        for (final e in changes.entries)
+          if (kCourierChangeKeys.contains(e.key)) e.key: e.value,
+      },
+      'p_reason': reason,
+    });
+    return res?.toString() ?? '';
+  }
+
+  Future<void> cancelChangeRequest(String requestId) => _sb
+      .rpc('courier_cancel_change_request', params: {'p_request': requestId});
+
+  // ── Superadmin жағы ────────────────────────────────────────────────────────
+
+  /// Барлық курьер телефонымен (superadmin RLS бәрін көреді). Күтудегілері
+  /// алда, сосын аты бойынша.
+  Stream<List<CourierProfile>> watchCourierProfiles() => _sb
+      .from('users')
+      .stream(primaryKey: ['id'])
+      .eq('role', 'courier')
+      .map((rows) {
+        const order = {'pending': 0, 'active': 1, 'blocked': 2};
+        return rows.map(CourierProfile.fromMap).toList()
+          ..sort((a, b) {
+            final d = (order[a.courierStatus] ?? 3)
+                .compareTo(order[b.courierStatus] ?? 3);
+            return d != 0
+                ? d
+                : a.name.toLowerCase().compareTo(b.name.toLowerCase());
+          });
+      });
+
+  /// Барлық сұраныс (жаңасы алда).
+  Stream<List<CourierChangeRequest>> watchAllChangeRequests() => _sb
+      .from('courier_change_requests')
+      .stream(primaryKey: ['id'])
+      .order('created_at', ascending: false)
+      .map((rows) => rows.map(CourierChangeRequest.fromMap).toList());
+
+  /// Superadmin курьер деректерін тікелей өзгертеді. null — өзгертпеу.
+  /// Телефон = кіру нөмірі: синтетикалық email өзгермейді, кіру жаңа нөмірмен
+  /// жұмыс істейді (email_for_phone users.phone бойынша табады).
+  Future<void> adminUpdateCourier(String courierUid,
+          {String? name, String? phone, String? city}) =>
+      _sb.rpc('admin_update_courier', params: {
+        'p_courier': courierUid,
+        'p_name': name,
+        'p_phone': phone,
+        'p_city': city,
+      });
+
+  Future<void> reviewChange(String requestId,
+          {required bool approve, String rejectReason = ''}) =>
+      _sb.rpc('review_courier_change', params: {
+        'p_request': requestId,
+        'p_approve': approve,
+        'p_reject_reason': rejectReason,
+      });
+}
+
+/// 0074 RPC қате кодтарын адамша мәтінге айналдырады.
+String courierDataErrorText(Object e) {
+  final msg = e is PostgrestException ? e.message : e.toString();
+  bool has(String code) => msg.contains(code);
+  if (has('phone_in_use')) {
+    return tr('Этот номер уже привязан к другому аккаунту',
+        'Бұл нөмір басқа аккаунтқа тіркелген');
+  }
+  if (has('bad_phone')) {
+    return tr('Номер в формате +7XXXXXXXXXX', 'Нөмір +7XXXXXXXXXX форматында');
+  }
+  if (has('bad_name')) {
+    return tr('Имя: от 2 до 60 символов', 'Есім: 2-ден 60 таңбаға дейін');
+  }
+  if (has('bad_city')) return tr('Выберите город', 'Қаланы таңдаңыз');
+  if (has('pending_exists')) {
+    return tr('У вас уже есть запрос на рассмотрении',
+        'Сізде қаралып жатқан сұраныс бар');
+  }
+  if (has('no_changes')) {
+    return tr('Вы ничего не изменили', 'Ештеңе өзгертілмеді');
+  }
+  if (has('reason_too_long')) {
+    return tr('Слишком длинный комментарий', 'Түсініктеме тым ұзын');
+  }
+  if (has('reject_reason_required')) {
+    return tr('Укажите причину отказа', 'Бас тарту себебін жазыңыз');
+  }
+  if (has('already_reviewed') || has('request_not_pending')) {
+    return tr('Запрос уже рассмотрен', 'Сұраныс әлдеқашан қаралған');
+  }
+  if (has('request_not_found') || has('courier_not_found')) {
+    return tr('Запись не найдена', 'Жазба табылмады');
+  }
+  if (has('not_superadmin') || has('not_courier') || has('not_authorized')) {
+    return tr('Нет доступа', 'Рұқсат жоқ');
+  }
+  if (has('blocked')) {
+    return tr('Аккаунт заблокирован', 'Аккаунт бұғатталған');
+  }
+  return friendlyError(e);
 }

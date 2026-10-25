@@ -29,6 +29,7 @@
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>
+		<string>audio</string>
 	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
@@ -83,7 +84,22 @@
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Чек суретін сақтау үшін фото галереясына рұқсат қажет</string>
 	<key>NSCameraUsageDescription</key>
-	<string>Чекті фотоға түсіру үшін камераға рұқсат қажет</string>
+	<string>Чекті фотоға түсіру, онлайн киіп көру және live-эфир жүргізу үшін камераға рұқсат қажет</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Live-эфир кезінде дауысыңызды көрермендерге жеткізу үшін микрофонға рұқсат қажет</string>
+
+	<!-- Deep link: qoima://gift/..., qoima://registry/..., qoima://live/... -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>kz.qoima.links</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>qoima</string>
+			</array>
+		</dict>
+	</array>
 
 	<!-- url_launcher: разрешаем запросы к внешним схемам -->
 	<key>LSApplicationQueriesSchemes</key>

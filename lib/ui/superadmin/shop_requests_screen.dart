@@ -8,19 +8,27 @@ import '../../data/repositories/report_repository.dart';
 import '../../data/repositories/shop_request_repository.dart';
 import '../../data/repositories/store_edit_repository.dart';
 import '../../data/repositories/store_moderation_repository.dart';
+import '../../data/models/courier_change_request_model.dart';
+import '../../data/models/support_models.dart';
 import '../../data/services/auth_service.dart';
+import '../../data/services/courier_service.dart';
+import '../../data/services/support_service.dart';
 import '../../theme/qoima_design.dart';
 import 'banners_screen.dart';
+import 'courier_change_requests_screen.dart';
 import 'couriers_screen.dart';
 import 'marketplace_shops_screen.dart';
 import 'online_sales_screen.dart';
 import 'payment_settings_screen.dart';
+import 'platform_settings_screen.dart';
 import 'reject_reason_sheet.dart';
 import 'reports_screen.dart';
+import 'return_policy_stores_screen.dart';
 import 'shop_owners_screen.dart';
 import 'shop_request_detail_screen.dart';
 import 'store_edit_requests_screen.dart';
 import 'subscriptions_screen.dart';
+import 'support_inbox_screen.dart';
 
 import '../../core/lang.dart';
 import '../../core/error_text.dart';
@@ -48,6 +56,12 @@ class _ShopRequestsScreenState extends State<ShopRequestsScreen> {
   // Курьер badge-і — рұқсат күтіп тұрғандар саны.
   late final Stream<List<UserModel>> _couriers =
       StoreModerationRepository().watchCouriers();
+  // Қолдау чаты badge-і — жауап күтіп тұрған тредтер саны.
+  late final Stream<List<SupportThread>> _support =
+      SupportService().watchAllThreads();
+  // Курьер деректерін өзгерту сұраулары — күтіп тұрғандар саны.
+  late final Stream<List<CourierChangeRequest>> _courierChanges =
+      CourierService().watchAllChangeRequests();
   int _tab = 0; // 0 Все · 1 Новые · 2 Одобренные · 3 Отклонённые
 
   String get _uid => Supabase.instance.client.auth.currentUser!.id;
@@ -151,6 +165,35 @@ class _ShopRequestsScreenState extends State<ShopRequestsScreen> {
                   child: ListView(
                     scrollDirection: Axis.horizontal,
                     children: [
+                      // Басты қосқыш: жаңа функцияларды қосу/өшіру.
+                      _NavChip(
+                        icon: Icons.tune_rounded,
+                        label: tr('Функции', 'Функциялар'),
+                        highlight: true,
+                        onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) =>
+                                    const PlatformSettingsScreen())),
+                      ),
+                      StreamBuilder<List<SupportThread>>(
+                        stream: _support,
+                        builder: (context, snap) {
+                          final n = (snap.data ?? [])
+                              .where((t) => t.unreadForStaff > 0)
+                              .length;
+                          return _NavChip(
+                            icon: Icons.support_agent_rounded,
+                            label: tr('Поддержка', 'Қолдау чаты'),
+                            badge: n,
+                            onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) =>
+                                        const SupportInboxScreen())),
+                          );
+                        },
+                      ),
                       StreamBuilder<List<ReportModel>>(
                         stream: _reports,
                         builder: (context, snap) {
@@ -254,6 +297,33 @@ class _ShopRequestsScreenState extends State<ShopRequestsScreen> {
                                 builder: (_) => const OnlineSalesScreen())),
                       ),
                       _NavChip(
+                        icon: Icons.assignment_return_outlined,
+                        label: tr('Невозвратные', 'Қайтарылмайтын'),
+                        onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) =>
+                                    const ReturnPolicyStoresScreen())),
+                      ),
+                      StreamBuilder<List<CourierChangeRequest>>(
+                        stream: _courierChanges,
+                        builder: (context, snap) {
+                          final n = (snap.data ?? [])
+                              .where((r) => r.isPending)
+                              .length;
+                          return _NavChip(
+                            icon: Icons.manage_accounts_outlined,
+                            label: tr('Данные курьеров', 'Курьер деректері'),
+                            badge: n,
+                            onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) =>
+                                        const CourierChangeRequestsScreen())),
+                          );
+                        },
+                      ),
+                      _NavChip(
                         icon: Icons.credit_card_rounded,
                         label: tr('Реквизиты', 'Реквизиттер'),
                         onTap: () => Navigator.push(
@@ -349,11 +419,13 @@ class _NavChip extends StatelessWidget {
   final IconData icon;
   final String label;
   final int badge;
+  final bool highlight;
   final VoidCallback onTap;
   const _NavChip(
       {required this.icon,
       required this.label,
       this.badge = 0,
+      this.highlight = false,
       required this.onTap});
 
   @override
@@ -365,17 +437,19 @@ class _NavChip extends StatelessWidget {
           margin: const EdgeInsets.only(right: 8, top: 4),
           padding: const EdgeInsets.symmetric(horizontal: 13),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.14),
+            color: highlight
+                ? Colors.white
+                : Colors.white.withValues(alpha: 0.14),
             borderRadius: BorderRadius.circular(12),
             border:
                 Border.all(color: Colors.white.withValues(alpha: 0.22)),
           ),
           child: Row(children: [
-            Icon(icon, color: Colors.white, size: 17),
+            Icon(icon, color: highlight ? cGreenDeep : Colors.white, size: 17),
             const SizedBox(width: 7),
             Text(label,
-                style:
-                    manrope(12.5, FontWeight.w700, color: Colors.white)),
+                style: manrope(12.5, FontWeight.w700,
+                    color: highlight ? cGreenDeep : Colors.white)),
           ]),
         ),
         if (badge > 0)

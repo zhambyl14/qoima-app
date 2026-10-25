@@ -44,6 +44,15 @@ class ProductModel {
   // true = онлайн-витринадан жасырылған (қоймада қалады). toMap-қа КІРМЕЙДІ —
   // тек setStorefrontHidden арқылы бөлек жаңартылады (өңдеуде жаңылмас үшін).
   final bool storefrontHidden;
+  // ── Қайтарылмайтын тауар (0073) ─────────────────────────────────────────────
+  // true = сатып алған соң қайтаруға болмайды. Иесі ТЕК superadmin дүкенге
+  // рұқсат берсе ғана қоя алады (stores.allow_non_returnable; DB триггері
+  // 'non_returnable_not_allowed' деп бөгейді). Сатылған сәтте orders.items[]
+  // ішіне снапшот ретінде жазылады — кейін өзгерсе де ескі тапсырысқа әсер жоқ.
+  final bool nonReturnable;
+  // Тауарға қатысты қайтару түсіндірмесі (≤300), мыс. «Гигиеналық себеппен
+  // қайтарылмайды». Клиент карточкада көреді.
+  final String returnNote;
 
   const ProductModel({
     required this.id,
@@ -68,6 +77,8 @@ class ProductModel {
     this.ratingCount = 0,
     this.viewCount = 0,
     this.storefrontHidden = false,
+    this.nonReturnable = false,
+    this.returnNote = '',
   });
 
   /// Ключ категории с учётом обратной совместимости: товары, заведённые до
@@ -152,6 +163,8 @@ class ProductModel {
       description: json['description'] as String? ?? '',
       country: json['country'] as String? ?? '',
       season: json['season'] as String? ?? '',
+      nonReturnable: json['nonReturnable'] as bool? ?? false,
+      returnNote: json['returnNote'] as String? ?? '',
     );
   }
 
@@ -179,6 +192,8 @@ class ProductModel {
         ratingCount: (m['rating_count'] as num?)?.toInt() ?? 0,
         viewCount: (m['view_count'] as num?)?.toInt() ?? 0,
         storefrontHidden: m['storefront_hidden'] as bool? ?? false,
+        nonReturnable: m['non_returnable'] as bool? ?? false,
+        returnNote: m['return_note'] as String? ?? '',
       );
 
   /// Supabase жазу үшін (snake_case; id/owner_uid сервисте қосылады;
@@ -201,6 +216,11 @@ class ProductModel {
         'description': description,
         'country': country,
         'season': season,
+        // 0073: иесінің жазуы. true тек дүкенге рұқсат болса өтеді (триггер).
+        // ⚠️ 0073 миграциясы тірі БД-да болмаса, бұл бағандар PostgREST-те
+        // «белгісіз баған» қатесін береді — миграция апптан БҰРЫН қолданылады.
+        'non_returnable': nonReturnable,
+        'return_note': returnNote.trim(),
       };
 
   Map<String, dynamic> toJson() => {
@@ -222,6 +242,8 @@ class ProductModel {
         'description': description,
         'country': country,
         'season': season,
+        if (nonReturnable) 'nonReturnable': true,
+        if (returnNote.isNotEmpty) 'returnNote': returnNote,
       };
 
   ProductModel copyWith({
@@ -247,6 +269,8 @@ class ProductModel {
     int? ratingCount,
     int? viewCount,
     bool? storefrontHidden,
+    bool? nonReturnable,
+    String? returnNote,
   }) {
     return ProductModel(
       id: id ?? this.id,
@@ -271,6 +295,8 @@ class ProductModel {
       ratingCount: ratingCount ?? this.ratingCount,
       viewCount: viewCount ?? this.viewCount,
       storefrontHidden: storefrontHidden ?? this.storefrontHidden,
+      nonReturnable: nonReturnable ?? this.nonReturnable,
+      returnNote: returnNote ?? this.returnNote,
     );
   }
 

@@ -12,8 +12,11 @@ import '../ui/admin/online_orders_screen.dart';
 import '../ui/admin/returns/admin_return_detail_screen.dart';
 import '../ui/admin/settings/sellers_screen.dart';
 import '../ui/client/client_orders_screen.dart';
+import '../ui/client/gift/my_gifts_screen.dart';
+import '../ui/client/registry/my_registries_screen.dart';
 import '../ui/client/client_product_detail.dart';
 import '../ui/client/store_public_screen.dart';
+import '../ui/live/live_navigation.dart';
 import '../ui/seller/sales/sale_detail_screen.dart';
 import '../ui/seller/seller_online_screen.dart';
 import '../ui/seller/returns/seller_return_receive_screen.dart';
@@ -114,6 +117,24 @@ Future<void> handlePushOpen(Map<String, dynamic> data) async {
         break;
       case 'subscription_expiring':
         _openSubscriptionExpiring(nav, user);
+        break;
+      // Сыйлық (0070): алушы өлшем таңдады / мерзімі бітуге жақын.
+      case 'gift_claimed':
+      case 'gift_reminder':
+        _openGifts(nav, user, tab: 0);
+        break;
+      // Тілек тізімінен біреу сыйлық сатып алды (0069).
+      case 'registry_item_bought':
+        if (user.isClient) {
+          nav.push(MaterialPageRoute(
+              builder: (_) => const MyRegistriesScreen()));
+        }
+        break;
+      // Тікелей эфир басталды: data {sessionId}.
+      case 'live_started':
+        final sid = data['sessionId'] as String? ?? '';
+        // ignore: use_build_context_synchronously
+        if (sid.isNotEmpty) await openLiveSession(nav.context, sid);
         break;
     }
   } catch (e) {
@@ -220,11 +241,25 @@ void _openJoinRequest(NavigatorState nav, AppUser user) {
 // ── client: тапсырыс статусы өзгерді ─────────────────────────────────────────
 //  Таптар (0062-ден кейін): 0=белсенді, 1=алынған, 2=бас тартылған,
 //  3=қайтарулар. Бұрын «аяқталған» біреу ғана болатын.
-void _openOrderStatus(
-    NavigatorState nav, AppUser user, Map<String, dynamic> data) {
+Future<void> _openOrderStatus(
+    NavigatorState nav, AppUser user, Map<String, dynamic> data) async {
   if (!user.isClient) return;
   final orderId = data['orderId'] as String? ?? '';
   final status = data['status'] as String? ?? '';
+  // Сыйлықтың АЛУШЫСЫ: тапсырыс оның «Тапсырыстарым» тізімінде жоқ (client_uid
+  // — сыйлаушы), сондықтан «Сыйлықтар → Маған келген» табына апарамыз.
+  if (orderId.isNotEmpty) {
+    try {
+      final o = await ClientService().getOrderById(orderId);
+      if (o != null &&
+          o.isGift &&
+          o.giftRecipientUid == user.uid &&
+          o.clientUid != user.uid) {
+        _openGifts(nav, user, tab: 1);
+        return;
+      }
+    } catch (_) {}
+  }
   final tab = switch (status) {
     'completed' || 'returned' => 1,
     'cancelled' => 2,
@@ -235,6 +270,14 @@ void _openOrderStatus(
             highlightOrderId: orderId.isEmpty ? null : orderId,
             initialTabIndex: tab,
           )));
+}
+
+// ── client: сыйлықтар экраны (0070) ──────────────────────────────────────────
+//  tab: 0 = жіберілген, 1 = маған келген.
+void _openGifts(NavigatorState nav, AppUser user, {required int tab}) {
+  if (!user.isClient) return;
+  nav.push(MaterialPageRoute(
+      builder: (_) => MyGiftsScreen(initialTab: tab)));
 }
 
 // ── client: қайтару мерзімі бітуге жақын (0062) ──────────────────────────────

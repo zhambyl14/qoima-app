@@ -9,6 +9,7 @@ import '../../data/models/return_model.dart';
 import '../../data/services/auth_service.dart';
 import '../../data/services/courier_service.dart';
 import '../../theme/qoima_design.dart';
+import '../support/support_entry.dart';
 import 'courier_order_card.dart';
 import 'courier_return_card.dart';
 
@@ -131,7 +132,11 @@ class _CourierShellState extends State<CourierShell> {
           subtitle: user.city.isEmpty
               ? tr('Курьер', 'Курьер')
               : '${tr('Курьер', 'Курьер')} · ${trValue(user.city)}',
-          action: QHeaderBtn(Icons.refresh_rounded, onTap: _refresh),
+          action: Row(mainAxisSize: MainAxisSize.min, children: [
+            // Қолдау чаты (feature_support_chat өшік болса жасырын).
+            const SupportHeaderButton(),
+            QHeaderBtn(Icons.refresh_rounded, onTap: _refresh),
+          ]),
         ),
         Expanded(
           child: _loading

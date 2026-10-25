@@ -12,11 +12,14 @@ import '../../data/models/order_model.dart';
 import '../../data/models/return_model.dart';
 import '../../data/models/review_model.dart';
 import '../../data/services/client_service.dart';
+import '../../data/services/gift_service.dart';
 import '../../data/services/return_service.dart';
 import '../../theme/qoima_design.dart';
 import '../shared/order_money_card.dart';
 import 'client_shell.dart';
 import 'order_timeline.dart';
+import 'gift/gift_share_screen.dart';
+import 'gift/gift_widgets.dart';
 import 'returns/client_return_form_screen.dart';
 import 'reviews_section.dart';
 
@@ -57,12 +60,22 @@ class _ClientOrderDetailScreenState extends State<ClientOrderDetailScreen> {
 
   OrderModel get o => _order;
 
+  /// Сыйлықтың АЛУШЫСЫ (сыйлаушы емес): тапсырыс оның «client_uid» тізімінде
+  /// жоқ, сондықтан басқа ағын мен қысқартылған әрекеттер қолданылады.
+  bool get _isRecipient =>
+      o.isGift &&
+      o.giftRecipientUid.isNotEmpty &&
+      o.giftRecipientUid == AppUser.current.uid &&
+      o.clientUid != AppUser.current.uid;
+
   @override
   void initState() {
     super.initState();
     // Статус экран ашық тұрғанда өзгеруі мүмкін (дүкен возратты растады т.б.).
-    _orderSub =
-        _service.watchClientOrders(AppUser.current.uid).listen((orders) {
+    final stream = _isRecipient
+        ? GiftService().watchGiftsReceived()
+        : _service.watchClientOrders(AppUser.current.uid);
+    _orderSub = stream.listen((orders) {
       for (final x in orders) {
         if (x.id == _order.id && mounted) {
           setState(() => _order = x);
@@ -73,9 +86,13 @@ class _ClientOrderDetailScreenState extends State<ClientOrderDetailScreen> {
     _favSub = _service.watchFavoriteIds().listen((ids) {
       if (mounted) setState(() => _favIds = ids.toSet());
     });
-    _loadReturnStatus();
+    if (_isRecipient) {
+      _returnLoaded = true; // алушыда возврат ағыны жоқ
+    } else {
+      _loadReturnStatus();
+      _loadMyRatings();
+    }
     _loadWarehouseNote();
-    _loadMyRatings();
   }
 
   Future<void> _loadMyRatings() async {
@@ -342,11 +359,14 @@ class _ClientOrderDetailScreenState extends State<ClientOrderDetailScreen> {
             children: [
               _statusCard(),
               const SizedBox(height: 12),
+              if (o.isGift) _giftCard(),
               _itemsCard(),
               const SizedBox(height: 12),
               if (o.isDelivery) ...[
-                OrderMoneyCard(order: o, audience: 'client'),
-                const SizedBox(height: 12),
+                if (!o.hideGiftPriceFor(AppUser.current.uid)) ...[
+                  OrderMoneyCard(order: o, audience: 'client'),
+                  const SizedBox(height: 12),
+                ],
                 OrderTimeline(order: o),
                 const SizedBox(height: 12),
               ] else
@@ -383,6 +403,10 @@ class _ClientOrderDetailScreenState extends State<ClientOrderDetailScreen> {
             QPill(_statusLabel, tone: orderStatusTone(o.status)),
             const SizedBox(width: 8),
             QPill(_typeLabel, tone: _typeTone),
+            if (o.isGift) ...[
+              const SizedBox(width: 8),
+              Flexible(child: GiftBadge(order: o)),
+            ],
           ]),
           if (o.receiptNumber.isNotEmpty) ...[
             const SizedBox(height: 10),
@@ -409,8 +433,9 @@ class _ClientOrderDetailScreenState extends State<ClientOrderDetailScreen> {
                 Text(money(o.total),
                     style: manrope(11.5, FontWeight.w500, color: cInk3)
                         .copyWith(decoration: TextDecoration.lineThrough)),
-              Text(money(o.finalTotal),
-                  style: manrope(17, FontWeight.w800, color: cInk)),
+              if (!o.hideGiftPriceFor(AppUser.current.uid))
+                Text(money(o.finalTotal),
+                    style: manrope(17, FontWeight.w800, color: cInk)),
             ]),
           ]),
           if (o.completedAt != null) ...[
@@ -421,6 +446,124 @@ class _ClientOrderDetailScreenState extends State<ClientOrderDetailScreen> {
           ],
         ]),
       );
+
+  // ── Сыйлық (0070) ──────────────────────────────────────────────────────────
+  Widget _giftCard() {
+    final recipient = _isRecipient;
+    final active = o.status != OrderModel.statusCompleted &&
+        o.status != OrderModel.statusCancelled &&
+        o.status != OrderModel.statusReturned;
+    final item = o.items.isNotEmpty ? o.items.first : null;
+    String? stateText;
+    if (!recipient) {
+      if (o.isGiftAwaitingRecipient && o.status == OrderModel.statusConfirmed) {
+        stateText = o.isGiftExpired
+            ? tr('Получатель не открыл подарок за 30 дней. Свяжитесь с магазином — он вернёт оплату.',
+                'Алушы сыйлықты 30 күн ішінде ашпады. Дүкенмен хабарласыңыз — ақшаңызды қайтарады.')
+            : tr('Оплата подтверждена. Отправьте ссылку получателю — он выберет размер.',
+                'Төлем расталды. Сілтемені алушыға жіберіңіз — ол өлшемін таңдайды.');
+      } else if (o.isGiftAwaitingRecipient) {
+        stateText = tr(
+            'После подтверждения оплаты получатель сможет выбрать размер.',
+            'Төлем расталған соң алушы өлшемін таңдай алады.');
+      } else if (o.isGiftClaimed && item != null && item.size.isNotEmpty) {
+        stateText = tr(
+            'Получатель выбрал размер ${item.size}. Магазин готовит подарок.',
+            'Алушы ${item.size} өлшемін таңдады. Дүкен сыйлықты дайындап жатыр.');
+      }
+    }
+    final who = recipient
+        ? (o.giftGiverName.isNotEmpty
+            ? tr('От: ${o.giftGiverName}', 'Кімнен: ${o.giftGiverName}')
+            : '')
+        : (o.giftRecipientName.isNotEmpty
+            ? tr('Кому: ${o.giftRecipientName}',
+                'Кімге: ${o.giftRecipientName}')
+            : '');
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFFFFF8E8), Color(0xFFFFEFD0)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: cAmber.withValues(alpha: 0.35)),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            const Icon(Icons.card_giftcard_rounded, color: cAmberInk, size: 20),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                recipient
+                    ? tr('Вам подарок', 'Сізге сыйлық')
+                    : tr('Подарок', 'Сыйлық'),
+                style: manrope(14.5, FontWeight.w800, color: cAmberInk),
+              ),
+            ),
+          ]),
+          if (who.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(who, style: manrope(13, FontWeight.w700, color: cInk)),
+          ],
+          if (o.giftMessage.trim().isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text('«${o.giftMessage.trim()}»',
+                style: manrope(13, FontWeight.w600, color: cInk2)),
+          ],
+          if (stateText != null) ...[
+            const SizedBox(height: 8),
+            Text(stateText,
+                style: manrope(12.5, FontWeight.w600, color: cInk2)),
+          ],
+          if (recipient &&
+              active &&
+              !o.byPlatformCourier &&
+              o.pickupCode.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              tr('Код получения: ${o.pickupCode}',
+                  'Алу коды: ${o.pickupCode}'),
+              style: manrope(16, FontWeight.w800, color: cGreenDeep),
+            ),
+          ],
+          if (!recipient &&
+              o.isGiftAwaitingRecipient &&
+              !o.isGiftExpired &&
+              o.status == OrderModel.statusConfirmed) ...[
+            const SizedBox(height: 10),
+            Row(children: [
+              Expanded(
+                child: QPrimaryButton(
+                  label: tr('Отправить ссылку', 'Сілтемені жіберу'),
+                  icon: const Icon(Icons.ios_share_rounded,
+                      color: Colors.white, size: 18),
+                  height: 44,
+                  onPressed: () => shareGiftLink(context, o),
+                ),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 44,
+                child: QSoftButton(
+                  label: '',
+                  height: 44,
+                  icon:
+                      const Icon(Icons.link_rounded, color: cGreen, size: 20),
+                  onPressed: () => copyGiftLink(context, o),
+                ),
+              ),
+            ]),
+          ],
+        ]),
+      ),
+    );
+  }
 
   // ── Тауарлар ───────────────────────────────────────────────────────────────
   Widget _itemsCard() => _card(
@@ -466,7 +609,15 @@ class _ClientOrderDetailScreenState extends State<ClientOrderDetailScreen> {
                 overflow: TextOverflow.ellipsis),
           const SizedBox(height: 4),
           Text(
-              '${tr('Размер', 'Өлшемі')} ${item.size} · ×${item.qty} · ${money(item.subtotal)}',
+              [
+                item.size.isEmpty
+                    ? tr('Размер выберет получатель',
+                        'Өлшемді алушы таңдайды')
+                    : '${tr('Размер', 'Өлшемі')} ${item.size}',
+                '×${item.qty}',
+                if (!o.hideGiftPriceFor(AppUser.current.uid))
+                  money(item.subtotal),
+              ].join(' · '),
               style: manrope(12, FontWeight.w600, color: cInk2)),
         ]),
       ),
@@ -474,7 +625,7 @@ class _ClientOrderDetailScreenState extends State<ClientOrderDetailScreen> {
       // рұқсат береді). Осы жол клиенттің тауар бетіне кірмей-ақ пікір
       // қалдыруының ең қысқа жолы. Бағаланған болса — тек көрсету, ЕНДІ
       // ӨЗГЕРТЕ АЛМАЙДЫ (клиенттің талабы).
-      if (o.status == OrderModel.statusCompleted)
+      if (o.status == OrderModel.statusCompleted && !_isRecipient)
         if (myRating != null)
           Padding(
             padding: const EdgeInsets.only(left: 6, top: 2),
@@ -652,6 +803,9 @@ class _ClientOrderDetailScreenState extends State<ClientOrderDetailScreen> {
   List<Widget> _actions() {
     final widgets = <Widget>[];
 
+    // Сыйлықтың алушысы: сатып алушы емес — қайта тапсырыс/қайтару жоқ.
+    if (_isRecipient) return widgets;
+
     // Қайта сатып алу — тек аяқталған/бас тартылған тапсырыста мағыналы
     // (белсенді тапсырыс әлі орындалып жатыр, оны қайталаудың қажеті жоқ).
     if (!orderIsActive(o.status)) {
@@ -693,7 +847,18 @@ class _ClientOrderDetailScreenState extends State<ClientOrderDetailScreen> {
 
     // Возврат — ЕҢ СОҢЫНДА: бұл сирек әрі кері әрекет, негізгі жолды
     // (қайта сатып алу) көлеңкелеп тұрмауы керек.
-    if (o.status == OrderModel.statusCompleted) {
+    if (o.status == OrderModel.statusCompleted && o.isGift) {
+      widgets.addAll([
+        const SizedBox(height: 14),
+        Center(
+          child: Text(
+              tr('Для возврата подарка обратитесь в магазин',
+                  'Сыйлықты қайтару үшін дүкенге хабарласыңыз'),
+              textAlign: TextAlign.center,
+              style: manrope(11.5, FontWeight.w600, color: cInk3)),
+        ),
+      ]);
+    } else if (o.status == OrderModel.statusCompleted) {
       widgets.add(const SizedBox(height: 14));
       if (_returnStatus != null) {
         widgets.add(Center(

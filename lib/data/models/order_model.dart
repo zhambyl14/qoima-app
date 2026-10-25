@@ -131,6 +131,21 @@ class OrderModel {
   final double promoDiscount;
   final bool promoCountsUsage;
 
+  // ── «Сыйлау» (0070) ─────────────────────────────────────────────────────────
+  //  Сыйлық — кәдімгі тапсырыс, бірақ өлшемі алушы таңдағанша белгісіз.
+  //  Бұл бағандарды ТЕК сервер RPC-лері (create_gift_order / claim_gift)
+  //  жазады — сондықтан toMap-қа КІРМЕЙДІ.
+  final bool isGift;
+  final String giftToken;
+  final String giftRecipientUid;
+  final String giftRecipientName;
+  final String giftRecipientPhone;
+  final String giftMessage;
+  final bool giftHidePrice;
+  final DateTime? giftClaimedAt;
+  final DateTime? giftExpiresAt;
+  final String giftGiverName;
+
   static const Duration receiptWindow = Duration(minutes: 30);
   static const Duration pickupWindow = Duration(minutes: 60);
 
@@ -209,7 +224,42 @@ class OrderModel {
     this.promoCode = '',
     this.promoDiscount = 0.0,
     this.promoCountsUsage = false,
+    this.isGift = false,
+    this.giftToken = '',
+    this.giftRecipientUid = '',
+    this.giftRecipientName = '',
+    this.giftRecipientPhone = '',
+    this.giftMessage = '',
+    this.giftHidePrice = false,
+    this.giftClaimedAt,
+    this.giftExpiresAt,
+    this.giftGiverName = '',
   });
+
+  // ── «Сыйлау» күйлері ────────────────────────────────────────────────────────
+  /// Алушы өлшем таңдаған (қойма азайған, тапсырыс дүкенге жалғасты).
+  bool get isGiftClaimed => isGift && giftClaimedAt != null;
+
+  /// Алушыны күтіп тұр: тапсырыс тірі, бірақ өлшем әлі таңдалмаған.
+  bool get isGiftAwaitingRecipient =>
+      isGift &&
+      giftClaimedAt == null &&
+      status != statusCancelled &&
+      status != statusReturned;
+
+  /// Алушы мерзімінде алмады (сыйлаушы дүкеннен қайтаруды сұрай алады).
+  bool get isGiftExpired =>
+      isGiftAwaitingRecipient &&
+      giftExpiresAt != null &&
+      DateTime.now().isAfter(giftExpiresAt!);
+
+  /// Төлем расталды, алушы сілтемені ашып өлшем таңдай алады.
+  bool get isGiftReadyToClaim =>
+      isGiftAwaitingRecipient && status == statusConfirmed && !isGiftExpired;
+
+  /// Алушыға көрсетілетін баға жасырын ба (сыйлаушы үшін ешқашан жасырылмайды).
+  bool hideGiftPriceFor(String uid) =>
+      isGift && giftHidePrice && uid != clientUid;
 
   double get total => items.fold(0.0, (s, i) => s + i.subtotal);
   double get finalTotal => (total - promoDiscount).clamp(0.0, total);
@@ -360,6 +410,16 @@ class OrderModel {
       promoCode: m['promo_code'] as String? ?? '',
       promoDiscount: (m['promo_discount'] as num?)?.toDouble() ?? 0,
       promoCountsUsage: m['promo_counts_usage'] as bool? ?? false,
+      isGift: m['is_gift'] as bool? ?? false,
+      giftToken: m['gift_token'] as String? ?? '',
+      giftRecipientUid: m['gift_recipient_uid'] as String? ?? '',
+      giftRecipientName: m['gift_recipient_name'] as String? ?? '',
+      giftRecipientPhone: m['gift_recipient_phone'] as String? ?? '',
+      giftMessage: m['gift_message'] as String? ?? '',
+      giftHidePrice: m['gift_hide_price'] as bool? ?? false,
+      giftClaimedAt: dtn(m['gift_claimed_at']),
+      giftExpiresAt: dtn(m['gift_expires_at']),
+      giftGiverName: m['gift_giver_name'] as String? ?? '',
     );
   }
 
@@ -467,6 +527,16 @@ class OrderModel {
     String? promoCode,
     double? promoDiscount,
     bool? promoCountsUsage,
+    bool? isGift,
+    String? giftToken,
+    String? giftRecipientUid,
+    String? giftRecipientName,
+    String? giftRecipientPhone,
+    String? giftMessage,
+    bool? giftHidePrice,
+    DateTime? giftClaimedAt,
+    DateTime? giftExpiresAt,
+    String? giftGiverName,
   }) =>
       OrderModel(
         id: id ?? this.id,
@@ -528,5 +598,15 @@ class OrderModel {
         promoCode: promoCode ?? this.promoCode,
         promoDiscount: promoDiscount ?? this.promoDiscount,
         promoCountsUsage: promoCountsUsage ?? this.promoCountsUsage,
+        isGift: isGift ?? this.isGift,
+        giftToken: giftToken ?? this.giftToken,
+        giftRecipientUid: giftRecipientUid ?? this.giftRecipientUid,
+        giftRecipientName: giftRecipientName ?? this.giftRecipientName,
+        giftRecipientPhone: giftRecipientPhone ?? this.giftRecipientPhone,
+        giftMessage: giftMessage ?? this.giftMessage,
+        giftHidePrice: giftHidePrice ?? this.giftHidePrice,
+        giftClaimedAt: giftClaimedAt ?? this.giftClaimedAt,
+        giftExpiresAt: giftExpiresAt ?? this.giftExpiresAt,
+        giftGiverName: giftGiverName ?? this.giftGiverName,
       );
 }

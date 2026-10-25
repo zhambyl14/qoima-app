@@ -72,6 +72,27 @@ class CartProvider extends ChangeNotifier {
     LocalNotificationService.instance.scheduleCartReminder(itemCount: count);
   }
 
+  /// Бірнеше жолды бірден қосады (AI-стилист «бүкіл образды себетке»).
+  /// Біріктіру ережесі addItem-мен бірдей (productId+size), бірақ
+  /// notifyListeners / _persist / еске салу — БІР реттен ғана.
+  void addItems(Iterable<CartItemModel> items) {
+    var added = false;
+    for (final item in items) {
+      final idx = _items.indexWhere(
+          (e) => e.productId == item.productId && e.size == item.size);
+      if (idx >= 0) {
+        _items[idx] = _items[idx].copyWith(qty: _items[idx].qty + item.qty);
+      } else {
+        _items.add(item);
+      }
+      added = true;
+    }
+    if (!added) return;
+    notifyListeners();
+    _persist();
+    LocalNotificationService.instance.scheduleCartReminder(itemCount: count);
+  }
+
   void removeAt(int index) {
     _items.removeAt(index);
     notifyListeners();

@@ -56,4 +56,16 @@ class SupabaseConfig {
   /// Тауар сілтемесін құрастырады: `shareBaseUrl/?id=productId`.
   static String productShareUrl(String productId) =>
       shareBaseUrl.isEmpty ? '' : '$shareBaseUrl/?id=$productId';
+
+  /// Сыйлық сілтемесі: `shareBaseUrl/?g=<gift_token>` (0070). Бет алушыға
+  /// сыйлықты көрсетіп, «Qoima-да ашу» → `qoima://gift/<token>` береді.
+  static String giftShareUrl(String token) =>
+      shareBaseUrl.isEmpty ? '' : '$shareBaseUrl/?g=$token';
+
+  /// Тілек тізімінің сілтемесі: `shareBaseUrl/?w=<registry_token>`.
+  static String registryShareUrl(String token) =>
+      shareBaseUrl.isEmpty ? '' : '$shareBaseUrl/?w=$token';
+
+  /// Қолданбаның өз URL схемасы (Android intent-filter + iOS CFBundleURLTypes).
+  static const String appScheme = 'qoima';
 }

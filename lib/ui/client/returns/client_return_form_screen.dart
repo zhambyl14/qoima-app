@@ -30,7 +30,8 @@ class _ClientReturnFormScreenState extends State<ClientReturnFormScreen> {
   late final Map<String, ({bool selected, ReturnItem item})> _itemMap = {
     for (final i in widget.order.items)
       '${i.batchId}__${i.size}': (
-        selected: true,
+        // Қайтарылмайтын тауар (0073 снапшоты) алдын ала таңдалмайды.
+        selected: !i.nonReturnable,
         item: ReturnItem(
           productId: i.productId,
           productTitle: i.productName,
@@ -65,6 +66,16 @@ class _ClientReturnFormScreenState extends State<ClientReturnFormScreen> {
   /// мәңгі ілініп қалар еді. Жүктелгенше жасырып тұрамыз.
   bool _courierAvailable = false;
 
+  /// Дүкеннің жалпы қайтару ережесі (stores.return_policy_note, 0073) —
+  /// қайтарылмайтын тауардың түсіндірмесінде көрсетіледі.
+  String _storeReturnNote = '';
+
+  /// Қайтарылмайтын жолдардың кілттері (itemMap кілті): таңдауға болмайды.
+  late final Set<String> _lockedKeys = {
+    for (final i in widget.order.items)
+      if (i.nonReturnable) '${i.batchId}__${i.size}',
+  };
+
   List<ReturnItem> get _selectedItems =>
       _itemMap.values.where((e) => e.selected).map((e) => e.item).toList();
 
@@ -85,16 +96,19 @@ class _ClientReturnFormScreenState extends State<ClientReturnFormScreen> {
   Future<void> _loadCourierAvailability() async {
     final tariff = await AppSettingsService().getDeliveryTariff();
     var city = '';
+    var policyNote = '';
     try {
       final row = await Supabase.instance.client
           .from('stores')
-          .select('city')
+          .select('city,return_policy_note')
           .eq('admin_uid', widget.order.adminUid)
           .maybeSingle();
       city = (row?['city'] as String? ?? '').trim();
+      policyNote = (row?['return_policy_note'] as String? ?? '').trim();
     } catch (_) {}
     if (!mounted) return;
     setState(() {
+      _storeReturnNote = policyNote;
       _courierFee = tariff.returnFee;
       _courierAvailable = tariff.courierWorksIn(city);
       // Қызмет жоқ болса — таңдау «өзім әкелемін»-ге қайтарылады.
@@ -195,7 +209,7 @@ class _ClientReturnFormScreenState extends State<ClientReturnFormScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(friendlyError(e)),
+          content: Text(e is ReturnException ? e.message : friendlyError(e)),
           backgroundColor: cRed,
           behavior: SnackBarBehavior.floating,
         ));
@@ -286,8 +300,13 @@ class _ClientReturnFormScreenState extends State<ClientReturnFormScreen> {
               child: _page == 0
                   ? _ItemsPage(
                       itemMap: _itemMap,
-                      onToggle: (k, v) =>
-                          setState(() => _itemMap[k] = v),
+                      lockedKeys: _lockedKeys,
+                      storeNote: _storeReturnNote,
+                      onToggle: (k, v) {
+                        // Қайтарылмайтын тауарды таңдауға тыйым (сервер де бөгейді).
+                        if (_lockedKeys.contains(k)) return;
+                        setState(() => _itemMap[k] = v);
+                      },
                       onNext: _next,
                     )
                   : _page == 1
@@ -335,11 +354,15 @@ class _ClientReturnFormScreenState extends State<ClientReturnFormScreen> {
 // ── Page 0: Select items ──────────────────────────────────────────────────────
 class _ItemsPage extends StatelessWidget {
   final Map<String, ({bool selected, ReturnItem item})> itemMap;
+  final Set<String> lockedKeys;
+  final String storeNote;
   final void Function(String, ({bool selected, ReturnItem item})) onToggle;
   final VoidCallback onNext;
 
   const _ItemsPage({
     required this.itemMap,
+    required this.lockedKeys,
+    required this.storeNote,
     required this.onToggle,
     required this.onNext,
   });
@@ -357,6 +380,9 @@ class _ItemsPage extends StatelessWidget {
             const SizedBox(height: 10),
             ...itemMap.entries.map((e) {
               final entry = e.value;
+              if (lockedKeys.contains(e.key)) {
+                return _LockedItemTile(item: entry.item, storeNote: storeNote);
+              }
               return GestureDetector(
                 onTap: () => onToggle(
                     e.key, (selected: !entry.selected, item: entry.item)),
@@ -407,6 +433,54 @@ class _ItemsPage extends StatelessWidget {
       ),
       _NextButton(label: tr('Далее', 'Әрі қарай'), enabled: hasSelection, onTap: onNext),
     ]);
+  }
+}
+
+/// Қайтарылмайтын тауар жолы (0073): сатып алу сәтінде келісілген шарт.
+class _LockedItemTile extends StatelessWidget {
+  final ReturnItem item;
+  final String storeNote;
+  const _LockedItemTile({required this.item, required this.storeNote});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: cAmberTint,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: cAmber.withValues(alpha: 0.45)),
+      ),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Padding(
+          padding: EdgeInsets.only(top: 1),
+          child: Icon(Icons.block_rounded, color: cRedInk, size: 22),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(item.productTitle,
+                style: manrope(13.5, FontWeight.w700, color: cInk),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis),
+            Text(
+                tr('Р.${item.size}  ×${item.quantity}',
+                    'Ө.${item.size}  ×${item.quantity}'),
+                style: manrope(12, FontWeight.w500, color: cInk3)),
+            const SizedBox(height: 6),
+            Text(
+                tr('Возврату не подлежит — вы согласились с этим при покупке.',
+                    'Қайтарылмайды — сатып алу кезінде осымен келіскенсіз.'),
+                style: manrope(12, FontWeight.w700, color: cRedInk)),
+            if (storeNote.isNotEmpty) ...[
+              const SizedBox(height: 3),
+              Text(storeNote, style: manrope(11.5, FontWeight.w500, color: cInk2)),
+            ],
+          ]),
+        ),
+      ]),
+    );
   }
 }
 

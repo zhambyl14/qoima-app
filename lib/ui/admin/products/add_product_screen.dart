@@ -5,7 +5,11 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../../core/feature_flags.dart';
+import '../../../core/locale_context.dart';
 import '../../../core/warehouse_context.dart';
+import '../../../data/models/description_templates.dart';
+import '../../../data/services/product_assist_service.dart';
 import '../../../data/models/models.dart';
 import '../../../data/services/firestore_service.dart';
 import '../../../data/services/cloudinary_service.dart';
@@ -16,6 +20,9 @@ import '../../shared/h_scroll_chips.dart';
 import '../../shared/mandatory_warehouse_picker.dart';
 import '../../shared/prompt_text_dialog.dart';
 import '../../widgets/image_crop_screen.dart';
+import 'ai/ai_description_assist.dart';
+import 'ai/ai_fill_card.dart';
+import 'ai/non_returnable_fields.dart';
 import 'restock_screen.dart';
 
 import '../../../core/lang.dart';
@@ -58,6 +65,31 @@ class _AddProductScreenState extends State<AddProductScreen> {
   List<ProductModel> _similar = [];
   bool _similarDismissed = false;
   Timer? _similarDebounce;
+
+  // ── AI көмегі (ai-product-assist) ───────────────────────────────────────
+  //  AI ешқашан өзі сақтамайды: ұсынысты формаға ТЕК бос өрістерге қояды,
+  //  иесі қарап растайды. `_aiValues` — AI қойған мән; өріс мәні соған тең
+  //  болғанша «✨ AI» белгісі тұрады, иесі өзгертсе белгі өздігінен кетеді.
+  final _assist = ProductAssistService();
+  final List<Uint8List> _aiPending = []; // түс таңдалғанға дейінгі фото
+  final Map<String, String> _aiValues = {};
+  String? _aiColorKey; // AI қосқан түс нұсқасының кілті
+  bool _aiBusy = false;
+  bool _descBusy = false;
+  int? _aiRemaining;
+  int? _aiFilledCount;
+  bool _aiLowConf = false;
+  bool _descHadText = false;
+  bool _aiUnclear = false; // AI фотодан ештеңе анықтай алмады
+  String _descLang = LocaleContext.currentLang == 'kk' ? 'kk' : 'ru';
+
+  // ── Қайтарылмайтын тауар (Returns pack): дүкенге рұқсат болғанда ғана ──
+  bool _storeAllowsNonReturnable = false;
+  bool _nonReturnable = false;
+  final _returnNoteCtrl = TextEditingController();
+
+  // Қадам 1-де «Далее» басылған соң бос міндетті өрістер қызылдана бастайды.
+  bool _attempted0 = false;
 
   String? _type;
   String? _material;
@@ -157,6 +189,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
     super.initState();
     _loadCustomPresets();
     _loadBrands();
+    _loadAssistState();
     _nameCtrl.addListener(_scheduleSimilarSearch);
     _brandCtrl.addListener(_scheduleSimilarSearch);
   }
@@ -201,6 +234,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
     _descCtrl.dispose();
     _countryCtrl.dispose();
     _keywordsCtrl.dispose();
+    _returnNoteCtrl.dispose();
     for (final c in _variantNoteOf.values) {
       c.dispose();
     }
@@ -387,7 +421,14 @@ class _AddProductScreenState extends State<AddProductScreen> {
         for (final s in _sizesForSelection()) s: 0,
         for (final s in _customSizes) s: 0,
       };
-      _variantImages[key] = [];
+      // Түс таңдалғанға дейін «AI көмегі» карточкасына түсірілген фото
+      // бірінші нұсқаға көшеді (қайта түсірудің қажеті жоқ).
+      if (_selectedColors.length == 1) {
+        _variantImages[key] = List<Uint8List>.of(_aiPending);
+        _aiPending.clear();
+      } else {
+        _variantImages[key] = [];
+      }
       _activeColor ??= key;
     });
   }
@@ -412,7 +453,11 @@ class _AddProductScreenState extends State<AddProductScreen> {
   /// Нұсқаны (кілт бойынша) алып тастау.
   void _removeVariant(String key) {
     setState(() {
+      final imgs = _variantImages[key];
       _selectedColors.remove(key);
+      // Соңғы нұсқа кетсе, фото AI карточкасында қалады.
+      if (_selectedColors.isEmpty && imgs != null) _aiPending.addAll(imgs);
+      if (_aiColorKey == key) _aiColorKey = null;
       _variantColorOf.remove(key);
       _variantHexOf.remove(key);
       _variantNoteOf.remove(key)?.dispose();
@@ -680,6 +725,13 @@ class _AddProductScreenState extends State<AddProductScreen> {
   }
 
   bool _validateStep() {
+    final ok = _validateStepCore();
+    // Қадам 1: қате болса бос өрістер өз жанында қызылдана көрінеді.
+    if (!ok && _step == 0 && mounted) setState(() => _attempted0 = true);
+    return ok;
+  }
+
+  bool _validateStepCore() {
     if (_step == 0) {
       if (_categoryKey == null) {
         _err(tr('Выберите тип товара', 'Тауар түрін таңдаңыз'));
@@ -772,6 +824,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
   /// «Сохранить» қайта басылғанда дубль жасалмайды.
   Future<void> _save() async {
     if (_isLoading) return;
+    // Үлгідегі толтырылмаған «…» қоғамдық сипаттамаға түсіп кетпесін.
+    if (!await confirmUnfilledPlaceholders(context, _descCtrl.text)) return;
+    if (!mounted) return;
     setState(() => _isLoading = true);
     // Жылдам код дүкенде бос па — сақтаудан БҰРЫН тексереміз. DB-де unique
     // индекс бар (соңғы шеп), бірақ ол шыққанда жартысы сақталып қалуы мүмкін
@@ -834,6 +889,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
           description: _descCtrl.text.trim(),
           country: _countryCtrl.text.trim(),
           season: _season ?? '',
+          nonReturnable: _returnFieldsActive && _nonReturnable,
+          returnNote: _returnFieldsActive && _nonReturnable
+              ? _returnNoteCtrl.text.trim()
+              : '',
         );
         await _firestoreService.addNewProduct(
           product: product,
@@ -876,10 +935,330 @@ class _AddProductScreenState extends State<AddProductScreen> {
       backgroundColor: cRed,
       behavior: SnackBarBehavior.floating));
 
+  // ══════════════════════════════════════════════════════════════════════
+  //  AI КӨМЕГІ: «Суреттен толтыру» + «Сипаттаманы AI жазсын» + үлгілер
+  // ══════════════════════════════════════════════════════════════════════
+
+  /// Қалған AI саны + дүкенге «қайтарылмайтын тауар» рұқсаты.
+  Future<void> _loadAssistState() async {
+    FeatureFlags.instance.refresh();
+    final results = await Future.wait<Object?>([
+      _assist.remainingToday(),
+      _assist.storeAllowsNonReturnable(),
+    ]);
+    if (!mounted) return;
+    setState(() {
+      _aiRemaining = results[0] as int?;
+      _storeAllowsNonReturnable = results[1] == true;
+    });
+  }
+
+  /// «Қайтарылмайтын» өрістері формада белсенді ме (жалауша + дүкенге рұқсат).
+  bool get _returnFieldsActive =>
+      _storeAllowsNonReturnable &&
+      FeatureFlags.instance.isOn(FeatureFlags.nonReturnable);
+
+  /// AI карточкасындағы фото: түс бар болса — бірінші нұсқаның фотосы
+  /// (сол сақталады), әйтпесе түс таңдалғанша күтетін тізім.
+  List<Uint8List> get _cardPhotos => _selectedColors.isNotEmpty
+      ? (_variantImages[_selectedColors.first] ??= [])
+      : _aiPending;
+
+  bool _isAi(String key, String? current) =>
+      _aiValues[key] != null && _aiValues[key] == current;
+
+  Widget _aiTag(String key, String? current) =>
+      _isAi(key, current) ? const AiMark() : const SizedBox.shrink();
+
+  /// Белгісі бар жапсырма: «Тип товара * ✨ AI».
+  Widget _aiLabel(String text, String key, String? current) =>
+      Row(children: [_Label(text), _aiTag(key, current)]);
+
+  /// Өріс бос болғанда қызыл түсіндірме (қадам 1 «Далее» басылғаннан кейін).
+  Widget _needHint(bool missing, String text) => (_attempted0 && missing)
+      ? Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Text(text, style: manrope(11.5, FontWeight.w700, color: cRed)),
+        )
+      : const SizedBox.shrink();
+
+  Map<String, String> _assistFields() {
+    final sizes = <String>[];
+    if (_selectedColors.isNotEmpty) {
+      (_variantSizes[_selectedColors.first] ?? {}).forEach((k, v) {
+        if (v > 0) sizes.add(k);
+      });
+    }
+    return {
+      'name': _nameCtrl.text,
+      'brand': _brandCtrl.text,
+      'category_key': _categoryKey ?? '',
+      'type': _type ?? '',
+      'category': _targetGroup ?? '',
+      'color':
+          _selectedColors.isEmpty ? '' : _baseColor(_selectedColors.first),
+      'material': _material ?? '',
+      'season': _season ?? '',
+      'sizes': sizes.join(', '),
+      'country': _countryCtrl.text,
+    };
+  }
+
+  void _showAiPhotoOptions() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Container(
+                width: 38,
+                height: 4,
+                decoration: BoxDecoration(
+                    color: cLine, borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 12),
+            ListTile(
+              leading: const Icon(Icons.camera_alt_outlined, color: cPurple),
+              title: Text(tr('Сфотографировать', 'Суретке түсіру'),
+                  style: manrope(14.5, FontWeight.w700, color: cInk)),
+              onTap: () {
+                Navigator.pop(ctx);
+                _pickAiPhotos(ImageSource.camera);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined, color: cPurple),
+              title: Text(tr('Из галереи', 'Галереядан'),
+                  style: manrope(14.5, FontWeight.w700, color: cInk)),
+              onTap: () {
+                Navigator.pop(ctx);
+                _pickAiPhotos(ImageSource.gallery);
+              },
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  /// Суретті таңдап, әдеттегідей 1:1 кадрлаймыз (дәл сол ImageCropScreen) —
+  /// сақталғанда да осы кадрланған сурет кетеді.
+  Future<void> _pickAiPhotos(ImageSource source) async {
+    final slots = _maxImages - _cardPhotos.length;
+    if (slots <= 0) {
+      _err(tr('Максимум $_maxImages фото', 'Ең көбі $_maxImages фото'));
+      return;
+    }
+    final List<XFile> picked;
+    if (source == ImageSource.camera) {
+      final shot =
+          await _imagePicker.pickImage(source: source, imageQuality: 90);
+      picked = shot == null ? [] : [shot];
+    } else {
+      picked = await _imagePicker.pickMultiImage(imageQuality: 90);
+    }
+    if (picked.isEmpty || !mounted) return;
+    final toAdd = picked.take(slots).toList();
+    for (var i = 0; i < toAdd.length; i++) {
+      final raw = await toAdd[i].readAsBytes();
+      if (!mounted) return;
+      final cropped = await Navigator.push<Uint8List>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ImageCropScreen(
+            raw: raw,
+            outputSize: _cropSize,
+            title: toAdd.length > 1
+                ? tr('Фото ${i + 1} из ${toAdd.length}',
+                    'Фото ${i + 1} / ${toAdd.length}')
+                : null,
+          ),
+        ),
+      );
+      if (cropped != null && mounted && _cardPhotos.length < _maxImages) {
+        setState(() => _cardPhotos.add(cropped));
+      }
+    }
+    if (picked.length > slots && mounted) {
+      _err(tr('Добавлено только $slots — лимит $_maxImages фото',
+          'Тек $slots қосылды — лимит $_maxImages фото'));
+    }
+  }
+
+  void _removeAiPhoto(int i) {
+    final list = _cardPhotos;
+    if (i < 0 || i >= list.length) return;
+    setState(() => list.removeAt(i));
+  }
+
+  /// Қате кодына қарай: жалауша өшсе — жалаушаларды жаңартамыз (карточка
+  /// жасырылады), квота таусылса — санды 0 етеміз.
+  void _onAssistError(ProductAssistException e) {
+    if (!mounted) return;
+    if (e.code == 'feature_disabled') FeatureFlags.instance.refresh();
+    if (e.code == 'ai_quota_exceeded') setState(() => _aiRemaining = 0);
+    _err(e.message);
+  }
+
+  Future<void> _runAiFill() async {
+    if (_aiBusy) return;
+    final photos = List<Uint8List>.of(_cardPhotos);
+    if (photos.isEmpty) return;
+    setState(() => _aiBusy = true);
+    try {
+      final s = await _assist.suggest(
+        images: [for (final p in photos) AssistImage.bytes(p)],
+        fields: _assistFields(),
+      );
+      if (!mounted) return;
+      _applySuggestion(s);
+    } on ProductAssistException catch (e) {
+      _onAssistError(e);
+    } finally {
+      if (mounted) setState(() => _aiBusy = false);
+    }
+  }
+
+  /// Ұсынысты формаға қою: ТЕК бос өрістерге (иесінің енгізгені өзгермейді).
+  /// Типі/кімге/материал — AI категориясы форма категориясымен сәйкес болғанда
+  /// ғана (әйтпесе канондық мәндер басқа категорияның тізіміне жатпайды).
+  void _applySuggestion(ProductSuggestion s) {
+    // Категория бос = фото тауарға ұқсамайды/анық емес: ештеңе толтырмаймыз,
+    // иесіне «қолмен толтырыңыз» деп айтамыз.
+    if (s.categoryKey.isEmpty) {
+      setState(() {
+        _aiFilledCount = 0;
+        _aiUnclear = true;
+        _aiLowConf = true;
+        if (s.remaining != null) _aiRemaining = s.remaining;
+      });
+      return;
+    }
+    var n = 0;
+    void mark(String key, String value) {
+      _aiValues[key] = value;
+      n++;
+    }
+
+    if (_categoryKey == null &&
+        s.categoryKey.isNotEmpty &&
+        kCategories.any((c) => c.key == s.categoryKey)) {
+      _onCategoryKeyChanged(s.categoryKey);
+      mark('category', s.categoryKey);
+    }
+    if (_categoryKey == s.categoryKey) {
+      if (_type == null && s.type.isNotEmpty && _currentTypes.contains(s.type)) {
+        setState(() => _type = s.type);
+        mark('type', s.type);
+      }
+      if (_targetGroup == null &&
+          s.category.isNotEmpty &&
+          categoryByKey(_categoryKey).hasAudience &&
+          _targetGroups.contains(s.category)) {
+        _onTargetGroupChanged(s.category);
+        mark('audience', s.category);
+      }
+      if (_material == null &&
+          s.material.isNotEmpty &&
+          _currentMaterials.contains(s.material)) {
+        setState(() => _material = s.material);
+        mark('material', s.material);
+      }
+    }
+    if (_season == null && kSeasons.contains(s.season)) {
+      setState(() => _season = s.season);
+      mark('season', s.season);
+    }
+    if (_selectedColors.isEmpty &&
+        ProductModel.colorOptions.any((o) => o['name'] == s.color)) {
+      _addColorVariant(s.color);
+      _aiColorKey = _selectedColors.first;
+      mark('color', s.color);
+    }
+    if (_brandCtrl.text.trim().isEmpty && s.brand.isNotEmpty) {
+      _brandCtrl.text = s.brand;
+      mark('brand', s.brand);
+    }
+    if (_nameCtrl.text.trim().isEmpty && s.nameSuggestion.isNotEmpty) {
+      _nameCtrl.text = s.nameSuggestion;
+      mark('name', s.nameSuggestion);
+    }
+    setState(() {
+      _aiFilledCount = n;
+      _aiUnclear = false;
+      _aiLowConf = s.isLowConfidence;
+      if (s.remaining != null) _aiRemaining = s.remaining;
+    });
+  }
+
+  /// «Сипаттаманы AI жазсын»: сурет + толтырылған өрістер → мәтін →
+  /// алдын ала қарау парақшасы → иесі «қою/қосу/қайта» таңдайды.
+  Future<void> _runAiDescribe() async {
+    if (_descBusy) return;
+    final photos = List<Uint8List>.of(_cardPhotos);
+    final fields = _assistFields();
+    if (photos.isEmpty && (fields['name'] ?? '').trim().isEmpty) {
+      _err(tr('Добавьте фото или введите название — тогда AI сможет написать.',
+          'Фото қосыңыз немесе атауын енгізіңіз — сонда AI жаза алады.'));
+      return;
+    }
+    var again = true;
+    while (again && mounted) {
+      again = false;
+      setState(() => _descBusy = true);
+      ({String description, int? remaining}) res;
+      try {
+        res = await _assist.describe(
+          images: [for (final p in photos) AssistImage.bytes(p)],
+          fields: fields,
+          lang: _descLang,
+        );
+      } on ProductAssistException catch (e) {
+        _onAssistError(e);
+        break;
+      } finally {
+        if (mounted) setState(() => _descBusy = false);
+      }
+      if (!mounted) return;
+      if (res.remaining != null) setState(() => _aiRemaining = res.remaining);
+      final hasText = _descCtrl.text.trim().isNotEmpty;
+      final choice = await showAiDescriptionPreview(context,
+          text: res.description, hasExisting: hasText, remaining: _aiRemaining);
+      if (!mounted) return;
+      switch (choice) {
+        case AiDescriptionChoice.replace:
+          setState(() => _descCtrl.text = res.description);
+        case AiDescriptionChoice.append:
+          setState(() => _descCtrl.text =
+              '${_descCtrl.text.trimRight()}\n\n${res.description}');
+        case AiDescriptionChoice.retry:
+          again = true;
+        case null:
+          break;
+      }
+    }
+  }
+
+  /// Дайын үлгіні сипаттамаға қосу (жаңа абзац болып, курсор соңына).
+  void _insertTemplate(DescriptionTemplate t) {
+    final add = t.textFor(_descLang);
+    final cur = _descCtrl.text.trimRight();
+    final next = cur.isEmpty ? add : '$cur\n\n$add';
+    setState(() {
+      _descCtrl.text = next;
+      _descCtrl.selection = TextSelection.collapsed(offset: next.length);
+    });
+  }
+
   // Сақталмаған деректер бар ма (кем дегенде бір өріс толтырылған)?
   bool _hasUnsavedData() =>
       !_isLoading &&
       (_nameCtrl.text.trim().isNotEmpty ||
+          _aiPending.isNotEmpty ||
+          _descCtrl.text.trim().isNotEmpty ||
           _brandCtrl.text.trim().isNotEmpty ||
           _selectedColors.isNotEmpty ||
           _purchaseCtrl.text.trim().isNotEmpty ||
@@ -1278,27 +1657,58 @@ class _AddProductScreenState extends State<AddProductScreen> {
             title: tr('Информация о товаре', 'Тауар туралы ақпарат'),
             subtitle: tr('Сначала категория, затем название',
                 'Алдымен категория, сосын атауы')),
-        const SizedBox(height: 20),
+        const SizedBox(height: 16),
+        // ✨ AI көмегі: алдымен фото → өрістер өздігінен толады. Жалауша өшік
+        // болса карточка мүлде көрінбейді (форма бұрынғыдай қолмен толтырылады).
+        ListenableBuilder(
+          listenable: FeatureFlags.instance,
+          builder: (context, _) {
+            if (!FeatureFlags.instance.isOn(FeatureFlags.aiProductAssist)) {
+              return const SizedBox.shrink();
+            }
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 18),
+              child: AiFillCard(
+                photos: _cardPhotos,
+                maxPhotos: _maxImages,
+                onAddPhotos: _showAiPhotoOptions,
+                onRemovePhoto: _removeAiPhoto,
+                onFill: _runAiFill,
+                busy: _aiBusy,
+                remaining: _aiRemaining,
+                filledCount: _aiFilledCount,
+                lowConfidence: _aiLowConf,
+                unclear: _aiUnclear,
+              ),
+            );
+          },
+        ),
         // ⚠️ КАТЕГОРИЯ — ЕҢ АЛДЫМЕН. Одан кейінгі бүкіл форма соған тәуелді:
         // тип тізімі, материалдар, «кімге», размер торы, тіпті бренд ұсыныстары
         // да категория бойынша сүзіледі. Бұрын атау мен бренд бірінші тұратын
         // да, админ оларды толтырып болғанша ұсыныстар БОС не ҚАТЕ категориядан
         // келетін, ал категорияны таңдағанда бәрі қайта құрылатын.
-        _Label(tr('Категория товара *', 'Тауар категориясы *')),
+        _aiLabel(tr('Категория товара *', 'Тауар категориясы *'), 'category',
+            _categoryKey),
         const SizedBox(height: 8),
         _buildCategoryTypePicker(),
+        _needHint(_categoryKey == null,
+            tr('Выберите категорию', 'Категорияны таңдаңыз')),
         if (_categoryKey != null && _currentTypes.isNotEmpty) ...[
           const SizedBox(height: 16),
-          _Label(tr('Тип товара *', 'Тауар түрі *')),
+          _aiLabel(tr('Тип товара *', 'Тауар түрі *'), 'type', _type),
           const SizedBox(height: 8),
           _buildTypeDropdown(),
+          _needHint(_type == null, tr('Выберите тип', 'Түрін таңдаңыз')),
         ],
         if (_categoryKey != null &&
             categoryByKey(_categoryKey).hasAudience) ...[
           const SizedBox(height: 16),
-          _Label(tr('Кому *', 'Кімге *')),
+          _aiLabel(tr('Кому *', 'Кімге *'), 'audience', _targetGroup),
           const SizedBox(height: 8),
           _buildTargetGroupPicker(),
+          _needHint(_targetGroup == null,
+              tr('Выберите, кому предназначен товар', 'Кімге арналғанын таңдаңыз')),
         ],
         // Категория таңдалмайынша қалған өрістердің мәні жоқ — ұсыныстар
         // қате категориядан келеді. Сондықтан оларды әдейі кейін көрсетеміз.
@@ -1326,16 +1736,22 @@ class _AddProductScreenState extends State<AddProductScreen> {
           const SizedBox(height: 16),
           _Field(
               controller: _nameCtrl,
-              label: tr('Название товара', 'Тауар атауы'),
+              label: tr('Название товара *', 'Тауар атауы *'),
               hint: tr('Напр: Nike Air Max 270', 'Мыс: Nike Air Max 270'),
-              icon: Icons.inventory_2_outlined),
+              icon: Icons.inventory_2_outlined,
+              requiredText:
+                  _attempted0 ? tr('Введите название', 'Атауын енгізіңіз') : null,
+              aiValue: _aiValues['name']),
           const SizedBox(height: 12),
           _Field(
               controller: _brandCtrl,
-              label: 'Бренд',
+              label: tr('Бренд *', 'Бренд *'),
               hint: tr('Напр: Nike, Adidas, New Balance',
                   'Мыс: Nike, Adidas, New Balance'),
-              icon: Icons.workspace_premium_outlined),
+              icon: Icons.workspace_premium_outlined,
+              requiredText:
+                  _attempted0 ? tr('Введите бренд', 'Брендті енгізіңіз') : null,
+              aiValue: _aiValues['brand']),
           // Бұрын қолданылған брендтер — бір жолда жылжымалы (шашылмайды).
           if (_brandSuggestions.isNotEmpty) ...[
             const SizedBox(height: 8),
@@ -1356,9 +1772,15 @@ class _AddProductScreenState extends State<AddProductScreen> {
           ],
         ],
         const SizedBox(height: 16),
-        _Label(tr('Цвет *', 'Түсі *')),
+        Row(children: [
+          _Label(tr('Цвет *', 'Түсі *')),
+          if (_aiColorKey != null && _selectedColors.contains(_aiColorKey))
+            const AiMark(),
+        ]),
         const SizedBox(height: 10),
         _buildColorPicker(),
+        _needHint(_selectedColors.isEmpty,
+            tr('Выберите хотя бы один цвет', 'Кемінде бір түс таңдаңыз')),
         if (_selectedColors.isNotEmpty) ...[
           const SizedBox(height: 12),
           ..._selectedColors.map(_buildVariantNoteRow),
@@ -1369,7 +1791,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
         ],
         if (_categoryKey != null && _currentMaterials.isNotEmpty) ...[
           const SizedBox(height: 16),
-          _Label(tr('Материал (необязательно)', 'Материал (міндетті емес)')),
+          _aiLabel(tr('Материал (необязательно)', 'Материал (міндетті емес)'),
+              'material', _material),
           const SizedBox(height: 8),
           Wrap(spacing: 8, runSpacing: 8, children: [
             // Списка может не хватать — своё значение тоже показываем.
@@ -1389,7 +1812,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
           ]),
         ],
         const SizedBox(height: 16),
-        _Label(tr('Сезон (необязательно)', 'Сезон (міндетті емес)')),
+        _aiLabel(tr('Сезон (необязательно)', 'Сезон (міндетті емес)'),
+            'season', _season),
         const SizedBox(height: 8),
         Wrap(
             spacing: 8,
@@ -1427,6 +1851,11 @@ class _AddProductScreenState extends State<AddProductScreen> {
         const SizedBox(height: 12),
         TextFormField(
             controller: _descCtrl,
+            // PopScope.canPop жаңарсын: тек бос↔толы ауысқанда ғана rebuild.
+            onChanged: (v) {
+              final has = v.trim().isNotEmpty;
+              if (has != _descHadText) setState(() => _descHadText = has);
+            },
             maxLines: 4,
             minLines: 3,
             textCapitalization: TextCapitalization.sentences,
@@ -1449,6 +1878,34 @@ class _AddProductScreenState extends State<AddProductScreen> {
                 focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: const BorderSide(color: cGreen, width: 1.5)))),
+        const SizedBox(height: 10),
+        // «Сипаттаманы AI жазсын» + дайын үлгілер. Үлгілер жалауша өшік
+        // болса да қалады (AI-сыз, қарапайым мәтін); AI батырмасы жасырылады.
+        ListenableBuilder(
+          listenable: FeatureFlags.instance,
+          builder: (context, _) => AiDescriptionAssist(
+            lang: _descLang,
+            onLangChanged: (l) => setState(() => _descLang = l),
+            onWrite: _runAiDescribe,
+            busy: _descBusy,
+            remaining: _aiRemaining,
+            templates: descriptionTemplatesFor(_categoryKey),
+            onInsert: _insertTemplate,
+            canWrite: _cardPhotos.isNotEmpty ||
+                _nameCtrl.text.trim().isNotEmpty,
+            showAi: FeatureFlags.instance.isOn(FeatureFlags.aiProductAssist),
+          ),
+        ),
+        // «Қайтарылмайтын тауар» — тек суперадмин дүкенге рұқсат бергенде.
+        if (_storeAllowsNonReturnable) ...[
+          const SizedBox(height: 16),
+          NonReturnableFields(
+            storeAllowed: _storeAllowsNonReturnable,
+            value: _nonReturnable,
+            onChanged: (v) => setState(() => _nonReturnable = v),
+            noteCtrl: _returnNoteCtrl,
+          ),
+        ],
       ]);
 
   static const Map<String, String> _seasonIcons = {
@@ -2762,30 +3219,54 @@ class _Field extends StatelessWidget {
   final TextEditingController controller;
   final String label, hint;
   final IconData icon;
+
+  /// Берілсе — өріс бос болғанда осы қате жолы көрсетіледі (терген соң кетеді).
+  final String? requiredText;
+
+  /// AI қойған мән: өріс мәні соған тең болса «✨ AI» белгісі көрінеді.
+  final String? aiValue;
   const _Field(
       {required this.controller,
       required this.label,
       required this.hint,
-      required this.icon});
+      required this.icon,
+      this.requiredText,
+      this.aiValue});
   @override
-  Widget build(BuildContext context) => TextFormField(
-      controller: controller,
-      style: const TextStyle(fontSize: 15, color: cInk),
-      decoration: InputDecoration(
-          labelText: label,
-          hintText: hint,
-          prefixIcon: Icon(icon, color: cGreen, size: 20),
-          filled: true,
-          fillColor: Colors.white,
-          border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: cLine)),
-          enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: cLine)),
-          focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: cGreen, width: 1.5))));
+  Widget build(BuildContext context) => ListenableBuilder(
+      listenable: controller,
+      builder: (context, _) {
+        final text = controller.text.trim();
+        final isAi = aiValue != null && aiValue == text;
+        return TextFormField(
+            controller: controller,
+            style: const TextStyle(fontSize: 15, color: cInk),
+            decoration: InputDecoration(
+                labelText: label,
+                hintText: hint,
+                errorText: (requiredText != null && text.isEmpty)
+                    ? requiredText
+                    : null,
+                prefixIcon: Icon(icon, color: cGreen, size: 20),
+                suffixIcon: isAi
+                    ? const Padding(
+                        padding: EdgeInsets.only(right: 10),
+                        child: AiMark(),
+                      )
+                    : null,
+                suffixIconConstraints: const BoxConstraints(minHeight: 0),
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: cLine)),
+                enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: cLine)),
+                focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: cGreen, width: 1.5))));
+      });
 }
 
 class _SelectChip extends StatelessWidget {

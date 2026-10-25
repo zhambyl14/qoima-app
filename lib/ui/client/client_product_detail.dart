@@ -9,6 +9,7 @@ import '../../data/models/cart_item_model.dart';
 import '../../data/services/client_service.dart';
 import '../../theme/qoima_design.dart';
 import '../shared/favorite_fly_animation.dart';
+import '../shared/photo_gallery_viewer.dart';
 import 'client_shell.dart';
 import 'related_products_section.dart';
 import 'report_sheet.dart';
@@ -59,6 +60,7 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
   bool _loading = true;
   String? _selectedSize;
   int _pageIndex = 0;
+  final _pageCtrl = PageController();
   Set<String> _favIds = {};
   bool _togglingFav = false;
   StreamSubscription<List<String>>? _favSub;
@@ -130,6 +132,7 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
   @override
   void dispose() {
     _favSub?.cancel();
+    _pageCtrl.dispose();
     super.dispose();
   }
 
@@ -154,7 +157,21 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
       _warehouseAddress = {};
       _loading = true;
     });
+    if (_pageCtrl.hasClients) _pageCtrl.jumpToPage(0);
     _loadBatches();
+  }
+
+  /// Суретті толық экранда ашады (зум). Жабылғанда галерея сол бетке ауысады.
+  Future<void> _openGallery(List<String> images, int index) async {
+    final last = await openPhotoGallery(
+      context,
+      images: images,
+      initialIndex: index,
+      heroTagPrefix: 'pd_${_currentProduct.id}_',
+    );
+    if (last != null && last != _pageIndex && _pageCtrl.hasClients) {
+      _pageCtrl.jumpToPage(last);
+    }
   }
 
   /// «Ұқсас тауарлар» блогынан таңдалған тауарға ауысу. Жаңа экран ашпаймыз
@@ -360,52 +377,88 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Hero image — контентпен бірге скролл, фонсыз 1:1 cover.
+                    // Hero image — контентпен бірге скролл. Жоғарғы бос орын
+                    // статус-бар мен артқа/таңдаулы батырмаларға арналған
+                    // (сурет олардың астына кірмейді). Суреттер 1:1 кесіліп
+                    // жүктеледі, сондықтан contain — ештеңе кесілмейді.
+                    // Басқанда толық экран + зум ашылады.
                     Container(
-                      color: const Color(0xFFE4F7EE),
+                      color: cSurface,
+                      padding: EdgeInsets.only(
+                          top: MediaQuery.paddingOf(context).top + 64),
                       child: AspectRatio(
-                        aspectRatio: 1.1,
+                        aspectRatio: 1,
                         child: images.isNotEmpty
                             ? Stack(children: [
                                 PageView.builder(
+                                  controller: _pageCtrl,
                                   itemCount: images.length,
                                   onPageChanged: (i) =>
                                       setState(() => _pageIndex = i),
-                                  itemBuilder: (_, i) => Image.network(
-                                      images[i],
-                                      fit: BoxFit.cover,
-                                      width: double.infinity,
-                                      height: double.infinity,
-                                      errorBuilder: (_, __, ___) =>
-                                          _shoePlaceholder()),
+                                  itemBuilder: (_, i) => GestureDetector(
+                                    onTap: () => _openGallery(images, i),
+                                    child: Hero(
+                                      tag: 'pd_${_currentProduct.id}_$i',
+                                      child: Image.network(images[i],
+                                          fit: BoxFit.contain,
+                                          width: double.infinity,
+                                          height: double.infinity,
+                                          errorBuilder: (_, __, ___) =>
+                                              _shoePlaceholder()),
+                                    ),
+                                  ),
+                                ),
+                                // Зумға болатынын көрсететін белгі.
+                                Positioned(
+                                  right: 12,
+                                  bottom: 10,
+                                  child: IgnorePointer(
+                                    child: Container(
+                                      width: 32,
+                                      height: 32,
+                                      decoration: BoxDecoration(
+                                        color: Colors.white
+                                            .withValues(alpha: 0.92),
+                                        shape: BoxShape.circle,
+                                        boxShadow: kShadowXs,
+                                      ),
+                                      child: const Icon(
+                                          Icons.zoom_out_map_rounded,
+                                          size: 17,
+                                          color: cInk2),
+                                    ),
+                                  ),
                                 ),
                                 if (images.length > 1)
                                   Positioned(
                                     bottom: 12,
                                     left: 0,
                                     right: 0,
-                                    child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: List.generate(
-                                          images.length,
-                                          (i) => AnimatedContainer(
-                                                duration: const Duration(
-                                                    milliseconds: 200),
-                                                width: i == _pageIndex ? 20 : 7,
-                                                height: 7,
-                                                margin:
-                                                    const EdgeInsets.symmetric(
-                                                        horizontal: 2),
-                                                decoration: BoxDecoration(
-                                                  color: i == _pageIndex
-                                                      ? cGreen
-                                                      : cInk.withValues(
-                                                          alpha: 0.18),
-                                                  borderRadius:
-                                                      BorderRadius.circular(4),
-                                                ),
-                                              )),
+                                    child: IgnorePointer(
+                                      child: Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: List.generate(
+                                            images.length,
+                                            (i) => AnimatedContainer(
+                                                  duration: const Duration(
+                                                      milliseconds: 200),
+                                                  width:
+                                                      i == _pageIndex ? 20 : 7,
+                                                  height: 7,
+                                                  margin: const EdgeInsets
+                                                      .symmetric(horizontal: 2),
+                                                  decoration: BoxDecoration(
+                                                    color: i == _pageIndex
+                                                        ? cGreen
+                                                        : cInk.withValues(
+                                                            alpha: 0.18),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            4),
+                                                  ),
+                                                )),
+                                      ),
                                     ),
                                   ),
                               ])

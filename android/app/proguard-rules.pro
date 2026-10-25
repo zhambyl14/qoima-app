@@ -11,3 +11,8 @@
 # Kotlin
 -keep class kotlin.** { *; }
 -dontwarn kotlin.**
+
+# WebRTC (livekit_client / flutter_webrtc) — R8 JNI класстарын кесіп тастамауы үшін
+-keep class org.webrtc.** { *; }
+-dontwarn org.webrtc.**
+-keep class com.cloudwebrtc.webrtc.** { *; }

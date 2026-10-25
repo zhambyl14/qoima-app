@@ -3,8 +3,12 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../core/app_user.dart';
+import '../../../core/feature_flags.dart';
+import '../../../core/locale_context.dart';
 import '../../../core/supabase_config.dart';
+import '../../../data/models/description_templates.dart';
 import '../../../data/models/models.dart';
+import '../../../data/services/product_assist_service.dart';
 import '../../../data/services/firestore_service.dart';
 import '../../../data/services/cloudinary_service.dart';
 import '../../../theme/qoima_design.dart';
@@ -13,6 +17,8 @@ import '../../shared/prompt_text_dialog.dart';
 import '../../widgets/image_crop_screen.dart';
 import '../../../core/color_naming.dart';
 import 'package:image_picker/image_picker.dart';
+import 'ai/ai_description_assist.dart';
+import 'ai/non_returnable_fields.dart';
 
 import '../../../core/lang.dart';
 import '../../../core/error_text.dart';
@@ -25,6 +31,7 @@ class ProductDetailScreen extends StatefulWidget {
 
 class _ProductDetailScreenState extends State<ProductDetailScreen> {
   final _service = FirestoreService();
+  final _assist = ProductAssistService();
   int _photoIndex = 0;
   final _pageCtrl = PageController();
   bool _photoExpanded = false;
@@ -252,6 +259,16 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       if (p.material.isNotEmpty && !baseMaterials.contains(p.material))
         p.material,
     ];
+
+    // AI сипаттама көмегі + «қайтарылмайтын тауар» (Returns pack).
+    String descLang = LocaleContext.currentLang == 'kk' ? 'kk' : 'ru';
+    bool descBusy = false;
+    final aiRemaining = ValueNotifier<int?>(null);
+    _assist.remainingToday().then((v) => aiRemaining.value = v);
+    FeatureFlags.instance.refresh();
+    final storeAllowsNR = _assist.storeAllowsNonReturnable();
+    bool nonReturnable = p.nonReturnable;
+    final returnNoteCtrl = TextEditingController(text: p.returnNote);
 
     String type = p.type;
     String group = p.category;
@@ -577,11 +594,126 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       textCapitalization: TextCapitalization.sentences,
                       decoration: deco(tr('Описание (необязательно)', 'Сипаттама (міндетті емес)'))
                           .copyWith(alignLabelWithHint: true)),
+                  const SizedBox(height: 10),
+                  // «Сипаттаманы AI жазсын» + дайын үлгілер (қосу формасымен
+                  // бірдей). AI тауардың САҚТАЛҒАН суреттерін (Cloudinary URL)
+                  // қарайды; нәтиже алдын ала қаралып, иесі растайды.
+                  ValueListenableBuilder<int?>(
+                    valueListenable: aiRemaining,
+                    builder: (_, remaining, __) => ListenableBuilder(
+                      listenable: FeatureFlags.instance,
+                      builder: (_, __) => AiDescriptionAssist(
+                        lang: descLang,
+                        onLangChanged: (l) => setS(() => descLang = l),
+                        busy: descBusy,
+                        remaining: remaining,
+                        showAi: FeatureFlags.instance
+                            .isOn(FeatureFlags.aiProductAssist),
+                        canWrite: _images.isNotEmpty ||
+                            nameCtrl.text.trim().isNotEmpty,
+                        templates: descriptionTemplatesFor(catKey),
+                        onInsert: (t) {
+                          final cur = descCtrl.text.trimRight();
+                          final add = t.textFor(descLang);
+                          final next = cur.isEmpty ? add : '$cur\n\n$add';
+                          setS(() {
+                            descCtrl.text = next;
+                            descCtrl.selection =
+                                TextSelection.collapsed(offset: next.length);
+                          });
+                        },
+                        onWrite: () async {
+                          var again = true;
+                          while (again && ctx.mounted) {
+                            again = false;
+                            setS(() => descBusy = true);
+                            ({String description, int? remaining}) res;
+                            try {
+                              res = await _assist.describe(
+                                images: [
+                                  for (final u in _images)
+                                    if (u.startsWith('https://'))
+                                      AssistImage.url(u),
+                                ],
+                                fields: {
+                                  'name': nameCtrl.text,
+                                  'brand': brandCtrl.text,
+                                  'category_key': catKey,
+                                  'type': type,
+                                  'category': group,
+                                  'color': color,
+                                  'material': material,
+                                  'season': season,
+                                  'country': countryCtrl.text,
+                                },
+                                lang: descLang,
+                              );
+                            } on ProductAssistException catch (e) {
+                              if (e.code == 'feature_disabled') {
+                                FeatureFlags.instance.refresh();
+                              }
+                              if (e.code == 'ai_quota_exceeded') {
+                                aiRemaining.value = 0;
+                              }
+                              if (ctx.mounted) {
+                                ScaffoldMessenger.of(ctx).showSnackBar(
+                                    SnackBar(
+                                  content: Text(e.message),
+                                  backgroundColor: cRed,
+                                  behavior: SnackBarBehavior.floating,
+                                ));
+                              }
+                              break;
+                            } finally {
+                              if (ctx.mounted) setS(() => descBusy = false);
+                            }
+                            if (!ctx.mounted) return;
+                            if (res.remaining != null) {
+                              aiRemaining.value = res.remaining;
+                            }
+                            final choice = await showAiDescriptionPreview(ctx,
+                                text: res.description,
+                                hasExisting: descCtrl.text.trim().isNotEmpty,
+                                remaining: aiRemaining.value);
+                            if (!ctx.mounted) return;
+                            switch (choice) {
+                              case AiDescriptionChoice.replace:
+                                setS(() => descCtrl.text = res.description);
+                              case AiDescriptionChoice.append:
+                                setS(() => descCtrl.text =
+                                    '${descCtrl.text.trimRight()}\n\n${res.description}');
+                              case AiDescriptionChoice.retry:
+                                again = true;
+                              case null:
+                                break;
+                            }
+                          }
+                        },
+                      ),
+                    ),
+                  ),
+                  // «Қайтарылмайтын тауар» — дүкенге суперадмин рұқсат бергенде.
+                  FutureBuilder<bool>(
+                    future: storeAllowsNR,
+                    builder: (_, snap) {
+                      if (snap.data != true) return const SizedBox.shrink();
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 16),
+                        child: NonReturnableFields(
+                          storeAllowed: true,
+                          alreadyOn: p.nonReturnable,
+                          value: nonReturnable,
+                          onChanged: (v) => setS(() => nonReturnable = v),
+                          noteCtrl: returnNoteCtrl,
+                        ),
+                      );
+                    },
+                  ),
                   const SizedBox(height: 20),
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: () {
+                      onPressed: () async {
                         if (nameCtrl.text.trim().isEmpty) {
                           ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
                             content: Text(tr('Введите название товара', 'Тауар атауын енгізіңіз')),
@@ -590,6 +722,11 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                           ));
                           return;
                         }
+                        if (!await confirmUnfilledPlaceholders(
+                            ctx, descCtrl.text)) {
+                          return;
+                        }
+                        if (!ctx.mounted) return;
                         Navigator.pop(ctx, true);
                       },
                       style: ElevatedButton.styleFrom(
@@ -612,6 +749,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       ),
     );
 
+    final nrAllowed = await storeAllowsNR;
+    final newNonReturnable = nonReturnable;
+    final newReturnNote = returnNoteCtrl.text.trim();
     if (saved != true) return;
     final newName = nameCtrl.text.trim();
     final newBrand = brandCtrl.text.trim();
@@ -655,8 +795,36 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         quickCode: newQuick,
         keywords: newKeywords,
       );
+      // Қайтарылмайтын белгі — тек дүкенге рұқсат болғанда және өзгергенде.
+      var savedNR = p.nonReturnable;
+      var savedNote = p.returnNote;
+      String? returnMarkError;
+      if (nrAllowed &&
+          (newNonReturnable != p.nonReturnable ||
+              (newNonReturnable && newReturnNote != p.returnNote))) {
+        // Негізгі өрістер АЛДЫНАН сақталған: белгі сәтсіз болса бәрін
+        // «сақталмады» деп көрсетпейміз, тек белгі туралы жеке айтамыз.
+        try {
+          await _assist.setReturnability(p.id,
+              nonReturnable: newNonReturnable,
+              returnNote: newNonReturnable ? newReturnNote : '');
+          savedNR = newNonReturnable;
+          savedNote = newNonReturnable ? newReturnNote : '';
+        } catch (e) {
+          final msg = e.toString();
+          returnMarkError = msg.contains('feature_disabled')
+              ? tr('Функция временно отключена', 'Функция уақытша өшірулі')
+              : msg.contains('non_returnable_not_allowed')
+                  ? tr('Для вашего магазина отметка «Возврату не подлежит» недоступна',
+                      'Сіздің дүкен үшін «Қайтарылмайды» белгісі қолжетімсіз')
+                  : tr('Отметка о возврате не сохранена. Повторите позже.',
+                      'Қайтару белгісі сақталмады. Кейінірек қайталаңыз.');
+        }
+      }
       if (!mounted) return;
       setState(() => _product = _product.copyWith(
+            nonReturnable: savedNR,
+            returnNote: savedNote,
             name: newName,
             brand: newBrand,
             type: type,
@@ -671,8 +839,11 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             keywords: newKeywords,
           ));
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(tr('Товар обновлён', 'Тауар жаңартылды')),
-        backgroundColor: cGreen,
+        content: Text(returnMarkError == null
+            ? tr('Товар обновлён', 'Тауар жаңартылды')
+            : tr('Товар обновлён, но: $returnMarkError',
+                'Тауар жаңартылды, бірақ: $returnMarkError')),
+        backgroundColor: returnMarkError == null ? cGreen : cAmberInk,
         behavior: SnackBarBehavior.floating,
       ));
     } catch (e) {

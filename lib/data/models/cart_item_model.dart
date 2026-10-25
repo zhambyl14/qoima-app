@@ -38,6 +38,12 @@ class CartItemModel {
   /// Клиент негізгі өлшемді алды — МЫНАУ қайтарылатын қосалқы өлшем.
   final String returnedSize;
 
+  /// «Той тілек тізімі» (0069): қонақ тізімнен брондаған позиция.
+  /// [registryClaimId] бос емес болса — бұл жол сыйлық: orders триггері
+  /// төлем расталғанда бронды «сатып алынды» қылады. '' = кәдімгі жол.
+  final String registryItemId;
+  final String registryClaimId;
+
   const CartItemModel({
     required this.productId,
     required this.productName,
@@ -60,6 +66,8 @@ class CartItemModel {
     this.altSize = '',
     this.swappedFrom = '',
     this.returnedSize = '',
+    this.registryItemId = '',
+    this.registryClaimId = '',
   });
 
   factory CartItemModel.fromJson(Map<String, dynamic> json) => CartItemModel(
@@ -84,6 +92,8 @@ class CartItemModel {
         altSize: json['altSize'] as String? ?? '',
         swappedFrom: json['swappedFrom'] as String? ?? '',
         returnedSize: json['returnedSize'] as String? ?? '',
+        registryItemId: json['registryItemId'] as String? ?? '',
+        registryClaimId: json['registryClaimId'] as String? ?? '',
       );
 
   Map<String, dynamic> toJson() => {
@@ -108,6 +118,8 @@ class CartItemModel {
         if (altSize.isNotEmpty) 'altSize': altSize,
         if (swappedFrom.isNotEmpty) 'swappedFrom': swappedFrom,
         if (returnedSize.isNotEmpty) 'returnedSize': returnedSize,
+        if (registryItemId.isNotEmpty) 'registryItemId': registryItemId,
+        if (registryClaimId.isNotEmpty) 'registryClaimId': registryClaimId,
       };
 
   CartItemModel copyWith({
@@ -125,6 +137,8 @@ class CartItemModel {
     String? warehouseAddress,
     bool? selected,
     String? altSize,
+    String? registryItemId,
+    String? registryClaimId,
   }) =>
       CartItemModel(
         productId: productId ?? this.productId,
@@ -148,9 +162,14 @@ class CartItemModel {
         altSize: altSize ?? this.altSize,
         swappedFrom: swappedFrom,
         returnedSize: returnedSize,
+        registryItemId: registryItemId ?? this.registryItemId,
+        registryClaimId: registryClaimId ?? this.registryClaimId,
       );
 
   bool get hasAltSize => altSize.isNotEmpty;
+
+  /// Тілек тізімінен брондалған сыйлық жолы ма.
+  bool get isRegistryGift => registryClaimId.isNotEmpty;
 
   /// «Nike · қара · кроссовка» — сатушы қоймадан ДӘЛ осыны алуы үшін.
   /// Бос өрістер түсіп қалады, бәрі бос болса — бос жол.

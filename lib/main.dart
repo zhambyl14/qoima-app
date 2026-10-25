@@ -31,6 +31,7 @@ import 'core/lang.dart';
 import 'core/warehouse_context.dart';
 import 'core/locale_context.dart';
 import 'core/push_navigation.dart';
+import 'core/deep_links.dart';
 import 'l10n/app_localizations.dart';
 
 /// ҚОСЫМШАНЫҢ ІСКЕ ҚОСЫЛУЫ — ЕҢ МАҢЫЗДЫ ЕРЕЖЕ:
@@ -85,6 +86,7 @@ class _QoimaBootState extends State<QoimaBoot> {
   /// Supabase бір-ақ рет көтеріледі («Қайталау» басылғанда қайта шақырмаймыз).
   static bool _supabaseReady = false;
   static bool _notificationsStarted = false;
+  static bool _deepLinksStarted = false;
 
   @override
   void initState() {
@@ -157,6 +159,14 @@ class _QoimaBootState extends State<QoimaBoot> {
       _notificationsStarted = true;
       WidgetsBinding.instance
           .addPostFrameCallback((_) => unawaited(_initNotifications()));
+    }
+
+    // ── Терең сілтемелер (сыйлық / тілек тізімі / эфир) ────────────────────
+    // Navigator дайын болғанша DeepLinks өзі күтеді; қате қосымшаны бөгемейді.
+    if (!_deepLinksStarted) {
+      _deepLinksStarted = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) => unawaited(
+          _bestEffort('deep links', () => DeepLinks.instance.init())));
     }
   }
 

@@ -37,6 +37,14 @@ class StoreModel {
   /// «Досыңды шақыр» бағдарламасы (0044): досы да, шақырушы да алатын
   /// жеңілдік пайызы. 0 = бағдарлама өшірулі.
   final int referralPercent;
+  // ── Қайтару саясаты (0073) ──────────────────────────────────────────────────
+  // Superadmin рұқсаты: дүкен өз тауарларына «қайтарылмайды» белгісін қоя ала
+  // ма. ТЕК superadmin өзгертеді (set_store_non_returnable_permission RPC;
+  // DB guard триггері иесінің тікелей жазуын бөгейді). toMap-қа ӘДЕЙІ ЖОҚ.
+  final bool allowNonReturnable;
+  // Дүкеннің жалпы қайтару ережесі (≤500) — иесі модерациясыз жазады
+  // (set_store_return_note RPC). toMap-қа ӘДЕЙІ ЖОҚ — тек RPC арқылы.
+  final String returnPolicyNote;
 
   bool get isBlocked => status == 'blocked';
   bool get referralEnabled => referralPercent > 0;
@@ -79,6 +87,8 @@ class StoreModel {
     this.ratingAvg = 0,
     this.ratingCount = 0,
     this.referralPercent = 0,
+    this.allowNonReturnable = false,
+    this.returnPolicyNote = '',
   });
 
   static String generateSlug(String name) => name
@@ -126,6 +136,8 @@ class StoreModel {
       ratingAvg: (m['rating_avg'] as num?)?.toDouble() ?? 0,
       ratingCount: (m['rating_count'] as num?)?.toInt() ?? 0,
       referralPercent: (m['referral_percent'] as num?)?.toInt() ?? 0,
+      allowNonReturnable: m['allow_non_returnable'] as bool? ?? false,
+      returnPolicyNote: m['return_policy_note'] as String? ?? '',
     );
   }
 
@@ -187,6 +199,8 @@ class StoreModel {
     double? ratingAvg,
     int? ratingCount,
     int? referralPercent,
+    bool? allowNonReturnable,
+    String? returnPolicyNote,
   }) =>
       StoreModel(
         adminUid: adminUid ?? this.adminUid,
@@ -219,5 +233,7 @@ class StoreModel {
         ratingAvg: ratingAvg ?? this.ratingAvg,
         ratingCount: ratingCount ?? this.ratingCount,
         referralPercent: referralPercent ?? this.referralPercent,
+        allowNonReturnable: allowNonReturnable ?? this.allowNonReturnable,
+        returnPolicyNote: returnPolicyNote ?? this.returnPolicyNote,
       );
 }

@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/app_user.dart';
+import '../../core/feature_flags.dart';
 import '../../core/kz_cities.dart';
 import '../../data/models/cart_item_model.dart';
 import '../../data/models/delivery_tariff.dart';
@@ -51,6 +52,17 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
   bool _applyingPromo = false;
 
   Set<String> _unavailableKeys = {};
+
+  // ── Қайтарылмайтын тауарлар (0073) ────────────────────────────────────────────
+  // Витринадан алынған өнім белгілері бойынша (productId жиыны). Нақты шарт
+  // сервер жағында (orders триггері снапшот жасайды) — бұл тек ескерту/келісім.
+  Set<String> _nonReturnableIds = {};
+  // Клиент «қайтарылмайтын тауармен келісемін» деп белгілеген бе.
+  bool _nrConsent = false;
+
+  bool _lineNonReturnable(CartItemModel i) =>
+      FeatureFlags.instance.isOn(FeatureFlags.nonReturnable) &&
+      _nonReturnableIds.contains(i.productId);
 
   // Себеттегі дүкендердің қалалары (adminUid → city) — доставка мәтіні үшін:
   // өз қала = тегін/келісім, басқа қала = Казпочта.
@@ -243,7 +255,13 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
     }
 
     if (cart.items.isEmpty) {
-      if (mounted) setState(() => _unavailableKeys = {});
+      if (mounted) {
+        setState(() {
+          _unavailableKeys = {};
+          _nonReturnableIds = {};
+          _nrConsent = false;
+        });
+      }
       return;
     }
     try {
@@ -256,10 +274,13 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
       // корзинада тұрса да «недоступен» болады.
       final admins = cart.items.map((i) => i.adminUid).toSet();
       final storefrontIds = <String>{};
+      final nonReturnableIds = <String>{};
       for (final adminUid in admins) {
         try {
           final prods = await _service.getStoreProducts(adminUid);
           storefrontIds.addAll(prods.map((p) => p.id));
+          nonReturnableIds
+              .addAll(prods.where((p) => p.nonReturnable).map((p) => p.id));
         } catch (_) {}
       }
 
@@ -284,7 +305,12 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
           }
         } catch (_) {}
       }
-      if (mounted) setState(() => _unavailableKeys = unavailable);
+      if (mounted) {
+        setState(() {
+          _unavailableKeys = unavailable;
+          _nonReturnableIds = nonReturnableIds;
+        });
+      }
     } catch (_) {}
   }
 
@@ -548,6 +574,18 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
     if (checkoutItems.isEmpty) return;
     if (_orderType == null) return; // алу тәсілі таңдалмаған
 
+    // 0073: қайтарылмайтын тауар бар болса — ашық келісім міндетті.
+    if (!_nrConsent && checkoutItems.any(_lineNonReturnable)) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(tr(
+            'Подтвердите согласие: часть товаров возврату не подлежит',
+            'Келісімді растаңыз: кейбір тауар қайтарылмайды')),
+        backgroundColor: cAmber,
+        behavior: SnackBarBehavior.floating,
+      ));
+      return;
+    }
+
     if (_orderType == OrderModel.typeDelivery && _deliveryCity.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(tr('Выберите город доставки', 'Жеткізу қаласын таңдаңыз')),
@@ -674,6 +712,7 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
       // Тек тапсырысқа кеткен товарлар өшеді — таңдалмаған қалғаны себетте
       // қалады (Wildberries/Kaspi стилі).
       cart.removeItems(stillGood);
+      _nrConsent = false; // келесі тапсырыс үшін келісім қайта сұралады
       _appliedPromo = null;
       _appliedAdminUid = '';
       _promoCtrl.clear();
@@ -811,6 +850,7 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                         item: item,
                         isUnavailable:
                             _unavailableKeys.contains(_itemKey(item)),
+                        nonReturnable: _lineNonReturnable(item),
                         showFitting: item.selected &&
                             _canAddFitting(checkoutItems, item),
                         fittingFee: _tariff.fittingFee,
@@ -1286,11 +1326,16 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                   // тұрамыз: әйтпесе тапсырыс ҚАТЕ `deliveryMode`-пен жазылып
                   // кетеді (курьер бар қалада «дүкен өзі жеткізеді» болып),
                   // ал ол ақшаның кімге баратынын өзгертеді.
-                  Builder(builder: (_) {
+                  ListenableBuilder(
+                      listenable: FeatureFlags.instance,
+                      builder: (_, __) {
                     final waitingDelivery =
                         _orderType == OrderModel.typeDelivery &&
                             !_deliveryInfoReady;
-                    return QPrimaryButton(
+                    // 0073: таңдалған тауарлардың арасында қайтарылмайтыны бар ма.
+                    final needsConsent =
+                        checkoutItems.any(_lineNonReturnable);
+                    final button = QPrimaryButton(
                       label: _orderType == null
                           ? tr('Выберите способ получения',
                               'Алу тәсілін таңдаңыз')
@@ -1305,11 +1350,41 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                       onPressed: (_isLoading ||
                               waitingDelivery ||
                               _orderType == null ||
-                              checkoutItems.isEmpty)
+                              checkoutItems.isEmpty ||
+                              (needsConsent && !_nrConsent))
                           ? null
                           : _onCheckoutPressed,
                       height: 54,
                     );
+                    if (!needsConsent) return button;
+                    return Column(children: [
+                      GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () => setState(() => _nrConsent = !_nrConsent),
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          margin: const EdgeInsets.only(bottom: 10),
+                          decoration: BoxDecoration(
+                            color: cAmberTint,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                                color: cAmber.withValues(alpha: 0.45)),
+                          ),
+                          child: Row(children: [
+                            _CartCheckbox(value: _nrConsent),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                  tr('Я согласен с товарами, не подлежащими возврату',
+                                      'Қайтарылмайтын тауарлармен келісемін'),
+                                  style: manrope(12.5, FontWeight.w700,
+                                      color: cInk)),
+                            ),
+                          ]),
+                        ),
+                      ),
+                      button,
+                    ]);
                   }),
                 ]),
               ),
@@ -1395,6 +1470,8 @@ class _SubOrderPlan {
 class _CartItemCard extends StatelessWidget {
   final CartItemModel item;
   final bool isUnavailable;
+  /// Қайтарылмайтын тауар (0073) — сары белгі көрсетіледі.
+  final bool nonReturnable;
   /// «Өлшеп көру» чипі көрінсін бе (жеткізу + қала ішінде + лимит бітпеген).
   final bool showFitting;
   final double fittingFee;
@@ -1406,6 +1483,7 @@ class _CartItemCard extends StatelessWidget {
   const _CartItemCard({
     required this.item,
     required this.isUnavailable,
+    this.nonReturnable = false,
     required this.showFitting,
     required this.fittingFee,
     required this.onPickAlt,
@@ -1467,6 +1545,26 @@ class _CartItemCard extends StatelessWidget {
               const SizedBox(height: 2),
               Text(tr('Размер ${item.size}', 'Өлшем ${item.size}'),
                   style: manrope(12, FontWeight.w500, color: cInk3)),
+              if (nonReturnable) ...[
+                const SizedBox(height: 4),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: cAmberTint,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    const Icon(Icons.block_rounded, size: 12, color: cAmberInk),
+                    const SizedBox(width: 4),
+                    Flexible(
+                      child: Text(tr('Возврату не подлежит', 'Қайтарылмайды'),
+                          style: manrope(11, FontWeight.w700,
+                              color: cAmberInk)),
+                    ),
+                  ]),
+                ),
+              ],
               const SizedBox(height: 6),
               if (isUnavailable)
                 QPill(tr('Недоступен для заказа', 'Тапсырысқа қолжетімсіз'), tone: 'red',

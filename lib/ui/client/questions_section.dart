@@ -6,6 +6,7 @@ import '../../core/lang.dart';
 import '../../data/models/product_model.dart';
 import '../../data/models/product_question_model.dart';
 import '../../data/models/store_model.dart';
+import '../../data/repositories/admin_questions_repository.dart';
 import '../../data/services/client_service.dart';
 import '../../theme/qoima_design.dart';
 import '../auth/login_screen.dart';
@@ -30,6 +31,8 @@ class _QuestionsSectionState extends State<QuestionsSection> {
   List<ProductQuestionModel> _questions = [];
   bool _loading = true;
   bool _expanded = false;
+  // 0073: false (әдепкі) = сұрақ тек клиент пен дүкен арасында (жеке режим).
+  bool _qaPublic = false;
 
   static const int _collapsedCount = 2;
 
@@ -41,8 +44,17 @@ class _QuestionsSectionState extends State<QuestionsSection> {
 
   Future<void> _load() async {
     try {
-      final list = await _service.getProductQuestions(widget.product.id);
-      if (mounted) setState(() { _questions = list; _loading = false; });
+      final results = await Future.wait([
+        _service.getProductQuestions(widget.product.id),
+        fetchQaIsPublic(),
+      ]);
+      if (mounted) {
+        setState(() {
+          _questions = results[0] as List<ProductQuestionModel>;
+          _qaPublic = results[1] as bool;
+          _loading = false;
+        });
+      }
     } catch (_) {
       if (mounted) setState(() => _loading = false);
     }
@@ -141,14 +153,36 @@ class _QuestionsSectionState extends State<QuestionsSection> {
   @override
   Widget build(BuildContext context) {
     final myUid = context.watch<AppUser>().uid;
+    // Жеке режимде тек өз сұрақтарым (RLS те солай; бұл — қосымша қорғаныс).
+    final visible = _qaPublic
+        ? _questions
+        : _questions.where((q) => myUid.isNotEmpty && q.clientUid == myUid).toList();
     final shown =
-        _expanded ? _questions : _questions.take(_collapsedCount).toList();
+        _expanded ? visible : visible.take(_collapsedCount).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 20),
         QSecLabel(tr('Вопросы и ответы', 'Сұрақ-жауап')),
+        if (!_loading && !_qaPublic) ...[
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Padding(
+                padding: EdgeInsets.only(top: 1),
+                child: Icon(Icons.lock_outline_rounded, size: 15, color: cInk3),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                    tr('Ваш вопрос увидит только магазин',
+                        'Сұрағыңызды тек дүкен көреді'),
+                    style: manrope(12.5, FontWeight.w600, color: cInk3)),
+              ),
+            ]),
+          ),
+        ],
         if (_loading)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 24),
@@ -157,7 +191,7 @@ class _QuestionsSectionState extends State<QuestionsSection> {
                     color: cGreen, strokeWidth: 2)),
           )
         else ...[
-          if (_questions.isEmpty)
+          if (visible.isEmpty)
             QCard(
               padding: const EdgeInsets.all(16),
               child: Row(children: [
@@ -166,8 +200,11 @@ class _QuestionsSectionState extends State<QuestionsSection> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                      tr('Вопросов пока нет — задайте первым',
-                          'Сұрақ әзірге жоқ — бірінші болып сұраңыз'),
+                      _qaPublic
+                          ? tr('Вопросов пока нет — задайте первым',
+                              'Сұрақ әзірге жоқ — бірінші болып сұраңыз')
+                          : tr('Вы ещё не задавали вопросов по этому товару',
+                              'Бұл тауар бойынша сұрағыңыз әлі жоқ'),
                       style: manrope(13, FontWeight.w600, color: cInk3)),
                 ),
               ]),
@@ -196,7 +233,7 @@ class _QuestionsSectionState extends State<QuestionsSection> {
                 ],
               ]),
             ),
-          if (_questions.length > _collapsedCount)
+          if (visible.length > _collapsedCount)
             GestureDetector(
               onTap: () => setState(() => _expanded = !_expanded),
               child: Padding(
@@ -205,8 +242,8 @@ class _QuestionsSectionState extends State<QuestionsSection> {
                   Text(
                     _expanded
                         ? tr('Свернуть', 'Жасыру')
-                        : tr('Показать все (${_questions.length})',
-                            'Барлығын көрсету (${_questions.length})'),
+                        : tr('Показать все (${visible.length})',
+                            'Барлығын көрсету (${visible.length})'),
                     style: manrope(13.5, FontWeight.w700, color: cGreenDeep),
                   ),
                   Icon(

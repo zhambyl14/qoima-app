@@ -13,6 +13,8 @@ import 'favorites_screen.dart';
 import 'promo_screen.dart';
 import 'addresses_screen.dart';
 import 'hidden_stores_screen.dart';
+import 'gift/my_gifts_screen.dart';
+import 'registry/my_registries_screen.dart';
 import '../auth/account_security_screen.dart';
 import '../auth/legal_documents_screen.dart';
 
@@ -110,6 +112,30 @@ class ClientProfileScreen extends StatelessWidget {
                 sub: tr('Список желаний', 'Қалаулар тізімі'),
                 onTap: () => Navigator.push(context,
                     MaterialPageRoute(builder: (_) => const FavoritesScreen())),
+              ),
+              const SizedBox(height: 10),
+              // Тілек тізімдері (той/туған күн) — сілтемемен бөлісіледі.
+              _MenuItem(
+                icon: Icons.checklist_rounded,
+                tone: 'amber',
+                title: tr('Мои списки желаний', 'Тілек тізімдерім'),
+                sub: tr('Свадьба, день рождения, той',
+                    'Той, туған күн, мереке'),
+                onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const MyRegistriesScreen())),
+              ),
+              const SizedBox(height: 10),
+              // Сыйлықтар: жіберілген және маған келген (0070).
+              _MenuItem(
+                icon: Icons.card_giftcard_rounded,
+                tone: 'green',
+                title: tr('Подарки', 'Сыйлықтар'),
+                sub: tr('Отправленные и полученные',
+                    'Жіберілген және маған келген'),
+                onTap: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const MyGiftsScreen())),
               ),
               const SizedBox(height: 10),
               _MenuItem(

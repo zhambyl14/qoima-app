@@ -2,6 +2,19 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/app_user.dart';
 import '../models/product_question_model.dart';
 
+/// Сұрақ-жауап ашық па (0073): app_settings 'qa_public' = 'true' болса —
+/// сұрақтарды бәрі көреді; әйтпесе (әдепкі) тек клиент пен дүкен.
+/// qa_is_public() — публичті RPC (guest те шақырады). Қате болса — жеке режим
+/// деп есептейміз (құпиялылықтың қауіпсіз жағы).
+Future<bool> fetchQaIsPublic() async {
+  try {
+    final r = await Supabase.instance.client.rpc('qa_is_public');
+    return r == true;
+  } catch (_) {
+    return false;
+  }
+}
+
 /// Дүкен иесі (admin/seller) — өз тауарларының сұрақтарын көру + жауап беру.
 class AdminQuestionsRepository {
   final SupabaseClient _sb = Supabase.instance.client;

@@ -23,11 +23,16 @@ class _AdminQuestionsScreenState extends State<AdminQuestionsScreen> {
       _repo.watchStoreQuestions();
   Map<String, ({String name, String image})> _products = {};
   int _tab = 0; // 0 Все · 1 Без ответа · 2 С ответом
+  // 0073: сұрақ-жауап режимі (superadmin 'qa_public' баптауы).
+  bool _qaPublic = false;
 
   @override
   void initState() {
     super.initState();
     _loadProducts();
+    fetchQaIsPublic().then((v) {
+      if (mounted) setState(() => _qaPublic = v);
+    });
   }
 
   Future<void> _loadProducts() async {
@@ -157,6 +162,30 @@ class _AdminQuestionsScreenState extends State<AdminQuestionsScreen> {
                   ),
                 ),
               ],
+            ),
+            // 0073: режим туралы ескерту — сұрақты кімдер көретіні.
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 12, 18, 0),
+              child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                        _qaPublic
+                            ? Icons.public_rounded
+                            : Icons.lock_outline_rounded,
+                        size: 15,
+                        color: cInk3),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                          _qaPublic
+                              ? tr('Вопросы и ответы видны всем покупателям.',
+                                  'Сұрақ-жауаптарды барлық сатып алушы көреді.')
+                              : tr('Режим: личные вопросы. Ваш ответ видит только тот, кто спросил.',
+                                  'Режим: жеке сұрақ. Жауабыңызды тек сұраған адам көреді.'),
+                          style: manrope(12, FontWeight.w600, color: cInk3)),
+                    ),
+                  ]),
             ),
             Expanded(
               child: snap.connectionState == ConnectionState.waiting

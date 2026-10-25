@@ -23,6 +23,8 @@ import '../../core/error_text.dart';
 import '../shared/error_view.dart';
 import '../shared/order_money_card.dart';
 import 'order_timeline.dart';
+import 'gift/gift_share_screen.dart';
+import 'gift/gift_widgets.dart';
 
 class ClientOrdersScreen extends StatefulWidget {
   final VoidCallback? onBack;
@@ -377,6 +379,11 @@ class _OrderCardState extends State<_OrderCard> {
   /// Жиналған күйде көрсетілетін БІР жол — «заказым қазір қай кезеңде».
   /// Клиентке әдетте тек осы керек.
   String _shortStatusHint(OrderModel order) {
+    // Сыйлық: алушы өлшем таңдағанша курьер те, беру де жоқ.
+    if (order.isGiftAwaitingRecipient &&
+        order.status == OrderModel.statusConfirmed) {
+      return tr('Ждём получателя', 'Алушыны күтудеміз');
+    }
     if (order.status == OrderModel.statusCompleted) {
       return tr('Доставлен', 'Жеткізілді');
     }
@@ -429,6 +436,11 @@ class _OrderCardState extends State<_OrderCard> {
       return cancelledByLabel(o, viewerUid: AppUser.current.uid);
     }
     if (_awaitingReview) return tr('Чек на проверке', 'Чек тексеруде');
+    if (o.isGiftAwaitingRecipient && o.status == OrderModel.statusConfirmed) {
+      return o.isGiftExpired
+          ? tr('Срок подарка истёк', 'Сыйлық мерзімі өтті')
+          : tr('Ждём получателя', 'Алушыны күтеміз');
+    }
     return orderStatusLabel(o.status);
   }
 
@@ -477,6 +489,7 @@ class _OrderCardState extends State<_OrderCard> {
       o.status == OrderModel.statusRejected;
 
   bool get _showQrBtn =>
+      !o.isGift &&
       (o.isSmartReservation && o.status == OrderModel.statusReserved) ||
       (o.isClickCollect && o.status == OrderModel.statusConfirmed);
 
@@ -652,7 +665,10 @@ class _OrderCardState extends State<_OrderCard> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis),
                     const SizedBox(height: 4),
-                    QPill(_typeLabel, tone: _typeTone),
+                    Wrap(spacing: 6, runSpacing: 4, children: [
+                      QPill(_typeLabel, tone: _typeTone),
+                      if (o.isGift) GiftBadge(order: o),
+                    ]),
                   ]),
             ),
             const SizedBox(width: 12),
@@ -675,7 +691,10 @@ class _OrderCardState extends State<_OrderCard> {
                   child: Row(children: [
                     Expanded(
                         child: Text(
-                      '${item.productName}  (${item.size})',
+                      // Сыйлықта өлшемді алушы кейін таңдайды — бос жақшаны көрсетпейміз.
+                      item.size.isEmpty
+                          ? '${item.productName}  (${tr('размер выберет получатель', 'өлшемді алушы таңдайды')})'
+                          : '${item.productName}  (${item.size})',
                       style: manrope(12.5, FontWeight.w500, color: cInk2),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -881,6 +900,54 @@ class _OrderCardState extends State<_OrderCard> {
                       'Сатушыға осы QR кодты көрсетіңіз'),
                   style: manrope(12, FontWeight.w500, color: cInk2)),
             ),
+          ],
+
+          // ── Сыйлық: алушыны күту + сілтемені қайта жіберу ───────────────────
+          if (o.isGiftAwaitingRecipient &&
+              o.status == OrderModel.statusConfirmed) ...[
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: o.isGiftExpired ? cRedTint : cAmberTint,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Text(
+                o.isGiftExpired
+                    ? tr('Получатель не открыл подарок за 30 дней. Свяжитесь с магазином — он вернёт оплату.',
+                        'Алушы сыйлықты 30 күн ішінде ашпады. Дүкенмен хабарласыңыз — ақшаңызды қайтарады.')
+                    : tr('Оплата подтверждена. Отправьте ссылку получателю — он выберет размер${o.giftExpiresAt != null ? ' (до ${o.giftExpiresAt!.day.toString().padLeft(2, '0')}.${o.giftExpiresAt!.month.toString().padLeft(2, '0')})' : ''}.',
+                        'Төлем расталды. Сілтемені алушыға жіберіңіз — ол өлшемін таңдайды${o.giftExpiresAt != null ? ' (${o.giftExpiresAt!.day.toString().padLeft(2, '0')}.${o.giftExpiresAt!.month.toString().padLeft(2, '0')} дейін)' : ''}.'),
+                style: manrope(12.5, FontWeight.w600,
+                    color: o.isGiftExpired ? cRedInk : cAmberInk),
+              ),
+            ),
+            if (!o.isGiftExpired) ...[
+              const SizedBox(height: 8),
+              Row(children: [
+                Expanded(
+                  child: QPrimaryButton(
+                    label: tr('Отправить ссылку', 'Сілтемені жіберу'),
+                    icon: const Icon(Icons.ios_share_rounded,
+                        color: Colors.white, size: 18),
+                    height: 44,
+                    onPressed: () => shareGiftLink(context, o),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: 44,
+                  child: QSoftButton(
+                    label: '',
+                    height: 44,
+                    icon: const Icon(Icons.link_rounded,
+                        color: cGreen, size: 20),
+                    onPressed: () => copyGiftLink(context, o),
+                  ),
+                ),
+              ]),
+            ],
           ],
 
           const SizedBox(height: 10),

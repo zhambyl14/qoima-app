@@ -5,6 +5,7 @@ import '../models/sale_model.dart';
 import '../../core/app_user.dart';
 
 import '../../core/lang.dart';
+import '../../core/error_text.dart';
 /// Қайтару (возврат) сервисі (Supabase).
 class ReturnService {
   final SupabaseClient _sb = Supabase.instance.client;
@@ -83,9 +84,33 @@ class ReturnService {
       return model;
     } catch (e) {
       debugPrint('[ReturnService.createReturnRequest] $e');
+      // 0073: тапсырыс жолы «қайтарылмайды» деп снапшотталса — сервер бөгейді.
+      if (e is PostgrestException &&
+          (e.message.contains('item_non_returnable') ||
+              e.message.contains('order_required') ||
+              e.message.contains('order_mismatch') ||
+              e.message.contains('item_not_in_order'))) {
+        throw ReturnException(policyErrorText(e));
+      }
       rethrow;
     }
   }
+
+  // ── Қайтару саясаты (0073) ────────────────────────────────────────────────────
+
+  /// Superadmin: дүкенге «қайтарылмайтын тауар» белгісін қоюға рұқсат беру/алу.
+  /// Рұқсат алынса — дүкеннің тауарларындағы белгілер сервер жағында тазаланады;
+  /// қайтарылады: тазаланған тауар саны.
+  Future<int> setStoreNonReturnablePermission(
+      String adminUid, bool allowed) async {
+    final res = await _sb.rpc('set_store_non_returnable_permission',
+        params: {'p_admin_uid': adminUid, 'p_allowed': allowed});
+    return (res as num?)?.toInt() ?? 0;
+  }
+
+  /// Иесі: дүкеннің жалпы қайтару ережесі (≤500, модерациясыз).
+  Future<void> setStoreReturnNote(String note) =>
+      _sb.rpc('set_store_return_note', params: {'p_note': note.trim()});
 
   /// Клиенттің барлық дүкендердегі қайтарулары (returns.client_uid тікелей).
   Stream<List<ReturnModel>> watchClientReturns(String clientUid) => _sb
@@ -480,4 +505,33 @@ class ReturnException implements Exception {
 
   @override
   String toString() => 'ReturnException: $message';
+}
+
+/// 0073 саясат қателерін (feature_disabled, item_non_returnable, т.б.)
+/// адамша мәтінге айналдырады. Басқа қателер — friendlyError-ға қалдырылады.
+String policyErrorText(Object? e) {
+  final raw = e is PostgrestException ? e.message : (e?.toString() ?? '');
+  final m = raw.toLowerCase();
+  if (m.contains('feature_disabled')) {
+    return tr('Функция временно отключена', 'Функция уақытша өшірулі');
+  }
+  if (m.contains('item_non_returnable')) {
+    return tr('Этот товар возврату не подлежит — вы согласились с этим при покупке.',
+        'Бұл тауар қайтарылмайды — сатып алу кезінде осымен келіскенсіз.');
+  }
+  if (m.contains('order_required') ||
+      m.contains('order_mismatch') ||
+      m.contains('item_not_in_order')) {
+    return tr('Возврат можно оформить только по вашему заказу и его товарам.',
+        'Қайтаруды тек өз тапсырысыңыз және ондағы тауарлар бойынша ғана рәсімдеуге болады.');
+  }
+  if (m.contains('non_returnable_not_allowed')) {
+    return tr('Модератор ещё не разрешил вашему магазину товары без возврата.',
+        'Модератор дүкеніңізге қайтарылмайтын тауарға рұқсат әлі бермеген.');
+  }
+  if (m.contains('note_too_long')) {
+    return tr('Текст слишком длинный (до 500 символов).',
+        'Мәтін тым ұзын (500 таңбаға дейін).');
+  }
+  return friendlyError(e);
 }
