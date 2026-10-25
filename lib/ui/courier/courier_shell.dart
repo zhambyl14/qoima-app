@@ -12,6 +12,7 @@ import '../../theme/qoima_design.dart';
 import '../support/support_entry.dart';
 import 'courier_order_card.dart';
 import 'courier_return_card.dart';
+import 'courier_profile_screen.dart';
 
 /// Курьердің басты экраны: «Жаңа тапсырыстар» · «Менікі» · «Профиль».
 ///
@@ -102,8 +103,8 @@ class _CourierShellState extends State<CourierShell> {
   /// Белсенді миссиялар: әлі жеткізілмегендер + жеткізілсе де клиент
   /// таңдамаған өлшемі әлі курьерде жүргендер (қоймаға апару керек).
   List<OrderModel> get _activeMine => _mine
-      .where((o) =>
-          o.status == OrderModel.statusConfirmed || o.returnLegPending)
+      .where(
+          (o) => o.status == OrderModel.statusConfirmed || o.returnLegPending)
       .toList();
 
   /// Аяқталмаған возвраттар (клиенттен алу / дүкенге апару).
@@ -135,13 +136,20 @@ class _CourierShellState extends State<CourierShell> {
           action: Row(mainAxisSize: MainAxisSize.min, children: [
             // Қолдау чаты (feature_support_chat өшік болса жасырын).
             const SupportHeaderButton(),
+            // Менің деректерім + өзгертуге сұраныс (суперадмин бекітеді)
+            QHeaderBtn(Icons.badge_outlined,
+                onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const CourierProfileScreen()))),
             QHeaderBtn(Icons.refresh_rounded, onTap: _refresh),
           ]),
         ),
         Expanded(
           child: _loading
               ? const Center(
-                  child: CircularProgressIndicator(color: cGreen, strokeWidth: 2))
+                  child:
+                      CircularProgressIndicator(color: cGreen, strokeWidth: 2))
               : RefreshIndicator(
                   color: cGreen,
                   onRefresh: _refresh,
@@ -223,7 +231,8 @@ class _CourierShellState extends State<CourierShell> {
           ...groups.map((g) => g.length == 1
               ? CourierOrderCard(
                   order: g.first,
-                  onTake: () => _run(() => _service.takeOrder(g.first.id),
+                  onTake: () => _run(
+                      () => _service.takeOrder(g.first.id),
                       tr('Заказ ваш — забирайте со склада',
                           'Тапсырыс сіздікі — қоймадан алыңыз')),
                 )
@@ -240,12 +249,13 @@ class _CourierShellState extends State<CourierShell> {
         ],
         // Возврат та — жұмыс. Бұрын курьерге мүлде көрінбейтін.
         if (_availableReturns.isNotEmpty) ...[
-          QSecLabel(tr('Возвраты — забрать у клиента',
-              'Қайтарымдар — клиенттен алу')),
+          QSecLabel(tr(
+              'Возвраты — забрать у клиента', 'Қайтарымдар — клиенттен алу')),
           const SizedBox(height: 8),
           ..._availableReturns.map((r) => CourierReturnCard(
                 ret: r,
-                onTake: () => _run(() => _service.takeReturn(r.id),
+                onTake: () => _run(
+                    () => _service.takeReturn(r.id),
                     tr('Возврат ваш — заберите у клиента',
                         'Қайтарым сіздікі — клиенттен алыңыз')),
               )),
@@ -265,8 +275,8 @@ class _CourierShellState extends State<CourierShell> {
       );
     }
     final active = _activeMine;
-    final done = _mine.where((o) =>
-        o.status != OrderModel.statusConfirmed && !o.returnLegPending);
+    final done = _mine.where(
+        (o) => o.status != OrderModel.statusConfirmed && !o.returnLegPending);
     final doneReturns = _myReturns.where((r) => r.courierDelivered);
     final legs = _pendingLegs;
 
@@ -300,8 +310,7 @@ class _CourierShellState extends State<CourierShell> {
                       Text(
                           tr('Отвезите их продавцу — иначе товар числится потерянным',
                               'Оларды сатушыға апарыңыз — әйтпесе тауар жоғалған болып саналады'),
-                          style:
-                              manrope(11.5, FontWeight.w600, color: cInk2)),
+                          style: manrope(11.5, FontWeight.w600, color: cInk2)),
                     ]),
               ),
             ]),
@@ -351,7 +360,8 @@ class _CourierShellState extends State<CourierShell> {
                 swappedIndexes: swaps, feeCollected: feeCollected),
             tr('Доставлено ✓', 'Жеткізілді ✓')),
         onReturn: (reason, feeCollected) => _run(
-            () => _service.returnOrder(o.id, reason, feeCollected: feeCollected),
+            () =>
+                _service.returnOrder(o.id, reason, feeCollected: feeCollected),
             tr('Заказ возвращён на склад', 'Тапсырыс қоймаға оралды')),
         onDrop: () => _run(() => _service.dropOrder(o.id),
             tr('Заказ освобождён', 'Тапсырыс босатылды')),
@@ -384,8 +394,7 @@ class _CourierShellState extends State<CourierShell> {
                       Text(user.name,
                           style: manrope(16, FontWeight.w800, color: cInk)),
                       Text(user.phone,
-                          style:
-                              manrope(12.5, FontWeight.w600, color: cInk3)),
+                          style: manrope(12.5, FontWeight.w600, color: cInk3)),
                     ]),
               ),
               QPill(trValue(user.city), tone: 'green'),
@@ -504,14 +513,14 @@ class _CourierShellState extends State<CourierShell> {
                 builder: (ctx) => AlertDialog(
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20)),
-                  title: Text(tr('Выйти из аккаунта?', 'Аккаунттан шығу керек пе?'),
+                  title: Text(
+                      tr('Выйти из аккаунта?', 'Аккаунттан шығу керек пе?'),
                       style: manrope(16, FontWeight.w800, color: cInk)),
                   actions: [
                     TextButton(
                         onPressed: () => Navigator.pop(ctx, false),
                         child: Text(tr('Отмена', 'Болдырмау'),
-                            style:
-                                manrope(14, FontWeight.w600, color: cInk2))),
+                            style: manrope(14, FontWeight.w600, color: cInk2))),
                     ElevatedButton(
                         onPressed: () => Navigator.pop(ctx, true),
                         style: ElevatedButton.styleFrom(
@@ -588,17 +597,18 @@ class _CartGroup extends StatelessWidget {
             const Icon(Icons.alt_route_rounded, color: cBlue, size: 20),
             const SizedBox(width: 9),
             Expanded(
-              child:
-                  Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(
-                    tr('Один клиент · $stores магазина',
-                        'Бір клиент · $stores дүкен'),
-                    style: manrope(13.5, FontWeight.w800, color: cInk)),
-                Text(
-                    tr('Заберите со всех складов и отвезите за одну поездку',
-                        'Барлық қоймадан алып, бір баруда жеткізіңіз'),
-                    style: manrope(11, FontWeight.w600, color: cInk2)),
-              ]),
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                        tr('Один клиент · $stores магазина',
+                            'Бір клиент · $stores дүкен'),
+                        style: manrope(13.5, FontWeight.w800, color: cInk)),
+                    Text(
+                        tr('Заберите со всех складов и отвезите за одну поездку',
+                            'Барлық қоймадан алып, бір баруда жеткізіңіз'),
+                        style: manrope(11, FontWeight.w600, color: cInk2)),
+                  ]),
             ),
             Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
               Text(money(fee),
@@ -660,7 +670,8 @@ class _MoneyLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 3),
-        child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+        child:
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
           Flexible(
             child: Text(label,
                 style: manrope(12, FontWeight.w600, color: cInk2),
@@ -669,8 +680,8 @@ class _MoneyLine extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Text(value,
-              style: manrope(bold ? 14 : 12.5,
-                  bold ? FontWeight.w800 : FontWeight.w700,
+              style: manrope(
+                  bold ? 14 : 12.5, bold ? FontWeight.w800 : FontWeight.w700,
                   color: color ?? cInk)),
         ]),
       );
@@ -701,19 +712,15 @@ class _StatTile extends StatelessWidget {
         ),
         child: Row(children: [
           Expanded(
-            child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(label,
-                      style: manrope(12, FontWeight.w600, color: cInk3)),
-                  const SizedBox(height: 4),
-                  Text(money(fee),
-                      style: manrope(wide ? 22 : 18, FontWeight.w800,
-                          color: cInk)),
-                  Text(
-                      tr('$count доставок', '$count жеткізу'),
-                      style: manrope(11.5, FontWeight.w600, color: cInk3)),
-                ]),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(label, style: manrope(12, FontWeight.w600, color: cInk3)),
+              const SizedBox(height: 4),
+              Text(money(fee),
+                  style: manrope(wide ? 22 : 18, FontWeight.w800, color: cInk)),
+              Text(tr('$count доставок', '$count жеткізу'),
+                  style: manrope(11.5, FontWeight.w600, color: cInk3)),
+            ]),
           ),
           QIconTile(
             icon: Icon(Icons.payments_rounded,

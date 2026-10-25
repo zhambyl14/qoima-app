@@ -142,23 +142,36 @@ class _ReturnPolicyStoresScreenState extends State<ReturnPolicyStoresScreen> {
                   ? const Center(
                       child: CircularProgressIndicator(
                           color: cGreen, strokeWidth: 2))
-                  : list.isEmpty
+                  : snap.hasError && !snap.hasData
                       ? Center(
-                          child: Text(
-                              tr('Магазины не найдены', 'Дүкен табылмады'),
-                              style:
-                                  manrope(14, FontWeight.w600, color: cInk3)))
-                      : ListView.separated(
-                          padding: const EdgeInsets.fromLTRB(18, 14, 18, 28),
-                          itemCount: list.length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(height: 10),
-                          itemBuilder: (_, i) => _StoreRow(
-                            store: list[i],
-                            busy: _busy.contains(list[i].adminUid),
-                            onChanged: (v) => _toggle(list[i], v),
+                          child: Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: Text(
+                                tr('Не удалось загрузить магазины. Проверьте соединение и откройте экран заново.',
+                                    'Дүкендерді жүктеу мүмкін болмады. Байланысты тексеріп, экранды қайта ашыңыз.'),
+                                textAlign: TextAlign.center,
+                                style:
+                                    manrope(14, FontWeight.w600, color: cInk3)),
                           ),
-                        ),
+                        )
+                      : list.isEmpty
+                          ? Center(
+                              child: Text(
+                                  tr('Магазины не найдены', 'Дүкен табылмады'),
+                                  style: manrope(14, FontWeight.w600,
+                                      color: cInk3)))
+                          : ListView.separated(
+                              padding:
+                                  const EdgeInsets.fromLTRB(18, 14, 18, 28),
+                              itemCount: list.length,
+                              separatorBuilder: (_, __) =>
+                                  const SizedBox(height: 10),
+                              itemBuilder: (_, i) => _StoreRow(
+                                store: list[i],
+                                busy: _busy.contains(list[i].adminUid),
+                                onChanged: (v) => _toggle(list[i], v),
+                              ),
+                            ),
             ),
           ]);
         },

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import '../../../core/feature_flags.dart';
 import '../../../core/warehouse_context.dart';
 import '../../../data/models/store_discount_model.dart';
 import '../../../data/models/store_model.dart';
@@ -9,6 +10,7 @@ import '../../../data/repositories/admin_reviews_repository.dart';
 import '../../../data/repositories/my_store_repository.dart';
 import '../../../data/services/firestore_service.dart';
 import '../../../theme/qoima_design.dart';
+import '../../live/live_host_entry.dart';
 import '../promos/promos_screen.dart';
 import 'admin_my_store_discounts_screen.dart';
 import 'admin_questions_screen.dart';
@@ -16,6 +18,7 @@ import 'admin_reviews_screen.dart';
 import 'admin_store_visibility_screen.dart';
 import 'demand_signals_screen.dart';
 import 'referral_settings_screen.dart';
+import 'return_policy_settings_screen.dart';
 import 'store_broadcast_screen.dart';
 import 'ms_widgets.dart';
 import 'storefront_manage_screen.dart';
@@ -216,6 +219,24 @@ class AdminMyStoreHubScreen extends StatelessWidget {
                                       const StoreBroadcastScreen())),
                         ),
                         const SizedBox(height: 10),
+                        // Live-эфир — суперадмин қосқанда ғана көрінеді
+                        ListenableBuilder(
+                          listenable: FeatureFlags.instance,
+                          builder: (ctx, _) => !FeatureFlags.instance
+                                  .isOn(FeatureFlags.liveShopping)
+                              ? const SizedBox.shrink()
+                              : Padding(
+                                  padding: const EdgeInsets.only(bottom: 10),
+                                  child: QMenuItem(
+                                    icon: Icons.sensors_rounded,
+                                    tone: 'red',
+                                    title: tr('Live-эфир', 'Live-эфир'),
+                                    subtitle: tr('Продавайте в прямом эфире',
+                                        'Тікелей эфирде сатыңыз'),
+                                    onTap: () => openLiveHost(ctx),
+                                  ),
+                                ),
+                        ),
                         QMenuItem(
                           icon: Icons.card_giftcard_outlined,
                           tone: 'amber',
@@ -335,6 +356,31 @@ class AdminMyStoreHubScreen extends StatelessWidget {
                               context,
                               MaterialPageRoute(
                                   builder: (_) => const StoreDataScreen())),
+                        ),
+                        // Қайтару ережесі — қайтарылмайтын тауар функциясы
+                        // қосулы болғанда
+                        ListenableBuilder(
+                          listenable: FeatureFlags.instance,
+                          builder: (_, __) => !FeatureFlags.instance
+                                  .isOn(FeatureFlags.nonReturnable)
+                              ? const SizedBox.shrink()
+                              : Padding(
+                                  padding: const EdgeInsets.only(top: 10),
+                                  child: QMenuItem(
+                                    icon: Icons.assignment_return_outlined,
+                                    tone: 'amber',
+                                    title: tr(
+                                        'Правила возврата', 'Қайтару ережесі'),
+                                    subtitle: tr(
+                                        'Товары без возврата и правило магазина',
+                                        'Қайтарылмайтын тауар және дүкен ережесі'),
+                                    onTap: () => Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                            builder: (_) =>
+                                                const ReturnPolicySettingsScreen())),
+                                  ),
+                                ),
                         ),
                         const SizedBox(height: 32),
                       ],

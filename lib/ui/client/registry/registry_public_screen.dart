@@ -125,9 +125,14 @@ class _RegistryPublicScreenState extends State<RegistryPublicScreen> {
         it.productId,
         store.visibleWarehouseIds,
       );
+      // Өлшем бойынша ЕҢ ҮЛКЕН бір партиядағы қалдық (қосынды емес): себет
+      // жолы бір ғана партияға (batchId) байланады, сондықтан саны сол
+      // партиядан аспауы тиіс — әйтпесе checkout-та «қолжетімсіз» болады.
       final avail = <String, int>{};
       for (final b in batches) {
-        b.availableSizes.forEach((s, q) => avail[s] = (avail[s] ?? 0) + q);
+        b.availableSizes.forEach((s, q) {
+          if (q > (avail[s] ?? 0)) avail[s] = q;
+        });
       }
       if (avail.isEmpty) {
         throw _GiftUnavailable(tr('Товара нет в наличии', 'Тауар қоймада жоқ'));
@@ -164,8 +169,11 @@ class _RegistryPublicScreenState extends State<RegistryPublicScreen> {
 
       // 4. Себетке: жол detail экранындағыдай құрылады + registry өрістері.
       final batch = batches.firstWhere(
-        (b) => b.availableForSize(choice.size) > 0,
-        orElse: () => batches.first,
+        (b) => b.availableForSize(choice.size) >= choice.qty,
+        orElse: () => batches.firstWhere(
+          (b) => b.availableForSize(choice.size) > 0,
+          orElse: () => batches.first,
+        ),
       );
       var address = '';
       try {
@@ -426,6 +434,7 @@ class _RegistryPublicScreenState extends State<RegistryPublicScreen> {
                           item: it,
                           mine: mine,
                           canGift: giftingOn && !r.isOwner && r.isActive,
+                          isOwner: r.isOwner,
                           busy: _busyItem == it.id,
                           onGift: () => _gift(it),
                         );
@@ -486,12 +495,14 @@ class _ItemCard extends StatelessWidget {
   final RegistryItem item;
   final RegistryClaim? mine;
   final bool canGift;
+  final bool isOwner;
   final bool busy;
   final VoidCallback onGift;
   const _ItemCard({
     required this.item,
     required this.mine,
     required this.canGift,
+    required this.isOwner,
     required this.busy,
     required this.onGift,
   });
@@ -563,6 +574,9 @@ class _ItemCard extends StatelessWidget {
                     icon: const Icon(Icons.card_giftcard_rounded,
                         size: 13, color: cGreenDeep)),
               )
+            else if (isOwner)
+              // Тізім иесі өз беті: тек оқу — «Мен сыйлаймын» батырмасы жоқ.
+              const SizedBox.shrink()
             else if (!it.inStock && st == RegistryItemState.free)
               Center(
                   child: Text(tr('Нет в наличии', 'Қоймада жоқ'),

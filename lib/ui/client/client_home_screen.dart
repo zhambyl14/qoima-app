@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/app_user.dart';
 import '../../core/browsing_signals.dart';
+import '../../core/feature_flags.dart';
 import '../../data/models/store_model.dart';
 import '../guest/guest_shell.dart';
 import '../../data/models/product_model.dart';
@@ -13,7 +14,9 @@ import '../../data/models/banner_model.dart';
 import '../../data/services/client_service.dart';
 import '../../data/repositories/banner_repository.dart';
 import '../../theme/qoima_design.dart';
+import '../live/live_now_row.dart';
 import '../shared/skeletons.dart';
+import 'ai/ai_assistant_screen.dart';
 import 'client_product_card.dart';
 import 'client_product_detail.dart';
 import 'client_shell.dart';
@@ -765,6 +768,38 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                         ]),
                       ),
                     ),
+                    // AI-көмекші — тар экранда сыю үшін тек белгіше;
+                    // суперадмин өшірсе жасырылады.
+                    ListenableBuilder(
+                      listenable: FeatureFlags.instance,
+                      builder: (context, _) =>
+                          !FeatureFlags.instance.isOn(FeatureFlags.aiAssistant)
+                              ? const SizedBox.shrink()
+                              : Padding(
+                                  padding: const EdgeInsets.only(left: 8),
+                                  child: Tooltip(
+                                    message: tr('AI-помощник', 'AI-көмекші'),
+                                    child: GestureDetector(
+                                      onTap: _openAiAssistant,
+                                      child: Container(
+                                        width: 36,
+                                        height: 36,
+                                        decoration: BoxDecoration(
+                                          color: Colors.white
+                                              .withValues(alpha: 0.16),
+                                          borderRadius:
+                                              BorderRadius.circular(kRPill),
+                                          border: Border.all(
+                                              color: Colors.white
+                                                  .withValues(alpha: 0.22)),
+                                        ),
+                                        child: const Icon(Icons.auto_awesome,
+                                            color: Colors.white, size: 17),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                    ),
                   ]),
                 ),
               ]),
@@ -793,6 +828,8 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                                 slivers: [
                                   const SliverToBoxAdapter(
                                       child: BannerCarousel()),
+                                  // Қазір эфирдегі дүкендер (жоқ болса — бос)
+                                  const SliverToBoxAdapter(child: LiveNowRow()),
                                   SliverToBoxAdapter(
                                     child: Padding(
                                       padding: const EdgeInsets.fromLTRB(
@@ -1008,6 +1045,22 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
       } else {
         // GuestShell табтары: 0=Басты, 1=Каталог, 2=Себет. Бұрын қате 1 (Каталог)
         // қойылып, «купить» басқанда клиент каталогқа өтіп кететін — енді Себет.
+        context.findAncestorStateOfType<GuestShellState>()?.setIndex(2);
+      }
+    }
+  }
+
+  /// AI-көмекші чаты; ол true қайтарса (тауар себетке қосылды) — Себет табы.
+  Future<void> _openAiAssistant() async {
+    final goCart = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => const AiAssistantScreen()),
+    );
+    if (goCart == true && mounted) {
+      final shell = context.findAncestorStateOfType<ClientShellState>();
+      if (shell != null) {
+        shell.setIndex(2);
+      } else {
         context.findAncestorStateOfType<GuestShellState>()?.setIndex(2);
       }
     }

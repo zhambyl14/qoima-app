@@ -44,6 +44,11 @@ class CartItemModel {
   final String registryItemId;
   final String registryClaimId;
 
+  /// Сатып алу сәтінде тауар «қайтарылмайды» болған ба (0073). Шын мәнді
+  /// сервер orders BEFORE INSERT триггерімен жазады; мұнда тек тапсырыс
+  /// items-ін қайта жазғанда (своп т.б.) кілт жоғалмауы үшін сақталады.
+  final bool nonReturnable;
+
   const CartItemModel({
     required this.productId,
     required this.productName,
@@ -68,6 +73,7 @@ class CartItemModel {
     this.returnedSize = '',
     this.registryItemId = '',
     this.registryClaimId = '',
+    this.nonReturnable = false,
   });
 
   factory CartItemModel.fromJson(Map<String, dynamic> json) => CartItemModel(
@@ -94,6 +100,7 @@ class CartItemModel {
         returnedSize: json['returnedSize'] as String? ?? '',
         registryItemId: json['registryItemId'] as String? ?? '',
         registryClaimId: json['registryClaimId'] as String? ?? '',
+        nonReturnable: json['nonReturnable'] == true,
       );
 
   Map<String, dynamic> toJson() => {
@@ -120,6 +127,7 @@ class CartItemModel {
         if (returnedSize.isNotEmpty) 'returnedSize': returnedSize,
         if (registryItemId.isNotEmpty) 'registryItemId': registryItemId,
         if (registryClaimId.isNotEmpty) 'registryClaimId': registryClaimId,
+        if (nonReturnable) 'nonReturnable': true,
       };
 
   CartItemModel copyWith({
@@ -164,6 +172,7 @@ class CartItemModel {
         returnedSize: returnedSize,
         registryItemId: registryItemId ?? this.registryItemId,
         registryClaimId: registryClaimId ?? this.registryClaimId,
+        nonReturnable: nonReturnable,
       );
 
   bool get hasAltSize => altSize.isNotEmpty;

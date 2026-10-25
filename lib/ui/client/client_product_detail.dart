@@ -6,13 +6,19 @@ import '../../data/models/product_model.dart';
 import '../../data/models/store_model.dart';
 import '../../data/models/batch_model.dart';
 import '../../data/models/cart_item_model.dart';
+import '../../core/feature_flags.dart';
 import '../../data/services/client_service.dart';
 import '../../theme/qoima_design.dart';
 import '../shared/favorite_fly_animation.dart';
 import '../shared/photo_gallery_viewer.dart';
+import 'ai/complete_look_section.dart';
+import 'ai/try_on_button.dart';
 import 'client_shell.dart';
+import 'gift/gift_create_sheet.dart';
+import 'registry/add_to_registry_sheet.dart';
 import 'related_products_section.dart';
 import 'report_sheet.dart';
+import 'returnability_badge.dart';
 import 'reviews_section.dart';
 import 'questions_section.dart';
 import 'store_public_screen.dart';
@@ -302,6 +308,7 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
       articul: p.articul,
       warehouseId: _warehouseId,
       warehouseAddress: _pickupAddress,
+      nonReturnable: _currentProduct.nonReturnable,
     );
   }
 
@@ -659,6 +666,18 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
                             ),
                           ],
 
+                          // ── Қайтаруға бола ма (сатып алмас бұрын көрінеді) ─
+                          ReturnabilityBadge(
+                              product: _currentProduct, store: widget.store),
+
+                          // ── AI: онлайн киіп көру (жарамды киімде ғана) ───
+                          if (!widget.previewMode)
+                            TryOnButton(
+                              key: ValueKey('tryon_${_currentProduct.id}'),
+                              product: _currentProduct,
+                              store: widget.store,
+                            ),
+
                           // ── Описание (маркетплейс-стиль, жайылмалы) ─────
                           if (_currentProduct.description.isNotEmpty)
                             _DescriptionSection(
@@ -724,6 +743,14 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
                               store: widget.store,
                             ),
 
+                          // ── AI-стилист: басқа дүкендерден толық образ ────
+                          if (!widget.previewMode)
+                            CompleteLookSection(
+                              key: ValueKey('look_${_currentProduct.id}'),
+                              product: _currentProduct,
+                              store: widget.store,
+                            ),
+
                           // ── Ұқсас тауарлар (сол дүкеннен) ───────────────
                           if (!widget.previewMode)
                             RelatedProductsSection(
@@ -770,6 +797,25 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
                               iconColor: cRed,
                               onTap: _toggleFavorite,
                             ),
+                            // Тілек тізіміне қосу (суперадмин өшірсе жасырылады)
+                            ListenableBuilder(
+                              listenable: FeatureFlags.instance,
+                              builder: (_, __) => FeatureFlags.instance
+                                      .isOn(FeatureFlags.giftRegistry)
+                                  ? Padding(
+                                      padding: const EdgeInsets.only(left: 8),
+                                      child: _RoundBtn(
+                                        icon: Icons.card_giftcard_rounded,
+                                        iconColor: cGreen,
+                                        onTap: () => showAddToRegistrySheet(
+                                            context,
+                                            product: _currentProduct,
+                                            store: widget.store,
+                                            size: _selectedSize),
+                                      ),
+                                    )
+                                  : const SizedBox.shrink(),
+                            ),
                           ]),
                       ]),
                 ),
@@ -807,6 +853,36 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
                       child: const Icon(Icons.shopping_cart_outlined,
                           color: cGreenDeep, size: 22),
                     ),
+                  ),
+                  // Сыйлау — өлшем таңдалмаса да жұмыс істейді (алушы өзі
+                  // таңдайды); суперадмин өшірсе жасырылады.
+                  ListenableBuilder(
+                    listenable: FeatureFlags.instance,
+                    builder: (_, __) =>
+                        FeatureFlags.instance.isOn(FeatureFlags.giftLinks)
+                            ? Padding(
+                                padding: const EdgeInsets.only(left: 9),
+                                child: GestureDetector(
+                                  onTap: () => showGiftSheet(context,
+                                      product: _currentProduct,
+                                      store: widget.store),
+                                  child: Container(
+                                    width: 52,
+                                    height: 52,
+                                    decoration: BoxDecoration(
+                                      color: cAmberTint,
+                                      borderRadius: BorderRadius.circular(kR16),
+                                      border: Border.all(
+                                          color: const Color(0xFFF8E3B8)),
+                                    ),
+                                    child: const Icon(
+                                        Icons.card_giftcard_rounded,
+                                        color: cAmberInk,
+                                        size: 22),
+                                  ),
+                                ),
+                              )
+                            : const SizedBox.shrink(),
                   ),
                   const SizedBox(width: 11),
                   // Buy button

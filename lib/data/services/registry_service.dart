@@ -96,6 +96,13 @@ class RegistryService {
     }).eq('id', id);
   }
 
+  /// Тек «қонақтарға ашық» жалауын ауыстырады (қалған өрістерге тимейді).
+  Future<void> setActive(String id, bool isActive) async {
+    await _sb
+        .from('gift_registries')
+        .update({'is_active': isActive}).eq('id', id);
+  }
+
   Future<void> deleteRegistry(String id) async {
     await _sb.from('gift_registries').delete().eq('id', id);
   }
@@ -118,32 +125,45 @@ class RegistryService {
     int qty = 1,
     String note = '',
   }) async {
-    final existing = await _sb
-        .from('gift_registry_items')
-        .select('id, qty_wanted')
-        .eq('registry_id', registryId)
-        .eq('product_id', productId)
-        .eq('size', size)
-        .maybeSingle();
-    if (existing != null) {
+    // Бар позицияның санын көбейтеді; 20-ға жетіп қойса — сәтті сияқты
+    // көрсетпей, нақты қате береді (registry_qty_max).
+    Future<bool> bump() async {
+      final existing = await _sb
+          .from('gift_registry_items')
+          .select('id, qty_wanted')
+          .eq('registry_id', registryId)
+          .eq('product_id', productId)
+          .eq('size', size)
+          .maybeSingle();
+      if (existing == null) return false;
       final cur = (existing['qty_wanted'] as num?)?.toInt() ?? 1;
+      if (cur >= 20) throw Exception('registry_qty_max');
       await _sb
           .from('gift_registry_items')
           .update({'qty_wanted': (cur + qty).clamp(1, 20)}).eq(
               'id', existing['id'] as String);
-      return;
+      return true;
     }
-    await _sb.from('gift_registry_items').insert({
-      'registry_id': registryId,
-      'product_id': productId,
-      'admin_uid': adminUid,
-      'product_name': productName,
-      'image_url': imageUrl,
-      'size': size,
-      'price': price,
-      'qty_wanted': qty.clamp(1, 20),
-      'note': note.trim().isEmpty ? null : note.trim(),
-    });
+
+    if (await bump()) return;
+    try {
+      await _sb.from('gift_registry_items').insert({
+        'registry_id': registryId,
+        'product_id': productId,
+        'admin_uid': adminUid,
+        'product_name': productName,
+        'image_url': imageUrl,
+        'size': size,
+        'price': price,
+        'qty_wanted': qty.clamp(1, 20),
+        'note': note.trim().isEmpty ? null : note.trim(),
+      });
+    } on PostgrestException catch (e) {
+      // Қос басу / екі құрылғы: unique (registry, product, size) бұзылды —
+      // позиция бір сәт бұрын қосылған, сондықтан санын көбейтеміз.
+      if (e.code == '23505' && await bump()) return;
+      rethrow;
+    }
   }
 
   Future<void> updateItem(String itemId, {int? qtyWanted, String? note}) async {
@@ -238,6 +258,10 @@ String registryErrorText(Object e) {
   if (has('registry_items_limit')) {
     return tr('В списке не может быть больше 100 товаров',
         'Тізімде 100 тауардан көп болмайды');
+  }
+  if (has('registry_qty_max')) {
+    return tr('Этот товар уже добавлен в максимальном количестве (20)',
+        'Бұл тауар максимал санда (20) қосылған');
   }
   if (has('registry_item_unavailable')) {
     return tr('Товара сейчас нет в наличии', 'Тауар қазір қоймада жоқ');

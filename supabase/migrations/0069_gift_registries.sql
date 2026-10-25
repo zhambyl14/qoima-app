@@ -133,7 +133,7 @@ create policy gift_registry_claims_guest_read on public.gift_registry_claims
   using (guest_uid = auth.uid());
 
 
--- ── 3. Күзет триггерлері (security invoker — RLS-тен тыс ештеңе оқымайды) ──
+-- ── 3. Күзет триггерлері (тізім — invoker; позиция күзеті — definer, төменде) ─
 --  Тізім: owner_uid / share_token / created_at өзгермейді, updated_at жаңарады.
 create or replace function public.guard_gift_registry_update()
 returns trigger language plpgsql set search_path = public as $$
@@ -173,10 +173,13 @@ create trigger trg_guard_gift_registry_insert
   before insert on public.gift_registries
   for each row execute function public.guard_gift_registry_insert();
 
---  Позиция: тізімде ≤100 позиция; тауар/тізім/дүкен кейін ауыстырылмайды
---  (брондар сол тауарға байланған); атауы мен суреті тауардың өзінен алынады.
+--  Позиция: тізімде ≤100 позиция; тауар/тізім/дүкен/өлшем кейін ауыстырылмайды
+--  (брондар сол тауар+өлшемге байланған); атауы, суреті және бағасы тауардың
+--  өзінен алынады (иесінің еркін мәтіні/суреті жария бетке шықпайды).
+--  SECURITY DEFINER: бағаны партиялардан RLS-ке тәуелсіз оқу үшін. Тауардың
+--  көрінуі мен admin_uid сәйкестігі INSERT саясатының with check-інде тексеріледі.
 create or replace function public.guard_gift_registry_item()
-returns trigger language plpgsql set search_path = public as $$
+returns trigger language plpgsql security definer set search_path = public as $$
 declare
   v_name text;
   v_img  text;
@@ -185,6 +188,7 @@ begin
     if new.registry_id is distinct from old.registry_id
        or new.product_id is distinct from old.product_id
        or new.admin_uid is distinct from old.admin_uid
+       or new.size is distinct from old.size
        or new.created_at is distinct from old.created_at
        -- Атау/сурет/баға — жария бетке шығады: иесі еркін мәтін/сурет жаза алмасын.
        or new.product_name is distinct from old.product_name
@@ -209,9 +213,14 @@ begin
   select p.name, coalesce(p.images[1], '') into v_name, v_img
   from public.products p where p.id = new.product_id;
   if found then
-    new.product_name := coalesce(v_name, new.product_name);
-    new.image_url := coalesce(nullif(v_img, ''), new.image_url);
+    new.product_name := coalesce(v_name, '');
   end if;
+  -- Сурет пен баға клиенттен ЕШҚАШАН алынбайды (снапшот тек көрсетілім үшін;
+  -- нақты баға get_registry_public-те партиядан тірідей есептеледі).
+  new.image_url := coalesce(v_img, '');
+  new.price := coalesce((select min(b.selling_price)::numeric
+                         from public.batches b
+                         where b.product_id = new.product_id), 0);
   return new;
 end;
 $$;
@@ -316,9 +325,11 @@ begin
            'product_id', i.product_id,
            'admin_uid', i.admin_uid,
            'product_name', i.product_name,
-           'image_url', i.image_url,
+           -- Витринадан жасырылған / дүкені жабық тауардың суреті мен бағасы
+           -- жария бетке шықпайды (тек атауы қалады).
+           'image_url', case when vis.ok then i.image_url else '' end,
            'size', i.size,
-           'price', coalesce(lp.price, i.price),
+           'price', case when vis.ok then coalesce(lp.price, i.price) else 0 end,
            'in_stock', lp.price is not null,
            'qty_wanted', i.qty_wanted,
            'qty_taken', t.taken,
@@ -338,6 +349,15 @@ begin
   left join lateral (
     select public.registry_item_live_price(i.product_id, i.size) as price
   ) lp on true
+  cross join lateral (
+    select exists (
+      select 1 from public.products p
+      join public.stores s on s.admin_uid = p.owner_uid
+      where p.id = i.product_id
+        and not p.storefront_hidden
+        and s.is_published and s.status <> 'blocked'
+    ) as ok
+  ) vis
   where i.registry_id = v_reg.id;
 
   if v_uid is not null then
@@ -542,9 +562,14 @@ grant execute on function public.release_registry_claim(uuid) to authenticated;
 -- ── 9. orders триггері: бронь ↔ тапсырыс ───────────────────────────────────
 --  items[i].registryClaimId (CartItemModel) бойынша:
 --   • INSERT          → claim.order_id = тапсырыс (төлем күтілгенде мерзімі
---                        өтіп кетпейді), reserved_until ≥ now()+48h.
+--                        өтіп кетпейді), reserved_until ≥ now()+48h. Тек бронь
+--                        әлі тірі (немесе орын бос) және жолдың саны/өлшемі
+--                        броньға сәйкес болса; сан азайтылса — бронь соған дейін
+--                        кемиді.
 --   • confirmed/ready/completed (төлем расталды / берілді) → 'purchased'
---                        + тізім иесіне push. Клиенттің ӨЗ әрекеті есепке
+--                        + тізім иесіне push. Тек осы тапсырысқа байланған
+--                        бронь (немесе sweep босатқан, бірақ орын әлі бос бронь)
+--                        'purchased' болады. Клиенттің ӨЗ әрекеті есепке
 --                        алынбайды (ол статусты тікелей жаза алады).
 --   • cancelled/returned → 'released' (позиция қайта бос).
 --   • 'rejected' — чек қабылданбады, бірақ қайта жіберуге болады → ТИМЕЙМІЗ.
@@ -554,9 +579,14 @@ returns trigger language plpgsql security definer set search_path = public as $$
 declare
   e        jsonb;
   v_cid    uuid;
+  v_iid    uuid;
   v_claim  public.gift_registry_claims;
   v_item   public.gift_registry_items;
   v_owner  uuid;
+  v_lqty   integer;
+  v_fits   boolean;
+  v_buy    boolean;
+  v_newqty integer;
 begin
   if new.items is null or jsonb_typeof(new.items) <> 'array' then return new; end if;
   if tg_op = 'UPDATE' and new.status is not distinct from old.status then return new; end if;
@@ -575,20 +605,41 @@ begin
       end if;
       v_cid := (e->>'registryClaimId')::uuid;
 
+      -- Құлып реті reserve_registry_item-мен бірдей: алдымен позиция, сосын
+      -- бронь (қарсы тәртіп deadlock берер еді).
+      select item_id into v_iid from public.gift_registry_claims
+      where id = v_cid and guest_uid = new.client_uid;
+      if not found then continue; end if;
+
+      select * into v_item from public.gift_registry_items
+      where id = v_iid for update;
+      if not found or v_item.product_id::text is distinct from (e->>'productId') then
+        continue;
+      end if;
+
       select * into v_claim from public.gift_registry_claims
       where id = v_cid and guest_uid = new.client_uid
       for update;
       if not found then continue; end if;
 
-      select * into v_item from public.gift_registry_items where id = v_claim.item_id;
-      if not found or v_item.product_id::text is distinct from (e->>'productId') then
-        continue;
-      end if;
+      -- Тапсырыс жолының саны/өлшемі броньға сәйкес пе: сан азайтылған (себетте
+      -- «минус») немесе өлшем басқа болса — толық «сыйлық» болып есептелмейді.
+      v_lqty := case when coalesce(e->>'qty', '') ~ '^[0-9]{1,4}$'
+                     then (e->>'qty')::int else 0 end;
+      v_fits := v_lqty >= 1
+                and (v_item.size = '' or coalesce(e->>'size', '') = v_item.size);
 
       if tg_op = 'INSERT' then
-        if v_claim.status = 'reserved' then
+        -- Байлау: бронь әлі тірі және бос; ескірген себет жолы (мерзімі өтіп,
+        -- sweep-ке дейін 'reserved' боп тұрған бронь) басқа қонақтың орнын
+        -- басып кетпеуі үшін — мерзімі өткен болса сыйымдылық қайта тексеріледі.
+        if v_claim.status = 'reserved' and v_claim.order_id is null and v_fits
+           and (v_claim.reserved_until > now()
+                or public.registry_item_taken_qty(v_claim.item_id, v_claim.id)
+                   + least(v_claim.qty, v_lqty) <= v_item.qty_wanted) then
           update public.gift_registry_claims
              set order_id = new.id,
+                 qty = least(qty, v_lqty),
                  reserved_until = greatest(coalesce(reserved_until, now()),
                                            now() + interval '48 hours'),
                  updated_at = now()
@@ -601,10 +652,28 @@ begin
            and not public.is_superadmin() then
           continue;
         end if;
-        if v_claim.status <> 'purchased'
-           and (v_claim.order_id is null or v_claim.order_id = new.id) then
+        v_buy := false;
+        v_newqty := v_claim.qty;
+        if v_claim.status = 'reserved' and v_claim.order_id = new.id then
+          v_buy := true;               -- осы тапсырысқа байланған бронь
+        elsif v_claim.status = 'released' and v_claim.order_id is null
+              and v_fits
+              and public.registry_item_taken_qty(v_claim.item_id, v_claim.id)
+                  + least(v_claim.qty, v_lqty) <= v_item.qty_wanted then
+          -- Бронь sweep-пен босап кеткен, бірақ төлем кеш расталды: позицияда
+          -- орын әлі бос болса ғана қайта «сатып алынды» қыламыз.
+          v_buy := true;
+          v_newqty := least(v_claim.qty, v_lqty);
+        elsif v_claim.status <> 'purchased' then
+          -- Ақша түскен, бірақ орын бос емес — автоматты өзгертпейміз, қолмен
+          -- қарау керек (support-қа белгі).
+          raise warning 'on_order_registry_claims: paid order % could not take claim % (item full or mismatch)',
+            new.id, v_cid;
+        end if;
+        if v_buy then
           update public.gift_registry_claims
-             set status = 'purchased', order_id = new.id, updated_at = now()
+             set status = 'purchased', order_id = new.id, qty = v_newqty,
+                 updated_at = now()
            where id = v_cid;
           select owner_uid into v_owner from public.gift_registries
           where id = v_claim.registry_id;
@@ -671,7 +740,12 @@ begin
            and (o.status in ('cancelled', 'returned')
                 or (o.status in ('pending', 'rejected')
                     and o.deadline_at is not null
-                    and o.deadline_at < now() - interval '6 hours')))
+                    and o.deadline_at < now() - interval '6 hours')
+                -- Абсолютті жас шегі: клиент deadline_at-ты өзі жаза алады
+                -- (null/алыс болашақ), сондықтан 3 күннен асқан төленбеген
+                -- тапсырыс броньды ұстамайды ('reserved' депозит тапсырысы да).
+                or (o.status in ('pending', 'rejected', 'reserved')
+                    and o.created_at < now() - interval '3 days')))
      );
 end;
 $$;

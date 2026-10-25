@@ -21,6 +21,7 @@ import 'payment_instructions_sheet.dart';
 
 import '../../core/lang.dart';
 import '../../core/error_text.dart';
+
 class ClientCartScreen extends StatefulWidget {
   /// Тапсырыс сәтті жасалғанда (төлемге дайын) шақырылады — ClientShell
   /// Профиль → Тапсырыстарым экранына ауыстырады. null болса (қонақ) — әрекет жоқ.
@@ -57,12 +58,22 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
   // Витринадан алынған өнім белгілері бойынша (productId жиыны). Нақты шарт
   // сервер жағында (orders триггері снапшот жасайды) — бұл тек ескерту/келісім.
   Set<String> _nonReturnableIds = {};
+  // Өнім белгілерін жүктеу сәтсіз болған дүкендер (adminUid). Олардың
+  // тауарларына келісім ӘРҚАШАН сұралады (fail-closed): әйтпесе сервер
+  // триггері снапшот жасағанда клиент келіспеген болып шығар еді.
+  Set<String> _nrUnknownAdmins = {};
   // Клиент «қайтарылмайтын тауармен келісемін» деп белгілеген бе.
   bool _nrConsent = false;
 
   bool _lineNonReturnable(CartItemModel i) =>
       FeatureFlags.instance.isOn(FeatureFlags.nonReturnable) &&
       _nonReturnableIds.contains(i.productId);
+
+  // Келісім чекбоксын көрсету/талап ету керек пе (белгі белгісіз дүкен де).
+  bool _lineNeedsConsent(CartItemModel i) =>
+      FeatureFlags.instance.isOn(FeatureFlags.nonReturnable) &&
+      (_nonReturnableIds.contains(i.productId) ||
+          _nrUnknownAdmins.contains(i.adminUid));
 
   // Себеттегі дүкендердің қалалары (adminUid → city) — доставка мәтіні үшін:
   // өз қала = тегін/келісім, басқа қала = Казпочта.
@@ -167,12 +178,14 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
         setState(() {
           _appliedPromo = null;
           _appliedAdminUid = '';
-          _promoError = firstError ?? tr('Промокод не найден', 'Промокод табылмады');
+          _promoError =
+              firstError ?? tr('Промокод не найден', 'Промокод табылмады');
         });
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _promoError = tr('Не удалось проверить промокод', 'Промокодты тексеру мүмкін болмады'));
+        setState(() => _promoError = tr('Не удалось проверить промокод',
+            'Промокодты тексеру мүмкін болмады'));
       }
     } finally {
       if (mounted) setState(() => _applyingPromo = false);
@@ -259,6 +272,7 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
         setState(() {
           _unavailableKeys = {};
           _nonReturnableIds = {};
+          _nrUnknownAdmins = {};
           _nrConsent = false;
         });
       }
@@ -275,13 +289,16 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
       final admins = cart.items.map((i) => i.adminUid).toSet();
       final storefrontIds = <String>{};
       final nonReturnableIds = <String>{};
+      final nrUnknown = <String>{};
       for (final adminUid in admins) {
         try {
           final prods = await _service.getStoreProducts(adminUid);
           storefrontIds.addAll(prods.map((p) => p.id));
           nonReturnableIds
               .addAll(prods.where((p) => p.nonReturnable).map((p) => p.id));
-        } catch (_) {}
+        } catch (_) {
+          nrUnknown.add(adminUid);
+        }
       }
 
       final unavailable = <String>{};
@@ -309,6 +326,7 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
         setState(() {
           _unavailableKeys = unavailable;
           _nonReturnableIds = nonReturnableIds;
+          _nrUnknownAdmins = nrUnknown;
         });
       }
     } catch (_) {}
@@ -538,9 +556,9 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
       return tr('Курьер по городу — от ${money(_tariff.reducedFee)}',
           'Қала ішінде курьер — ${money(_tariff.reducedFee)}-ден бастап');
     }
-    final total =
-        (items.fold<double>(0, (s, i) => s + i.subtotal) - _promoDiscount(items))
-            .clamp(0.0, double.infinity);
+    final total = (items.fold<double>(0, (s, i) => s + i.subtotal) -
+            _promoDiscount(items))
+        .clamp(0.0, double.infinity);
     final fee = _tariff.totalFee(
         orderTotal: total, storeCount: _byWarehouse(items).length);
     return tr('Курьер привезёт — ${money(fee)} курьеру при получении',
@@ -575,7 +593,7 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
     if (_orderType == null) return; // алу тәсілі таңдалмаған
 
     // 0073: қайтарылмайтын тауар бар болса — ашық келісім міндетті.
-    if (!_nrConsent && checkoutItems.any(_lineNonReturnable)) {
+    if (!_nrConsent && checkoutItems.any(_lineNeedsConsent)) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(tr(
             'Подтвердите согласие: часть товаров возврату не подлежит',
@@ -588,7 +606,8 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
 
     if (_orderType == OrderModel.typeDelivery && _deliveryCity.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(tr('Выберите город доставки', 'Жеткізу қаласын таңдаңыз')),
+        content:
+            Text(tr('Выберите город доставки', 'Жеткізу қаласын таңдаңыз')),
         behavior: SnackBarBehavior.floating,
       ));
       return;
@@ -596,7 +615,8 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
     if (_orderType == OrderModel.typeDelivery &&
         _addressCtrl.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(tr('Введите адрес доставки', 'Жеткізу мекенжайын енгізіңіз')),
+        content:
+            Text(tr('Введите адрес доставки', 'Жеткізу мекенжайын енгізіңіз')),
         behavior: SnackBarBehavior.floating,
       ));
       return;
@@ -636,6 +656,19 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
       // аралықта қолжетімсіз болып қалуы мүмкін (тек ТАҢДАЛҒАНДАРЫ бөгейді,
       // себеттегі басқа/таңдалмаған товар кедергі жасамайды).
       final stillGood = _checkoutItems(cart);
+      // 0073: қайта тексеру белгілерді жаңартты — иесі осы аралықта тауарды
+      // «қайтарылмайды» деп белгілеген болуы мүмкін: келісім қайта тексеріледі.
+      if (!_nrConsent && stillGood.any(_lineNeedsConsent)) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(tr(
+              'Подтвердите согласие: часть товаров возврату не подлежит',
+              'Келісімді растаңыз: кейбір тауар қайтарылмайды')),
+          backgroundColor: cAmber,
+          behavior: SnackBarBehavior.floating,
+        ));
+        setState(() => _isLoading = false);
+        return;
+      }
       final droppedKeys = checkoutItems.map(_itemKey).toSet()
         ..removeAll(stillGood.map(_itemKey).toSet());
       if (droppedKeys.isNotEmpty) {
@@ -644,7 +677,8 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
             .map((i) => '«${i.productName}»')
             .join(', ');
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(tr('$badItems недоступен. Удалите из корзины.', '$badItems қолжетімсіз. Себеттен өшіріңіз.')),
+          content: Text(tr('$badItems недоступен. Удалите из корзины.',
+              '$badItems қолжетімсіз. Себеттен өшіріңіз.')),
           backgroundColor: cRed,
           behavior: SnackBarBehavior.floating,
           duration: const Duration(seconds: 4),
@@ -679,9 +713,8 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
           createdAt: DateTime.now(),
           address: _addressCtrl.text.trim(),
           // Дүкен «қай қалаға жіберемін» дегенді осыдан біледі.
-          clientCity: _orderType == OrderModel.typeDelivery
-              ? _deliveryCity.trim()
-              : '',
+          clientCity:
+              _orderType == OrderModel.typeDelivery ? _deliveryCity.trim() : '',
           note: _noteCtrl.text.trim(),
           // ДҮКЕНГЕ: тауар/депозит + «өлшеп көру».
           depositAmount: plan.storeAmount,
@@ -689,10 +722,10 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
           deliveryFee: plan.courierFee,
           fittingFee: plan.fittingFee,
           // Қалада курьер қызметі жоқ болса — дүкен өзі жеткізеді (0055).
-          deliveryMode: _orderType == OrderModel.typeDelivery &&
-                  !plan.courierDelivery
-              ? OrderModel.deliveryByStore
-              : OrderModel.deliveryByCourier,
+          deliveryMode:
+              _orderType == OrderModel.typeDelivery && !plan.courierDelivery
+                  ? OrderModel.deliveryByStore
+                  : OrderModel.deliveryByCourier,
           promoId: plan.promoDiscount > 0 && promo != null ? promo.id : '',
           promoCode: plan.promoDiscount > 0 && promo != null ? promo.code : '',
           promoDiscount: plan.promoDiscount,
@@ -720,8 +753,8 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
 
       // Төлем нұсқаулығы: модератор картасы + чек тіркеу. Жабылса да
       // тапсырыс сақталады — «Тапсырыстарым» экранынан қайта тіркеуге болады.
-      final payNow = placedOrders.fold<double>(
-          0, (s, o) => s + o.depositAmount);
+      final payNow =
+          placedOrders.fold<double>(0, (s, o) => s + o.depositAmount);
       final attached = await showPaymentInstructionsSheet(
         context,
         amount: payNow,
@@ -765,10 +798,11 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
     final checkoutItems = _checkoutItems(cart);
     // «Барлығын таңдау» — қолжетімді (unavailable емес) товарлардың бәрі
     // таңдалған ба (Wildberries/Kaspi стиліндегі шапка чекбоксы).
-    final selectableItems =
-        cart.items.where((i) => !_unavailableKeys.contains(_itemKey(i))).toList();
-    final allSelected = selectableItems.isNotEmpty &&
-        selectableItems.every((i) => i.selected);
+    final selectableItems = cart.items
+        .where((i) => !_unavailableKeys.contains(_itemKey(i)))
+        .toList();
+    final allSelected =
+        selectableItems.isNotEmpty && selectableItems.every((i) => i.selected);
 
     return Scaffold(
       backgroundColor: cBg,
@@ -786,7 +820,9 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                     builder: (_) => AlertDialog(
                       title: Text(tr('Очистить корзину', 'Себетті тазалау'),
                           style: manrope(17, FontWeight.w700, color: cInk)),
-                      content: Text(tr('Убрать все товары?', 'Барлық тауарды алып тастау керек пе?'),
+                      content: Text(
+                          tr('Убрать все товары?',
+                              'Барлық тауарды алып тастау керек пе?'),
                           style: manrope(14, FontWeight.w500, color: cInk2)),
                       actions: [
                         TextButton(
@@ -800,8 +836,8 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                               Navigator.pop(context);
                             },
                             child: Text(tr('Да', 'Иә'),
-                                style: manrope(14, FontWeight.w600,
-                                    color: cRed))),
+                                style:
+                                    manrope(14, FontWeight.w600, color: cRed))),
                       ],
                     ),
                   ),
@@ -836,9 +872,11 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                             const SizedBox(width: 10),
                             Text(
                                 allSelected
-                                    ? tr('Все товары выбраны', 'Барлық тауар таңдалды')
+                                    ? tr('Все товары выбраны',
+                                        'Барлық тауар таңдалды')
                                     : tr('Выбрать все', 'Барлығын таңдау'),
-                                style: manrope(13, FontWeight.w600, color: cInk2)),
+                                style:
+                                    manrope(13, FontWeight.w600, color: cInk2)),
                           ]),
                         ),
                       ),
@@ -944,16 +982,13 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                             const SizedBox(width: 12),
                             Expanded(
                               child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(title,
-                                        style: manrope(
-                                            14, FontWeight.w700,
+                                        style: manrope(14, FontWeight.w700,
                                             color: cInk)),
                                     Text(subtitle,
-                                        style: manrope(
-                                            12, FontWeight.w500,
+                                        style: manrope(12, FontWeight.w500,
                                             color: cInk3)),
                                   ]),
                             ),
@@ -994,9 +1029,10 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                           const SizedBox(width: 8),
                           Expanded(
                               child: Text(
-                            tr('Получение: ${_warehouseAddress(checkoutItems)}', 'Алу: ${_warehouseAddress(checkoutItems)}'),
-                            style: manrope(12, FontWeight.w500,
-                                color: cGreenDeep),
+                            tr('Получение: ${_warehouseAddress(checkoutItems)}',
+                                'Алу: ${_warehouseAddress(checkoutItems)}'),
+                            style:
+                                manrope(12, FontWeight.w500, color: cGreenDeep),
                           )),
                         ]),
                       ),
@@ -1074,7 +1110,9 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                           return Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(tr('Сохранённые адреса', 'Сақталған мекенжайлар'),
+                              Text(
+                                  tr('Сохранённые адреса',
+                                      'Сақталған мекенжайлар'),
                                   style: manrope(11.5, FontWeight.w600,
                                       color: cInk3)),
                               const SizedBox(height: 6),
@@ -1088,8 +1126,7 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                                       label.isNotEmpty ? label : addr;
                                   return GestureDetector(
                                     onTap: () {
-                                      setState(() =>
-                                          _addressCtrl.text = addr);
+                                      setState(() => _addressCtrl.text = addr);
                                     },
                                     child: Container(
                                       padding: const EdgeInsets.symmetric(
@@ -1098,8 +1135,7 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                                         color: _addressCtrl.text == addr
                                             ? cGreen
                                             : cSurface,
-                                        borderRadius:
-                                            BorderRadius.circular(10),
+                                        borderRadius: BorderRadius.circular(10),
                                         border: Border.all(
                                             color: _addressCtrl.text == addr
                                                 ? cGreen
@@ -1110,17 +1146,14 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                                           children: [
                                             Icon(Icons.location_on_outlined,
                                                 size: 13,
-                                                color: _addressCtrl.text ==
-                                                        addr
+                                                color: _addressCtrl.text == addr
                                                     ? Colors.white
                                                     : cInk3),
                                             const SizedBox(width: 4),
                                             Text(display,
                                                 style: manrope(
-                                                    12.5,
-                                                    FontWeight.w600,
-                                                    color: _addressCtrl
-                                                                .text ==
+                                                    12.5, FontWeight.w600,
+                                                    color: _addressCtrl.text ==
                                                             addr
                                                         ? Colors.white
                                                         : cInk)),
@@ -1192,9 +1225,9 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                         maxLines: 2,
                         style: manrope(14, FontWeight.w500, color: cInk),
                         decoration: InputDecoration(
-                          hintText: tr('Дополнительная информация...', 'Қосымша ақпарат...'),
-                          hintStyle:
-                              manrope(14, FontWeight.w500, color: cInk3),
+                          hintText: tr('Дополнительная информация...',
+                              'Қосымша ақпарат...'),
+                          hintStyle: manrope(14, FontWeight.w500, color: cInk3),
                           filled: false,
                           border: InputBorder.none,
                           enabledBorder: InputBorder.none,
@@ -1230,13 +1263,14 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                           child: Text(
                               tr('Выберите хотя бы 1 товар для заказа',
                                   'Тапсырыс үшін кемінде 1 тауар таңдаңыз'),
-                              style: manrope(12, FontWeight.w600, color: cAmber)),
+                              style:
+                                  manrope(12, FontWeight.w600, color: cAmber)),
                         ),
                       ]),
                     ),
                   Builder(builder: (_) {
-                    final checkoutTotal = checkoutItems.fold<double>(
-                        0, (s, i) => s + i.subtotal);
+                    final checkoutTotal =
+                        checkoutItems.fold<double>(0, (s, i) => s + i.subtotal);
                     final promoDiscount = _promoDiscount(checkoutItems);
                     final productSavings = _productSavings(checkoutItems);
                     final finalTotal = (checkoutTotal - promoDiscount)
@@ -1256,16 +1290,18 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                         plans.fold<double>(0, (s, p) => s + p.storeAmount);
                     return Column(children: [
                       if (productSavings > 0)
-                        _SummaryLine(tr('Скидка по акции', 'Акция бойынша жеңілдік'),
-                            '−${money(productSavings)}', color: cGreen),
-                      if (promoDiscount > 0)
                         _SummaryLine(
-                            'Промокод ${_appliedPromo?.code ?? ''}',
+                            tr('Скидка по акции', 'Акция бойынша жеңілдік'),
+                            '−${money(productSavings)}',
+                            color: cGreen),
+                      if (promoDiscount > 0)
+                        _SummaryLine('Промокод ${_appliedPromo?.code ?? ''}',
                             '−${money(promoDiscount)}',
                             color: cGreen),
                       if (fittingFee > 0)
-                        _SummaryLine(tr('Примерка', 'Өлшеп көру'),
-                            money(fittingFee), color: cInk2),
+                        _SummaryLine(
+                            tr('Примерка', 'Өлшеп көру'), money(fittingFee),
+                            color: cInk2),
                       if (productSavings > 0 ||
                           promoDiscount > 0 ||
                           fittingFee > 0)
@@ -1284,15 +1320,13 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                                           'Дүкенге қазір (10% депозит)')
                                       : tr('Магазину переводом',
                                           'Дүкенге аударыммен'),
-                              style: manrope(13.5, FontWeight.w600,
-                                  color: cInk2),
+                              style:
+                                  manrope(13.5, FontWeight.w600, color: cInk2),
                             ),
                             Text(
-                              money(_orderType == null
-                                  ? finalTotal
-                                  : storeTotal),
-                              style:
-                                  manrope(20, FontWeight.w800, color: cInk),
+                              money(
+                                  _orderType == null ? finalTotal : storeTotal),
+                              style: manrope(20, FontWeight.w800, color: cInk),
                             ),
                           ]),
                       // Жеткізу ақысы — КУРЬЕРГЕ, бөлек жол. Дүкеннің картасына
@@ -1301,8 +1335,7 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                         Padding(
                           padding: const EdgeInsets.only(top: 4),
                           child: Row(
-                              mainAxisAlignment:
-                                  MainAxisAlignment.spaceBetween,
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Row(children: [
                                   const Icon(Icons.delivery_dining_rounded,
@@ -1329,63 +1362,64 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                   ListenableBuilder(
                       listenable: FeatureFlags.instance,
                       builder: (_, __) {
-                    final waitingDelivery =
-                        _orderType == OrderModel.typeDelivery &&
-                            !_deliveryInfoReady;
-                    // 0073: таңдалған тауарлардың арасында қайтарылмайтыны бар ма.
-                    final needsConsent =
-                        checkoutItems.any(_lineNonReturnable);
-                    final button = QPrimaryButton(
-                      label: _orderType == null
-                          ? tr('Выберите способ получения',
-                              'Алу тәсілін таңдаңыз')
-                          : waitingDelivery
-                              ? tr('Проверяем доставку…',
-                                  'Жеткізу тексерілуде…')
-                              : _orderType ==
-                                      OrderModel.typeSmartReservation
-                                  ? tr('Забронировать', 'Брондау')
-                                  : tr('Оплатить', 'Төлеу'),
-                      isLoading: _isLoading || waitingDelivery,
-                      onPressed: (_isLoading ||
-                              waitingDelivery ||
-                              _orderType == null ||
-                              checkoutItems.isEmpty ||
-                              (needsConsent && !_nrConsent))
-                          ? null
-                          : _onCheckoutPressed,
-                      height: 54,
-                    );
-                    if (!needsConsent) return button;
-                    return Column(children: [
-                      GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () => setState(() => _nrConsent = !_nrConsent),
-                        child: Container(
-                          padding: const EdgeInsets.all(12),
-                          margin: const EdgeInsets.only(bottom: 10),
-                          decoration: BoxDecoration(
-                            color: cAmberTint,
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(
-                                color: cAmber.withValues(alpha: 0.45)),
-                          ),
-                          child: Row(children: [
-                            _CartCheckbox(value: _nrConsent),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                  tr('Я согласен с товарами, не подлежащими возврату',
-                                      'Қайтарылмайтын тауарлармен келісемін'),
-                                  style: manrope(12.5, FontWeight.w700,
-                                      color: cInk)),
+                        final waitingDelivery =
+                            _orderType == OrderModel.typeDelivery &&
+                                !_deliveryInfoReady;
+                        // 0073: таңдалған тауарлардың арасында қайтарылмайтыны бар ма.
+                        final needsConsent =
+                            checkoutItems.any(_lineNeedsConsent);
+                        final button = QPrimaryButton(
+                          label: _orderType == null
+                              ? tr('Выберите способ получения',
+                                  'Алу тәсілін таңдаңыз')
+                              : waitingDelivery
+                                  ? tr('Проверяем доставку…',
+                                      'Жеткізу тексерілуде…')
+                                  : _orderType ==
+                                          OrderModel.typeSmartReservation
+                                      ? tr('Забронировать', 'Брондау')
+                                      : tr('Оплатить', 'Төлеу'),
+                          isLoading: _isLoading || waitingDelivery,
+                          onPressed: (_isLoading ||
+                                  waitingDelivery ||
+                                  _orderType == null ||
+                                  checkoutItems.isEmpty ||
+                                  (needsConsent && !_nrConsent))
+                              ? null
+                              : _onCheckoutPressed,
+                          height: 54,
+                        );
+                        if (!needsConsent) return button;
+                        return Column(children: [
+                          GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () =>
+                                setState(() => _nrConsent = !_nrConsent),
+                            child: Container(
+                              padding: const EdgeInsets.all(12),
+                              margin: const EdgeInsets.only(bottom: 10),
+                              decoration: BoxDecoration(
+                                color: cAmberTint,
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                    color: cAmber.withValues(alpha: 0.45)),
+                              ),
+                              child: Row(children: [
+                                _CartCheckbox(value: _nrConsent),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                      tr('Я согласен с товарами, не подлежащими возврату',
+                                          'Қайтарылмайтын тауарлармен келісемін'),
+                                      style: manrope(12.5, FontWeight.w700,
+                                          color: cInk)),
+                                ),
+                              ]),
                             ),
-                          ]),
-                        ),
-                      ),
-                      button,
-                    ]);
-                  }),
+                          ),
+                          button,
+                        ]);
+                      }),
                 ]),
               ),
             ),
@@ -1431,16 +1465,21 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
 class _SubOrderPlan {
   final String warehouseId, adminUid, storeName, warehouseAddress;
   final List<CartItemModel> items;
+
   /// Тауар сомасы (жеңілдіктерден кейін, промокодқа дейін).
   final double goods;
   final double promoDiscount;
+
   /// Промокодтан кейінгі тауар сомасы.
   final double goodsFinal;
   final double fittingFee;
+
   /// Курьерге тиесілі жеткізу ақысы (дүкенге ЕШҚАШАН аударылмайды).
   final double courierFee;
+
   /// Дүкенге аударылатын сома.
   final double storeAmount;
+
   /// Осы суб-тапсырыс промокод есептегішін арттыра ма (біреуі ғана).
   final bool isPromoUsageOwner;
   final bool courierDelivery;
@@ -1470,8 +1509,10 @@ class _SubOrderPlan {
 class _CartItemCard extends StatelessWidget {
   final CartItemModel item;
   final bool isUnavailable;
+
   /// Қайтарылмайтын тауар (0073) — сары белгі көрсетіледі.
   final bool nonReturnable;
+
   /// «Өлшеп көру» чипі көрінсін бе (жеткізу + қала ішінде + лимит бітпеген).
   final bool showFitting;
   final double fittingFee;
@@ -1511,104 +1552,110 @@ class _CartItemCard extends StatelessWidget {
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-        if (!isUnavailable) ...[
-          GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: onToggleSelected,
-            child: Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: _CartCheckbox(value: item.selected),
+          if (!isUnavailable) ...[
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onToggleSelected,
+              child: Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: _CartCheckbox(value: item.selected),
+              ),
+            ),
+          ],
+          SizedBox(
+            width: 72,
+            height: 72,
+            child: Opacity(
+              opacity: dimmed ? 0.55 : 1.0,
+              child: QShoeImage(
+                imageUrl: item.imageUrl.isNotEmpty ? item.imageUrl : null,
+                height: 72,
+                tone: item.productId.hashCode % 5,
+              ),
             ),
           ),
-        ],
-        SizedBox(
-          width: 72,
-          height: 72,
-          child: Opacity(
-            opacity: dimmed ? 0.55 : 1.0,
-            child: QShoeImage(
-              imageUrl: item.imageUrl.isNotEmpty ? item.imageUrl : null,
-              height: 72,
-              tone: item.productId.hashCode % 5,
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(item.productName,
-                  style: manrope(13.5, FontWeight.w700, color: cInk),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis),
-              const SizedBox(height: 2),
-              Text(tr('Размер ${item.size}', 'Өлшем ${item.size}'),
-                  style: manrope(12, FontWeight.w500, color: cInk3)),
-              if (nonReturnable) ...[
-                const SizedBox(height: 4),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: cAmberTint,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    const Icon(Icons.block_rounded, size: 12, color: cAmberInk),
-                    const SizedBox(width: 4),
-                    Flexible(
-                      child: Text(tr('Возврату не подлежит', 'Қайтарылмайды'),
-                          style: manrope(11, FontWeight.w700,
-                              color: cAmberInk)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(item.productName,
+                    style: manrope(13.5, FontWeight.w700, color: cInk),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 2),
+                Text(tr('Размер ${item.size}', 'Өлшем ${item.size}'),
+                    style: manrope(12, FontWeight.w500, color: cInk3)),
+                if (nonReturnable) ...[
+                  const SizedBox(height: 4),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: cAmberTint,
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                  ]),
-                ),
-              ],
-              const SizedBox(height: 6),
-              if (isUnavailable)
-                QPill(tr('Недоступен для заказа', 'Тапсырысқа қолжетімсіз'), tone: 'red',
-                    icon: const Icon(Icons.info_outline,
-                        size: 12, color: Color(0xFFB11A2B)))
-              else if (item.hasDiscount)
-                Row(children: [
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      const Icon(Icons.block_rounded,
+                          size: 12, color: cAmberInk),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(tr('Возврату не подлежит', 'Қайтарылмайды'),
+                            style:
+                                manrope(11, FontWeight.w700, color: cAmberInk)),
+                      ),
+                    ]),
+                  ),
+                ],
+                const SizedBox(height: 6),
+                if (isUnavailable)
+                  QPill(tr('Недоступен для заказа', 'Тапсырысқа қолжетімсіз'),
+                      tone: 'red',
+                      icon: const Icon(Icons.info_outline,
+                          size: 12, color: Color(0xFFB11A2B)))
+                else if (item.hasDiscount)
+                  Row(children: [
+                    Text(money(item.subtotal),
+                        style: manrope(15.5, FontWeight.w800, color: cRed)),
+                    const SizedBox(width: 6),
+                    Text(money(item.originalSubtotal),
+                        style: manrope(12, FontWeight.w500, color: cInk3)
+                            .copyWith(decoration: TextDecoration.lineThrough)),
+                  ])
+                else
                   Text(money(item.subtotal),
-                      style: manrope(15.5, FontWeight.w800, color: cRed)),
-                  const SizedBox(width: 6),
-                  Text(money(item.originalSubtotal),
-                      style: manrope(12, FontWeight.w500, color: cInk3)
-                          .copyWith(decoration: TextDecoration.lineThrough)),
-                ])
-              else
-                Text(money(item.subtotal),
-                    style: manrope(15.5, FontWeight.w800, color: cInk)),
-            ],
+                      style: manrope(15.5, FontWeight.w800, color: cInk)),
+              ],
+            ),
           ),
-        ),
-        // Quantity stepper
-        if (isUnavailable)
-          GestureDetector(
-            onTap: onRemove,
-            child: Padding(
-              padding: const EdgeInsets.all(4),
-              child: const Icon(Icons.delete_outline_rounded, color: cRed, size: 20),
-            ),
-          )
-        else
-          Row(mainAxisSize: MainAxisSize.min, children: [
-            _QtyBtn(
-              icon: item.qty <= 1 ? Icons.delete_outline_rounded : Icons.remove_rounded,
-              color: item.qty <= 1 ? cRed : cInk2,
-              onTap: onDecrement,
-            ),
-            SizedBox(
-              width: 28,
-              child: Text('${item.qty}',
-                  textAlign: TextAlign.center,
-                  style: manrope(15, FontWeight.w800, color: cInk)),
-            ),
-            _QtyBtn(icon: Icons.add_rounded, color: cGreen, onTap: onIncrement),
-          ]),
+          // Quantity stepper
+          if (isUnavailable)
+            GestureDetector(
+              onTap: onRemove,
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: const Icon(Icons.delete_outline_rounded,
+                    color: cRed, size: 20),
+              ),
+            )
+          else
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              _QtyBtn(
+                icon: item.qty <= 1
+                    ? Icons.delete_outline_rounded
+                    : Icons.remove_rounded,
+                color: item.qty <= 1 ? cRed : cInk2,
+                onTap: onDecrement,
+              ),
+              SizedBox(
+                width: 28,
+                child: Text('${item.qty}',
+                    textAlign: TextAlign.center,
+                    style: manrope(15, FontWeight.w800, color: cInk)),
+              ),
+              _QtyBtn(
+                  icon: Icons.add_rounded, color: cGreen, onTap: onIncrement),
+            ]),
         ]),
         // ── «Өлшеп көру»: курьер қосалқы өлшемді ҚОСА алып барады ───────────
         // Мұнда тұрғаны маңызды — клиент дәл сол тауардың өлшемін таңдап
@@ -1721,8 +1768,8 @@ class _AltSizeSheet extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: selected ? cGreen : cBg,
                       borderRadius: BorderRadius.circular(12),
-                      border:
-                          Border.all(color: selected ? cGreen : cLine, width: 1.5),
+                      border: Border.all(
+                          color: selected ? cGreen : cLine, width: 1.5),
                     ),
                     child: Text(s,
                         style: manrope(15, FontWeight.w800,
@@ -1799,6 +1846,7 @@ class _QtyBtn extends StatelessWidget {
 // нұсқаулығы (payment_instructions_sheet) ашылады.
 class _PaymentSheet extends StatelessWidget {
   final String orderType, warehouseAddress, deliveryAddress, promoCode;
+
   /// Әр қойманың жеке есебі. Ақша ӘР ДҮКЕНГЕ бөлек барады, сондықтан
   /// қосылған бір сан жеткіліксіз — клиент нақты кімге қанша төлейтінін
   /// осы тізімнен көреді.
@@ -1855,182 +1903,199 @@ class _PaymentSheet extends StatelessWidget {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       padding: EdgeInsets.fromLTRB(
-          20, 16, 20, MediaQuery.of(context).viewInsets.bottom + MediaQuery.of(context).padding.bottom + 24),
+          20,
+          16,
+          20,
+          MediaQuery.of(context).viewInsets.bottom +
+              MediaQuery.of(context).padding.bottom +
+              24),
       child: SingleChildScrollView(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Container(
-          width: 40, height: 4,
-          margin: const EdgeInsets.only(bottom: 20),
-          decoration: BoxDecoration(
-              color: cLine, borderRadius: BorderRadius.circular(2)),
-        ),
-        QPill(typeLabel, tone: isSmartRes ? 'blue' : isCC ? 'green' : 'amber'),
-        const SizedBox(height: 16),
-        // ⚠️ Көп дүкенде ҮЛКЕН ЖАЛПЫ СОМА КӨРСЕТІЛМЕЙДІ — клиент оны бір
-        // дүкенге толық аударып жіберуі мүмкін. Әр дүкеннің сомасы төменде
-        // бөлек тұрады (payment_instructions_sheet-тегі ережемен бірдей).
-        if (!multiStore) ...[
-          Text(money(deposit),
-              style:
-                  manrope(34, FontWeight.w800, color: cInk, letterSpacing: -1)),
-          const SizedBox(height: 4),
-          Text(
-            isSmartRes
-                ? tr('Магазину сейчас (10% депозит)',
-                    'Дүкенге қазір (10% депозит)')
-                : tr('Переводом магазину', 'Дүкенге аударыммен'),
-            style: manrope(13, FontWeight.w500, color: cInk2),
+          Container(
+            width: 40,
+            height: 4,
+            margin: const EdgeInsets.only(bottom: 20),
+            decoration: BoxDecoration(
+                color: cLine, borderRadius: BorderRadius.circular(2)),
           ),
-          if (isSmartRes && _remainingInStore > 0) ...[
+          QPill(typeLabel,
+              tone: isSmartRes
+                  ? 'blue'
+                  : isCC
+                      ? 'green'
+                      : 'amber'),
+          const SizedBox(height: 16),
+          // ⚠️ Көп дүкенде ҮЛКЕН ЖАЛПЫ СОМА КӨРСЕТІЛМЕЙДІ — клиент оны бір
+          // дүкенге толық аударып жіберуі мүмкін. Әр дүкеннің сомасы төменде
+          // бөлек тұрады (payment_instructions_sheet-тегі ережемен бірдей).
+          if (!multiStore) ...[
+            Text(money(deposit),
+                style: manrope(34, FontWeight.w800,
+                    color: cInk, letterSpacing: -1)),
+            const SizedBox(height: 4),
+            Text(
+              isSmartRes
+                  ? tr('Магазину сейчас (10% депозит)',
+                      'Дүкенге қазір (10% депозит)')
+                  : tr('Переводом магазину', 'Дүкенге аударыммен'),
+              style: manrope(13, FontWeight.w500, color: cInk2),
+            ),
+            if (isSmartRes && _remainingInStore > 0) ...[
+              const SizedBox(height: 6),
+              Text(
+                tr('В магазине: ${money(_remainingInStore)}',
+                    'Дүкенде: ${money(_remainingInStore)}'),
+                style: manrope(13, FontWeight.w500, color: cInk3),
+              ),
+            ],
+          ] else ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: cAmberTint,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.info_outline, color: cAmber, size: 18),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    tr('Заказ из ${stores.length} магазинов — каждому платите ОТДЕЛЬНО по его сумме',
+                        '${stores.length} дүкеннен тапсырыс — әрқайсысына өз сомасымен БӨЛЕК төлейсіз'),
+                    style: manrope(12.5, FontWeight.w700,
+                        color: const Color(0xFF92400E)),
+                  ),
+                ),
+              ]),
+            ),
+          ],
+          // ── Екі төлем екенін БІРДЕН көрсетеміз (қосылған бір сан ЕМЕС) ──────
+          if (deliveryFee > 0 && !multiStore) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              decoration: BoxDecoration(
+                color: cAmberTint,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.delivery_dining_rounded,
+                    color: cAmber, size: 18),
+                const SizedBox(width: 8),
+                Text(
+                    tr('+ ${money(deliveryFee)} курьеру при получении',
+                        '+ ${money(deliveryFee)} алғанда курьерге'),
+                    style: manrope(13, FontWeight.w800, color: cAmber)),
+              ]),
+            ),
+          ],
+          // Курьер жеткізуін қайта түсіндірмейміз — жоғарыдағы белгі мен
+          // «Доставка» пиллі айтып тұр. Ал «дүкен өзі жеткізеді» — БАСҚА ереже,
+          // ол айтылуы керек.
+          if (isDelivery && kazpost) ...[
             const SizedBox(height: 6),
             Text(
-              tr('В магазине: ${money(_remainingInStore)}',
-                  'Дүкенде: ${money(_remainingInStore)}'),
+              tr('Магазин доставит сам — условия согласуете после оплаты',
+                  'Дүкен өзі жеткізеді — шартын төлемнен кейін келісесіз'),
+              textAlign: TextAlign.center,
               style: manrope(13, FontWeight.w500, color: cInk3),
             ),
           ],
-        ] else ...[
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: cAmberTint,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              const Icon(Icons.info_outline, color: cAmber, size: 18),
+          // ── Жіктелу: ТЕК қосымша мән берсе ──────────────────────────────────
+          //  Жеңілдік те, «өлшеп көру» де жоқ болса «Аралық сома» мен «Дүкенге
+          //  аударыммен» — жоғарыдағы үлкен санның дәл өзі. Үш жерде бір санды
+          //  көрсетудің қажеті жоқ.
+          if (_promoDiscount > 0 || _fittingFee > 0 || multiStore) ...[
+            const SizedBox(height: 16),
+            Container(height: 1, color: cLine),
+            const SizedBox(height: 12),
+            if (_promoDiscount > 0 || _fittingFee > 0) ...[
+              _SummaryLine(tr('Подытог', 'Аралық сома'), money(_subtotal),
+                  color: cInk2),
+              if (_promoDiscount > 0)
+                _SummaryLine(
+                    promoCode.isNotEmpty ? 'Промокод $promoCode' : 'Промокод',
+                    '−${money(_promoDiscount)}',
+                    color: cGreen),
+              if (_fittingFee > 0)
+                _SummaryLine(
+                    tr('Примерка', 'Өлшеп көру'), '+${money(_fittingFee)}',
+                    color: cInk2),
+              const SizedBox(height: 8),
+            ],
+            // ── Дүкендер: әрқайсысы жеке жол (бір дүкенде — жоғарыда) ─────────
+            ...stores.entries.map((e) {
+              final list = e.value;
+              final amount = list.fold(0.0, (s, p) => s + p.storeAmount);
+              return _SummaryLine(
+                  multiStore
+                      ? tr('«${list.first.storeName}» переводом',
+                          '«${list.first.storeName}» аударыммен')
+                      : tr('Магазину переводом', 'Дүкенге аударыммен'),
+                  money(amount),
+                  color: cInk,
+                  bold: true);
+            }),
+            // Курьер жолы — тек бірнеше дүкенде: бір дүкенде ол жоғарыда белгі
+            // ретінде тұр.
+            if (deliveryFee > 0 && multiStore)
+              _SummaryLine(
+                  plans.where((p) => p.courierFee > 0).length > 1
+                      ? tr(
+                          'Курьерам при получении (${plans.where((p) => p.courierFee > 0).length} доставки)',
+                          'Курьерлерге алғанда (${plans.where((p) => p.courierFee > 0).length} жеткізу)')
+                      : tr('Курьеру при получении', 'Курьерге алғанда'),
+                  money(deliveryFee),
+                  color: cAmber,
+                  bold: true),
+          ],
+          const SizedBox(height: 12),
+          // Жеткізу ақысы курьердің жол шығыны — бас тартқанда қайтпайды.
+          // Клиент мұны ТӨЛЕМГЕ ДЕЙІН көруі керек (бір қысқа сөйлем жетеді).
+          if (deliveryFee > 0) ...[
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Icon(Icons.info_outline_rounded, color: cInk3, size: 15),
               const SizedBox(width: 8),
-              Flexible(
+              Expanded(
                 child: Text(
-                  tr('Заказ из ${stores.length} магазинов — каждому платите ОТДЕЛЬНО по его сумме',
-                      '${stores.length} дүкеннен тапсырыс — әрқайсысына өз сомасымен БӨЛЕК төлейсіз'),
-                  style: manrope(12.5, FontWeight.w700,
-                      color: const Color(0xFF92400E)),
+                  tr('Доставку получает курьер, а не магазин. При отказе она не возвращается.',
+                      'Жеткізу ақысын дүкен емес, курьер алады. Бас тартсаңыз, ол қайтарылмайды.'),
+                  style:
+                      manrope(11.5, FontWeight.w600, color: cInk3, height: 1.3),
                 ),
               ),
             ]),
-          ),
-        ],
-        // ── Екі төлем екенін БІРДЕН көрсетеміз (қосылған бір сан ЕМЕС) ──────
-        if (deliveryFee > 0 && !multiStore) ...[
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-            decoration: BoxDecoration(
-              color: cAmberTint,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              const Icon(Icons.delivery_dining_rounded, color: cAmber, size: 18),
-              const SizedBox(width: 8),
-              Text(
-                  tr('+ ${money(deliveryFee)} курьеру при получении',
-                      '+ ${money(deliveryFee)} алғанда курьерге'),
-                  style: manrope(13, FontWeight.w800, color: cAmber)),
-            ]),
-          ),
-        ],
-        // Курьер жеткізуін қайта түсіндірмейміз — жоғарыдағы белгі мен
-        // «Доставка» пиллі айтып тұр. Ал «дүкен өзі жеткізеді» — БАСҚА ереже,
-        // ол айтылуы керек.
-        if (isDelivery && kazpost) ...[
-          const SizedBox(height: 6),
-          Text(
-            tr('Магазин доставит сам — условия согласуете после оплаты',
-                'Дүкен өзі жеткізеді — шартын төлемнен кейін келісесіз'),
-            textAlign: TextAlign.center,
-            style: manrope(13, FontWeight.w500, color: cInk3),
-          ),
-        ],
-        // ── Жіктелу: ТЕК қосымша мән берсе ──────────────────────────────────
-        //  Жеңілдік те, «өлшеп көру» де жоқ болса «Аралық сома» мен «Дүкенге
-        //  аударыммен» — жоғарыдағы үлкен санның дәл өзі. Үш жерде бір санды
-        //  көрсетудің қажеті жоқ.
-        if (_promoDiscount > 0 || _fittingFee > 0 || multiStore) ...[
-          const SizedBox(height: 16),
-          Container(height: 1, color: cLine),
-          const SizedBox(height: 12),
-          if (_promoDiscount > 0 || _fittingFee > 0) ...[
-            _SummaryLine(tr('Подытог', 'Аралық сома'), money(_subtotal),
-                color: cInk2),
-            if (_promoDiscount > 0)
-              _SummaryLine(
-                  promoCode.isNotEmpty ? 'Промокод $promoCode' : 'Промокод',
-                  '−${money(_promoDiscount)}',
-                  color: cGreen),
-            if (_fittingFee > 0)
-              _SummaryLine(tr('Примерка', 'Өлшеп көру'),
-                  '+${money(_fittingFee)}',
-                  color: cInk2),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
           ],
-          // ── Дүкендер: әрқайсысы жеке жол (бір дүкенде — жоғарыда) ─────────
-          ...stores.entries.map((e) {
-            final list = e.value;
-            final amount = list.fold(0.0, (s, p) => s + p.storeAmount);
-            return _SummaryLine(
-                multiStore
-                    ? tr('«${list.first.storeName}» переводом',
-                        '«${list.first.storeName}» аударыммен')
-                    : tr('Магазину переводом', 'Дүкенге аударыммен'),
-                money(amount),
-                color: cInk,
-                bold: true);
-          }),
-          // Курьер жолы — тек бірнеше дүкенде: бір дүкенде ол жоғарыда белгі
-          // ретінде тұр.
-          if (deliveryFee > 0 && multiStore)
-            _SummaryLine(
-                plans.where((p) => p.courierFee > 0).length > 1
-                    ? tr('Курьерам при получении (${plans.where((p) => p.courierFee > 0).length} доставки)',
-                        'Курьерлерге алғанда (${plans.where((p) => p.courierFee > 0).length} жеткізу)')
-                    : tr('Курьеру при получении', 'Курьерге алғанда'),
-                money(deliveryFee),
-                color: cAmber, bold: true),
-        ],
-        const SizedBox(height: 12),
-        // Жеткізу ақысы курьердің жол шығыны — бас тартқанда қайтпайды.
-        // Клиент мұны ТӨЛЕМГЕ ДЕЙІН көруі керек (бір қысқа сөйлем жетеді).
-        if (deliveryFee > 0) ...[
-          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Icon(Icons.info_outline_rounded, color: cInk3, size: 15),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                tr('Доставку получает курьер, а не магазин. При отказе она не возвращается.',
-                    'Жеткізу ақысын дүкен емес, курьер алады. Бас тартсаңыз, ол қайтарылмайды.'),
-                style: manrope(11.5, FontWeight.w600, color: cInk3, height: 1.3),
-              ),
-            ),
-          ]),
-          const SizedBox(height: 12),
-        ],
-        if (!isDelivery && warehouseAddress.isNotEmpty)
-          _InfoRow(Icons.location_on_outlined, tr('Адрес получения', 'Алу мекенжайы'),
-              warehouseAddress),
-        if (isDelivery && deliveryAddress.isNotEmpty)
-          _InfoRow(Icons.local_shipping_outlined, tr('Доставка', 'Жеткізу'), deliveryAddress),
-        if (isSmartRes)
-          _InfoRow(Icons.timer_outlined, tr('Срок брони', 'Бронь мерзімі'), tr('1 час', '1 сағат')),
-        const SizedBox(height: 14),
-        QPrimaryButton(
-          label: tr('Продолжить к оплате', 'Төлемге өту'),
-          onPressed: () => Navigator.pop(context, true),
-          height: 52,
-        ),
-        const SizedBox(height: 7),
-        // Келесі қадам не екені — бір жол (бұрын бүтін карточка болатын).
-        Text(
-          tr('Дальше — QR для перевода и «Прикрепить чек»',
-              'Әрі қарай — аударым QR-ы және «Чекті тіркеу»'),
-          textAlign: TextAlign.center,
-          style: manrope(11.5, FontWeight.w600, color: cInk3),
-        ),
-        const SizedBox(height: 8),
-        TextButton(
-          onPressed: () => Navigator.pop(context, null),
-          child: Text(tr('Отмена', 'Болдырмау'),
-              style: manrope(14, FontWeight.w600, color: cInk3)),
-        ),
+          if (!isDelivery && warehouseAddress.isNotEmpty)
+            _InfoRow(Icons.location_on_outlined,
+                tr('Адрес получения', 'Алу мекенжайы'), warehouseAddress),
+          if (isDelivery && deliveryAddress.isNotEmpty)
+            _InfoRow(Icons.local_shipping_outlined, tr('Доставка', 'Жеткізу'),
+                deliveryAddress),
+          if (isSmartRes)
+            _InfoRow(Icons.timer_outlined, tr('Срок брони', 'Бронь мерзімі'),
+                tr('1 час', '1 сағат')),
+          const SizedBox(height: 14),
+          QPrimaryButton(
+            label: tr('Продолжить к оплате', 'Төлемге өту'),
+            onPressed: () => Navigator.pop(context, true),
+            height: 52,
+          ),
+          const SizedBox(height: 7),
+          // Келесі қадам не екені — бір жол (бұрын бүтін карточка болатын).
+          Text(
+            tr('Дальше — QR для перевода и «Прикрепить чек»',
+                'Әрі қарай — аударым QR-ы және «Чекті тіркеу»'),
+            textAlign: TextAlign.center,
+            style: manrope(11.5, FontWeight.w600, color: cInk3),
+          ),
+          const SizedBox(height: 8),
+          TextButton(
+            onPressed: () => Navigator.pop(context, null),
+            child: Text(tr('Отмена', 'Болдырмау'),
+                style: manrope(14, FontWeight.w600, color: cInk3)),
+          ),
         ]),
       ),
     );
@@ -2055,8 +2120,7 @@ class _InfoRow extends StatelessWidget {
                 text: '$label: ',
                 style: manrope(13, FontWeight.w500, color: cInk2)),
             TextSpan(
-                text: value,
-                style: manrope(13, FontWeight.w700, color: cInk)),
+                text: value, style: manrope(13, FontWeight.w700, color: cInk)),
           ]))),
         ]),
       );
@@ -2080,8 +2144,8 @@ class _SummaryLine extends StatelessWidget {
                 style: manrope(bold ? 14.5 : 13, FontWeight.w600,
                     color: bold ? cInk : cInk2)),
             Text(value,
-                style: manrope(bold ? 16 : 13.5,
-                    bold ? FontWeight.w800 : FontWeight.w700,
+                style: manrope(
+                    bold ? 16 : 13.5, bold ? FontWeight.w800 : FontWeight.w700,
                     color: color)),
           ],
         ),
@@ -2140,20 +2204,25 @@ class _PromoField extends StatelessWidget {
                           color: cGreenDeep)),
                   const SizedBox(width: 6),
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 6, vertical: 1),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                     decoration: BoxDecoration(
                         color: ineffective ? cAmber : cGreen,
                         borderRadius: BorderRadius.circular(6)),
-                    child: Text(ineffective ? tr('Не активен', 'Белсенді емес') : tr('Применён', 'Қолданылды'),
-                        style: manrope(10, FontWeight.w700,
-                            color: Colors.white)),
+                    child: Text(
+                        ineffective
+                            ? tr('Не активен', 'Белсенді емес')
+                            : tr('Применён', 'Қолданылды'),
+                        style:
+                            manrope(10, FontWeight.w700, color: Colors.white)),
                   ),
                 ]),
                 Text(
                   ineffective
-                      ? tr('Не хватает до минимальной суммы заказа', 'Тапсырыстың ең аз сомасына жетпейді')
-                      : tr('Скидка −${money(discount)}', 'Жеңілдік −${money(discount)}'),
+                      ? tr('Не хватает до минимальной суммы заказа',
+                          'Тапсырыстың ең аз сомасына жетпейді')
+                      : tr('Скидка −${money(discount)}',
+                          'Жеңілдік −${money(discount)}'),
                   style: manrope(12, FontWeight.w600,
                       color: ineffective ? cAmber : cGreenDeep),
                 ),
@@ -2176,8 +2245,8 @@ class _PromoField extends StatelessWidget {
             decoration: BoxDecoration(
               color: cSurface,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                  color: error != null ? cRed : cLine, width: 1.5),
+              border:
+                  Border.all(color: error != null ? cRed : cLine, width: 1.5),
             ),
             child: TextField(
               controller: controller,
@@ -2186,8 +2255,8 @@ class _PromoField extends StatelessWidget {
               decoration: InputDecoration(
                 hintText: tr('Введите промокод', 'Промокод енгізіңіз'),
                 hintStyle: manrope(14, FontWeight.w500, color: cInk3),
-                prefixIcon:
-                    const Icon(Icons.local_offer_outlined, color: cInk3, size: 19),
+                prefixIcon: const Icon(Icons.local_offer_outlined,
+                    color: cInk3, size: 19),
                 filled: false,
                 border: InputBorder.none,
                 enabledBorder: InputBorder.none,

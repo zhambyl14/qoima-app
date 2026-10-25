@@ -8,6 +8,7 @@ import '../../data/models/product_model.dart';
 import '../../data/models/store_model.dart';
 import '../../data/services/client_service.dart';
 import '../../theme/qoima_design.dart';
+import '../live/live_store_banner.dart';
 import '../shared/skeletons.dart';
 import '../auth/login_screen.dart';
 import 'client_product_card.dart';
@@ -102,8 +103,7 @@ class _StorePublicScreenState extends State<StorePublicScreen> {
             .firstWhere((pr) => pr.product.id == p.id,
                 orElse: () => (product: p, batches: const <BatchModel>[]))
             .batches;
-        final price =
-            batches.isNotEmpty ? batches.first.sellingPrice : 0.0;
+        final price = batches.isNotEmpty ? batches.first.sellingPrice : 0.0;
         await _service.addFavorite(
           productId: p.id,
           productName: p.name,
@@ -167,8 +167,7 @@ class _StorePublicScreenState extends State<StorePublicScreen> {
     }
   }
 
-  Future<void> _openProduct(
-      ProductModel p, List<ProductModel> variants) async {
+  Future<void> _openProduct(ProductModel p, List<ProductModel> variants) async {
     final buyNow = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
@@ -190,8 +189,8 @@ class _StorePublicScreenState extends State<StorePublicScreen> {
     final messenger = ScaffoldMessenger.of(context);
     if (user.uid.isEmpty) {
       messenger.showSnackBar(SnackBar(
-        content: Text(tr('Войдите, чтобы скрыть магазин',
-            'Дүкенді жасыру үшін кіріңіз')),
+        content: Text(
+            tr('Войдите, чтобы скрыть магазин', 'Дүкенді жасыру үшін кіріңіз')),
         behavior: SnackBarBehavior.floating,
       ));
       return;
@@ -211,8 +210,8 @@ class _StorePublicScreenState extends State<StorePublicScreen> {
           context: context,
           builder: (ctx) => AlertDialog(
             backgroundColor: cSurface,
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
             title: Text(tr('Скрыть магазин?', 'Дүкенді жасыру керек пе?'),
                 style: manrope(16, FontWeight.w800, color: cInk)),
             content: Text(
@@ -237,14 +236,14 @@ class _StorePublicScreenState extends State<StorePublicScreen> {
         if (!mounted) return;
         setState(() => _hidden = true);
         messenger.showSnackBar(SnackBar(
-          content: Text(
-              tr('Магазин скрыт', 'Дүкен жасырылды')),
+          content: Text(tr('Магазин скрыт', 'Дүкен жасырылды')),
           behavior: SnackBarBehavior.floating,
         ));
       }
     } catch (_) {
       messenger.showSnackBar(SnackBar(
-        content: Text(tr('Не удалось выполнить действие', 'Әрекет орындалмады')),
+        content:
+            Text(tr('Не удалось выполнить действие', 'Әрекет орындалмады')),
         backgroundColor: cRed,
         behavior: SnackBarBehavior.floating,
       ));
@@ -258,7 +257,8 @@ class _StorePublicScreenState extends State<StorePublicScreen> {
         context: context,
         builder: (ctx) => AlertDialog(
           backgroundColor: cSurface,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
           title: Text(tr('Нужен вход', 'Кіру қажет'),
               style: manrope(16, FontWeight.w800, color: cInk)),
           content: Text(
@@ -390,56 +390,56 @@ class _StorePublicScreenState extends State<StorePublicScreen> {
                               color: Colors.white)),
                     )
                   else
-                  PopupMenuButton<String>(
-                    icon: Container(
-                      width: 38,
-                      height: 38,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.16),
-                        borderRadius: BorderRadius.circular(12),
+                    PopupMenuButton<String>(
+                      icon: Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.16),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(Icons.more_vert_rounded,
+                            color: Colors.white, size: 20),
                       ),
-                      child: const Icon(Icons.more_vert_rounded,
-                          color: Colors.white, size: 20),
+                      color: cSurface,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
+                      onSelected: (v) {
+                        if (v == 'report') _report();
+                        if (v == 'hide') _toggleHide();
+                      },
+                      itemBuilder: (_) => [
+                        PopupMenuItem(
+                          value: 'report',
+                          child: Row(children: [
+                            const Icon(Icons.flag_outlined,
+                                size: 18, color: cRed),
+                            const SizedBox(width: 10),
+                            Text(tr('Пожаловаться', 'Шағымдану'),
+                                style: manrope(13.5, FontWeight.w600,
+                                    color: cInk)),
+                          ]),
+                        ),
+                        PopupMenuItem(
+                          value: 'hide',
+                          child: Row(children: [
+                            Icon(
+                                _hidden
+                                    ? Icons.visibility_outlined
+                                    : Icons.visibility_off_outlined,
+                                size: 18,
+                                color: cInk2),
+                            const SizedBox(width: 10),
+                            Text(
+                                _hidden
+                                    ? tr('Показать магазин', 'Дүкенді көрсету')
+                                    : tr('Скрыть магазин', 'Дүкенді жасыру'),
+                                style: manrope(13.5, FontWeight.w600,
+                                    color: cInk)),
+                          ]),
+                        ),
+                      ],
                     ),
-                    color: cSurface,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14)),
-                    onSelected: (v) {
-                      if (v == 'report') _report();
-                      if (v == 'hide') _toggleHide();
-                    },
-                    itemBuilder: (_) => [
-                      PopupMenuItem(
-                        value: 'report',
-                        child: Row(children: [
-                          const Icon(Icons.flag_outlined,
-                              size: 18, color: cRed),
-                          const SizedBox(width: 10),
-                          Text(tr('Пожаловаться', 'Шағымдану'),
-                              style: manrope(13.5, FontWeight.w600,
-                                  color: cInk)),
-                        ]),
-                      ),
-                      PopupMenuItem(
-                        value: 'hide',
-                        child: Row(children: [
-                          Icon(
-                              _hidden
-                                  ? Icons.visibility_outlined
-                                  : Icons.visibility_off_outlined,
-                              size: 18,
-                              color: cInk2),
-                          const SizedBox(width: 10),
-                          Text(
-                              _hidden
-                                  ? tr('Показать магазин', 'Дүкенді көрсету')
-                                  : tr('Скрыть магазин', 'Дүкенді жасыру'),
-                              style: manrope(13.5, FontWeight.w600,
-                                  color: cInk)),
-                        ]),
-                      ),
-                    ],
-                  ),
                 ]),
               ]),
             ),
@@ -453,95 +453,101 @@ class _StorePublicScreenState extends State<StorePublicScreen> {
                     ? Center(
                         child: ClientEmptyState(
                           icon: Icons.storefront_outlined,
-                          message: tr('Магазин недоступен',
-                              'Дүкен қолжетімсіз'),
+                          message:
+                              tr('Магазин недоступен', 'Дүкен қолжетімсіз'),
                         ),
                       )
                     : CustomScrollView(slivers: [
-                    // Дүкен ақпараты
-                    SliverToBoxAdapter(child: _buildStoreInfo()),
-                    // Досыңды шақыр — тікелей көрінетін баннер (⋮ ішінде емес)
-                    if (!widget.previewMode && widget.store.referralEnabled)
-                      SliverToBoxAdapter(child: _buildReferralBanner()),
-                    // Іздеу
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
-                        child: _buildSearchField(),
-                      ),
-                    ),
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
-                        child: Text(
-                          tr('Товары магазина (${cards.length})',
-                              'Дүкен тауарлары (${cards.length})'),
-                          style:
-                              manrope(15.5, FontWeight.w800, color: cInk),
-                        ),
-                      ),
-                    ),
-                    if (cards.isNotEmpty && search.isFallback)
-                      SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                          child: Text(
-                              tr('Точных совпадений нет — вот похожие товары',
-                                  'Дәл сәйкестік табылмады — міне ұқсас тауарлар'),
-                              style: manrope(12.5, FontWeight.w600,
-                                  color: cInk3)),
-                        ),
-                      ),
-                    if (cards.isEmpty)
-                      SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.only(top: 40),
-                          child: ClientEmptyState(
-                            icon: Icons.inventory_2_outlined,
-                            message: _query.isEmpty
-                                ? tr('Товаров пока нет', 'Әзірге тауар жоқ')
-                                : tr('«$_query» не найдено',
-                                    '«$_query» табылмады'),
+                        // Дүкен ақпараты
+                        SliverToBoxAdapter(child: _buildStoreInfo()),
+                        // Дүкен қазір эфирде болса — «Қосылу» баннері (әйтпесе бос)
+                        if (!widget.previewMode)
+                          SliverToBoxAdapter(
+                              child: LiveStoreBanner(
+                                  adminUid: widget.store.adminUid)),
+                        // Досыңды шақыр — тікелей көрінетін баннер (⋮ ішінде емес)
+                        if (!widget.previewMode && widget.store.referralEnabled)
+                          SliverToBoxAdapter(child: _buildReferralBanner()),
+                        // Іздеу
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+                            child: _buildSearchField(),
                           ),
                         ),
-                      )
-                    else
-                      SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
-                        sliver: SliverGrid(
-                          gridDelegate:
-                              const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            childAspectRatio: 0.72,
-                            crossAxisSpacing: 12,
-                            mainAxisSpacing: 12,
-                          ),
-                          delegate: SliverChildBuilderDelegate(
-                            (_, i) {
-                              final variantId = cards[i]
-                                  .group
-                                  .variants[cards[i].index]
-                                  .id;
-                              return ProductGroupCard(
-                                key: ValueKey(variantId),
-                                group: cards[i].group,
-                                initialIndex: cards[i].index,
-                                batchesByProductId: batchesById,
-                                storeByProductId: storeById,
-                                tone: i % 5,
-                                onTap: _openProduct,
-                                quickAddEnabled: !widget.previewMode,
-                                isFavorite: _favoriteIds.contains(variantId),
-                                onToggleFavorite: widget.previewMode
-                                    ? null
-                                    : _toggleFavorite,
-                              );
-                            },
-                            childCount: cards.length,
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+                            child: Text(
+                              tr('Товары магазина (${cards.length})',
+                                  'Дүкен тауарлары (${cards.length})'),
+                              style:
+                                  manrope(15.5, FontWeight.w800, color: cInk),
+                            ),
                           ),
                         ),
-                      ),
-                  ]),
+                        if (cards.isNotEmpty && search.isFallback)
+                          SliverToBoxAdapter(
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                              child: Text(
+                                  tr('Точных совпадений нет — вот похожие товары',
+                                      'Дәл сәйкестік табылмады — міне ұқсас тауарлар'),
+                                  style: manrope(12.5, FontWeight.w600,
+                                      color: cInk3)),
+                            ),
+                          ),
+                        if (cards.isEmpty)
+                          SliverToBoxAdapter(
+                            child: Padding(
+                              padding: const EdgeInsets.only(top: 40),
+                              child: ClientEmptyState(
+                                icon: Icons.inventory_2_outlined,
+                                message: _query.isEmpty
+                                    ? tr('Товаров пока нет', 'Әзірге тауар жоқ')
+                                    : tr('«$_query» не найдено',
+                                        '«$_query» табылмады'),
+                              ),
+                            ),
+                          )
+                        else
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
+                            sliver: SliverGrid(
+                              gridDelegate:
+                                  const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 2,
+                                childAspectRatio: 0.72,
+                                crossAxisSpacing: 12,
+                                mainAxisSpacing: 12,
+                              ),
+                              delegate: SliverChildBuilderDelegate(
+                                (_, i) {
+                                  final variantId = cards[i]
+                                      .group
+                                      .variants[cards[i].index]
+                                      .id;
+                                  return ProductGroupCard(
+                                    key: ValueKey(variantId),
+                                    group: cards[i].group,
+                                    initialIndex: cards[i].index,
+                                    batchesByProductId: batchesById,
+                                    storeByProductId: storeById,
+                                    tone: i % 5,
+                                    onTap: _openProduct,
+                                    quickAddEnabled: !widget.previewMode,
+                                    isFavorite:
+                                        _favoriteIds.contains(variantId),
+                                    onToggleFavorite: widget.previewMode
+                                        ? null
+                                        : _toggleFavorite,
+                                  );
+                                },
+                                childCount: cards.length,
+                              ),
+                            ),
+                          ),
+                      ]),
           ),
         ]),
       ),
@@ -590,8 +596,7 @@ class _StorePublicScreenState extends State<StorePublicScreen> {
             ),
             if (_hidden)
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: cLine2,
                   borderRadius: BorderRadius.circular(8),
@@ -681,8 +686,8 @@ class _StorePublicScreenState extends State<StorePublicScreen> {
           Icon(icon, size: 16, color: cInk3),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(text,
-                style: manrope(13, FontWeight.w600, color: cInk2)),
+            child:
+                Text(text, style: manrope(13, FontWeight.w600, color: cInk2)),
           ),
         ]),
       );
@@ -707,8 +712,7 @@ class _StorePublicScreenState extends State<StorePublicScreen> {
             onChanged: (q) => setState(() => _query = q.trim()),
             style: manrope(14.5, FontWeight.w600, color: cInk),
             decoration: InputDecoration(
-              hintText:
-                  tr('Поиск в магазине...', 'Дүкеннен іздеу...'),
+              hintText: tr('Поиск в магазине...', 'Дүкеннен іздеу...'),
               hintStyle: manrope(14.5, FontWeight.w500, color: cInk3),
               filled: false,
               border: InputBorder.none,

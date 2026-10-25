@@ -151,6 +151,20 @@ class _RegistryEditScreenState extends State<RegistryEditScreen> {
           city: _city.text,
         );
         if (!mounted) return;
+        // Жергілікті _reg жаңартылады: бөлісу мәтіні мен тақырып ескі атауды
+        // көрсетпеуі үшін.
+        setState(() => _reg = GiftRegistry(
+              id: r.id,
+              ownerUid: r.ownerUid,
+              title: title,
+              occasion: _occasion,
+              eventDate: _date,
+              message: _message.text.trim(),
+              city: _city.text.trim(),
+              shareToken: r.shareToken,
+              isActive: r.isActive,
+              createdAt: r.createdAt,
+            ));
         _toast(tr('Сохранено', 'Сақталды'));
       }
     } catch (e) {
@@ -164,15 +178,8 @@ class _RegistryEditScreenState extends State<RegistryEditScreen> {
     final r = _reg;
     if (r == null) return;
     try {
-      await _service.updateRegistry(
-        r.id,
-        title: r.title,
-        occasion: r.occasion,
-        eventDate: r.eventDate,
-        message: r.message,
-        city: r.city,
-        isActive: v,
-      );
+      // Тек жалау жіберіледі: сақталмаған/ескі өрістер DB-ға қайта жазылмайды.
+      await _service.setActive(r.id, v);
       if (!mounted) return;
       setState(() => _reg = GiftRegistry(
             id: r.id,
