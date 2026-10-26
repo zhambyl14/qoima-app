@@ -305,5 +305,31 @@ export function makeLlmClient(
     const create = (body: Any) => geminiCreate(body, timeout, retries);
     return { messages: { create }, beta: { messages: { create } } };
   }
-  return new Anthropic({ apiKey: ANTHROPIC_API_KEY, timeout, maxRetries: retries });
+  const anth = new Anthropic({ apiKey: ANTHROPIC_API_KEY, timeout, maxRetries: retries });
+  if (!GEMINI_API_KEY) return anth;
+  // Екі кілт те бар: Claude бірінші. Claude кілті жарамсыз / баланс бітті /
+  // модель жоқ / сұрау қабылданбаса (400/401/403/404) — Gemini-ге автоматты ауысады
+  // және 10 минут бойы Claude-қа бармай тұрады (әр сұрауда қате күтпеу үшін).
+  const viaGemini = (body: Any) => geminiCreate(body, timeout, retries);
+  const wrap = (fn: (b: Any) => Promise<Any>) => async (body: Any) => {
+    if (Date.now() < claudeDownUntil) return await viaGemini(body);
+    try {
+      return await fn(body);
+    } catch (e) {
+      const st = (e as { status?: number })?.status;
+      // 400 да кіреді: кілт workspace-ке байланбаған / баланс бітті / сұрау жарамсыз.
+      const dead = st === 400 || st === 401 || st === 403 || st === 404;
+      if (!dead) throw e;
+      console.error("claude_unavailable_fallback_to_gemini", st);
+      claudeDownUntil = Date.now() + 10 * 60_000;
+      return await viaGemini(body);
+    }
+  };
+  return {
+    messages: { create: wrap((b) => anth.messages.create(b)) },
+    beta: { messages: { create: wrap((b) => anth.beta.messages.create(b)) } },
+  };
 }
+
+let claudeDownUntil = 0;
+
