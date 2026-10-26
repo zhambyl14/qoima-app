@@ -61,11 +61,16 @@ class _GiftReceiveScreenState extends State<GiftReceiveScreen>
   bool _claiming = false;
   bool _loadingOptions = false;
   String? _size;
+
   /// Курьер примеркасына екінші өлшем (міндетті емес).
   String? _altSize;
+
   /// Алушы сол дүкеннің БАСҚА тауарын таңдаса (null = сыйлықтың өз тауары).
   GiftExchangeProduct? _otherProduct;
   int _page = 0;
+
+  /// Алушы таңдайтын жеткізу ('store' | 'courier') — тек gift.deliveryOpen болса.
+  String _delivery = 'store';
   OrderModel? _claimedOrder;
   List<Map<String, dynamic>> _savedAddresses = const [];
   String _lastUid = '';
@@ -204,10 +209,17 @@ class _GiftReceiveScreenState extends State<GiftReceiveScreen>
     return true;
   }
 
+  /// Қазір курьер ме: алушы таңдаса — оның таңдауы, әйтпесе сыйлаушы белгілеген.
+  bool _courierNow(GiftPublic g) =>
+      g.deliveryOpen ? _delivery == 'courier' : g.isCourier;
+
   // ── Өлшем нұсқалары (сыйлықтың өз тауары не таңдалған басқа тауар) ────────
+  // Курьерде сыйлықтан қымбат тауар таңдалмайды (доплата — тек дүкеннен алғанда).
   List<GiftSizeOption> _options(GiftPublic g) => [
         for (final o in (_otherProduct?.sizes ?? g.sizeOptions))
-          if (o.allowed) o,
+          if (o.allowed &&
+              !(g.deliveryOpen && _delivery == 'courier' && o.extra > 0))
+            o,
       ];
 
   GiftSizeOption? _selectedOption(GiftPublic g) {
@@ -259,7 +271,7 @@ class _GiftReceiveScreenState extends State<GiftReceiveScreen>
       _snack(tr('Выберите размер', 'Өлшемді таңдаңыз'), error: true);
       return;
     }
-    if (g.isCourier && _addressCtrl.text.trim().length < 4) {
+    if (_courierNow(g) && _addressCtrl.text.trim().length < 4) {
       _snack(tr('Укажите адрес доставки', 'Жеткізу мекенжайын көрсетіңіз'),
           error: true);
       return;
@@ -276,6 +288,14 @@ class _GiftReceiveScreenState extends State<GiftReceiveScreen>
     final lines = <String>[
       '${tr('Товар', 'Тауар')}: $name',
       '${tr('Размер', 'Өлшемі')}: ${trValue(_size!)}',
+      _courierNow(g)
+          ? tr('Получение: курьером по адресу ${_addressCtrl.text.trim()}',
+              'Алу: курьермен, мекенжай: ${_addressCtrl.text.trim()}')
+          : tr('Получение: в магазине «${g.storeName}»',
+              'Алу: «${g.storeName}» дүкенінен'),
+      if (g.deliveryOpen && _courierNow(g) && g.courierFeeEstimate > 0)
+        tr('Курьеру при получении: ~${money(g.courierFeeEstimate)}',
+            'Алғанда курьерге: ~${money(g.courierFeeEstimate)}'),
       if (alt != null)
         tr('Второй размер для примерки: ${trValue(alt)}',
             'Өлшеп көруге екінші өлшем: ${trValue(alt)}'),
@@ -285,10 +305,12 @@ class _GiftReceiveScreenState extends State<GiftReceiveScreen>
       else if (_otherProduct != null)
         tr('Если товар дешевле подарка, разница не возвращается.',
             'Тауар сыйлықтан арзан болса, айырма қайтарылмайды.'),
-      g.isCourier
-          ? tr('После подтверждения выбор изменить нельзя. После доставки обменять можно в магазине в течение 14 дней.',
+      _courierNow(g)
+          ? tr(
+              'После подтверждения выбор изменить нельзя. После доставки обменять можно в магазине в течение 14 дней.',
               'Растаған соң таңдауды өзгерту мүмкін емес. Жеткізілген соң 14 күн ішінде дүкенде ауыстыруға болады.')
-          : tr('Если в магазине не подойдёт — там же обменяете на другой размер или товар (до 14 дней после получения).',
+          : tr(
+              'Если в магазине не подойдёт — там же обменяете на другой размер или товар (до 14 дней после получения).',
               'Дүкенде келмесе — сол жерде басқа өлшемге не тауарға ауыстырасыз (алғаннан кейін 14 күн ішінде).'),
     ];
 
@@ -297,7 +319,7 @@ class _GiftReceiveScreenState extends State<GiftReceiveScreen>
       builder: (ctx) => AlertDialog(
         backgroundColor: cSurface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: Text(tr('Подтвердите выбор', 'Таңдауды растаңыз'),
+        title: Text(tr('Подтвердите получение', 'Алуды растаңыз'),
             style: manrope(17, FontWeight.w800)),
         content: Text(
           lines.join('\n'),
@@ -323,10 +345,11 @@ class _GiftReceiveScreenState extends State<GiftReceiveScreen>
         token: widget.token,
         size: _size!,
         address: _addressCtrl.text,
-        city: g.isCourier ? g.storeCity : AppUser.current.city,
+        city: _courierNow(g) ? g.storeCity : AppUser.current.city,
         phone: _phoneCtrl.text,
         productId: _otherProduct?.id,
         altSize: alt,
+        delivery: g.deliveryOpen ? _delivery : null,
       );
       if (!mounted) return;
       HapticFeedback.heavyImpact();
@@ -851,7 +874,7 @@ class _GiftReceiveScreenState extends State<GiftReceiveScreen>
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           QIconTile(
             icon: Icon(
-                g.isCourier
+                g.isCourier && !g.deliveryOpen
                     ? Icons.delivery_dining_rounded
                     : Icons.storefront_rounded,
                 color: cGreen,
@@ -865,18 +888,24 @@ class _GiftReceiveScreenState extends State<GiftReceiveScreen>
               Text(g.storeName, style: manrope(15, FontWeight.w700)),
               const SizedBox(height: 3),
               Text(
-                g.isCourier
-                    ? tr(
-                        'Курьер привезёт подарок по вашему адресу (г. ${trValue(g.storeCity)})',
-                        'Курьер сыйлықты мекенжайыңызға әкеледі (${trValue(g.storeCity)} қ.)')
-                    : [
-                        tr('Заберёте в магазине', 'Дүкеннен аласыз'),
+                g.deliveryOpen && g.readyToClaim && !g.isGiver
+                    ? [
+                        tr('Магазин, где ждёт подарок',
+                            'Сыйлық күтіп тұрған дүкен'),
                         if (g.storeCity.isNotEmpty) trValue(g.storeCity),
-                        if (g.storeAddress.isNotEmpty) g.storeAddress,
-                      ].join(' · '),
+                      ].join(' · ')
+                    : g.isCourier
+                        ? tr(
+                            'Курьер привезёт подарок по вашему адресу (г. ${trValue(g.storeCity)})',
+                            'Курьер сыйлықты мекенжайыңызға әкеледі (${trValue(g.storeCity)} қ.)')
+                        : [
+                            tr('Заберёте в магазине', 'Дүкеннен аласыз'),
+                            if (g.storeCity.isNotEmpty) trValue(g.storeCity),
+                            if (g.storeAddress.isNotEmpty) g.storeAddress,
+                          ].join(' · '),
                 style: manrope(13, FontWeight.w500, color: cInk2),
               ),
-              if (g.isCourier && g.deliveryFee > 0) ...[
+              if (g.isCourier && !g.deliveryOpen && g.deliveryFee > 0) ...[
                 const SizedBox(height: 4),
                 Text(
                   tr('Доставка курьеру при получении: ${money(g.deliveryFee)}',
@@ -893,12 +922,12 @@ class _GiftReceiveScreenState extends State<GiftReceiveScreen>
   Widget _claimForm(GiftPublic g) {
     final opts = _options(g);
     final byName = {for (final o in opts) o.size: o};
-    final sizes = sortGiftSizes(
-        byName.keys, _otherProduct?.categoryKey ?? g.categoryKey);
+    final sizes =
+        sortGiftSizes(byName.keys, _otherProduct?.categoryKey ?? g.categoryKey);
     final sel = _selectedOption(g);
     final canSwitch = !g.nonReturnable;
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      QSecLabel(tr('Выберите размер', 'Өлшемді таңдаңыз')),
+      _stepLabel(1, tr('Выберите размер', 'Өлшемді таңдаңыз')),
       const SizedBox(height: 10),
       if (_otherProduct != null) ...[
         _otherProductCard(_otherProduct!),
@@ -906,9 +935,11 @@ class _GiftReceiveScreenState extends State<GiftReceiveScreen>
       ] else if (g.chosenSize.isNotEmpty) ...[
         _hint(
           g.nonReturnable
-              ? tr('Размер ${trValue(g.chosenSize)} выбран отправителем. Этот товар обменять нельзя.',
+              ? tr(
+                  'Размер ${trValue(g.chosenSize)} выбран отправителем. Этот товар обменять нельзя.',
                   '${trValue(g.chosenSize)} өлшемін сыйлаушы таңдаған. Бұл тауарды ауыстыруға болмайды.')
-              : tr('Отправитель выбрал размер ${trValue(g.chosenSize)} и забронировал его. Не подходит — выберите другой размер или товар.',
+              : tr(
+                  'Отправитель выбрал размер ${trValue(g.chosenSize)} и забронировал его. Не подходит — выберите другой размер или товар.',
                   'Сыйлаушы ${trValue(g.chosenSize)} өлшемін таңдап, брондап қойды. Келмесе — басқа өлшемді не тауарды таңдаңыз.'),
           icon: g.nonReturnable
               ? Icons.lock_outline_rounded
@@ -922,9 +953,11 @@ class _GiftReceiveScreenState extends State<GiftReceiveScreen>
           border: Border.all(color: cRed.withValues(alpha: 0.3)),
           child: Text(
             canSwitch
-                ? tr('Размеров этого товара не осталось. Выберите другой товар магазина ниже.',
+                ? tr(
+                    'Размеров этого товара не осталось. Выберите другой товар магазина ниже.',
                     'Бұл тауардың өлшемдері қалмады. Төменнен дүкеннің басқа тауарын таңдаңыз.')
-                : tr('К сожалению, все размеры закончились. Свяжитесь с магазином или отправителем.',
+                : tr(
+                    'К сожалению, все размеры закончились. Свяжитесь с магазином или отправителем.',
                     'Өкінішке қарай, барлық өлшем таусылды. Дүкенмен немесе жіберушімен хабарласыңыз.'),
             style: manrope(13, FontWeight.w600, color: cRedInk),
           ),
@@ -953,10 +986,12 @@ class _GiftReceiveScreenState extends State<GiftReceiveScreen>
         ),
         const SizedBox(height: 6),
         Text(
-          g.isCourier
-              ? tr('Можно выбрать другой товар этого магазина не дороже подарка. Если он дешевле, разница не возвращается.',
+          _courierNow(g)
+              ? tr(
+                  'Можно выбрать другой товар этого магазина не дороже подарка. Если он дешевле, разница не возвращается.',
                   'Осы дүкеннің сыйлықтан қымбат емес басқа тауарын таңдауға болады. Арзан болса, айырма қайтарылмайды.')
-              : tr('Можно выбрать другой товар этого магазина. Дешевле — разница не возвращается; дороже — доплатите разницу в магазине.',
+              : tr(
+                  'Можно выбрать другой товар этого магазина. Дешевле — разница не возвращается; дороже — доплатите разницу в магазине.',
                   'Осы дүкеннің басқа тауарын таңдауға болады. Арзан болса — айырма қайтарылмайды; қымбат болса — айырманы дүкенде төлейсіз.'),
           style: manrope(12, FontWeight.w500, color: cInk3),
         ),
@@ -978,8 +1013,65 @@ class _GiftReceiveScreenState extends State<GiftReceiveScreen>
             _altChip(a, trValue(a)),
         ]),
       ],
-      if (g.isCourier) ...[
-        const SizedBox(height: 22),
+      const SizedBox(height: 22),
+      _stepLabel(2, tr('Как получить', 'Қалай алу')),
+      const SizedBox(height: 10),
+      if (g.deliveryOpen) ...[
+        _modeCard(
+          selected: _delivery == 'store',
+          icon: Icons.storefront_rounded,
+          title: tr('Заберу в магазине', 'Дүкеннен өзім аламын'),
+          sub: [
+            tr('Бесплатно', 'Тегін'),
+            if (g.storeAddress.isNotEmpty) g.storeAddress,
+          ].join(' · '),
+          onTap: () => setState(() => _delivery = 'store'),
+        ),
+        const SizedBox(height: 8),
+        _modeCard(
+          selected: _delivery == 'courier',
+          enabled: g.courierAvailable,
+          icon: Icons.delivery_dining_rounded,
+          title: tr('Курьер привезёт', 'Курьер әкеледі'),
+          sub: g.courierAvailable
+              ? tr(
+                  'Курьеру при получении ~${money(g.courierFeeEstimate)} · только в г. ${trValue(g.storeCity)}',
+                  'Алғанда курьерге ~${money(g.courierFeeEstimate)} · тек ${trValue(g.storeCity)} қаласында')
+              : tr('В городе магазина курьера пока нет',
+                  'Дүкен қаласында курьер әзірге жоқ'),
+          onTap: () {
+            setState(() {
+              _delivery = 'courier';
+              if (_selectedOption(g) == null) {
+                _size = null;
+                _altSize = null;
+              }
+            });
+            _loadSavedAddresses();
+          },
+        ),
+        if (_delivery == 'courier') ...[
+          const SizedBox(height: 8),
+          _hint(
+            tr('С курьером можно выбрать товар не дороже подарка. Доплата возможна только при получении в магазине.',
+                'Курьермен сыйлықтан қымбат емес тауар ғана таңдалады. Қосымша төлем тек дүкеннен алғанда мүмкін.'),
+            icon: Icons.info_outline_rounded,
+            amber: true,
+          ),
+        ],
+      ] else
+        _hint(
+          g.isCourier
+              ? tr('Отправитель выбрал доставку курьером — укажите адрес ниже.',
+                  'Жіберуші курьермен жеткізуді таңдаған — мекенжайды төменге жазыңыз.')
+              : tr('Подарок можно забрать в магазине.',
+                  'Сыйлықты дүкеннен алуға болады.'),
+          icon: g.isCourier
+              ? Icons.delivery_dining_rounded
+              : Icons.storefront_rounded,
+        ),
+      if (_courierNow(g)) ...[
+        const SizedBox(height: 14),
         QSecLabel(tr('Адрес доставки', 'Жеткізу мекенжайы')),
         const SizedBox(height: 8),
         Container(
@@ -1028,7 +1120,7 @@ class _GiftReceiveScreenState extends State<GiftReceiveScreen>
         ),
       ],
       const SizedBox(height: 22),
-      QSecLabel(tr('Ваш телефон', 'Телефон нөміріңіз')),
+      _stepLabel(3, tr('Ваш телефон', 'Телефон нөміріңіз')),
       const SizedBox(height: 8),
       TextField(
         controller: _phoneCtrl,
@@ -1037,15 +1129,78 @@ class _GiftReceiveScreenState extends State<GiftReceiveScreen>
       ),
       const SizedBox(height: 6),
       Text(
-        g.isCourier
-            ? tr('Магазин и курьер свяжутся с вами по этому номеру. Подарок нельзя вернуть деньгами — только обменять в магазине (14 дней после доставки).',
+        _courierNow(g)
+            ? tr(
+                'Магазин и курьер свяжутся с вами по этому номеру. Подарок нельзя вернуть деньгами — только обменять в магазине (14 дней после доставки).',
                 'Дүкен мен курьер осы нөмір бойынша хабарласады. Сыйлықты ақшаға қайтаруға болмайды — тек дүкенде ауыстыру (жеткізілгеннен кейін 14 күн).')
-            : tr('Магазин свяжется с вами по этому номеру. Подарок нельзя вернуть деньгами — только обменять в магазине (14 дней после получения).',
+            : tr(
+                'Магазин свяжется с вами по этому номеру. Подарок нельзя вернуть деньгами — только обменять в магазине (14 дней после получения).',
                 'Дүкен осы нөмір бойынша хабарласады. Сыйлықты ақшаға қайтаруға болмайды — тек дүкенде ауыстыру (алғаннан кейін 14 күн).'),
         style: manrope(12, FontWeight.w500, color: cInk3),
       ),
     ]);
   }
+
+  Widget _stepLabel(int n, String text) => Row(children: [
+        Container(
+          width: 24,
+          height: 24,
+          alignment: Alignment.center,
+          decoration:
+              const BoxDecoration(color: cGreen, shape: BoxShape.circle),
+          child: Text('$n',
+              style: manrope(13, FontWeight.w800, color: Colors.white)),
+        ),
+        const SizedBox(width: 10),
+        Expanded(child: Text(text, style: manrope(16, FontWeight.w800))),
+      ]);
+
+  Widget _modeCard({
+    required bool selected,
+    required IconData icon,
+    required String title,
+    required String sub,
+    required VoidCallback onTap,
+    bool enabled = true,
+  }) =>
+      Opacity(
+        opacity: enabled ? 1 : 0.5,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(kR16),
+          onTap: enabled
+              ? () {
+                  HapticFeedback.selectionClick();
+                  onTap();
+                }
+              : null,
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: selected ? cGreenTint : cSurface,
+              borderRadius: BorderRadius.circular(kR16),
+              border: Border.all(
+                  color: selected ? cGreen : cLine, width: selected ? 1.6 : 1),
+            ),
+            child: Row(children: [
+              Icon(icon, color: selected ? cGreen : cInk3, size: 24),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: manrope(14, FontWeight.w700)),
+                    const SizedBox(height: 2),
+                    Text(sub,
+                        style: manrope(12, FontWeight.w500, color: cInk2)),
+                  ],
+                ),
+              ),
+              if (selected)
+                const Icon(Icons.check_circle_rounded, color: cGreen, size: 22),
+            ]),
+          ),
+        ),
+      );
 
   Widget _hint(String text, {required IconData icon, bool amber = false}) =>
       Container(
@@ -1079,7 +1234,8 @@ class _GiftReceiveScreenState extends State<GiftReceiveScreen>
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(tr('Вместо подарка', 'Сыйлықтың орнына'),
                   style: manrope(11.5, FontWeight.w700, color: cGreenDeep)),
               const SizedBox(height: 2),
@@ -1124,8 +1280,8 @@ class _GiftReceiveScreenState extends State<GiftReceiveScreen>
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 160),
         constraints: const BoxConstraints(minWidth: 56),
-        padding: EdgeInsets.symmetric(
-            horizontal: 16, vertical: extra > 0 ? 7 : 12),
+        padding:
+            EdgeInsets.symmetric(horizontal: 16, vertical: extra > 0 ? 7 : 12),
         decoration: BoxDecoration(
           color: sel ? cGreen : cSurface,
           borderRadius: BorderRadius.circular(kR12),
@@ -1150,8 +1306,8 @@ class _GiftReceiveScreenState extends State<GiftReceiveScreen>
     final sel = _altSize == value;
     return ChoiceChip(
       label: Text(label,
-          style: manrope(13.5, FontWeight.w700,
-              color: sel ? Colors.white : cInk)),
+          style:
+              manrope(13.5, FontWeight.w700, color: sel ? Colors.white : cInk)),
       selected: sel,
       showCheckmark: false,
       selectedColor: cGreen,
@@ -1173,7 +1329,7 @@ class _GiftReceiveScreenState extends State<GiftReceiveScreen>
           boxShadow: kShadowSm,
         ),
         child: QPrimaryButton(
-          label: tr('Получить подарок', 'Сыйлықты алу'),
+          label: tr('Подтвердить получение', 'Алуды растау'),
           icon: const Icon(Icons.card_giftcard_rounded,
               color: Colors.white, size: 20),
           height: 56,

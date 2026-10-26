@@ -179,6 +179,13 @@ class GiftPublic {
   final bool hidePrice;
   final String deliveryMode; // 'store' | 'courier'
   final double deliveryFee;
+
+  /// Жеткізуді алушы өзі таңдайды (0078): дүкеннен алу немесе курьер.
+  final bool deliveryOpen;
+  final bool courierAvailable;
+
+  /// Курьер таңдалса есік алдында курьерге төленетін жеткізу ақысы (болжам).
+  final double courierFeeEstimate;
   final List<String> availableSizes;
 
   /// Өлшемдер бағасымен/қосымша төлемімен (тек ready_to_claim күйінде).
@@ -226,6 +233,9 @@ class GiftPublic {
     this.hidePrice = false,
     this.deliveryMode = 'store',
     this.deliveryFee = 0,
+    this.deliveryOpen = false,
+    this.courierAvailable = false,
+    this.courierFeeEstimate = 0,
     this.availableSizes = const [],
     this.sizeOptions = const [],
     this.chosenSize = '',
@@ -274,6 +284,9 @@ class GiftPublic {
       hidePrice: m['hide_price'] as bool? ?? false,
       deliveryMode: m['delivery_mode'] as String? ?? 'store',
       deliveryFee: (m['delivery_fee'] as num?)?.toDouble() ?? 0,
+      deliveryOpen: m['delivery_open'] as bool? ?? false,
+      courierAvailable: m['courier_available'] as bool? ?? false,
+      courierFeeEstimate: (m['courier_fee_estimate'] as num?)?.toDouble() ?? 0,
       availableSizes: [
         for (final e in (m['available_sizes'] as List? ?? const []))
           e.toString(),
@@ -308,7 +321,8 @@ class GiftService {
   String get _uid => _sb.auth.currentUser?.id ?? '';
 
   /// Сыйлық тапсырысын жасайды (статус pending, төлем чегі күтіледі).
-  /// [courier] — true болса алушыға курьер жеткізеді (қалада қызмет болса).
+  /// [courier] — true болса «курьермен өлшеп көру» (ақысын сыйлаушы төлейді),
+  /// сыйлық курьерге құлыпталады. false болса жеткізуді АЛУШЫ өзі таңдайды (0078).
   /// [size] — сыйлаушы өлшемді білсе: баға сол өлшемнің бағасы, қойма бірден
   /// брондалады (алушы кейін басқа қолжетімді өлшемге ауыстыра алады).
   Future<OrderModel> createGift({
@@ -323,7 +337,7 @@ class GiftService {
     try {
       final res = await _sb.rpc('create_gift_order', params: {
         'p_product': productId,
-        'p_delivery_mode': courier ? 'courier' : 'store',
+        'p_delivery_mode': courier ? 'courier' : 'open',
         'p_recipient_name': recipientName.trim(),
         'p_message': message.trim(),
         'p_hide_price': hidePrice,
@@ -357,6 +371,7 @@ class GiftService {
     required String phone,
     String? productId,
     String? altSize,
+    String? delivery, // 'store' | 'courier' — тек алушы таңдайтын сыйлықта
   }) async {
     try {
       final res = await _sb.rpc('claim_gift', params: {
@@ -367,10 +382,32 @@ class GiftService {
         'p_phone': phone.trim(),
         'p_product': (productId ?? '').isEmpty ? null : productId,
         'p_alt_size': (altSize ?? '').isEmpty ? null : altSize,
+        'p_delivery': (delivery ?? '').isEmpty ? null : delivery,
       });
       return OrderModel.fromMap(Map<String, dynamic>.from(res as Map));
     } on PostgrestException catch (e) {
       throw Exception(_message(e.message));
+    }
+  }
+
+  /// Тілек тізіміндегі брондалған позицияны сыйлыққа айналдырады: тапсырыс
+  /// сыйлаушыда, алушы — тізім иесі. Бронь тапсырысқа байланады.
+  Future<OrderModel> createRegistryGift({
+    required String claimId,
+    required String message,
+    required bool hidePrice,
+    bool fitting = false,
+  }) async {
+    try {
+      final res = await _sb.rpc('create_registry_gift_order', params: {
+        'p_claim': claimId,
+        'p_message': message.trim(),
+        'p_hide_price': hidePrice,
+        'p_fitting': fitting,
+      });
+      return OrderModel.fromMap(Map<String, dynamic>.from(res as Map));
+    } on PostgrestException catch (e) {
+      throw Exception(_message(e.message, creating: true));
     }
   }
 
@@ -559,6 +596,14 @@ class GiftService {
     if (has('gift_city_unsupported')) {
       return tr('Курьер доставит подарок только в городе магазина',
           'Курьер сыйлықты тек дүкен қаласына жеткізеді');
+    }
+    if (has('gift_delivery_required')) {
+      return tr('Выберите, как получить подарок: в магазине или курьером',
+          'Сыйлықты қалай алатыныңызды таңдаңыз: дүкеннен немесе курьермен');
+    }
+    if (has('registry_claim_not_active')) {
+      return tr('Бронь устарела — выберите подарок из списка заново',
+          'Бронь ескірген — тізімнен сыйлықты қайта таңдаңыз');
     }
     if (has('gift_address_required')) {
       return tr('Укажите адрес доставки', 'Жеткізу мекенжайын көрсетіңіз');

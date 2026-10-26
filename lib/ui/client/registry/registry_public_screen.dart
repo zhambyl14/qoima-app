@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/app_user.dart';
 import '../../../core/feature_flags.dart';
 import '../../../core/lang.dart';
-import '../../../data/models/batch_model.dart';
-import '../../../data/models/cart_item_model.dart';
 import '../../../data/models/registry_model.dart';
 import '../../../data/services/client_service.dart';
 import '../../../data/services/registry_service.dart';
@@ -14,7 +11,7 @@ import '../../../theme/qoima_design.dart';
 import '../../shared/error_view.dart';
 import '../../shared/require_login.dart';
 import '../client_shell.dart';
-import 'registry_share.dart';
+import '../gift/gift_create_sheet.dart';
 
 /// Тілек тізімінің жария беті — сілтемені ашқан қонақ үшін.
 ///
@@ -142,72 +139,23 @@ class _RegistryPublicScreenState extends State<RegistryPublicScreen> {
             'Қажетті өлшем (${it.size}) қоймада жоқ'));
       }
 
-      // 2. Өлшем + саны (қайта басқанда бұрынғы бронь түзетіледі).
+      // 2. Бір бронь = бір дана. Өлшем тізімнен бекітілген (бос болса алушы
+      //    өзі таңдайды). Қайта басқанда бұрынғы ашық бронь түзетіледі.
       if (!mounted) return;
-      final claim = _reg?.myClaimFor(it.id);
-      final choice = await showModalBottomSheet<_GiftChoice>(
-        context: context,
-        isScrollControlled: true,
-        useSafeArea: true,
-        backgroundColor: cSurface,
-        shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
-        builder: (_) => _GiftSheet(
-          item: it,
-          available: avail,
-          // Өз броны бар болса — өзіне тиесілі дана да қолжетімді.
-          maxQty:
-              it.remaining + ((claim?.canRelease ?? false) ? claim!.qty : 0),
-          initialQty: (claim?.canRelease ?? false) ? claim!.qty : 1,
-          price: _priceFor(batches, it.size, avail),
-        ),
-      );
-      if (choice == null || !mounted) return;
-
-      // 3. Сервер бронь жасайды (for update құлпы — қос брондау болмайды).
-      final claimId = await _service.reserve(it.id, qty: choice.qty);
-
-      // 4. Себетке: жол detail экранындағыдай құрылады + registry өрістері.
-      final batch = batches.firstWhere(
-        (b) => b.availableForSize(choice.size) >= choice.qty,
-        orElse: () => batches.firstWhere(
-          (b) => b.availableForSize(choice.size) > 0,
-          orElse: () => batches.first,
-        ),
-      );
-      var address = '';
-      try {
-        final wh =
-            await _client.getWarehouseById(it.adminUid, batch.warehouseId);
-        address = wh?.address ?? '';
-      } catch (_) {}
+      final claimId = await _service.reserve(it.id, qty: 1);
       if (!mounted) return;
-      final line = CartItemModel(
-        productId: product.id,
-        productName: product.name,
-        batchId: batch.id,
-        size: choice.size,
-        qty: choice.qty,
-        price: effectivePrice(batch),
-        originalPrice: hasActiveDiscount(batch) ? batch.sellingPrice : 0,
-        adminUid: store.adminUid,
-        storeName: store.storeName,
-        imageUrl: product.images.isNotEmpty ? product.images.first : '',
-        brand: product.brand,
-        type: product.type,
-        color: product.color,
-        variantNote: product.variantNote,
-        articul: product.articul,
-        warehouseId: batch.warehouseId,
-        warehouseAddress: address,
-        registryItemId: it.id,
+
+      // 3. Төлеуші сыйлық ағынынан өтеді: себет/жеткізу/бронь таңдауы ЖОҚ.
+      //    Жеткізуді, телефонды, мекенжайды тізім иесі алғанда өзі көрсетеді.
+      await showGiftSheet(
+        context,
+        product: product,
+        store: store,
         registryClaimId: claimId,
+        fixedSize: it.size,
+        recipientName: _reg?.ownerName ?? '',
       );
-      context.read<CartProvider>().addItem(line);
-      HapticFeedback.lightImpact();
-      _toast(tr('Подарок забронирован на 48 часов — оформите заказ',
-          'Сыйлық 48 сағатқа брондалды — тапсырыс беріңіз'));
-      goToCartTab(context);
+      if (mounted) _load(silent: true);
     } on _GiftUnavailable catch (e) {
       if (mounted) _toast(e.message, error: true);
     } catch (e) {
@@ -218,17 +166,6 @@ class _RegistryPublicScreenState extends State<RegistryPublicScreen> {
     } finally {
       if (mounted) setState(() => _busyItem = null);
     }
-  }
-
-  double _priceFor(
-      List<BatchModel> batches, String size, Map<String, int> avail) {
-    final s = size.isNotEmpty
-        ? size
-        : (avail.keys.isNotEmpty ? avail.keys.first : '');
-    for (final b in batches) {
-      if (b.availableForSize(s) > 0) return effectivePrice(b);
-    }
-    return 0;
   }
 
   Future<void> _release(RegistryClaim c) async {
@@ -456,12 +393,6 @@ class _GiftUnavailable implements Exception {
   _GiftUnavailable(this.message);
 }
 
-class _GiftChoice {
-  final String size;
-  final int qty;
-  const _GiftChoice(this.size, this.qty);
-}
-
 class _Banner extends StatelessWidget {
   final IconData icon;
   final String text;
@@ -659,9 +590,9 @@ class _MyClaimRow extends StatelessWidget {
         if (c.canRelease) ...[
           if (onToCart != null)
             IconButton(
-              tooltip: tr('В корзину', 'Себетке'),
+              tooltip: tr('Оплатить подарок', 'Сыйлықты төлеу'),
               onPressed: onToCart,
-              icon: const Icon(Icons.shopping_bag_outlined, color: cGreen),
+              icon: const Icon(Icons.card_giftcard_rounded, color: cGreen),
             ),
           TextButton(
             onPressed: onRelease,
@@ -674,181 +605,3 @@ class _MyClaimRow extends StatelessWidget {
   }
 }
 
-/// Өлшем + санын таңдау парағы (бронь алдында растау).
-class _GiftSheet extends StatefulWidget {
-  final RegistryItem item;
-  final Map<String, int> available;
-  final int maxQty;
-  final double price;
-  final int initialQty; // бар бронь болса — оның саны (үнсіз азайтпау үшін)
-  const _GiftSheet({
-    required this.item,
-    required this.available,
-    required this.maxQty,
-    required this.price,
-    this.initialQty = 1,
-  });
-
-  @override
-  State<_GiftSheet> createState() => _GiftSheetState();
-}
-
-class _GiftSheetState extends State<_GiftSheet> {
-  late final List<String> _sizes;
-  String _size = '';
-  int _qty = 1;
-
-  @override
-  void initState() {
-    super.initState();
-    _sizes = widget.available.keys.toList()
-      ..sort((a, b) {
-        final na = num.tryParse(a), nb = num.tryParse(b);
-        if (na != null && nb != null) return na.compareTo(nb);
-        return a.compareTo(b);
-      });
-    if (widget.item.size.isNotEmpty) {
-      _size = widget.item.size; // иесі қалаған өлшем алдын ала таңдалған
-    } else if (_sizes.length == 1) {
-      _size = _sizes.first;
-    }
-    _qty = widget.initialQty.clamp(1, _cap);
-  }
-
-  int get _cap {
-    final stock = _size.isEmpty ? 20 : (widget.available[_size] ?? 0);
-    final m = widget.maxQty < stock ? widget.maxQty : stock;
-    return m.clamp(1, 20);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final it = widget.item;
-    // Иесі нақты өлшем қалаған болса — гость өзгерте алмайды.
-    final locked = it.size.isNotEmpty;
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                  color: cLine, borderRadius: BorderRadius.circular(2)),
-            ),
-          ),
-          const SizedBox(height: 14),
-          Text(tr('Выберите подарок', 'Сыйлықты таңдаңыз'),
-              style: manrope(18, FontWeight.w800, color: cInk)),
-          const SizedBox(height: 4),
-          Text(it.productName,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: manrope(13.5, FontWeight.w600, color: cInk2)),
-          const SizedBox(height: 14),
-          Text(tr('Размер', 'Өлшем'),
-              style: manrope(12.5, FontWeight.w700, color: cInk3)),
-          const SizedBox(height: 8),
-          Wrap(spacing: 8, runSpacing: 8, children: [
-            for (final s in _sizes)
-              _SizeChip(
-                label: s,
-                selected: _size == s,
-                enabled: !locked || s == it.size,
-                onTap: () => setState(() {
-                  _size = s;
-                  if (_qty > _cap) _qty = _cap;
-                }),
-              ),
-          ]),
-          if (it.qtyWanted > 1 || widget.maxQty > 1) ...[
-            const SizedBox(height: 16),
-            Row(children: [
-              Text(tr('Сколько штук', 'Саны'),
-                  style: manrope(12.5, FontWeight.w700, color: cInk3)),
-              const Spacer(),
-              IconButton(
-                onPressed: _qty > 1 ? () => setState(() => _qty--) : null,
-                icon: const Icon(Icons.remove_circle_outline_rounded),
-                color: cGreen,
-              ),
-              Text('$_qty', style: manrope(16, FontWeight.w800, color: cInk)),
-              IconButton(
-                onPressed: _qty < _cap ? () => setState(() => _qty++) : null,
-                icon: const Icon(Icons.add_circle_outline_rounded),
-                color: cGreen,
-              ),
-            ]),
-          ],
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-                color: cGreenTint, borderRadius: BorderRadius.circular(kR14)),
-            child: Row(children: [
-              const Icon(Icons.timer_outlined, color: cGreen, size: 20),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                    tr('Подарок будет забронирован за вами на 48 часов — за это время оформите заказ.',
-                        'Сыйлық сізге 48 сағатқа брондалады — осы уақытта тапсырыс беріңіз.'),
-                    style: manrope(12.5, FontWeight.w600,
-                        color: cGreenDeep, height: 1.3)),
-              ),
-            ]),
-          ),
-          const SizedBox(height: 14),
-          QPrimaryButton(
-            label: widget.price > 0
-                ? tr('Забронировать · ${money(widget.price * _qty)}',
-                    'Брондау · ${money(widget.price * _qty)}')
-                : tr('Забронировать', 'Брондау'),
-            onPressed: _size.isEmpty
-                ? null
-                : () => Navigator.pop(context, _GiftChoice(_size, _qty)),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SizeChip extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final bool enabled;
-  final VoidCallback onTap;
-  const _SizeChip({
-    required this.label,
-    required this.selected,
-    required this.enabled,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: enabled ? onTap : null,
-      child: Opacity(
-        opacity: enabled ? 1 : 0.35,
-        child: Container(
-          constraints: const BoxConstraints(minWidth: 52),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: selected ? cGreenTint : cSurface,
-            borderRadius: BorderRadius.circular(kR12),
-            border: Border.all(
-                color: selected ? cGreen : cLine, width: selected ? 1.5 : 1),
-          ),
-          child: Text(label,
-              style: manrope(14, FontWeight.w800,
-                  color: selected ? cGreenDeep : cInk)),
-        ),
-      ),
-    );
-  }
-}

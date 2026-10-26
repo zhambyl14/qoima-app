@@ -29,10 +29,21 @@ import 'gift_share_screen.dart';
 /// Ағын: кіру тексерісі → әдемі парақша (алушы аты, тілек, өлшем, жеткізу) →
 /// `create_gift_order` (сервер бағаны өзі есептейді) → төлем нұсқаулығы →
 /// сыйлау бетінде «Жіберу» батырмасы.
+///
+/// Жеткізу тәсілін сыйлаушы ТАҢДАМАЙДЫ: «дүкеннен алу» немесе «курьер» —
+/// алушының өз шешімі (0078). Сыйлаушы тек қаласа «курьермен өлшеп көру»
+/// ақысын төлейді (сонда сыйлық курьерге құлыпталады).
+///
+/// Тілек тізімінен сыйлағанда ([registryClaimId] берілген): тауар, өлшем және
+/// алушы (тізім иесі) бекітілген, тапсырыс `create_registry_gift_order` арқылы
+/// жасалады және төленген сыйлық тізім иесінің «Подарки» бөліміне түседі.
 Future<void> showGiftSheet(
   BuildContext context, {
   required ProductModel product,
   required StoreModel store,
+  String? registryClaimId,
+  String? fixedSize,
+  String? recipientName,
 }) async {
   if (!FeatureFlags.instance.isOn(FeatureFlags.giftLinks)) {
     _snack(context, tr('Функция временно отключена', 'Функция уақытша өшірулі'),
@@ -58,7 +69,13 @@ Future<void> showGiftSheet(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    builder: (_) => _GiftSheet(product: product, store: store),
+    builder: (_) => _GiftSheet(
+      product: product,
+      store: store,
+      registryClaimId: registryClaimId,
+      fixedSize: fixedSize,
+      recipientName: recipientName,
+    ),
   );
   if (order == null || !context.mounted) return;
 
@@ -69,6 +86,34 @@ Future<void> showGiftSheet(
     orders: [order],
   );
   if (!context.mounted) return;
+  if (registryClaimId != null) {
+    // Алушы — тізім иесі: сілтеме жіберу керек емес, оған өзі хабарланады.
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: cSurface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Text(tr('Спасибо за подарок!', 'Сыйлығыңыз үшін рақмет!'),
+            style: manrope(17, FontWeight.w800, color: cInk)),
+        content: Text(
+            attached == true
+                ? tr(
+                    'Магазин проверит оплату. После этого подарок появится у получателя в разделе «Подарки», и он получит уведомление.',
+                    'Дүкен төлемді тексереді. Содан кейін сыйлық алушыда «Сыйлықтар» бөлімінде көрінеді, ол хабарландыру алады.')
+                : tr(
+                    'Чек пока не прикреплён — прикрепите его в «Мои заказы». Подарок появится у получателя после подтверждения оплаты магазином.',
+                    'Чек әлі тіркелмеген — оны «Менің тапсырыстарым» бөлімінде тіркеңіз. Төлемді дүкен растағасын сыйлық алушыда көрінеді.'),
+            style: manrope(14, FontWeight.w500, color: cInk2)),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(tr('Понятно', 'Түсінікті'),
+                  style: manrope(14, FontWeight.w700, color: cGreen))),
+        ],
+      ),
+    );
+    return;
+  }
   await Navigator.of(context).push(MaterialPageRoute(
     builder: (_) =>
         GiftShareScreen(order: order, receiptPending: attached != true),
@@ -88,7 +133,16 @@ void _snack(BuildContext context, String text, {bool error = false}) {
 class _GiftSheet extends StatefulWidget {
   final ProductModel product;
   final StoreModel store;
-  const _GiftSheet({required this.product, required this.store});
+  final String? registryClaimId;
+  final String? fixedSize;
+  final String? recipientName;
+  const _GiftSheet({
+    required this.product,
+    required this.store,
+    this.registryClaimId,
+    this.fixedSize,
+    this.recipientName,
+  });
 
   @override
   State<_GiftSheet> createState() => _GiftSheetState();
@@ -107,7 +161,9 @@ class _GiftSheetState extends State<_GiftSheet> {
   /// Өлшем → сол өлшемі бар ЕҢ АРЗАН партияның бағасы (сервер де соны алады).
   Map<String, double> _sizePrice = const {};
   DeliveryTariff _tariff = const DeliveryTariff();
-  bool _courier = false;
+
+  /// «Курьермен өлшеп көру» (екінші өлшем) — ақысын сыйлаушы төлейді.
+  bool _fitting = false;
   bool _hidePrice = false;
   bool _knowSize = false;
   String? _size;
@@ -120,15 +176,13 @@ class _GiftSheetState extends State<_GiftSheet> {
   bool get _needSize => _knowSize || _nonReturnable;
 
   /// Төленетін тауар бағасы: өлшем таңдалса — сол өлшемнің бағасы.
-  double? get _price => _needSize && _size != null
-      ? (_sizePrice[_size] ?? _maxPrice)
-      : _maxPrice;
+  double? get _price =>
+      _needSize && _size != null ? (_sizePrice[_size] ?? _maxPrice) : _maxPrice;
 
   /// «Өлшеп көру» ақысы — курьер болса СЫЙЛАУШЫ төлейді (ақшасы дүкенге).
-  double get _fittingFee =>
-      (_courier && _courierAvailable && !_nonReturnable)
-          ? _tariff.fittingFee
-          : 0;
+  double get _fittingFee => (_fitting && _courierAvailable && !_nonReturnable)
+      ? _tariff.fittingFee
+      : 0;
 
   List<String> get _suggestions => [
         tr('С днём рождения!', 'Туған күніңмен!'),
@@ -143,9 +197,19 @@ class _GiftSheetState extends State<_GiftSheet> {
       ? 0
       : _tariff.feeForSubOrder(orderTotal: _price!, index: 0);
 
+  bool get _isRegistry => widget.registryClaimId != null;
+
   @override
   void initState() {
     super.initState();
+    final fs = (widget.fixedSize ?? '').trim();
+    if (_isRegistry) {
+      _nameCtrl.text = widget.recipientName ?? '';
+      if (fs.isNotEmpty) {
+        _knowSize = true;
+        _size = fs;
+      }
+    }
     _load();
   }
 
@@ -181,6 +245,12 @@ class _GiftSheetState extends State<_GiftSheet> {
         _maxPrice = maxPrice;
         _sizePrice = sizePrice;
         if (_size != null && !sizePrice.containsKey(_size)) _size = null;
+        // Тілек тізімінде өлшем бекітілген, бірақ таусылса — жалғастыруға болмайды.
+        if (_isRegistry &&
+            (widget.fixedSize ?? '').trim().isNotEmpty &&
+            _size == null) {
+          _loadError = Exception('gift_size_unavailable');
+        }
         _tariff = results[1] as DeliveryTariff;
         _loading = false;
       });
@@ -208,14 +278,22 @@ class _GiftSheetState extends State<_GiftSheet> {
     HapticFeedback.mediumImpact();
     setState(() => _busy = true);
     try {
-      final order = await _gifts.createGift(
-        productId: widget.product.id,
-        courier: _courier && _courierAvailable,
-        recipientName: name,
-        message: _msgCtrl.text,
-        hidePrice: _hidePrice,
-        size: _needSize ? _size : null,
-      );
+      final withFitting = _fitting && _courierAvailable && !_nonReturnable;
+      final order = _isRegistry
+          ? await _gifts.createRegistryGift(
+              claimId: widget.registryClaimId!,
+              message: _msgCtrl.text,
+              hidePrice: _hidePrice,
+              fitting: withFitting,
+            )
+          : await _gifts.createGift(
+              productId: widget.product.id,
+              courier: withFitting,
+              recipientName: name,
+              message: _msgCtrl.text,
+              hidePrice: _hidePrice,
+              size: _needSize ? _size : null,
+            );
       if (!mounted) return;
       Navigator.of(context).pop(order);
     } catch (e) {
@@ -286,7 +364,7 @@ class _GiftSheetState extends State<_GiftSheet> {
     final price = _price!;
     final fit = _fittingFee;
     final p = widget.product;
-    final useCourier = _courier && _courierAvailable;
+    final useCourier = _fitting && _courierAvailable && !_nonReturnable;
     final sizeChosen = _needSize && _size != null;
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
@@ -344,68 +422,72 @@ class _GiftSheetState extends State<_GiftSheet> {
         ),
         const SizedBox(height: 18),
         // ── Өлшем (міндетті емес; қайтарылмайтын тауарда — міндетті) ──
-        QSecLabel(tr('Размер', 'Өлшем')),
-        const SizedBox(height: 8),
-        if (_nonReturnable)
-          Container(
-            width: double.infinity,
-            margin: const EdgeInsets.only(bottom: 8),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: cAmberTint,
-              borderRadius: BorderRadius.circular(kR14),
-            ),
-            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Icon(Icons.info_outline_rounded,
-                  color: cAmberInk, size: 18),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  tr('Этот товар нельзя обменять — подарите, зная размер.',
-                      'Бұл тауарды ауыстыруға болмайды, өлшемін біліп сыйлаңыз.'),
-                  style: manrope(12.5, FontWeight.w600, color: cAmberInk),
-                ),
-              ),
-            ]),
-          )
-        else ...[
-          _deliveryOption(
-            selected: !_knowSize,
-            icon: Icons.redeem_rounded,
-            title: tr('Размер выберет получатель', 'Өлшемді алушы таңдайды'),
-            sub: tr('Цена по самому дорогому размеру — подойдёт любой',
-                'Ең қымбат өлшемнің бағасы — кез келгені келеді'),
-            onTap: () => setState(() => _knowSize = false),
-          ),
+        // Тілек тізімінде өлшем тізімнен бекітілген — таңдау көрсетілмейді.
+        if (!_isRegistry) ...[
+          QSecLabel(tr('Размер', 'Өлшем')),
           const SizedBox(height: 8),
-          _deliveryOption(
-            selected: _knowSize,
-            icon: Icons.straighten_rounded,
-            title: tr('Знаю размер', 'Өлшемін білемін'),
-            sub: tr(
-                'Забронируем размер сразу. Получатель сможет поменять размер или товар',
-                'Өлшемді бірден брондаймыз. Алушы өлшемді не тауарды ауыстыра алады'),
-            onTap: () => setState(() => _knowSize = true),
-          ),
+          if (_nonReturnable)
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: cAmberTint,
+                borderRadius: BorderRadius.circular(kR14),
+              ),
+              child:
+                  Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Icon(Icons.info_outline_rounded,
+                    color: cAmberInk, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    tr('Этот товар нельзя обменять — подарите, зная размер.',
+                        'Бұл тауарды ауыстыруға болмайды, өлшемін біліп сыйлаңыз.'),
+                    style: manrope(12.5, FontWeight.w600, color: cAmberInk),
+                  ),
+                ),
+              ]),
+            )
+          else ...[
+            _deliveryOption(
+              selected: !_knowSize,
+              icon: Icons.redeem_rounded,
+              title: tr('Размер выберет получатель', 'Өлшемді алушы таңдайды'),
+              sub: tr('Цена по самому дорогому размеру — подойдёт любой',
+                  'Ең қымбат өлшемнің бағасы — кез келгені келеді'),
+              onTap: () => setState(() => _knowSize = false),
+            ),
+            const SizedBox(height: 8),
+            _deliveryOption(
+              selected: _knowSize,
+              icon: Icons.straighten_rounded,
+              title: tr('Знаю размер', 'Өлшемін білемін'),
+              sub: tr(
+                  'Забронируем размер сразу. Получатель сможет поменять размер или товар',
+                  'Өлшемді бірден брондаймыз. Алушы өлшемді не тауарды ауыстыра алады'),
+              onTap: () => setState(() => _knowSize = true),
+            ),
+          ],
+          if (_needSize) ...[
+            const SizedBox(height: 10),
+            if (_sizePrice.isEmpty)
+              Text(tr('Нет размеров в наличии', 'Қолда өлшем жоқ'),
+                  style: manrope(13, FontWeight.w600, color: cRedInk))
+            else
+              Wrap(spacing: 8, runSpacing: 8, children: [
+                for (final s in sortGiftSizes(_sizePrice.keys, p.categoryKey))
+                  _sizeChip(s),
+              ]),
+          ],
+          const SizedBox(height: 18),
         ],
-        if (_needSize) ...[
-          const SizedBox(height: 10),
-          if (_sizePrice.isEmpty)
-            Text(
-                tr('Нет размеров в наличии', 'Қолда өлшем жоқ'),
-                style: manrope(13, FontWeight.w600, color: cRedInk))
-          else
-            Wrap(spacing: 8, runSpacing: 8, children: [
-              for (final s in sortGiftSizes(_sizePrice.keys, p.categoryKey))
-                _sizeChip(s),
-            ]),
-        ],
-        const SizedBox(height: 18),
         // ── Алушы ──
         QSecLabel(tr('Кому', 'Кімге')),
         const SizedBox(height: 8),
         TextField(
           controller: _nameCtrl,
+          readOnly: _isRegistry,
           textCapitalization: TextCapitalization.words,
           maxLength: 60,
           decoration: _dec(tr('Имя получателя', 'Алушының аты'),
@@ -458,31 +540,43 @@ class _GiftSheetState extends State<_GiftSheet> {
           ),
         ),
         const SizedBox(height: 18),
-        // ── Жеткізу ──
+        // ── Алушы қалай алады ──
         QSecLabel(tr('Как получит подарок', 'Сыйлықты қалай алады')),
         const SizedBox(height: 8),
-        _deliveryOption(
-          selected: !useCourier,
-          icon: Icons.storefront_rounded,
-          title: tr('Заберёт в магазине', 'Дүкеннен өзі алады'),
-          sub: tr('Бесплатно · адрес магазина покажем получателю',
-              'Тегін · дүкен мекенжайын алушыға көрсетеміз'),
-          onTap: () => setState(() => _courier = false),
+        QCard(
+          padding: const EdgeInsets.all(14),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Icon(Icons.mark_email_read_outlined, color: cGreen, size: 24),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                tr('Получатель сам выберет: забрать в магазине или заказать курьера, и укажет свой телефон и адрес. Вам ничего вводить не нужно.',
+                    'Алушы өзі таңдайды: дүкеннен алу немесе курьер шақыру, телефон мен мекенжайын да өзі жазады. Сізге ештеңе енгізу қажет емес.'),
+                style: manrope(13, FontWeight.w500, color: cInk2),
+              ),
+            ),
+          ]),
         ),
-        const SizedBox(height: 8),
-        _deliveryOption(
-          selected: useCourier,
-          enabled: _courierAvailable,
-          icon: Icons.delivery_dining_rounded,
-          title: tr('Курьером до двери', 'Курьер есігіне дейін'),
-          sub: _courierAvailable
-              ? tr(
-                  'Получатель оплатит курьеру ${money(_courierFee)} при получении · только в г. ${trValue(widget.store.city)}',
-                  'Алушы алғанда курьерге ${money(_courierFee)} төлейді · тек ${trValue(widget.store.city)} қаласында')
-              : tr('В городе магазина курьерской доставки пока нет',
-                  'Дүкен қаласында курьерлік жеткізу әзірге жоқ'),
-          onTap: () => setState(() => _courier = true),
-        ),
+        if (_courierAvailable && !_nonReturnable) ...[
+          const SizedBox(height: 10),
+          QCard(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            child: SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              value: _fitting,
+              activeTrackColor: cGreen,
+              onChanged: (v) => setState(() => _fitting = v),
+              title: Text(
+                  tr('Курьер с примеркой · +${money(_tariff.fittingFee)}',
+                      'Курьер өлшеп көруімен · +${money(_tariff.fittingFee)}'),
+                  style: manrope(14, FontWeight.w700)),
+              subtitle: Text(
+                  tr('Курьер привезёт второй размер на выбор. Подарок будет только с доставкой курьером (г. ${trValue(widget.store.city)}).',
+                      'Курьер таңдау үшін екінші өлшемді әкеледі. Сыйлық тек курьермен жеткізіледі (${trValue(widget.store.city)} қ.).'),
+                  style: manrope(12, FontWeight.w500, color: cInk2)),
+            ),
+          ),
+        ],
         const SizedBox(height: 18),
         // ── Баға ──
         QCard(
@@ -501,7 +595,8 @@ class _GiftSheetState extends State<_GiftSheet> {
               alignment: Alignment.centerLeft,
               child: Text(
                 sizeChosen
-                    ? tr('Цена размера ${trValue(_size!)} — он забронирован для получателя.',
+                    ? tr(
+                        'Цена размера ${trValue(_size!)} — он забронирован для получателя.',
                         '${trValue(_size!)} өлшемінің бағасы — ол алушыға брондалады.')
                     : _needSize
                         ? tr('Выберите размер — цена уточнится.',
@@ -517,7 +612,8 @@ class _GiftSheetState extends State<_GiftSheet> {
               Row(children: [
                 Expanded(
                   child: Text(
-                      tr('Примерка второго размера', 'Екінші өлшемді өлшеп көру'),
+                      tr('Примерка второго размера',
+                          'Екінші өлшемді өлшеп көру'),
                       style: manrope(13, FontWeight.w600, color: cInk2)),
                 ),
                 Text(money(fit),

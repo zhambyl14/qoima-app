@@ -13,7 +13,6 @@ import '../ui/admin/returns/admin_return_detail_screen.dart';
 import '../ui/admin/settings/sellers_screen.dart';
 import '../ui/client/client_orders_screen.dart';
 import '../ui/client/gift/my_gifts_screen.dart';
-import '../ui/client/registry/my_registries_screen.dart';
 import '../ui/client/client_product_detail.dart';
 import '../ui/client/store_public_screen.dart';
 import '../ui/live/live_navigation.dart';
@@ -131,10 +130,8 @@ Future<void> handlePushOpen(Map<String, dynamic> data) async {
         break;
       // Тілек тізімінен біреу сыйлық сатып алды (0069).
       case 'registry_item_bought':
-        if (user.isClient) {
-          nav.push(
-              MaterialPageRoute(builder: (_) => const MyRegistriesScreen()));
-        }
+        // Сыйлық енді «Подарки → Маған келген» бөліміне түседі (алу осы жерде).
+        _openGifts(nav, user, tab: 1);
         break;
       // Тікелей эфир басталды: data {sessionId}.
       case 'live_started':

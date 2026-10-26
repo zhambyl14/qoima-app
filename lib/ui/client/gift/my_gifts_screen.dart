@@ -363,6 +363,12 @@ class _ReceivedCard extends StatelessWidget {
     final item = o.items.isNotEmpty ? o.items.first : null;
     final hidePrice = o.hideGiftPriceFor(AppUser.current.uid);
 
+    // Төленген, бірақ алушы әлі ештеңе таңдамаған сыйлық — басты әрекет осы.
+    final toClaim = o.isGiftReadyToClaim &&
+        !o.isGiftClaimed &&
+        !o.isGiftExpired &&
+        o.giftToken.isNotEmpty;
+
     String label;
     String tone;
     switch (o.status) {
@@ -377,19 +383,24 @@ class _ReceivedCard extends StatelessWidget {
         label = tr('Отменён', 'Бас тартылды');
         tone = 'red';
       default:
-        label = o.byPlatformCourier
-            ? tr(
-                'Магазин собирает, затем курьер', 'Дүкен жинайды, сосын курьер')
-            : tr('Магазин готовит подарок', 'Дүкен сыйлықты дайындап жатыр');
-        tone = 'blue';
+        label = toClaim
+            ? tr('Ждёт вашего выбора', 'Таңдауыңызды күтуде')
+            : o.byPlatformCourier
+                ? tr('Магазин собирает, затем курьер',
+                    'Дүкен жинайды, сосын курьер')
+                : tr('Магазин готовит подарок',
+                    'Дүкен сыйлықты дайындап жатыр');
+        tone = toClaim ? 'amber' : 'blue';
     }
 
     return QCard(
       padding: const EdgeInsets.all(14),
       child: InkWell(
         borderRadius: BorderRadius.circular(kR12),
-        onTap: () => Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => ClientOrderDetailScreen(order: o))),
+        onTap: () => toClaim
+            ? openGiftPage(context, o.giftToken)
+            : Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => ClientOrderDetailScreen(order: o))),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             SizedBox(
@@ -423,6 +434,21 @@ class _ReceivedCard extends StatelessWidget {
                   ]),
             ),
           ]),
+          if (toClaim) ...[
+            const SizedBox(height: 12),
+            QPrimaryButton(
+              label: tr('Получить подарок', 'Сыйлықты алу'),
+              icon: const Icon(Icons.card_giftcard_rounded,
+                  color: Colors.white, size: 20),
+              height: 48,
+              onPressed: () => openGiftPage(context, o.giftToken),
+            ),
+            const SizedBox(height: 6),
+            Text(
+                tr('Выберите размер, способ получения (магазин или курьер) и укажите свой телефон.',
+                    'Өлшемді, алу тәсілін (дүкен немесе курьер) таңдап, телефоныңызды жазыңыз.'),
+                style: manrope(12, FontWeight.w500, color: cInk3)),
+          ],
           if (item != null && item.size.isNotEmpty) ...[
             const SizedBox(height: 10),
             Text(
