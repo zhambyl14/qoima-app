@@ -69,6 +69,9 @@ class CatalogHit {
   /// Көмекші түсіндірмесі («неге ұсынылды»).
   final String reason;
 
+  /// Серверден келген түпнұсқа жол (AI чат тарихын құрылғыда сақтау үшін).
+  final Map<String, dynamic> raw;
+
   const CatalogHit({
     required this.productId,
     required this.adminUid,
@@ -98,6 +101,7 @@ class CatalogHit {
     this.slot = '',
     this.why = '',
     this.reason = '',
+    this.raw = const {},
   });
 
   factory CatalogHit.fromMap(Map<String, dynamic> m) {
@@ -123,6 +127,7 @@ class CatalogHit {
         const <String>[];
     final image = m['image_url']?.toString() ?? '';
     return CatalogHit(
+      raw: m,
       productId: m['product_id']?.toString() ?? '',
       adminUid: m['admin_uid']?.toString() ?? '',
       storeName: m['store_name']?.toString() ?? '',

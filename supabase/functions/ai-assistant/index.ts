@@ -114,7 +114,7 @@ The catalog is stored in canonical RUSSIAN values: when you call search_products
 RULES
 - Recommend ONLY products returned by search_products. Never invent products, brands, prices, stock or stores.
 - Prices are in tenge (₸). Mention a price only if it is in the tool result.
-- Procedure: call search_products (you may call it several times with different filters), then call recommend_products with up to ${MAX_RECOMMEND} best product_ids and a one-sentence reason each (in ${answerLang}), then write the final short reply (2-4 sentences) without repeating the whole list: the app shows the product cards itself.
+- Procedure: call search_products (you may call it several times with different filters), then call recommend_products with up to ${MAX_RECOMMEND} best product_ids and a one-sentence reason each (in ${answerLang}), then write the final short reply (2-4 sentences) without repeating the whole list: the app shows the product cards itself. Prefer writing that final reply in the SAME response as the recommend_products call (text + tool call together) to save time. Never mention a product without recommending it.
 - Prefer structured filters (category_keys, types, audience, season, min_price/max_price, size) over the free-text "query". Use "query" only for one or two distinctive Russian words (color, brand, material); ALL query words must match, so extra words return nothing.
 - If a search returns nothing, retry with fewer or broader filters (drop query, then type, then size/price) before saying nothing was found. If still nothing, say so honestly and suggest changing the request.
 - If the request is vague (e.g. a gift), ask ONE short clarifying question (who, budget, occasion) and do not search yet; if the buyer already gave enough detail, search right away.
@@ -495,6 +495,37 @@ Deno.serve(async (req) => {
         }
       }
       msgs.push({ role: "user", content: results });
+      // Жылдамдық: модель мәтінді recommend_products-пен БІРГЕ жазса — дайын
+      // жауап, тағы бір айналым (≈5–10 с) күтпейміз.
+      if (
+        text && recommended.length &&
+        toolUses.every((t) => t.name === "recommend_products")
+      ) {
+        reply = text;
+        break;
+      }
+    }
+
+    // Модель тауарды мәтінде атап, бірақ карточка шығармаса (recommend_products
+    // шақырмаса) — атаған тауарларды өзіміз карточка етеміз, қолданушы басып
+    // карточкасына кіре алсын.
+    if (!recommended.length && seen.size && reply) {
+      const low = reply.toLowerCase();
+      const mentioned = [...seen.values()].filter((r) => {
+        const name = String(r.name ?? "").toLowerCase().trim();
+        if (!name) return false;
+        if (low.includes(name)) return true;
+        const words = name.split(/\s+/).filter((w) => w.length >= 4);
+        return words.length > 0 &&
+          words.filter((w) => low.includes(w)).length >= Math.min(2, words.length);
+      });
+      const pick = mentioned.length
+        ? mentioned
+        : (reply.trim().endsWith("?") ? [] : [...seen.values()]);
+      recommended = pick.slice(0, 4).map((r) => ({
+        product_id: String(r.product_id),
+        reason: "",
+      }));
     }
 
     if (!reply) {

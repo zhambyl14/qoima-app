@@ -1,6 +1,9 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/app_user.dart';
 import '../../../core/feature_flags.dart';
@@ -22,7 +25,8 @@ class _Msg {
 }
 
 /// AI-көмекші: чат арқылы каталогтан тауар таңдау (ai-assistant функциясы).
-/// Әңгіме экран тірі тұрғанда ғана жадта сақталады.
+/// Әңгіме құрылғыда сақталады (қолданушы бойынша, 7 күн, соңғы 40 хабар):
+/// экраннан шығып қайта кіргенде тарих жалғасады. «Жаңа чат» — тазалайды.
 class AiAssistantScreen extends StatefulWidget {
   const AiAssistantScreen({super.key});
 
@@ -50,6 +54,78 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
       isWelcome: true,
     ));
     _loadQuota();
+    _restore();
+  }
+
+  // ── Тарихты құрылғыда сақтау ──
+  static const _maxStored = 40;
+  static const _ttl = Duration(days: 7);
+  String get _storeKey => 'ai_chat_v1_${AppUser.current.uid}';
+
+  Future<void> _restore() async {
+    if (AppUser.current.uid.isEmpty) return;
+    try {
+      final sp = await SharedPreferences.getInstance();
+      final raw = sp.getString(_storeKey);
+      if (raw == null) return;
+      final m = jsonDecode(raw) as Map<String, dynamic>;
+      final at = DateTime.tryParse(m['at'] as String? ?? '');
+      if (at == null || DateTime.now().difference(at) > _ttl) {
+        await sp.remove(_storeKey);
+        return;
+      }
+      final list = <_Msg>[
+        for (final e in (m['msgs'] as List? ?? const []))
+          if (e is Map)
+            _Msg(
+              e['role'] == 'user' ? 'user' : 'assistant',
+              (e['text'] as String?) ?? '',
+              products: [
+                for (final p in (e['products'] as List? ?? const []))
+                  if (p is Map)
+                    CatalogHit.fromMap(Map<String, dynamic>.from(p)),
+              ],
+            ),
+      ];
+      if (list.isEmpty || !mounted || _msgs.length > 1) return;
+      setState(() => _msgs.addAll(list));
+      _toBottom();
+    } catch (_) {
+      // бүлінген жазба — жай ғана елемейміз
+    }
+  }
+
+  Future<void> _persist() async {
+    if (AppUser.current.uid.isEmpty) return;
+    try {
+      final real = _msgs.where((m) => !m.isWelcome).toList();
+      final tail = real.length > _maxStored
+          ? real.sublist(real.length - _maxStored)
+          : real;
+      final sp = await SharedPreferences.getInstance();
+      await sp.setString(
+          _storeKey,
+          jsonEncode({
+            'at': DateTime.now().toIso8601String(),
+            'msgs': [
+              for (final m in tail)
+                {
+                  'role': m.role,
+                  'text': m.text,
+                  'products': [for (final p in m.products) p.raw],
+                },
+            ],
+          }));
+    } catch (_) {}
+  }
+
+  Future<void> _newChat() async {
+    HapticFeedback.selectionClick();
+    setState(() => _msgs.removeWhere((m) => !m.isWelcome));
+    try {
+      final sp = await SharedPreferences.getInstance();
+      await sp.remove(_storeKey);
+    } catch (_) {}
   }
 
   @override
@@ -109,6 +185,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
         _sending = false;
       });
       _toBottom();
+      _persist();
     } on AiException catch (e) {
       if (!mounted) return;
       // Сәтсіз сұрауды қайтарып, мәтінді өріске қайта саламыз.
@@ -185,6 +262,14 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
               subtitle: tr('Подберу товары под ваш запрос',
                   'Сұранысыңызға сай тауар таңдап беремін'),
               showBack: true,
+              action: _msgs.length > 1 && !_sending
+                  ? IconButton(
+                      tooltip: tr('Новый чат', 'Жаңа чат'),
+                      onPressed: _newChat,
+                      icon: const Icon(Icons.add_comment_outlined,
+                          color: Colors.white),
+                    )
+                  : null,
             ),
             Expanded(
               child: !on
