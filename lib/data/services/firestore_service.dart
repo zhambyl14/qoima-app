@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../models/cart_item_model.dart';
 import '../models/product_model.dart';
 import '../models/batch_model.dart';
 import '../models/sale_model.dart';
@@ -1804,6 +1805,14 @@ class FirestoreService {
   /// кеткен. Дүкен/сатушы курьерсіз өзі бергенде де осы ақпарат керек —
   /// әйтпесе қойма/сатылым қате есептеледі (бұрынғы қате: әрқашан негізгі
   /// өлшем сатылды деп есептелетін).
+  /// Сыйлық тапсырысының базадағы ең соңғы күйі (басқа құрылғыдан ауыстыру
+  /// болған болуы мүмкін). Сыйлық емес болса — сол күйі қайтады.
+  Future<OrderModel> freshGiftOrder(OrderModel o) async {
+    if (!o.isGift) return o;
+    final row = await _sb.from('orders').select().eq('id', o.id).maybeSingle();
+    return row == null ? o : OrderModel.fromMap(row);
+  }
+
   Future<void> markHandedOver(OrderModel order,
           {List<int> swappedIndexes = const []}) =>
       _completeOrder(order,
@@ -1825,10 +1834,39 @@ class FirestoreService {
   /// Online тапсырысты аяқтайды: бронь болса қойманы азайтады, sales_history
   /// жазады, статусты completed қылады, чек нөмірін береді. [expected] —
   /// шақырылған жол бойынша нақты рұқсат етілген бастапқы статус(тар).
-  Future<void> _completeOrder(OrderModel order,
+  Future<void> _completeOrder(OrderModel orderIn,
       {required List<String> expected,
       List<int> swappedIndexes = const []}) async {
-    await _claimOrder(order.id, expected, OrderModel.statusCompleted);
+    // 🎁 Сыйлық: экран ашылған соң басқа құрылғыдан ауыстыру болып, қосымша
+    // төлем (gift_extra_due) өзгерсе — беруді тоқтатамыз, әйтпесе айырма
+    // алынбай/тәсілі сұралмай қалады. Экран жаңартылып, қайта басылады.
+    if (orderIn.isGift) {
+      final fresh = await freshGiftOrder(orderIn);
+      if (fresh.giftExtraDue != orderIn.giftExtraDue ||
+          (fresh.items.isNotEmpty &&
+              orderIn.items.isNotEmpty &&
+              (fresh.items.first.productId != orderIn.items.first.productId ||
+                  fresh.items.first.size != orderIn.items.first.size))) {
+        throw Exception(tr(
+            'Подарок только что изменён (обмен). Обновите список и повторите выдачу.',
+            'Сыйлық жаңа ғана өзгертілді (ауыстыру). Тізімді жаңартып, қайта беріңіз.'));
+      }
+    }
+    await _claimOrder(orderIn.id, expected, OrderModel.statusCompleted);
+    var order = orderIn;
+    // 🎁 Сыйлық (0070): позицияны алушы/дүкен ауыстырған болуы мүмкін (басқа
+    // өлшем/тауар, қосымша төлем). Экрандағы көшірме ескірсе, сатылым тарихы
+    // ескі тауармен жазылар еді — сондықтан базадан жаңасын оқимыз.
+    if (orderIn.isGift) {
+      final row =
+          await _sb.from('orders').select().eq('id', orderIn.id).maybeSingle();
+      if (row != null) {
+        order = OrderModel.fromMap(row).copyWith(
+            inStorePaymentMethod: orderIn.inStorePaymentMethod.isNotEmpty
+                ? orderIn.inStorePaymentMethod
+                : null);
+      }
+    }
     final seller = AppUser.current;
     // Онлайн-тапсырыстың чегіне БӨЛЕК санақ бермейміз — тапсырыс клиентке,
     // әкімшіге, сатушыға әлдеқашан белгілі order_number-ді қайталаймыз, әйтпесе
@@ -1890,12 +1928,19 @@ class FirestoreService {
     final promoFactor = order.total > 0 ? order.finalTotal / order.total : 1.0;
     // Онлайн-төлем әрқашан картаға аударым ('card') — тарихта «Оплата картой»
     // болып көрінеді. Бронь доплатасы — дүкенде qolma-qol/kaspi.
-    final payMethod = order.isSmartReservation
+    // 🎁 Сыйлықтың қосымша төлемі (gift_extra_due) дүкенде алынады — бронь
+    // доплатасымен бірдей жазамыз: payment_method = дүкендегі тәсіл,
+    // deposit_payment_method = онлайн төленген бөлік (карта).
+    final inStoreTopUp = order.isSmartReservation ||
+        (order.isGift &&
+            order.giftExtraDue > 0 &&
+            order.inStorePaymentMethod.isNotEmpty);
+    final payMethod = inStoreTopUp
         ? (order.inStorePaymentMethod.isNotEmpty
             ? order.inStorePaymentMethod
             : '')
         : (order.paymentBank.isNotEmpty ? order.paymentBank : 'card');
-    final depositMethod = order.isSmartReservation
+    final depositMethod = inStoreTopUp
         ? (order.paymentBank.isNotEmpty ? order.paymentBank : 'card')
         : '';
 
@@ -2018,12 +2063,24 @@ class FirestoreService {
 
     final oRow = await _sb
         .from('orders')
-        .select('promo_counts_usage,promo_id,client_uid')
+        .select(
+            'promo_counts_usage,promo_id,client_uid,stock_restored,is_gift,items')
         .eq('id', order.id)
         .maybeSingle();
     if (oRow == null) return;
 
-    for (final item in order.items) {
+    // 🎁 Сыйлық (0070): алушы өлшем таңдамаған сыйлықта қойма ҰСТАЛМАҒАН
+    // (stock_restored = true) — қайтаратын ештеңе жоқ (batchId бос). Таңдалған
+    // сыйлықта локалды `order` ескірген болуы мүмкін → позицияларды базадан аламыз.
+    final stockAlreadyBack = (oRow['stock_restored'] as bool? ?? false);
+    final restoreItems = (oRow['is_gift'] as bool? ?? false)
+        ? ((oRow['items'] as List?) ?? const [])
+            .map((e) => CartItemModel.fromJson(Map<String, dynamic>.from(e)))
+            .toList()
+        : order.items;
+
+    for (final item
+        in stockAlreadyBack ? const <CartItemModel>[] : restoreItems) {
       try {
         await _sb.rpc('adjust_batch_sizes', params: {
           'p_batch': item.batchId,
@@ -2039,8 +2096,10 @@ class FirestoreService {
       }
     }
 
-    // «Өлшеп көру» броні де босайды (0050).
-    if (order.hasFitting) {
+    // «Өлшеп көру» броні де босайды (0050). Сыйлықта қосалқы өлшемді алушы
+    // кейін қосады — локалды көшірмеде болмауы мүмкін, сондықтан базадағы
+    // позициялар бойынша тексереміз.
+    if (restoreItems.any((i) => i.hasAltSize)) {
       try {
         await _sb.rpc('release_fitting_holds', params: {'p_order': order.id});
       } catch (_) {}

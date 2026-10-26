@@ -26,38 +26,67 @@ class LiveNowRow extends StatefulWidget {
 class _LiveNowRowState extends State<LiveNowRow> {
   final _live = LiveService();
   final _client = ClientService();
-  StreamSubscription<List<LiveSession>>? _sub;
-  Timer? _staleTimer;
+  Timer? _pollTimer;
+  bool _polling = false;
   List<LiveSession> _all = const [];
   Map<String, StoreModel> _stores = const {};
   Set<String> _hidden = const {};
 
+  bool get _flagOn => FeatureFlags.instance.isOn(FeatureFlags.liveShopping);
+
   @override
   void initState() {
     super.initState();
-    // Гостьқа RLS ештеңе қайтармайды — ағынды ашпаймыз да.
+    // Гостьқа RLS ештеңе қайтармайды — сұраныс жасамаймыз да.
     if (Supabase.instance.client.auth.currentUser == null) return;
-    _client.getHiddenStoreIds().then((ids) {
-      if (mounted) setState(() => _hidden = ids);
-    }).catchError((_) {});
-    _sub = _live.watchLiveSessions().listen(
-      (list) {
-        if (!mounted) return;
-        setState(() => _all = list);
-        _loadStores(list);
-      },
-      onError: (_) {},
-    );
-    // heartbeat-і тоқтаған эфирді 30 сек сайын қатардан алып тастау.
-    _staleTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-      if (mounted && _all.isNotEmpty) setState(() {});
-    });
+    // Функция өшік болса ешқандай сұраныс жоқ; қосылғанда (flag өзгергенде) басталады.
+    FeatureFlags.instance.addListener(_syncPolling);
+    ClientService.hiddenStoresVersion.addListener(_loadHidden);
+    _syncPolling();
   }
 
-  /// Жаңа дүкен пайда болғанда ғана жүктейміз (әр heartbeat-те емес).
+  /// Жалауша қосулы болса ғана 30 с сайын polling; өшсе тоқтап, қатар жасырылады.
+  void _syncPolling() {
+    if (!mounted) return;
+    if (_flagOn) {
+      if (_pollTimer == null) {
+        _loadHidden();
+        _poll();
+        _pollTimer =
+            Timer.periodic(const Duration(seconds: 30), (_) => _poll());
+      }
+    } else {
+      _pollTimer?.cancel();
+      _pollTimer = null;
+    }
+  }
+
+  Future<void> _loadHidden() async {
+    try {
+      final ids = await _client.getHiddenStoreIds();
+      if (mounted) setState(() => _hidden = ids);
+    } catch (_) {}
+  }
+
+  Future<void> _poll() async {
+    if (_polling) return;
+    _polling = true;
+    try {
+      final list = await _live.getLiveSessions();
+      if (!mounted) return;
+      setState(() => _all = list);
+      await _loadStores(list);
+    } catch (_) {
+      // Желі қатесі — келесі тактіде қайталаймыз.
+    } finally {
+      _polling = false;
+    }
+  }
+
+  /// Жаңа дүкен пайда болғанда ғана жүктейміз (әр polling-те емес).
   Future<void> _loadStores(List<LiveSession> list) async {
     final missing = list
-        .where((s) => s.isLive && !_stores.containsKey(s.adminUid))
+        .where((s) => !_stores.containsKey(s.adminUid))
         .map((s) => s.adminUid)
         .toSet()
         .toList();
@@ -70,26 +99,22 @@ class _LiveNowRowState extends State<LiveNowRow> {
 
   @override
   void dispose() {
-    _sub?.cancel();
-    _staleTimer?.cancel();
+    FeatureFlags.instance.removeListener(_syncPolling);
+    ClientService.hiddenStoresVersion.removeListener(_loadHidden);
+    _pollTimer?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
         listenable: FeatureFlags.instance,
-        builder: (_, __) =>
-            FeatureFlags.instance.isOn(FeatureFlags.liveShopping)
-                ? _buildRow()
-                : const SizedBox.shrink(),
+        builder: (_, __) => _flagOn ? _buildRow() : const SizedBox.shrink(),
       );
 
   Widget _buildRow() {
     final visible = _all
         .where((s) =>
-            s.isFreshLive &&
-            !_hidden.contains(s.adminUid) &&
-            _stores.containsKey(s.adminUid))
+            !_hidden.contains(s.adminUid) && _stores.containsKey(s.adminUid))
         .toList();
     if (visible.isEmpty) return const SizedBox.shrink();
     return Padding(

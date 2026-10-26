@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/feature_flags.dart';
 import '../../core/lang.dart';
@@ -23,15 +24,17 @@ class LiveStoreBanner extends StatefulWidget {
 
 class _LiveStoreBannerState extends State<LiveStoreBanner>
     with SingleTickerProviderStateMixin {
-  StreamSubscription<LiveSession?>? _sub;
-  Timer? _staleTimer;
+  Timer? _pollTimer;
+  bool _polling = false;
   LiveSession? _session;
   late final AnimationController _pulse = AnimationController(
       vsync: this, duration: const Duration(milliseconds: 1200));
 
+  bool get _flagOn => FeatureFlags.instance.isOn(FeatureFlags.liveShopping);
+
   /// Анимация тек баннер көрініп тұрғанда айналады (бос кадр жемейді).
   void _syncPulse() {
-    final visible = _session?.isFreshLive ?? false;
+    final visible = _session != null && _flagOn;
     if (visible && !_pulse.isAnimating) {
       _pulse.repeat(reverse: true);
     } else if (!visible && _pulse.isAnimating) {
@@ -42,29 +45,50 @@ class _LiveStoreBannerState extends State<LiveStoreBanner>
   @override
   void initState() {
     super.initState();
-    if (widget.adminUid.isNotEmpty) {
-      _sub = LiveService().watchStoreLive(widget.adminUid).listen(
-        (s) {
-          if (!mounted) return;
-          setState(() => _session = s);
-          _syncPulse();
-        },
-        // Гость / желі қатесі — баннер жай көрінбейді.
-        onError: (_) {},
-      );
+    if (widget.adminUid.isEmpty ||
+        Supabase.instance.client.auth.currentUser == null) {
+      return;
     }
-    // heartbeat тоқтаған эфир ағында «live» болып қалуы мүмкін — жиі тексереміз.
-    _staleTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-      if (!mounted || _session == null) return;
-      setState(() {});
+    // Realtime емес, 30 с polling: дүкен бетін ашқан әр қолданушының
+    // ағыны live_sessions жолының әр like/heartbeat-ін қабылдамасын.
+    FeatureFlags.instance.addListener(_syncPolling);
+    _syncPolling();
+  }
+
+  void _syncPolling() {
+    if (!mounted) return;
+    if (_flagOn) {
+      if (_pollTimer == null) {
+        _poll();
+        _pollTimer =
+            Timer.periodic(const Duration(seconds: 30), (_) => _poll());
+      }
+    } else {
+      _pollTimer?.cancel();
+      _pollTimer = null;
       _syncPulse();
-    });
+    }
+  }
+
+  Future<void> _poll() async {
+    if (_polling) return;
+    _polling = true;
+    try {
+      final s = await LiveService().getLiveSessionForStore(widget.adminUid);
+      if (!mounted) return;
+      setState(() => _session = s);
+      _syncPulse();
+    } catch (_) {
+      // Желі қатесі — баннер жай көрінбейді / келесі тактіде қайталанады.
+    } finally {
+      _polling = false;
+    }
   }
 
   @override
   void dispose() {
-    _sub?.cancel();
-    _staleTimer?.cancel();
+    FeatureFlags.instance.removeListener(_syncPolling);
+    _pollTimer?.cancel();
     _pulse.dispose();
     super.dispose();
   }
@@ -72,15 +96,12 @@ class _LiveStoreBannerState extends State<LiveStoreBanner>
   @override
   Widget build(BuildContext context) => ListenableBuilder(
         listenable: FeatureFlags.instance,
-        builder: (_, __) =>
-            FeatureFlags.instance.isOn(FeatureFlags.liveShopping)
-                ? _buildBanner()
-                : const SizedBox.shrink(),
+        builder: (_, __) => _flagOn ? _buildBanner() : const SizedBox.shrink(),
       );
 
   Widget _buildBanner() {
     final s = _session;
-    if (s == null || !s.isFreshLive) return const SizedBox.shrink();
+    if (s == null) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
       child: AnimatedBuilder(

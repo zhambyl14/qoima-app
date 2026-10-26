@@ -933,15 +933,29 @@ class ClientService {
 
     final oRow = await _sb
         .from('orders')
-        .select('promo_counts_usage,promo_id,client_uid')
+        .select(
+            'promo_counts_usage,promo_id,client_uid,stock_restored,is_gift,items')
         .eq('id', order.id)
         .maybeSingle();
     if (oRow == null) return;
 
-    if (order.isSmartReservation) {
+    // 🎁 Сыйлық (0070): алушы өлшем таңдамаған сыйлықта қойма ҰСТАЛМАҒАН
+    // (stock_restored = true болып жазылады) — қайтаратын ештеңе жоқ, әйтпесе
+    // batchId бос → қате. Таңдалған (claim) сыйлықта локалды `order` ескірген
+    // болуы мүмкін, сондықтан позицияларды базадан аламыз.
+    final stockAlreadyBack = (oRow['stock_restored'] as bool? ?? false);
+    final restoreItems = (oRow['is_gift'] as bool? ?? false)
+        ? ((oRow['items'] as List?) ?? const [])
+            .map((e) => CartItemModel.fromJson(Map<String, dynamic>.from(e)))
+            .toList()
+        : order.items;
+
+    if (stockAlreadyBack) {
+      // қойма бұрын қайтарылған / ешқашан ұсталмаған — өткізіп жібереміз
+    } else if (order.isSmartReservation) {
       // Claim сәтті болды — тапсырыс pending/reserved/rejected күйінде
       // болғаны расталды, сондықтан резервтен азайту әрқашан орынды.
-      for (final item in order.items) {
+      for (final item in restoreItems) {
         try {
           await _sb.rpc('adjust_batch_sizes', params: {
             'p_batch': item.batchId,
@@ -955,7 +969,7 @@ class ClientService {
         }
       }
     } else {
-      for (final item in order.items) {
+      for (final item in restoreItems) {
         try {
           await _sb.rpc('adjust_batch_sizes', params: {
             'p_batch': item.batchId,
@@ -970,7 +984,9 @@ class ClientService {
     }
 
     // «Өлшеп көру» броні босайды (0050 — бір ғана ақиқат көзі: SQL функциясы).
-    if (order.hasFitting) {
+    // Сыйлықта қосалқы өлшем алушы растағанда қосылады — локалды көшірмеде
+    // болмауы мүмкін, сондықтан базадағы позициялар бойынша тексереміз.
+    if (restoreItems.any((i) => i.hasAltSize)) {
       try {
         await _sb.rpc('release_fitting_holds', params: {'p_order': order.id});
       } catch (_) {}

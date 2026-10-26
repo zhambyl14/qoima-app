@@ -1,14 +1,167 @@
+import 'dart:async';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/lang.dart';
 import '../models/order_model.dart';
+
+/// Бір өлшем нұсқасы (`gift_size_options`): баға (алушыға жасырылса — null),
+/// қосымша төлем, рұқсат (курьерде тек төленген сомадан қымбат емес) және
+/// курьер примеркасына болатын қосалқы өлшемдер.
+class GiftSizeOption {
+  final String size;
+  final double? price;
+  final double extra;
+  final bool allowed;
+  final List<String> alts;
+
+  const GiftSizeOption({
+    required this.size,
+    this.price,
+    this.extra = 0,
+    this.allowed = true,
+    this.alts = const [],
+  });
+
+  factory GiftSizeOption.fromMap(Map<String, dynamic> m) => GiftSizeOption(
+        size: m['size']?.toString() ?? '',
+        price: (m['price'] as num?)?.toDouble(),
+        extra: (m['extra'] as num?)?.toDouble() ?? 0,
+        allowed: m['allowed'] as bool? ?? true,
+        alts: [for (final e in (m['alts'] as List? ?? const [])) e.toString()],
+      );
+
+  static List<GiftSizeOption> listFrom(dynamic raw) => [
+        for (final e in (raw as List? ?? const []))
+          if (e is Map) GiftSizeOption.fromMap(Map<String, dynamic>.from(e)),
+      ];
+}
+
+/// Ауыстыру парақшасындағы тауар (сыйлықтың өзі не сол дүкеннің басқа тауары).
+class GiftExchangeProduct {
+  final String id;
+  final String name;
+  final String brand;
+  final String color;
+  final String categoryKey;
+  final String imageUrl;
+  final bool nonReturnable;
+  final bool isCurrent;
+  final List<GiftSizeOption> sizes;
+
+  const GiftExchangeProduct({
+    required this.id,
+    required this.name,
+    this.brand = '',
+    this.color = '',
+    this.categoryKey = '',
+    this.imageUrl = '',
+    this.nonReturnable = false,
+    this.isCurrent = false,
+    this.sizes = const [],
+  });
+
+  /// Ең арзан рұқсат етілген өлшемнің қосымша төлемі (0 = сыйлыққа кіреді).
+  double get minExtra {
+    double? m;
+    for (final s in sizes) {
+      if (!s.allowed) continue;
+      if (m == null || s.extra < m) m = s.extra;
+    }
+    return m ?? 0;
+  }
+
+  /// Ең арзан рұқсат етілген өлшемнің бағасы (жасырылса — null).
+  double? get minPrice {
+    double? m;
+    for (final s in sizes) {
+      if (!s.allowed || s.price == null) continue;
+      if (m == null || s.price! < m) m = s.price;
+    }
+    return m;
+  }
+
+  bool get hasAllowed => sizes.any((s) => s.allowed);
+
+  factory GiftExchangeProduct.fromMap(Map<String, dynamic> m) =>
+      GiftExchangeProduct(
+        id: m['id'] as String? ?? '',
+        name: m['name'] as String? ?? '',
+        brand: m['brand'] as String? ?? '',
+        color: m['color'] as String? ?? '',
+        categoryKey: m['category_key'] as String? ?? '',
+        imageUrl: m['image_url'] as String? ?? '',
+        nonReturnable: m['non_returnable'] as bool? ?? false,
+        isCurrent: m['is_current'] as bool? ?? false,
+        sizes: GiftSizeOption.listFrom(m['sizes']),
+      );
+}
+
+/// `get_gift_exchange_options` жауабы.
+class GiftExchangeOptions {
+  final String mode; // 'claim' (алушы) | 'store' (дүкен)
+  final bool courier;
+  final bool completed;
+  final double? credit; // алушыға баға жасырылса — null
+  final bool hidePrice;
+  final double extraDue;
+  final bool locked; // қайтарылмайтын тауар — ауыстыруға болмайды
+  final bool fittingAvailable;
+  final String currentProductId;
+  final String currentSize;
+  final DateTime? exchangeUntil;
+  final List<GiftExchangeProduct> products;
+
+  const GiftExchangeOptions({
+    required this.mode,
+    this.courier = false,
+    this.completed = false,
+    this.credit,
+    this.hidePrice = false,
+    this.extraDue = 0,
+    this.locked = false,
+    this.fittingAvailable = false,
+    this.currentProductId = '',
+    this.currentSize = '',
+    this.exchangeUntil,
+    this.products = const [],
+  });
+
+  bool get isStore => mode == 'store';
+
+  /// Қымбатырақ тауарға қосымша төлеммен ауысуға бола ма (курьерде — жоқ).
+  bool get allowOver => !courier || completed;
+
+  factory GiftExchangeOptions.fromMap(Map<String, dynamic> m) =>
+      GiftExchangeOptions(
+        mode: m['mode'] as String? ?? 'claim',
+        courier: m['courier'] as bool? ?? false,
+        completed: m['completed'] as bool? ?? false,
+        credit: (m['credit'] as num?)?.toDouble(),
+        hidePrice: m['hide_price'] as bool? ?? false,
+        extraDue: (m['extra_due'] as num?)?.toDouble() ?? 0,
+        locked: m['locked'] as bool? ?? false,
+        fittingAvailable: m['fitting_available'] as bool? ?? false,
+        currentProductId: m['current_product_id'] as String? ?? '',
+        currentSize: m['current_size'] as String? ?? '',
+        exchangeUntil: m['exchange_until'] is String
+            ? DateTime.tryParse(m['exchange_until'] as String)?.toLocal()
+            : null,
+        products: [
+          for (final e in (m['products'] as List? ?? const []))
+            if (e is Map)
+              GiftExchangeProduct.fromMap(Map<String, dynamic>.from(e)),
+        ],
+      );
+}
 
 /// `get_gift_public` жауабы: сілтемені ашқан адамға (қонақ та) көрінетін сыйлық.
 ///
 /// Алушыға баға жасырылса — [price] null (сервер жасырады). Сыйлаушы өз
 /// сыйлығын әрқашан бағасымен көреді.
 class GiftPublic {
-  final String status; // awaiting_payment|ready_to_claim|claimed|cancelled|expired
+  final String
+      status; // awaiting_payment|ready_to_claim|claimed|cancelled|expired
   final String giverFirstName;
   final String recipientName;
   final String message;
@@ -27,6 +180,26 @@ class GiftPublic {
   final String deliveryMode; // 'store' | 'courier'
   final double deliveryFee;
   final List<String> availableSizes;
+
+  /// Өлшемдер бағасымен/қосымша төлемімен (тек ready_to_claim күйінде).
+  final List<GiftSizeOption> sizeOptions;
+
+  /// Сыйлаушы таңдап, брондаған өлшем (алушы әлі растамаған) — бос болуы мүмкін.
+  final String chosenSize;
+
+  /// Қайтарылмайтын тауар: өлшем/тауар ауыстырылмайды.
+  final bool nonReturnable;
+
+  /// Курьер примеркасы (екінші өлшем) қолжетімді ме — ақысын сыйлаушы төлеген.
+  final bool fittingAvailable;
+  final double fittingFee;
+
+  /// Алушы дүкенде беру кезінде төлейтін қосымша (тек сыйлаушы/алушыға).
+  final double extraDue;
+
+  /// Алынған сыйлықты дүкенде ауыстыру мерзімі (14 күн).
+  final DateTime? exchangeUntil;
+  final bool exchanged;
   final String claimedSize;
   final DateTime? expiresAt;
   final bool isGiver;
@@ -54,6 +227,14 @@ class GiftPublic {
     this.deliveryMode = 'store',
     this.deliveryFee = 0,
     this.availableSizes = const [],
+    this.sizeOptions = const [],
+    this.chosenSize = '',
+    this.nonReturnable = false,
+    this.fittingAvailable = false,
+    this.fittingFee = 0,
+    this.extraDue = 0,
+    this.exchangeUntil,
+    this.exchanged = false,
     this.claimedSize = '',
     this.expiresAt,
     this.isGiver = false,
@@ -97,6 +278,16 @@ class GiftPublic {
         for (final e in (m['available_sizes'] as List? ?? const []))
           e.toString(),
       ],
+      sizeOptions: GiftSizeOption.listFrom(m['size_options']),
+      chosenSize: m['chosen_size'] as String? ?? '',
+      nonReturnable: m['non_returnable'] as bool? ?? false,
+      fittingAvailable: m['fitting_available'] as bool? ?? false,
+      fittingFee: (m['fitting_fee'] as num?)?.toDouble() ?? 0,
+      extraDue: (m['extra_due'] as num?)?.toDouble() ?? 0,
+      exchangeUntil: m['exchange_until'] is String
+          ? DateTime.tryParse(m['exchange_until'] as String)?.toLocal()
+          : null,
+      exchanged: m['exchanged'] as bool? ?? false,
       claimedSize: m['claimed_size'] as String? ?? '',
       expiresAt: m['expires_at'] is String
           ? DateTime.tryParse(m['expires_at'] as String)?.toLocal()
@@ -109,8 +300,8 @@ class GiftPublic {
   }
 }
 
-/// «Сыйлау» (0070) сервисі. Тапсырысты жасау да, алу да СЕРВЕР RPC-лерінде
-/// (баға мен қойма клиентте есептелмейді).
+/// «Сыйлау» (0070) сервисі. Тапсырысты жасау да, алу да, ауыстыру да СЕРВЕР
+/// RPC-лерінде (баға мен қойма клиентте есептелмейді).
 class GiftService {
   final SupabaseClient _sb = Supabase.instance.client;
 
@@ -118,13 +309,17 @@ class GiftService {
 
   /// Сыйлық тапсырысын жасайды (статус pending, төлем чегі күтіледі).
   /// [courier] — true болса алушыға курьер жеткізеді (қалада қызмет болса).
+  /// [size] — сыйлаушы өлшемді білсе: баға сол өлшемнің бағасы, қойма бірден
+  /// брондалады (алушы кейін басқа қолжетімді өлшемге ауыстыра алады).
   Future<OrderModel> createGift({
     required String productId,
     required bool courier,
     required String recipientName,
     required String message,
     required bool hidePrice,
+    String? size,
   }) async {
+    final sz = (size ?? '').trim();
     try {
       final res = await _sb.rpc('create_gift_order', params: {
         'p_product': productId,
@@ -132,10 +327,11 @@ class GiftService {
         'p_recipient_name': recipientName.trim(),
         'p_message': message.trim(),
         'p_hide_price': hidePrice,
+        'p_size': sz.isEmpty ? null : sz,
       });
       return OrderModel.fromMap(Map<String, dynamic>.from(res as Map));
     } on PostgrestException catch (e) {
-      throw Exception(_message(e.message));
+      throw Exception(_message(e.message, creating: true));
     }
   }
 
@@ -151,12 +347,16 @@ class GiftService {
   }
 
   /// Алушы өлшем (және курьер болса мекенжай) таңдап, сыйлықты қабылдайды.
+  /// [productId] — сол дүкеннің басқа тауары (null = сыйлықтың өз тауары).
+  /// [altSize] — курьер примеркасына екінші өлшем (міндетті емес).
   Future<OrderModel> claim({
     required String token,
     required String size,
     required String address,
     required String city,
     required String phone,
+    String? productId,
+    String? altSize,
   }) async {
     try {
       final res = await _sb.rpc('claim_gift', params: {
@@ -165,6 +365,38 @@ class GiftService {
         'p_address': address.trim(),
         'p_city': city.trim(),
         'p_phone': phone.trim(),
+        'p_product': (productId ?? '').isEmpty ? null : productId,
+        'p_alt_size': (altSize ?? '').isEmpty ? null : altSize,
+      });
+      return OrderModel.fromMap(Map<String, dynamic>.from(res as Map));
+    } on PostgrestException catch (e) {
+      throw Exception(_message(e.message));
+    }
+  }
+
+  /// Ауыстыру нұсқалары: сыйлық тауарының өлшемдері + сол дүкеннің басқа
+  /// тауарлары. Алушы (алғанға дейін) немесе дүкен қызметкері шақырады.
+  Future<GiftExchangeOptions> getExchangeOptions(String token) async {
+    try {
+      final res = await _sb
+          .rpc('get_gift_exchange_options', params: {'p_token': token});
+      return GiftExchangeOptions.fromMap(Map<String, dynamic>.from(res as Map));
+    } on PostgrestException catch (e) {
+      throw Exception(_message(e.message));
+    }
+  }
+
+  /// Дүкен кассада ауыстырады (басқа өлшем/тауар). Қойма мен баға серверде.
+  Future<OrderModel> storeExchange({
+    required String orderId,
+    required String productId,
+    required String size,
+  }) async {
+    try {
+      final res = await _sb.rpc('gift_store_exchange', params: {
+        'p_order': orderId,
+        'p_product': productId,
+        'p_size': size,
       });
       return OrderModel.fromMap(Map<String, dynamic>.from(res as Map));
     } on PostgrestException catch (e) {
@@ -187,19 +419,62 @@ class GiftService {
             .toList());
   }
 
+  /// Маған келген бір сыйлық (тазартылған `get_my_received_gifts` ішінен).
+  Future<OrderModel?> receivedGift(String orderId) async {
+    final res = await _sb.rpc('get_my_received_gifts');
+    for (final e in (res as List? ?? const [])) {
+      final m = Map<String, dynamic>.from(e as Map);
+      if (m['id'] == orderId) return OrderModel.fromMap(m);
+    }
+    return null;
+  }
+
   /// Маған келген сыйлықтар (орындалған claim бойынша).
+  ///
+  /// Алушыға `orders` кестесін оқу құқығы берілмейді (чек суреті, төлем
+  /// деректері, жасырын баға) — тазартылған `get_my_received_gifts` RPC-і
+  /// қолданылады. RPC realtime емес, сондықтан кезеңді сұрау (12 с).
   Stream<List<OrderModel>> watchGiftsReceived() {
     if (_uid.isEmpty) return Stream.value(const <OrderModel>[]);
-    return _sb
-        .from('orders')
-        .stream(primaryKey: ['id'])
-        .eq('gift_recipient_uid', _uid)
-        .order('created_at', ascending: false)
-        .map((rows) => rows.map(OrderModel.fromMap).toList());
+    late final StreamController<List<OrderModel>> ctrl;
+    Timer? timer;
+    var busy = false;
+    var loadedOnce = false;
+    Future<void> load() async {
+      if (busy || ctrl.isClosed) return;
+      busy = true;
+      try {
+        final res = await _sb.rpc('get_my_received_gifts');
+        final list = [
+          for (final e in (res as List? ?? const []))
+            OrderModel.fromMap(Map<String, dynamic>.from(e as Map)),
+        ];
+        loadedOnce = true;
+        if (!ctrl.isClosed) ctrl.add(list);
+      } catch (e, st) {
+        // бір реттік желі қатесі жүктелген тізімді бұзбасын — тек алғашқы қате
+        if (!loadedOnce && !ctrl.isClosed) ctrl.addError(e, st);
+      } finally {
+        busy = false;
+      }
+    }
+
+    ctrl = StreamController<List<OrderModel>>(
+      onListen: () {
+        load();
+        timer = Timer.periodic(const Duration(seconds: 12), (_) => load());
+      },
+      onCancel: () {
+        timer?.cancel();
+        ctrl.close();
+      },
+    );
+    return ctrl.stream;
   }
 
   /// RPC қате кодтарын пайдаланушыға түсінікті мәтінге айналдырады.
-  static String _message(String raw) {
+  /// [creating] — сыйлық жасау кезінде (өлшем міндетті = қайтарылмайтын тауар).
+  static String _message(String raw, {bool creating = false}) {
     final m = raw.toLowerCase();
     bool has(String k) => m.contains(k);
     if (has('feature_disabled')) {
@@ -213,9 +488,61 @@ class GiftService {
       return tr('Подарки доступны только покупателям',
           'Сыйлық тек сатып алушыларға қолжетімді');
     }
+    if (has('gift_exchange_over_amount')) {
+      return tr(
+          'При доставке курьером можно выбрать товар не дороже подарка. Доплата возможна только при получении в магазине.',
+          'Курьермен жеткізгенде сыйлықтан қымбат емес тауар ғана таңдалады. Қосымша төлем тек дүкеннен алғанда мүмкін.');
+    }
+    if (has('gift_non_returnable')) {
+      return tr('Этот товар нельзя обменять — размер выбран отправителем',
+          'Бұл тауарды ауыстыруға болмайды — өлшемді сыйлаушы таңдаған');
+    }
+    if (has('gift_fitting_unavailable')) {
+      return tr('Примерка второго размера недоступна для этого подарка',
+          'Бұл сыйлыққа екінші өлшемді өлшеп көру қолжетімсіз');
+    }
+    if (has('gift_alt_size_unavailable')) {
+      return tr('Второго размера для примерки нет в наличии — выберите другой',
+          'Өлшеп көруге екінші өлшем жоқ — басқасын таңдаңыз');
+    }
+    if (has('gift_product_unavailable')) {
+      return tr('Этот товар сейчас недоступен — выберите другой',
+          'Бұл тауар қазір қолжетімсіз — басқасын таңдаңыз');
+    }
+    if (has('gift_exchange_same')) {
+      return tr('Выбран тот же товар и размер', 'Сол тауар мен өлшем таңдалды');
+    }
+    if (has('gift_exchange_expired')) {
+      return tr(
+          'Срок обмена (14 дней) истёк', 'Ауыстыру мерзімі (14 күн) өтіп кетті');
+    }
+    if (has('gift_handover_in_progress')) {
+      return tr('Выдача подарка ещё оформляется — повторите через минуту',
+          'Сыйлықты беру әлі рәсімделіп жатыр — бір минуттан соң қайталаңыз');
+    }
+    if (has('gift_status_forbidden')) {
+      return tr('Оплаченный подарок нельзя отменить самостоятельно',
+          'Төленген сыйлықтан өз бетіңізше бас тартуға болмайды');
+    }
+    if (has('gift_exchange_courier')) {
+      return tr('Курьерский подарок можно обменять в магазине после получения',
+          'Курьермен келетін сыйлықты алған соң дүкенде ауыстыруға болады');
+    }
+    if (has('gift_exchange_closed') || has('gift_not_claimed')) {
+      return tr('Обмен для этого подарка сейчас недоступен',
+          'Бұл сыйлықты қазір ауыстыру мүмкін емес');
+    }
+    if (has('gift_exchange_only')) {
+      return tr(
+          'Подарок можно только обменять — принесите товар в магазин (14 дней)',
+          'Сыйлықты тек ауыстыруға болады — тауарды дүкенге апарыңыз (14 күн)');
+    }
+    if (has('not_your_order')) {
+      return tr('Нет доступа к этому подарку', 'Бұл сыйлыққа рұқсат жоқ');
+    }
     if (has('gift_out_of_stock')) {
-      return tr('Этого товара сейчас нет в наличии',
-          'Бұл тауар қазір қоймада жоқ');
+      return tr(
+          'Этого товара сейчас нет в наличии', 'Бұл тауар қазір қоймада жоқ');
     }
     if (has('product_unavailable') || has('store_unavailable')) {
       return tr('Товар или магазин сейчас недоступны',
@@ -240,7 +567,11 @@ class GiftService {
       return tr('Укажите номер телефона', 'Телефон нөмірін көрсетіңіз');
     }
     if (has('gift_size_required')) {
-      return tr('Выберите размер', 'Өлшемді таңдаңыз');
+      return creating
+          ? tr(
+              'Этот товар нельзя обменять — подарите, зная размер',
+              'Бұл тауарды ауыстыруға болмайды, өлшемін біліп сыйлаңыз')
+          : tr('Выберите размер', 'Өлшемді таңдаңыз');
     }
     if (has('gift_already_claimed')) {
       return tr('Этот подарок уже получен', 'Бұл сыйлық бұрын алынған');
@@ -253,8 +584,8 @@ class GiftService {
       return tr('Подарок отменён', 'Сыйлық бас тартылған');
     }
     if (has('gift_expired')) {
-      return tr('Срок получения подарка истёк',
-          'Сыйлықты алу мерзімі өтіп кеткен');
+      return tr(
+          'Срок получения подарка истёк', 'Сыйлықты алу мерзімі өтіп кеткен');
     }
     if (has('gift_not_paid')) {
       return tr('Подарок ещё не оплачен', 'Сыйлық әлі төленбеген');

@@ -82,7 +82,7 @@ class _ClientOrderDetailScreenState extends State<ClientOrderDetailScreen> {
           return;
         }
       }
-    });
+    }, onError: (Object _) {});
     _favSub = _service.watchFavoriteIds().listen((ids) {
       if (mounted) setState(() => _favIds = ids.toSet());
     });
@@ -336,6 +336,9 @@ class _ClientOrderDetailScreenState extends State<ClientOrderDetailScreen> {
   bool get _canOpenReturn =>
       o.returnable && _returnLoaded && _returnStatus == null;
 
+  String _dateOnly(DateTime d) =>
+      '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
+
   String _date(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year} '
       '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
@@ -381,11 +384,14 @@ class _ClientOrderDetailScreenState extends State<ClientOrderDetailScreen> {
                   o.status != OrderModel.statusCancelled &&
                   (o.warehouseAddress.isNotEmpty || o.storePhone.isNotEmpty))
                 _pickupCard(),
-              if (o.isDelivery && o.address.trim().isNotEmpty) _addressCard(),
+              // 🎁 Сыйлаушыға алушының мекенжайы көрсетілмейді (жеке дерек)
+              if (o.isDelivery &&
+                  o.address.trim().isNotEmpty &&
+                  !(o.isGift && !_isRecipient))
+                _addressCard(),
               if (o.status == OrderModel.statusRejected &&
                   o.rejectionReason.isNotEmpty)
-                _reasonCard(
-                    tr('Причина отклонения', 'Қабылданбау себебі'),
+                _reasonCard(tr('Причина отклонения', 'Қабылданбау себебі'),
                     o.rejectionReason),
               const SizedBox(height: 6),
               ..._actions(),
@@ -413,7 +419,8 @@ class _ClientOrderDetailScreenState extends State<ClientOrderDetailScreen> {
             Row(children: [
               const Icon(Icons.receipt_long_outlined, size: 15, color: cBlue),
               const SizedBox(width: 6),
-              Text('${tr('Чек', 'Чек')} №${o.receiptNumber.replaceAll('#', '')}',
+              Text(
+                  '${tr('Чек', 'Чек')} №${o.receiptNumber.replaceAll('#', '')}',
                   style: manrope(12.5, FontWeight.w700, color: cBlue)),
             ]),
           ],
@@ -440,8 +447,7 @@ class _ClientOrderDetailScreenState extends State<ClientOrderDetailScreen> {
           ]),
           if (o.completedAt != null) ...[
             const SizedBox(height: 8),
-            Text(
-                '${tr('Получен', 'Алынды')}: ${_date(o.completedAt!)}',
+            Text('${tr('Получен', 'Алынды')}: ${_date(o.completedAt!)}',
                 style: manrope(11.5, FontWeight.w600, color: cInk3)),
           ],
         ]),
@@ -458,18 +464,48 @@ class _ClientOrderDetailScreenState extends State<ClientOrderDetailScreen> {
     if (!recipient) {
       if (o.isGiftAwaitingRecipient && o.status == OrderModel.statusConfirmed) {
         stateText = o.isGiftExpired
-            ? tr('Получатель не открыл подарок за 30 дней. Свяжитесь с магазином — он вернёт оплату.',
+            ? tr(
+                'Получатель не открыл подарок за 30 дней. Свяжитесь с магазином — он вернёт оплату.',
                 'Алушы сыйлықты 30 күн ішінде ашпады. Дүкенмен хабарласыңыз — ақшаңызды қайтарады.')
-            : tr('Оплата подтверждена. Отправьте ссылку получателю — он выберет размер.',
+            : tr(
+                'Оплата подтверждена. Отправьте ссылку получателю — он выберет размер.',
                 'Төлем расталды. Сілтемені алушыға жіберіңіз — ол өлшемін таңдайды.');
       } else if (o.isGiftAwaitingRecipient) {
         stateText = tr(
             'После подтверждения оплаты получатель сможет выбрать размер.',
             'Төлем расталған соң алушы өлшемін таңдай алады.');
-      } else if (o.isGiftClaimed && item != null && item.size.isNotEmpty) {
-        stateText = tr(
-            'Получатель выбрал размер ${item.size}. Магазин готовит подарок.',
-            'Алушы ${item.size} өлшемін таңдады. Дүкен сыйлықты дайындап жатыр.');
+      } else if (o.isGiftClaimed &&
+          active &&
+          item != null &&
+          item.size.isNotEmpty) {
+        stateText = o.giftExchangeLog.isNotEmpty
+            ? tr(
+                'Получатель выбрал: ${item.productName}, размер ${trValue(item.size)}. Магазин готовит подарок.',
+                'Алушы таңдады: ${item.productName}, ${trValue(item.size)} өлшемі. Дүкен сыйлықты дайындап жатыр.')
+            : tr(
+                'Получатель выбрал размер ${trValue(item.size)}. Магазин готовит подарок.',
+                'Алушы ${trValue(item.size)} өлшемін таңдады. Дүкен сыйлықты дайындап жатыр.');
+      }
+    } else {
+      // Алушыға: қосымша төлем + «тек ауыстыру» ережесі мен мерзімі
+      final parts = <String>[
+        if (o.hasGiftExtraDue)
+          tr('Доплата в магазине при получении: ${money(o.giftExtraDue)}.',
+              'Алған кезде дүкенде қосымша төлем: ${money(o.giftExtraDue)}.'),
+        if (item != null && item.altSize.isNotEmpty && active)
+          tr('Курьер привезёт два размера: ${trValue(item.size)} и ${trValue(item.altSize)} — оставите подходящий.',
+              'Курьер екі өлшем әкеледі: ${trValue(item.size)} және ${trValue(item.altSize)} — сәйкесін қалдырасыз.'),
+        if (o.status == OrderModel.statusCompleted)
+          o.giftExchangeOpen
+              ? tr('Подарок можно только обменять: принесите товар в магазин «${o.storeName}» до ${_dateOnly(o.returnDeadline)} — другой размер или товар.',
+                  'Сыйлықты тек ауыстыруға болады: тауарды ${_dateOnly(o.returnDeadline)} дейін «${o.storeName}» дүкеніне апарыңыз — басқа өлшем не тауар.')
+              : tr('Срок обмена подарка истёк.', 'Сыйлықты ауыстыру мерзімі өтті.')
+        else if (active && !o.byPlatformCourier)
+          tr('Не подойдёт — обменяете прямо в магазине на другой размер или товар.',
+              'Келмесе — дүкеннің өзінде басқа өлшемге не тауарға ауыстырасыз.'),
+      ];
+      if (parts.isNotEmpty) {
+        stateText = parts.join('\n');
       }
     }
     final who = recipient
@@ -477,8 +513,8 @@ class _ClientOrderDetailScreenState extends State<ClientOrderDetailScreen> {
             ? tr('От: ${o.giftGiverName}', 'Кімнен: ${o.giftGiverName}')
             : '')
         : (o.giftRecipientName.isNotEmpty
-            ? tr('Кому: ${o.giftRecipientName}',
-                'Кімге: ${o.giftRecipientName}')
+            ? tr(
+                'Кому: ${o.giftRecipientName}', 'Кімге: ${o.giftRecipientName}')
             : '');
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -527,15 +563,14 @@ class _ClientOrderDetailScreenState extends State<ClientOrderDetailScreen> {
               o.pickupCode.isNotEmpty) ...[
             const SizedBox(height: 10),
             Text(
-              tr('Код получения: ${o.pickupCode}',
-                  'Алу коды: ${o.pickupCode}'),
+              tr('Код получения: ${o.pickupCode}', 'Алу коды: ${o.pickupCode}'),
               style: manrope(16, FontWeight.w800, color: cGreenDeep),
             ),
           ],
           if (!recipient &&
               o.isGiftAwaitingRecipient &&
               !o.isGiftExpired &&
-              o.status == OrderModel.statusConfirmed) ...[
+              o.status != OrderModel.statusRejected) ...[
             const SizedBox(height: 10),
             Row(children: [
               Expanded(
@@ -553,8 +588,7 @@ class _ClientOrderDetailScreenState extends State<ClientOrderDetailScreen> {
                 child: QSoftButton(
                   label: '',
                   height: 44,
-                  icon:
-                      const Icon(Icons.link_rounded, color: cGreen, size: 20),
+                  icon: const Icon(Icons.link_rounded, color: cGreen, size: 20),
                   onPressed: () => copyGiftLink(context, o),
                 ),
               ),
@@ -611,8 +645,7 @@ class _ClientOrderDetailScreenState extends State<ClientOrderDetailScreen> {
           Text(
               [
                 item.size.isEmpty
-                    ? tr('Размер выберет получатель',
-                        'Өлшемді алушы таңдайды')
+                    ? tr('Размер выберет получатель', 'Өлшемді алушы таңдайды')
                     : '${tr('Размер', 'Өлшемі')} ${item.size}',
                 '×${item.qty}',
                 if (!o.hideGiftPriceFor(AppUser.current.uid))
@@ -643,8 +676,7 @@ class _ClientOrderDetailScreenState extends State<ClientOrderDetailScreen> {
             behavior: HitTestBehavior.opaque,
             child: Padding(
               padding: const EdgeInsets.only(left: 6, top: 2),
-              child: Icon(Icons.star_outline_rounded,
-                  size: 21, color: cInk3),
+              child: Icon(Icons.star_outline_rounded, size: 21, color: cInk3),
             ),
           ),
       // Ұнады ма — тауарды таңдаулыға. Қайта сатып алудың ең қысқа жолы.
@@ -653,8 +685,10 @@ class _ClientOrderDetailScreenState extends State<ClientOrderDetailScreen> {
         behavior: HitTestBehavior.opaque,
         child: Padding(
           padding: const EdgeInsets.only(left: 6, top: 2),
-          child: Icon(fav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-              size: 21, color: fav ? cRed : cInk3),
+          child: Icon(
+              fav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+              size: 21,
+              color: fav ? cRed : cInk3),
         ),
       ),
     ]);
@@ -668,8 +702,8 @@ class _ClientOrderDetailScreenState extends State<ClientOrderDetailScreen> {
           '−${money(o.promoDiscount)}', cGreen));
     }
     if (o.isSmartReservation && o.depositAmount > 0) {
-      rows.add(_moneyRow(tr('Депозит', 'Депозит'),
-          money(o.depositAmount), cGreen));
+      rows.add(
+          _moneyRow(tr('Депозит', 'Депозит'), money(o.depositAmount), cGreen));
       rows.add(_moneyRow(tr('Доплата в магазине', 'Дүкенде доплата'),
           money(o.remainingAmount), cAmber));
     }
@@ -689,7 +723,8 @@ class _ClientOrderDetailScreenState extends State<ClientOrderDetailScreen> {
 
   Widget _moneyRow(String label, String value, Color color) => Padding(
         padding: const EdgeInsets.only(bottom: 4),
-        child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+        child:
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
           Text(label, style: manrope(12.5, FontWeight.w500, color: cInk2)),
           Text(value, style: manrope(12.5, FontWeight.w700, color: color)),
         ]),
@@ -762,7 +797,8 @@ class _ClientOrderDetailScreenState extends State<ClientOrderDetailScreen> {
                     const SizedBox(height: 3),
                     Text(
                         [
-                          if (o.clientCity.trim().isNotEmpty) o.clientCity.trim(),
+                          if (o.clientCity.trim().isNotEmpty)
+                            o.clientCity.trim(),
                           o.address.trim(),
                         ].join(', '),
                         style: manrope(13, FontWeight.w700, color: cInk)),
@@ -839,8 +875,7 @@ class _ClientOrderDetailScreenState extends State<ClientOrderDetailScreen> {
           height: 46,
           icon: const Icon(Icons.add_shopping_cart_rounded,
               size: 18, color: cGreenDeep),
-          onPressed:
-              _reordering ? null : () => _reorder(goToCart: false),
+          onPressed: _reordering ? null : () => _reorder(goToCart: false),
         ),
       ]);
     }
@@ -848,12 +883,17 @@ class _ClientOrderDetailScreenState extends State<ClientOrderDetailScreen> {
     // Возврат — ЕҢ СОҢЫНДА: бұл сирек әрі кері әрекет, негізгі жолды
     // (қайта сатып алу) көлеңкелеп тұрмауы керек.
     if (o.status == OrderModel.statusCompleted && o.isGift) {
+      // 0070: сыйлық = тек ауыстыру (возврат ағыны серверде бөгелген).
       widgets.addAll([
         const SizedBox(height: 14),
         Center(
           child: Text(
-              tr('Для возврата подарка обратитесь в магазин',
-                  'Сыйлықты қайтару үшін дүкенге хабарласыңыз'),
+              o.giftExchangeOpen
+                  ? tr(
+                      'Подарок можно только обменять — принесите товар в магазин (14 дней, до ${_dateOnly(o.returnDeadline)})',
+                      'Сыйлықты тек ауыстыруға болады — тауарды дүкенге апарыңыз (14 күн, ${_dateOnly(o.returnDeadline)} дейін)')
+                  : tr('Срок обмена подарка истёк',
+                      'Сыйлықты ауыстыру мерзімі өтті'),
               textAlign: TextAlign.center,
               style: manrope(11.5, FontWeight.w600, color: cInk3)),
         ),

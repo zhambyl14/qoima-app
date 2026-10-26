@@ -145,6 +145,16 @@ class OrderModel {
   final DateTime? giftClaimedAt;
   final DateTime? giftExpiresAt;
   final String giftGiverName;
+  /// Сыйлаушы төлеген ТАУАР сомасы (примерка/жеткізусіз) — ауыстыру ережесінің
+  /// өлшемі: жаңа тауар бұдан арзан болса айырма қайтарылмайды, қымбат болса
+  /// айырманы алушы дүкенде төлейді.
+  final double giftPaidAmount;
+  /// Алушы қымбатырақ тауарға ауысқанда дүкенде БЕРУ КЕЗІНДЕ төлейтін қосымша.
+  /// (items[0].price = төленген + осы сома → [remainingAmount] дәл осыған тең.)
+  final double giftExtraDue;
+  /// Ауыстырулар тарихы (сервер жазады): {at, by, from_product, from_size,
+  /// to_product, to_size, extra, after_handover}.
+  final List<Map<String, dynamic>> giftExchangeLog;
 
   static const Duration receiptWindow = Duration(minutes: 30);
   static const Duration pickupWindow = Duration(minutes: 60);
@@ -234,6 +244,9 @@ class OrderModel {
     this.giftClaimedAt,
     this.giftExpiresAt,
     this.giftGiverName = '',
+    this.giftPaidAmount = 0,
+    this.giftExtraDue = 0,
+    this.giftExchangeLog = const [],
   });
 
   // ── «Сыйлау» күйлері ────────────────────────────────────────────────────────
@@ -260,6 +273,42 @@ class OrderModel {
   /// Алушыға көрсетілетін баға жасырын ба (сыйлаушы үшін ешқашан жасырылмайды).
   bool hideGiftPriceFor(String uid) =>
       isGift && giftHidePrice && uid != clientUid;
+
+  /// Сыйлаушы өлшемді өзі таңдап, қойма брондалған (алушы әлі растамаған).
+  bool get isGiftSizeReserved =>
+      isGiftAwaitingRecipient &&
+      items.isNotEmpty &&
+      items.first.size.isNotEmpty &&
+      items.first.batchId.isNotEmpty;
+
+  /// Дүкеннен алатын сыйлық (курьер емес).
+  bool get isGiftStorePickup => isGift && !isDelivery;
+
+  /// Берілгенге дейін дүкенде алынатын қосымша төлем бар ма.
+  bool get hasGiftExtraDue =>
+      isGift && giftExtraDue > 0 && status != statusCompleted;
+
+  /// Сыйлық позициясы қайтарылмайтын тауар ба (снапшот) — ауыстыруға болмайды.
+  bool get isGiftLocked =>
+      isGift && items.isNotEmpty && items.first.nonReturnable;
+
+  /// Дүкен кассада ауыстыра ала ма (0070 gift_store_exchange ережесімен бірдей):
+  ///  • дүкеннен алатын, алушы растаған, әлі берілмеген сыйлық;
+  ///  • алынған сыйлық — [returnWindow] (14 күн) ішінде.
+  bool get canGiftStoreExchange {
+    if (!isGiftClaimed || isGiftLocked) return false;
+    if (status == statusConfirmed || status == statusReady) {
+      return !isDelivery && courierUid.isEmpty;
+    }
+    return status == statusCompleted &&
+        DateTime.now().isBefore(returnDeadline);
+  }
+
+  /// Алынған сыйлықты ауыстыру мерзімі әлі өтпеген бе.
+  bool get giftExchangeOpen =>
+      isGift &&
+      status == statusCompleted &&
+      DateTime.now().isBefore(returnDeadline);
 
   double get total => items.fold(0.0, (s, i) => s + i.subtotal);
   double get finalTotal => (total - promoDiscount).clamp(0.0, total);
@@ -420,6 +469,12 @@ class OrderModel {
       giftClaimedAt: dtn(m['gift_claimed_at']),
       giftExpiresAt: dtn(m['gift_expires_at']),
       giftGiverName: m['gift_giver_name'] as String? ?? '',
+      giftPaidAmount: (m['gift_paid_amount'] as num?)?.toDouble() ?? 0,
+      giftExtraDue: (m['gift_extra_due'] as num?)?.toDouble() ?? 0,
+      giftExchangeLog: [
+        for (final e in (m['gift_exchange_log'] as List? ?? const []))
+          if (e is Map) Map<String, dynamic>.from(e),
+      ],
     );
   }
 
@@ -537,6 +592,9 @@ class OrderModel {
     DateTime? giftClaimedAt,
     DateTime? giftExpiresAt,
     String? giftGiverName,
+    double? giftPaidAmount,
+    double? giftExtraDue,
+    List<Map<String, dynamic>>? giftExchangeLog,
   }) =>
       OrderModel(
         id: id ?? this.id,
@@ -608,5 +666,8 @@ class OrderModel {
         giftClaimedAt: giftClaimedAt ?? this.giftClaimedAt,
         giftExpiresAt: giftExpiresAt ?? this.giftExpiresAt,
         giftGiverName: giftGiverName ?? this.giftGiverName,
+        giftPaidAmount: giftPaidAmount ?? this.giftPaidAmount,
+        giftExtraDue: giftExtraDue ?? this.giftExtraDue,
+        giftExchangeLog: giftExchangeLog ?? this.giftExchangeLog,
       );
 }

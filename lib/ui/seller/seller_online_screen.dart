@@ -7,6 +7,7 @@ import '../../core/warehouse_context.dart';
 import '../../data/models/order_model.dart';
 import '../../data/services/firestore_service.dart';
 import '../../theme/qoima_design.dart';
+import '../client/gift/gift_widgets.dart';
 import '../client/reservation_timer_widget.dart';
 import '../shared/courier_info_banner.dart';
 import '../shared/fitting_swap_sheet.dart';
@@ -17,6 +18,8 @@ import '../../data/services/return_service.dart';
 
 import '../../core/lang.dart';
 import '../../core/error_text.dart';
+import '../../core/feature_flags.dart';
+import '../live/live_host_entry.dart';
 
 class SellerOnlineScreen extends StatefulWidget {
   /// Push deep-link арқылы ашылғанда: осы orderId-ды тізімнен тауып,
@@ -187,6 +190,18 @@ class _SellerOnlineScreenState extends State<SellerOnlineScreen> {
                       ],
                     ),
                   ),
+                  // Live-эфир — суперадмин қосқанда ғана (сатушы да жүргізе алады)
+                  ListenableBuilder(
+                    listenable: FeatureFlags.instance,
+                    builder: (ctx, _) =>
+                        FeatureFlags.instance.isOn(FeatureFlags.liveShopping)
+                            ? Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: QHeaderBtn(Icons.sensors_rounded,
+                                    onTap: () => openLiveHost(ctx)),
+                              )
+                            : const SizedBox.shrink(),
+                  ),
                   QHeaderBtn(
                     Icons.qr_code_scanner_rounded,
                     onTap: () {
@@ -284,7 +299,11 @@ class _SellerOnlineScreenState extends State<SellerOnlineScreen> {
                   stream: _ordersStream,
                   builder: (_, snap) {
                     final all = (snap.data ?? [])
-                        .where((o) => whId.isEmpty || o.warehouseId == whId)
+                        .where((o) =>
+                            whId.isEmpty ||
+                            o.warehouseId == whId ||
+                            // алынбаған сыйлықта склад әлі белгісіз (claim кезінде қойылады)
+                            o.isGiftAwaitingRecipient)
                         .toList();
                     final active = all.where(_needsAttention).length;
                     final done = all
@@ -353,7 +372,11 @@ class _SellerOnlineScreenState extends State<SellerOnlineScreen> {
               }
 
               final all = (snap.data ?? [])
-                  .where((o) => whId.isEmpty || o.warehouseId == whId)
+                  .where((o) =>
+                      whId.isEmpty ||
+                      o.warehouseId == whId ||
+                      // алынбаған сыйлықта склад әлі белгісіз (claim кезінде қойылады)
+                      o.isGiftAwaitingRecipient)
                   .toList();
 
               // Мерзімі өткен тапсырыстарды on-read авто-болдырмаймыз
@@ -697,6 +720,8 @@ class _OrderCardState extends State<_OrderCard> {
           o.courierStatus == OrderModel.courierPickedUp);
 
   Future<void> _handOver() async {
+    // Алушы өлшем таңдамаған сыйлықты беруге болмайды (серверде де бұғатталған).
+    if (o.isGiftAwaitingRecipient) return;
     // Примерка болса — алдымен клиент нақты қай өлшемді алғанын сұраймыз
     // (курьермен жеткізгенде де осылай сұралады; сатушы өзі бергенде де
     // қойма/сатылым дұрыс есептелуі үшін керек).
@@ -705,6 +730,24 @@ class _OrderCardState extends State<_OrderCard> {
       final result = await showFittingSwapSheet(context, o);
       if (result == null || !mounted) return;
       swaps = result;
+    }
+
+    // 🎁 Сыйлық: алушы қымбатырақ тауар таңдаса — айырманы беру кезінде аламыз
+    // (gift_extra_due). Төлем тәсілі in_store_payment_method-қа жазылады.
+    // Басқа құрылғыдан ауыстыру болған болуы мүмкін — экрандағы көшірмеге
+    // емес, базадағы соңғы күйге қарап сұраймыз.
+    var target = o;
+    if (o.isGift) {
+      try {
+        target = await widget.service.freshGiftOrder(o);
+      } catch (_) {}
+      if (!mounted) return;
+    }
+    var extraMethod = '';
+    if (target.hasGiftExtraDue) {
+      final m = await askGiftExtraPayment(context, target.giftExtraDue);
+      if (m == null || !mounted) return;
+      extraMethod = m;
     }
 
     final ok = await showDialog<bool>(
@@ -733,7 +776,11 @@ class _OrderCardState extends State<_OrderCard> {
     if (ok != true || !mounted) return;
     setState(() => _loading = true);
     try {
-      await widget.service.markHandedOver(o, swappedIndexes: swaps);
+      await widget.service.markHandedOver(
+          extraMethod.isEmpty
+              ? target
+              : target.copyWith(inStorePaymentMethod: extraMethod),
+          swappedIndexes: swaps);
       if (mounted) {
         setState(() => _loading = false);
         HapticFeedback.lightImpact();
@@ -885,6 +932,11 @@ class _OrderCardState extends State<_OrderCard> {
             const SizedBox(width: 8),
             QPill(_statusLabel, tone: _statusTone),
           ]),
+          // 🎁 Сыйлық белгісі (0070)
+          if (o.isGift) ...[
+            const SizedBox(height: 6),
+            Align(alignment: Alignment.centerLeft, child: GiftBadge(order: o)),
+          ],
           const SizedBox(height: 6),
 
           // Client
@@ -977,6 +1029,13 @@ class _OrderCardState extends State<_OrderCard> {
             //  модификация тұрады, сатушы қатесіз таба алуы керек.
             ...o.items.map((item) => OrderItemRow(item: item)),
 
+            // 🎁 Сыйлық: алушы өлшем таңдағанша беруге болмайды — түсіндірме;
+            // таңдаған соң кімнен/кімге + тілек көрсетіледі.
+            if (o.isGift) ...[
+              const SizedBox(height: 8),
+              GiftStoreNote(order: o, onChanged: widget.onChanged),
+            ],
+
             // Жеткізу — ҚАЛАСЫМЕН (басқа қала болса жөнелту қызметі керек).
             if (o.isDelivery)
               OrderDestinationCard(
@@ -1057,7 +1116,27 @@ class _OrderCardState extends State<_OrderCard> {
             // тапсырысты дайындап, курьер келгенде беру кодын айту. Сондықтан
             // мұнда басты батырма емес, қосалқы жол ғана тұрады (курьер
             // табылмай қалған жағдайға).
-            if (o.status == OrderModel.statusConfirmed)
+            if (o.status == OrderModel.statusConfirmed &&
+                o.isGiftAwaitingRecipient)
+              // Сыйлық: өлшем белгісіз, тауар брондалмаған — беру/курьер бұғатталған.
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  color: cPurpleTint,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  o.isGiftSizeReserved
+                      ? tr('🎁 Ждём подтверждения получателя',
+                          '🎁 Алушының растауын күтеміз')
+                      : tr('🎁 Ждём, пока получатель выберет размер',
+                          '🎁 Алушы өлшем таңдағанша күтеміз'),
+                  textAlign: TextAlign.center,
+                  style: manrope(12.5, FontWeight.w700, color: cPurpleInk),
+                ),
+              )
+            else if (o.status == OrderModel.statusConfirmed)
               // Платформа курьері келетін тапсырысты курьер жабады.
               if (o.byPlatformCourier)
                 SizedBox(

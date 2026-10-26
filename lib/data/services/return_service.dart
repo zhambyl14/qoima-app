@@ -84,6 +84,12 @@ class ReturnService {
       return model;
     } catch (e) {
       debugPrint('[ReturnService.createReturnRequest] $e');
+      // 0070: сыйлық тапсырысы — тек дүкенде ауыстыру, ақша қайтарылмайды.
+      if (e is PostgrestException && e.message.contains('gift_exchange_only')) {
+        throw ReturnException(tr(
+            'Подарок можно только обменять — принесите товар в магазин (14 дней)',
+            'Сыйлықты тек ауыстыруға болады — тауарды дүкенге апарыңыз (14 күн)'));
+      }
       // 0073: тапсырыс жолы «қайтарылмайды» деп снапшотталса — сервер бөгейді.
       if (e is PostgrestException &&
           (e.message.contains('item_non_returnable') ||

@@ -9,7 +9,6 @@ import '../../../core/app_user.dart';
 import '../../../core/deep_links.dart';
 import '../../../core/error_text.dart';
 import '../../../core/lang.dart';
-import '../../../data/models/category_data.dart';
 import '../../../data/models/order_model.dart';
 import '../../../data/services/client_service.dart';
 import '../../../data/services/gift_service.dart';
@@ -17,12 +16,15 @@ import '../../../theme/qoima_design.dart';
 import '../../shared/photo_gallery_viewer.dart';
 import '../../shared/require_login.dart';
 import '../client_order_detail_screen.dart';
+import 'gift_exchange_sheet.dart';
 import 'gift_share_screen.dart';
 
 /// Сыйлық сілтемесін ашқан алушының беті.
 ///
 /// Күйлер (`get_gift_public.status`):
-///   • ready_to_claim  — «орамды ашу» сәті → өлшем (+мекенжай) → қабылдау;
+///   • ready_to_claim  — «орамды ашу» сәті → өлшем (сыйлаушы таңдаса — алдын
+///     ала белгіленген) / басқа өлшем не сол дүкеннің басқа тауары / курьер
+///     примеркасына екінші өлшем (+мекенжай) → қабылдау;
 ///   • awaiting_payment — сыйлаушы әлі төлемді растатпады;
 ///   • claimed         — алынған (алушы/сыйлаушы үшін бақылау батырмасы);
 ///   • expired / cancelled — мерзімі өтті / бас тартылды.
@@ -57,7 +59,12 @@ class _GiftReceiveScreenState extends State<GiftReceiveScreen>
   bool _revealed = false;
   bool _opening = false;
   bool _claiming = false;
+  bool _loadingOptions = false;
   String? _size;
+  /// Курьер примеркасына екінші өлшем (міндетті емес).
+  String? _altSize;
+  /// Алушы сол дүкеннің БАСҚА тауарын таңдаса (null = сыйлықтың өз тауары).
+  GiftExchangeProduct? _otherProduct;
   int _page = 0;
   OrderModel? _claimedOrder;
   List<Map<String, dynamic>> _savedAddresses = const [];
@@ -119,8 +126,17 @@ class _GiftReceiveScreenState extends State<GiftReceiveScreen>
         if (g != null && (g.isGiver || g.status != 'ready_to_claim')) {
           _revealed = true;
         }
-        if (_size != null && g != null && !g.availableSizes.contains(_size)) {
-          _size = null;
+        if (g != null && _otherProduct == null) {
+          // Сыйлаушы таңдаған (брондалған) өлшем алдын ала белгіленеді.
+          if (_size == null &&
+              g.chosenSize.isNotEmpty &&
+              g.availableSizes.contains(g.chosenSize)) {
+            _size = g.chosenSize;
+          }
+          if (_size != null && !g.availableSizes.contains(_size)) {
+            _size = null;
+            _altSize = null;
+          }
         }
       });
       if (g != null && g.readyToClaim && g.isCourier) _loadSavedAddresses();
@@ -157,11 +173,89 @@ class _GiftReceiveScreenState extends State<GiftReceiveScreen>
     setState(() => _revealed = true);
   }
 
+  // ── Кіру (қабылдау да, басқа тауар таңдау да кірген соң ғана) ─────────────
+  Future<bool> _ensureLogin() async {
+    // Кіру: гость кірген соң экран жабылады → сілтемені еске сақтап, кейін қайта ашамыз.
+    if (AppUser.current.uid.isEmpty) {
+      DeepLinks.instance.rememberGift(widget.token);
+    }
+    final ok = await requireLogin(
+      context,
+      reasonRu: 'Чтобы получить подарок, войдите или зарегистрируйтесь.',
+      reasonKk: 'Сыйлықты алу үшін кіріңіз немесе тіркеліңіз.',
+    );
+    if (!ok) {
+      // Диалог «Болдырмау» болса LoginScreen ашылмайды (экран әлі ағымдағы) —
+      // сақталған сілтеме кейін күтпеген жерде ашылмасын.
+      if (mounted && (ModalRoute.of(context)?.isCurrent ?? true)) {
+        DeepLinks.instance.clearPending();
+      }
+      return false;
+    }
+    if (!mounted) return false;
+    DeepLinks.instance.clearPending();
+    if (!AppUser.current.isClient) {
+      _snack(
+          tr('Подарки доступны только покупателям',
+              'Сыйлық тек сатып алушыларға қолжетімді'),
+          error: true);
+      return false;
+    }
+    return true;
+  }
+
+  // ── Өлшем нұсқалары (сыйлықтың өз тауары не таңдалған басқа тауар) ────────
+  List<GiftSizeOption> _options(GiftPublic g) => [
+        for (final o in (_otherProduct?.sizes ?? g.sizeOptions))
+          if (o.allowed) o,
+      ];
+
+  GiftSizeOption? _selectedOption(GiftPublic g) {
+    for (final o in _options(g)) {
+      if (o.size == _size) return o;
+    }
+    return null;
+  }
+
+  bool _fittingOn(GiftPublic g) =>
+      g.fittingAvailable && !(_otherProduct?.nonReturnable ?? false);
+
+  /// «Басқа өлшем не басқа тауар»: сол дүкеннің қолда бар тауарлары.
+  Future<void> _pickOther() async {
+    final g = _gift;
+    if (g == null || _loadingOptions) return;
+    if (!await _ensureLogin() || !mounted) return;
+    setState(() => _loadingOptions = true);
+    try {
+      final opts = await _gifts.getExchangeOptions(widget.token);
+      if (!mounted) return;
+      setState(() => _loadingOptions = false);
+      final choice = await showGiftExchangePicker(
+        context,
+        options: opts,
+        selectedProductId: _otherProduct?.id ?? opts.currentProductId,
+        selectedSize: _size,
+      );
+      if (choice == null || !mounted) return;
+      HapticFeedback.selectionClick();
+      setState(() {
+        _otherProduct = choice.product.isCurrent ? null : choice.product;
+        _size = choice.size;
+        _altSize = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loadingOptions = false);
+      _snack(friendlyError(e), error: true);
+    }
+  }
+
   // ── Қабылдау ───────────────────────────────────────────────────────────────
   Future<void> _claim() async {
     final g = _gift;
     if (g == null) return;
-    if (_size == null) {
+    final opt = _selectedOption(g);
+    if (_size == null || opt == null) {
       _snack(tr('Выберите размер', 'Өлшемді таңдаңыз'), error: true);
       return;
     }
@@ -175,36 +269,39 @@ class _GiftReceiveScreenState extends State<GiftReceiveScreen>
           error: true);
       return;
     }
-    // Кіру: гость кірген соң экран жабылады → сілтемені еске сақтап, кейін қайта ашамыз.
-    if (AppUser.current.uid.isEmpty) {
-      DeepLinks.instance.rememberGift(widget.token);
-    }
-    final ok = await requireLogin(
-      context,
-      reasonRu: 'Чтобы получить подарок, войдите или зарегистрируйтесь.',
-      reasonKk: 'Сыйлықты алу үшін кіріңіз немесе тіркеліңіз.',
-    );
-    if (!ok || !mounted) return;
-    DeepLinks.instance.clearPending();
-    if (!AppUser.current.isClient) {
-      _snack(
-          tr('Подарки доступны только покупателям',
-              'Сыйлық тек сатып алушыларға қолжетімді'),
-          error: true);
-      return;
-    }
+    if (!await _ensureLogin() || !mounted) return;
+
+    final name = _otherProduct?.name ?? g.productName;
+    final alt = _fittingOn(g) ? _altSize : null;
+    final lines = <String>[
+      '${tr('Товар', 'Тауар')}: $name',
+      '${tr('Размер', 'Өлшемі')}: ${trValue(_size!)}',
+      if (alt != null)
+        tr('Второй размер для примерки: ${trValue(alt)}',
+            'Өлшеп көруге екінші өлшем: ${trValue(alt)}'),
+      if (opt.extra > 0)
+        tr('Доплата ${money(opt.extra)} — в магазине при получении.',
+            'Қосымша төлем ${money(opt.extra)} — дүкеннен алған кезде.')
+      else if (_otherProduct != null)
+        tr('Если товар дешевле подарка, разница не возвращается.',
+            'Тауар сыйлықтан арзан болса, айырма қайтарылмайды.'),
+      g.isCourier
+          ? tr('После подтверждения выбор изменить нельзя. После доставки обменять можно в магазине в течение 14 дней.',
+              'Растаған соң таңдауды өзгерту мүмкін емес. Жеткізілген соң 14 күн ішінде дүкенде ауыстыруға болады.')
+          : tr('Если в магазине не подойдёт — там же обменяете на другой размер или товар (до 14 дней после получения).',
+              'Дүкенде келмесе — сол жерде басқа өлшемге не тауарға ауыстырасыз (алғаннан кейін 14 күн ішінде).'),
+    ];
 
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: cSurface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: Text(tr('Подтвердите размер', 'Өлшемді растаңыз'),
+        title: Text(tr('Подтвердите выбор', 'Таңдауды растаңыз'),
             style: manrope(17, FontWeight.w800)),
         content: Text(
-          tr('Размер: ${trValue(_size!)}. После подтверждения изменить размер нельзя.',
-              'Өлшемі: ${trValue(_size!)}. Растаған соң өлшемді өзгерту мүмкін емес.'),
-          style: manrope(14, FontWeight.w500, color: cInk2),
+          lines.join('\n'),
+          style: manrope(14, FontWeight.w500, color: cInk2, height: 1.45),
         ),
         actions: [
           TextButton(
@@ -228,6 +325,8 @@ class _GiftReceiveScreenState extends State<GiftReceiveScreen>
         address: _addressCtrl.text,
         city: g.isCourier ? g.storeCity : AppUser.current.city,
         phone: _phoneCtrl.text,
+        productId: _otherProduct?.id,
+        altSize: alt,
       );
       if (!mounted) return;
       HapticFeedback.heavyImpact();
@@ -261,7 +360,15 @@ class _GiftReceiveScreenState extends State<GiftReceiveScreen>
     if (order == null) {
       final id = _gift?.orderId ?? '';
       if (id.isEmpty) return;
-      order = await _client.getOrderById(id);
+      try {
+        // Алушыға orders кестесін оқу құқығы жоқ — тазартылған RPC арқылы;
+        // сыйлаушы өз тапсырысын тікелей оқи алады.
+        order = (_gift?.isRecipient ?? false)
+            ? await _gifts.receivedGift(id)
+            : await _client.getOrderById(id);
+      } catch (_) {
+        order = null;
+      }
     }
     if (order == null || !mounted) return;
     Navigator.of(context).push(MaterialPageRoute(
@@ -269,24 +376,8 @@ class _GiftReceiveScreenState extends State<GiftReceiveScreen>
   }
 
   // ── Көмекшілер ─────────────────────────────────────────────────────────────
-  List<String> _sortedSizes(GiftPublic g) {
-    final sizes = [...g.availableSizes];
-    final nums = sizes.map(double.tryParse).toList();
-    if (nums.every((n) => n != null)) {
-      final idx = List<int>.generate(sizes.length, (i) => i)
-        ..sort((a, b) => nums[a]!.compareTo(nums[b]!));
-      return [for (final i in idx) sizes[i]];
-    }
-    final order = categoryByKey(g.categoryKey).sizes;
-    sizes.sort((a, b) {
-      final ia = order.indexOf(a), ib = order.indexOf(b);
-      if (ia == -1 && ib == -1) return a.compareTo(b);
-      if (ia == -1) return 1;
-      if (ib == -1) return -1;
-      return ia.compareTo(ib);
-    });
-    return sizes;
-  }
+  static String _date(DateTime d) =>
+      '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
 
   // ═══════════════════════════════════════════════════════════════════════════
   @override
@@ -305,7 +396,8 @@ class _GiftReceiveScreenState extends State<GiftReceiveScreen>
           _messageView(
             icon: Icons.search_off_rounded,
             title: tr('Подарок не найден', 'Сыйлық табылмады'),
-            text: tr('Ссылка неверна или устарела. Попросите отправителя прислать её снова.',
+            text: tr(
+                'Ссылка неверна или устарела. Попросите отправителя прислать её снова.',
                 'Сілтеме қате немесе ескірген. Жіберушіден қайта жіберуді сұраңыз.'),
           )
         else
@@ -437,7 +529,8 @@ class _GiftReceiveScreenState extends State<GiftReceiveScreen>
               ),
               const SizedBox(height: 8),
               Text(
-                tr('$who отправил(а) вам сюрприз', '$who сізге тосынсый жіберді'),
+                tr('$who отправил(а) вам сюрприз',
+                    '$who сізге тосынсый жіберді'),
                 textAlign: TextAlign.center,
                 style: manrope(15, FontWeight.w500,
                     color: Colors.white.withValues(alpha: 0.9)),
@@ -485,8 +578,8 @@ class _GiftReceiveScreenState extends State<GiftReceiveScreen>
       ),
       Expanded(
         child: ListView(
-          padding: EdgeInsets.fromLTRB(
-              16, 16, 16, showForm ? 24 : 32 + MediaQuery.of(context).padding.bottom),
+          padding: EdgeInsets.fromLTRB(16, 16, 16,
+              showForm ? 24 : 32 + MediaQuery.of(context).padding.bottom),
           children: [
             _statusBanner(g, claimed),
             _gallery(g),
@@ -504,7 +597,9 @@ class _GiftReceiveScreenState extends State<GiftReceiveScreen>
             ],
             if (g.price != null) ...[
               const SizedBox(height: 4),
-              Text(tr('Стоимость: ${money(g.price!)}', 'Құны: ${money(g.price!)}'),
+              Text(
+                  tr('Стоимость: ${money(g.price!)}',
+                      'Құны: ${money(g.price!)}'),
                   style: manrope(13, FontWeight.w600, color: cInk3)),
             ],
             if (g.message.trim().isNotEmpty) ...[
@@ -521,7 +616,9 @@ class _GiftReceiveScreenState extends State<GiftReceiveScreen>
               const SizedBox(height: 18),
               _claimedCard(_claimedOrder!),
             ],
-            if (g.isGiver && (g.status == 'ready_to_claim' || g.status == 'awaiting_payment')) ...[
+            if (g.isGiver &&
+                (g.status == 'ready_to_claim' ||
+                    g.status == 'awaiting_payment')) ...[
               const SizedBox(height: 18),
               _giverActions(g),
             ],
@@ -555,18 +652,22 @@ class _GiftReceiveScreenState extends State<GiftReceiveScreen>
             ? tr('Ждём подтверждения оплаты', 'Төлемнің расталуын күтудеміз')
             : tr('Подарок готовится', 'Сыйлық дайындалуда');
         text = g.isGiver
-            ? tr('Как только магазин подтвердит оплату, получатель сможет выбрать размер.',
+            ? tr(
+                'Как только магазин подтвердит оплату, получатель сможет выбрать размер.',
                 'Дүкен төлемді растағанда, алушы өлшемді таңдай алады.')
-            : tr('Отправитель ещё оформляет оплату. Откройте ссылку чуть позже.',
+            : tr(
+                'Отправитель ещё оформляет оплату. Откройте ссылку чуть позже.',
                 'Жіберуші төлемді әлі рәсімдеп жатыр. Сілтемені сәл кейінірек ашыңыз.');
         icon = Icons.hourglass_top_rounded;
         break;
       case 'expired':
         title = tr('Срок получения истёк', 'Алу мерзімі өтіп кетті');
         text = g.isGiver
-            ? tr('Подарок никто не открыл за 30 дней. Вы можете запросить возврат у магазина.',
+            ? tr(
+                'Подарок никто не открыл за 30 дней. Вы можете запросить возврат у магазина.',
                 'Сыйлықты 30 күн ішінде ешкім ашпады. Дүкеннен қайтаруды сұрай аласыз.')
-            : tr('К сожалению, подарок больше нельзя получить. Свяжитесь с отправителем.',
+            : tr(
+                'К сожалению, подарок больше нельзя получить. Свяжитесь с отправителем.',
                 'Өкінішке қарай, сыйлықты енді алу мүмкін емес. Жіберушімен хабарласыңыз.');
         icon = Icons.timer_off_rounded;
         tone = 'red';
@@ -585,10 +686,21 @@ class _GiftReceiveScreenState extends State<GiftReceiveScreen>
               : g.isGiver
                   ? tr('Подарок получен', 'Сыйлық алынды')
                   : tr('Подарок уже получен', 'Сыйлық бұрын алынған');
-          text = g.claimedSize.isNotEmpty
-              ? tr('Выбранный размер: ${trValue(g.claimedSize)}',
-                  'Таңдалған өлшем: ${trValue(g.claimedSize)}')
-              : null;
+          final parts = <String>[
+            if (g.claimedSize.isNotEmpty)
+              tr('Выбранный размер: ${trValue(g.claimedSize)}',
+                  'Таңдалған өлшем: ${trValue(g.claimedSize)}'),
+            if (g.extraDue > 0 && g.orderStatus != OrderModel.statusCompleted)
+              tr('Доплата в магазине при получении: ${money(g.extraDue)}',
+                  'Алған кезде дүкенде қосымша төлем: ${money(g.extraDue)}'),
+            if (g.isRecipient && g.exchangeUntil != null)
+              (DateTime.now().isBefore(g.exchangeUntil!)
+                  ? tr(
+                      'Подарок можно только обменять: принесите товар в магазин до ${_date(g.exchangeUntil!)}.',
+                      'Сыйлықты тек ауыстыруға болады: тауарды ${_date(g.exchangeUntil!)} дейін дүкенге апарыңыз.')
+                  : tr('Срок обмена истёк.', 'Ауыстыру мерзімі өтті.')),
+          ];
+          text = parts.isEmpty ? null : parts.join('\n');
           icon = Icons.check_circle_rounded;
           tone = 'green';
         }
@@ -616,7 +728,8 @@ class _GiftReceiveScreenState extends State<GiftReceiveScreen>
         Icon(icon, color: fg, size: 22),
         const SizedBox(width: 10),
         Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(title, style: manrope(15, FontWeight.w800, color: fg)),
             if (text != null) ...[
               const SizedBox(height: 3),
@@ -680,8 +793,8 @@ class _GiftReceiveScreenState extends State<GiftReceiveScreen>
                       borderRadius: BorderRadius.circular(kRPill),
                     ),
                     child: Text('${_page + 1}/${imgs.length}',
-                        style: manrope(12, FontWeight.w700,
-                            color: Colors.white)),
+                        style:
+                            manrope(12, FontWeight.w700, color: Colors.white)),
                   ),
                 ),
               ),
@@ -747,12 +860,14 @@ class _GiftReceiveScreenState extends State<GiftReceiveScreen>
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(g.storeName, style: manrope(15, FontWeight.w700)),
               const SizedBox(height: 3),
               Text(
                 g.isCourier
-                    ? tr('Курьер привезёт подарок по вашему адресу (г. ${trValue(g.storeCity)})',
+                    ? tr(
+                        'Курьер привезёт подарок по вашему адресу (г. ${trValue(g.storeCity)})',
                         'Курьер сыйлықты мекенжайыңызға әкеледі (${trValue(g.storeCity)} қ.)')
                     : [
                         tr('Заберёте в магазине', 'Дүкеннен аласыз'),
@@ -764,8 +879,8 @@ class _GiftReceiveScreenState extends State<GiftReceiveScreen>
               if (g.isCourier && g.deliveryFee > 0) ...[
                 const SizedBox(height: 4),
                 Text(
-                  tr('Курьеру при получении: ${money(g.deliveryFee)}',
-                      'Алғанда курьерге: ${money(g.deliveryFee)}'),
+                  tr('Доставка курьеру при получении: ${money(g.deliveryFee)}',
+                      'Жеткізу ақысы алғанда курьерге: ${money(g.deliveryFee)}'),
                   style: manrope(12, FontWeight.w600, color: cAmberInk),
                 ),
               ],
@@ -776,24 +891,93 @@ class _GiftReceiveScreenState extends State<GiftReceiveScreen>
 
   // ── Қабылдау формасы ───────────────────────────────────────────────────────
   Widget _claimForm(GiftPublic g) {
-    final sizes = _sortedSizes(g);
+    final opts = _options(g);
+    final byName = {for (final o in opts) o.size: o};
+    final sizes = sortGiftSizes(
+        byName.keys, _otherProduct?.categoryKey ?? g.categoryKey);
+    final sel = _selectedOption(g);
+    final canSwitch = !g.nonReturnable;
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       QSecLabel(tr('Выберите размер', 'Өлшемді таңдаңыз')),
       const SizedBox(height: 10),
+      if (_otherProduct != null) ...[
+        _otherProductCard(_otherProduct!),
+        const SizedBox(height: 10),
+      ] else if (g.chosenSize.isNotEmpty) ...[
+        _hint(
+          g.nonReturnable
+              ? tr('Размер ${trValue(g.chosenSize)} выбран отправителем. Этот товар обменять нельзя.',
+                  '${trValue(g.chosenSize)} өлшемін сыйлаушы таңдаған. Бұл тауарды ауыстыруға болмайды.')
+              : tr('Отправитель выбрал размер ${trValue(g.chosenSize)} и забронировал его. Не подходит — выберите другой размер или товар.',
+                  'Сыйлаушы ${trValue(g.chosenSize)} өлшемін таңдап, брондап қойды. Келмесе — басқа өлшемді не тауарды таңдаңыз.'),
+          icon: g.nonReturnable
+              ? Icons.lock_outline_rounded
+              : Icons.bookmark_added_rounded,
+        ),
+        const SizedBox(height: 10),
+      ],
       if (sizes.isEmpty)
         QCard(
           color: cRedTint,
           border: Border.all(color: cRed.withValues(alpha: 0.3)),
           child: Text(
-            tr('К сожалению, все размеры закончились. Свяжитесь с магазином или отправителем.',
-                'Өкінішке қарай, барлық өлшем таусылды. Дүкенмен немесе жіберушімен хабарласыңыз.'),
+            canSwitch
+                ? tr('Размеров этого товара не осталось. Выберите другой товар магазина ниже.',
+                    'Бұл тауардың өлшемдері қалмады. Төменнен дүкеннің басқа тауарын таңдаңыз.')
+                : tr('К сожалению, все размеры закончились. Свяжитесь с магазином или отправителем.',
+                    'Өкінішке қарай, барлық өлшем таусылды. Дүкенмен немесе жіберушімен хабарласыңыз.'),
             style: manrope(13, FontWeight.w600, color: cRedInk),
           ),
         )
       else
         Wrap(spacing: 8, runSpacing: 8, children: [
-          for (final s in sizes) _sizeChip(s),
+          for (final s in sizes) _sizeChip(s, byName[s]),
         ]),
+      if (sel != null && sel.extra > 0) ...[
+        const SizedBox(height: 10),
+        _hint(
+          tr('Доплата ${money(sel.extra)} — в магазине при получении.',
+              'Қосымша төлем ${money(sel.extra)} — дүкеннен алған кезде.'),
+          icon: Icons.payments_outlined,
+          amber: true,
+        ),
+      ],
+      if (canSwitch) ...[
+        const SizedBox(height: 12),
+        QSoftButton(
+          label: _loadingOptions
+              ? tr('Загружаем…', 'Жүктелуде…')
+              : tr('Другой размер или товар', 'Басқа өлшем не тауар'),
+          icon: const Icon(Icons.swap_horiz_rounded, color: cGreen, size: 20),
+          onPressed: _loadingOptions ? null : _pickOther,
+        ),
+        const SizedBox(height: 6),
+        Text(
+          g.isCourier
+              ? tr('Можно выбрать другой товар этого магазина не дороже подарка. Если он дешевле, разница не возвращается.',
+                  'Осы дүкеннің сыйлықтан қымбат емес басқа тауарын таңдауға болады. Арзан болса, айырма қайтарылмайды.')
+              : tr('Можно выбрать другой товар этого магазина. Дешевле — разница не возвращается; дороже — доплатите разницу в магазине.',
+                  'Осы дүкеннің басқа тауарын таңдауға болады. Арзан болса — айырма қайтарылмайды; қымбат болса — айырманы дүкенде төлейсіз.'),
+          style: manrope(12, FontWeight.w500, color: cInk3),
+        ),
+      ],
+      if (_fittingOn(g) && sel != null && sel.alts.isNotEmpty) ...[
+        const SizedBox(height: 22),
+        QSecLabel(tr('Примерка: второй размер', 'Өлшеп көру: екінші өлшем')),
+        const SizedBox(height: 6),
+        Text(
+          tr('Курьер привезёт ещё один размер — оставите подходящий, второй он заберёт обратно. Примерка уже оплачена отправителем.',
+              'Курьер тағы бір өлшем әкеледі — сәйкесін қалдырасыз, екіншісін қайтарып әкетеді. Өлшеп көруді сыйлаушы төлеп қойған.'),
+          style: manrope(12, FontWeight.w500, color: cInk2),
+        ),
+        const SizedBox(height: 10),
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          _altChip(null, tr('Не нужно', 'Керек емес')),
+          for (final a in sortGiftSizes(
+              sel.alts, _otherProduct?.categoryKey ?? g.categoryKey))
+            _altChip(a, trValue(a)),
+        ]),
+      ],
       if (g.isCourier) ...[
         const SizedBox(height: 22),
         QSecLabel(tr('Адрес доставки', 'Жеткізу мекенжайы')),
@@ -828,8 +1012,8 @@ class _GiftReceiveScreenState extends State<GiftReceiveScreen>
                     style: manrope(13, FontWeight.w600)),
                 backgroundColor: cSurface,
                 side: const BorderSide(color: cLine),
-                onPressed: () => setState(() =>
-                    _addressCtrl.text = (a['address'] as String?) ?? ''),
+                onPressed: () => setState(
+                    () => _addressCtrl.text = (a['address'] as String?) ?? ''),
               ),
           ]),
         ],
@@ -839,8 +1023,7 @@ class _GiftReceiveScreenState extends State<GiftReceiveScreen>
           minLines: 1,
           maxLines: 3,
           textCapitalization: TextCapitalization.sentences,
-          decoration: _dec(
-              tr('Улица, дом, квартира', 'Көше, үй, пәтер'),
+          decoration: _dec(tr('Улица, дом, квартира', 'Көше, үй, пәтер'),
               icon: Icons.home_outlined),
         ),
       ],
@@ -854,35 +1037,130 @@ class _GiftReceiveScreenState extends State<GiftReceiveScreen>
       ),
       const SizedBox(height: 6),
       Text(
-        tr('Магазин свяжется с вами по этому номеру. Размер потом изменить нельзя.',
-            'Дүкен осы нөмір бойынша хабарласады. Өлшемді кейін өзгерту мүмкін емес.'),
+        g.isCourier
+            ? tr('Магазин и курьер свяжутся с вами по этому номеру. Подарок нельзя вернуть деньгами — только обменять в магазине (14 дней после доставки).',
+                'Дүкен мен курьер осы нөмір бойынша хабарласады. Сыйлықты ақшаға қайтаруға болмайды — тек дүкенде ауыстыру (жеткізілгеннен кейін 14 күн).')
+            : tr('Магазин свяжется с вами по этому номеру. Подарок нельзя вернуть деньгами — только обменять в магазине (14 дней после получения).',
+                'Дүкен осы нөмір бойынша хабарласады. Сыйлықты ақшаға қайтаруға болмайды — тек дүкенде ауыстыру (алғаннан кейін 14 күн).'),
         style: manrope(12, FontWeight.w500, color: cInk3),
       ),
     ]);
   }
 
-  Widget _sizeChip(String s) {
+  Widget _hint(String text, {required IconData icon, bool amber = false}) =>
+      Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: amber ? cAmberTint : cGreenTint,
+          borderRadius: BorderRadius.circular(kR14),
+        ),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Icon(icon, size: 18, color: amber ? cAmberInk : cGreenDeep),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(text,
+                style: manrope(12.5, FontWeight.w600,
+                    color: amber ? cAmberInk : cGreenDeep)),
+          ),
+        ]),
+      );
+
+  Widget _otherProductCard(GiftExchangeProduct p) => QCard(
+        padding: const EdgeInsets.all(12),
+        border: Border.all(color: cGreen, width: 1.4),
+        child: Row(children: [
+          SizedBox(
+            width: 56,
+            height: 56,
+            child: QShoeImage(
+                imageUrl: p.imageUrl.isNotEmpty ? p.imageUrl : null,
+                height: 56),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(tr('Вместо подарка', 'Сыйлықтың орнына'),
+                  style: manrope(11.5, FontWeight.w700, color: cGreenDeep)),
+              const SizedBox(height: 2),
+              Text(p.name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: manrope(14, FontWeight.w700)),
+            ]),
+          ),
+          IconButton(
+            tooltip: tr('Вернуть исходный подарок', 'Бастапқы сыйлыққа оралу'),
+            onPressed: () => setState(() {
+              _otherProduct = null;
+              _size = null;
+              _altSize = null;
+              final g = _gift;
+              if (g != null &&
+                  g.chosenSize.isNotEmpty &&
+                  g.availableSizes.contains(g.chosenSize)) {
+                _size = g.chosenSize;
+              }
+            }),
+            icon: const Icon(Icons.close_rounded, color: cInk3),
+          ),
+        ]),
+      );
+
+  Widget _sizeChip(String s, GiftSizeOption? o) {
     final sel = _size == s;
+    final extra = o?.extra ?? 0;
     return GestureDetector(
       onTap: () {
         HapticFeedback.selectionClick();
-        setState(() => _size = s);
+        setState(() {
+          _size = s;
+          if (_altSize != null &&
+              (_altSize == s || !(o?.alts.contains(_altSize) ?? false))) {
+            _altSize = null;
+          }
+        });
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 160),
         constraints: const BoxConstraints(minWidth: 56),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: EdgeInsets.symmetric(
+            horizontal: 16, vertical: extra > 0 ? 7 : 12),
         decoration: BoxDecoration(
           color: sel ? cGreen : cSurface,
           borderRadius: BorderRadius.circular(kR12),
           border: Border.all(color: sel ? cGreen : cLine, width: 1.4),
           boxShadow: sel ? kShadowGreen : null,
         ),
-        child: Text(trValue(s),
-            textAlign: TextAlign.center,
-            style: manrope(15, FontWeight.w700,
-                color: sel ? Colors.white : cInk)),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text(trValue(s),
+              textAlign: TextAlign.center,
+              style: manrope(15, FontWeight.w700,
+                  color: sel ? Colors.white : cInk)),
+          if (extra > 0)
+            Text('+${money(extra)}',
+                style: manrope(10.5, FontWeight.w700,
+                    color: sel ? Colors.white : cAmberInk)),
+        ]),
       ),
+    );
+  }
+
+  Widget _altChip(String? value, String label) {
+    final sel = _altSize == value;
+    return ChoiceChip(
+      label: Text(label,
+          style: manrope(13.5, FontWeight.w700,
+              color: sel ? Colors.white : cInk)),
+      selected: sel,
+      showCheckmark: false,
+      selectedColor: cGreen,
+      backgroundColor: cSurface,
+      side: BorderSide(color: sel ? cGreen : cLine),
+      onSelected: (_) {
+        HapticFeedback.selectionClick();
+        setState(() => _altSize = value);
+      },
     );
   }
 
@@ -921,11 +1199,32 @@ class _GiftReceiveScreenState extends State<GiftReceiveScreen>
           ),
         ]),
         const SizedBox(height: 8),
-        if (item != null)
+        if (item != null) ...[
+          Text(item.productName,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: manrope(14, FontWeight.w700)),
+          const SizedBox(height: 2),
           Text(
-            tr('Размер: ${trValue(item.size)}', 'Өлшемі: ${trValue(item.size)}'),
+            tr('Размер: ${trValue(item.size)}',
+                'Өлшемі: ${trValue(item.size)}'),
             style: manrope(14, FontWeight.w600),
           ),
+          if (item.altSize.isNotEmpty)
+            Text(
+              tr('Второй размер для примерки: ${trValue(item.altSize)}',
+                  'Өлшеп көруге екінші өлшем: ${trValue(item.altSize)}'),
+              style: manrope(13, FontWeight.w600, color: cInk2),
+            ),
+        ],
+        if (o.giftExtraDue > 0) ...[
+          const SizedBox(height: 6),
+          Text(
+            tr('Доплата в магазине при получении: ${money(o.giftExtraDue)}',
+                'Алған кезде дүкенде қосымша төлем: ${money(o.giftExtraDue)}'),
+            style: manrope(13.5, FontWeight.w800, color: cAmberInk),
+          ),
+        ],
         const SizedBox(height: 6),
         if (courier)
           Text(
@@ -945,8 +1244,7 @@ class _GiftReceiveScreenState extends State<GiftReceiveScreen>
           if (o.pickupCode.isNotEmpty) ...[
             const SizedBox(height: 8),
             Text(
-              tr('Код получения: ${o.pickupCode}',
-                  'Алу коды: ${o.pickupCode}'),
+              tr('Код получения: ${o.pickupCode}', 'Алу коды: ${o.pickupCode}'),
               style: manrope(16, FontWeight.w800, color: cGreenDeep),
             ),
           ],
@@ -1070,7 +1368,8 @@ class _GiftBox extends StatelessWidget {
                     child: Center(
                       child: Container(
                         width: 28,
-                        decoration: const BoxDecoration(color: Color(0xFFFFD66B)),
+                        decoration:
+                            const BoxDecoration(color: Color(0xFFFFD66B)),
                       ),
                     ),
                   ),

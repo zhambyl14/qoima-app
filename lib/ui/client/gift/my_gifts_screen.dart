@@ -95,7 +95,8 @@ class _MyGiftsScreenState extends State<MyGiftsScreen> {
         ),
         Expanded(
           child: _error != null
-              ? AppErrorView(error: _error, onRetry: () async => setState(_subscribe))
+              ? AppErrorView(
+                  error: _error, onRetry: () async => setState(_subscribe))
               : !loaded
                   ? const Center(
                       child: CircularProgressIndicator(
@@ -104,9 +105,11 @@ class _MyGiftsScreenState extends State<MyGiftsScreen> {
                       ? ClientEmptyState(
                           icon: Icons.card_giftcard_rounded,
                           message: _tab == 0
-                              ? tr('Вы пока ничего не дарили.\nОткройте товар и нажмите «Подарить».',
+                              ? tr(
+                                  'Вы пока ничего не дарили.\nОткройте товар и нажмите «Подарить».',
                                   'Әзірге ешкімге сыйлаған жоқсыз.\nТауарды ашып, «Сыйлау» батырмасын басыңыз.')
-                              : tr('Подарков для вас пока нет.\nОткройте ссылку от друга — подарок появится здесь.',
+                              : tr(
+                                  'Подарков для вас пока нет.\nОткройте ссылку от друга — подарок появится здесь.',
                                   'Сізге әзірге сыйлық жоқ.\nДосыңыздың сілтемесін ашыңыз — сыйлық осында шығады.'),
                         )
                       : ListView.separated(
@@ -251,7 +254,9 @@ class _SentCard extends StatelessWidget {
         ),
         if (o.isGiftClaimed && item != null && item.size.isNotEmpty) ...[
           const SizedBox(height: 10),
-          Text(tr('Размер: ${trValue(item.size)}', 'Өлшемі: ${trValue(item.size)}'),
+          Text(
+              tr('Размер: ${trValue(item.size)}',
+                  'Өлшемі: ${trValue(item.size)}'),
               style: manrope(13, FontWeight.w600)),
         ],
         if (o.isGiftReadyToClaim && days != null && days >= 0) ...[
@@ -273,7 +278,8 @@ class _SentCard extends StatelessWidget {
             onPressed: () => showPaymentInstructionsSheet(context,
                 amount: o.depositAmount, orders: [o]),
           )
-        else if (o.isGiftAwaitingRecipient && !o.isGiftExpired && !awaitingPay)
+        // төлем тексеріліп жатса да сілтеме қайта жіберіледі (жабылып қалса жоғалмасын)
+        else if (o.isGiftAwaitingRecipient && !o.isGiftExpired)
           Row(children: [
             Expanded(
               child: QPrimaryButton(
@@ -297,8 +303,8 @@ class _SentCard extends StatelessWidget {
           ])
         else if (o.isGiftExpired)
           QSoftButton(
-            label: tr('Запросить возврат у магазина',
-                'Дүкеннен қайтаруды сұрау'),
+            label:
+                tr('Запросить возврат у магазина', 'Дүкеннен қайтаруды сұрау'),
             tone: 'amber',
             icon: const Icon(Icons.support_agent_rounded,
                 color: cAmberInk, size: 20),
@@ -314,8 +320,7 @@ class _SentCard extends StatelessWidget {
   }
 
   void _openOrder(BuildContext context) => Navigator.of(context).push(
-      MaterialPageRoute(
-          builder: (_) => ClientOrderDetailScreen(order: order)));
+      MaterialPageRoute(builder: (_) => ClientOrderDetailScreen(order: order)));
 
   Future<void> _contactStore(BuildContext context) async {
     final phone = order.storePhone.trim();
@@ -323,8 +328,8 @@ class _SentCard extends StatelessWidget {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(SnackBar(
-          content: Text(tr('Телефон магазина не указан',
-              'Дүкеннің телефоны көрсетілмеген')),
+          content: Text(tr(
+              'Телефон магазина не указан', 'Дүкеннің телефоны көрсетілмеген')),
           backgroundColor: cRed,
           behavior: SnackBarBehavior.floating,
         ));
@@ -349,6 +354,9 @@ class _ReceivedCard extends StatelessWidget {
   final OrderModel order;
   const _ReceivedCard({required this.order});
 
+  static String _d(DateTime d) =>
+      '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
+
   @override
   Widget build(BuildContext context) {
     final o = order;
@@ -370,7 +378,8 @@ class _ReceivedCard extends StatelessWidget {
         tone = 'red';
       default:
         label = o.byPlatformCourier
-            ? tr('Магазин собирает, затем курьер', 'Дүкен жинайды, сосын курьер')
+            ? tr(
+                'Магазин собирает, затем курьер', 'Дүкен жинайды, сосын курьер')
             : tr('Магазин готовит подарок', 'Дүкен сыйлықты дайындап жатыр');
         tone = 'blue';
     }
@@ -423,8 +432,29 @@ class _ReceivedCard extends StatelessWidget {
           ],
           if (!hidePrice && item != null) ...[
             const SizedBox(height: 4),
-            Text(tr('Стоимость: ${money(item.price)}', 'Құны: ${money(item.price)}'),
+            Text(
+                tr('Стоимость: ${money(item.price)}',
+                    'Құны: ${money(item.price)}'),
                 style: manrope(12, FontWeight.w500, color: cInk3)),
+          ],
+          // 0070: қосымша төлем (қымбатырақ тауар таңдалса) — дүкенде беру кезінде
+          if (o.hasGiftExtraDue) ...[
+            const SizedBox(height: 4),
+            Text(
+                tr('Доплата в магазине: ${money(o.giftExtraDue)}',
+                    'Дүкенде қосымша төлем: ${money(o.giftExtraDue)}'),
+                style: manrope(12.5, FontWeight.w800, color: cAmberInk)),
+          ],
+          // Сыйлық = тек ауыстыру: алынған соң 14 күн ішінде дүкенде
+          if (o.status == OrderModel.statusCompleted) ...[
+            const SizedBox(height: 6),
+            Text(
+                o.giftExchangeOpen
+                    ? tr(
+                        'Не подошёл? Обменяйте в магазине до ${_d(o.returnDeadline)} (только обмен, без возврата денег)',
+                        'Келмеді ме? ${_d(o.returnDeadline)} дейін дүкенде ауыстырыңыз (тек ауыстыру, ақша қайтарылмайды)')
+                    : tr('Срок обмена истёк', 'Ауыстыру мерзімі өтті'),
+                style: manrope(12, FontWeight.w600, color: cInk2)),
           ],
           if (!o.byPlatformCourier &&
               o.pickupCode.isNotEmpty &&
@@ -444,5 +474,5 @@ class _ReceivedCard extends StatelessWidget {
 
 /// Сілтеме арқылы сыйлық бетін тікелей ашу (тізімнен қайта көру үшін).
 Future<void> openGiftPage(BuildContext context, String token) =>
-    Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => GiftReceiveScreen(token: token)));
+    Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => GiftReceiveScreen(token: token)));

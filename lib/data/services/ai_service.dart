@@ -97,7 +97,7 @@ class AiService {
           if (city.isNotEmpty) 'city': city,
           'lang': _lang,
         },
-        timeout: const Duration(seconds: 70));
+        timeout: const Duration(seconds: 100));
     final products = (data['products'] as List? ?? const [])
         .whereType<Map>()
         .map((e) => CatalogHit.fromMap(Map<String, dynamic>.from(e)))
@@ -119,7 +119,7 @@ class AiService {
           if (city.isNotEmpty) 'city': city,
           'lang': _lang,
         },
-        timeout: const Duration(seconds: 60));
+        timeout: const Duration(seconds: 100));
     final items = (data['items'] as List? ?? const [])
         .whereType<Map>()
         .map((e) => CatalogHit.fromMap(Map<String, dynamic>.from(e)))

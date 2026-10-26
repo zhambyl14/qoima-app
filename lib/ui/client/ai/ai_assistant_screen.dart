@@ -287,7 +287,11 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
           if (m.products.isNotEmpty) ...[
             const SizedBox(height: 8),
             SizedBox(
-              height: 278,
+              // Шрифт масштабы үлкен болса карточка биіктігі де өседі.
+              height: 290 +
+                  ((MediaQuery.textScalerOf(context).scale(14) / 14) - 1)
+                          .clamp(0.0, 1.0) *
+                      110,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 clipBehavior: Clip.none,
@@ -345,31 +349,37 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
               ),
             ),
           ]),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(h.name,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: manrope(12.5, FontWeight.w700,
-                      color: cInk, height: 1.25)),
-              const SizedBox(height: 3),
-              Text(money(h.price),
-                  style: manrope(14, FontWeight.w800, color: cInk)),
-              Text(h.storeName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: manrope(11, FontWeight.w500, color: cInk3)),
-              if (h.reason.isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Text(h.reason,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                    style: manrope(11, FontWeight.w500,
-                        color: cGreenDeep, height: 1.3)),
-              ],
-            ]),
+          // Мәтін аймағы икемді: тым ұзын атау/себеп карточкадан асып кетпейді.
+          Expanded(
+            child: ClipRect(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(h.name,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: manrope(12.5, FontWeight.w700,
+                              color: cInk, height: 1.25)),
+                      const SizedBox(height: 3),
+                      Text(money(h.price),
+                          style: manrope(14, FontWeight.w800, color: cInk)),
+                      Text(h.storeName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: manrope(11, FontWeight.w500, color: cInk3)),
+                      if (h.reason.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(h.reason,
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                            style: manrope(11, FontWeight.w500,
+                                color: cGreenDeep, height: 1.3)),
+                      ],
+                    ]),
+              ),
+            ),
           ),
         ]),
       ),

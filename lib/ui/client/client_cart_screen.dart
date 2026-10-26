@@ -21,6 +21,7 @@ import 'payment_instructions_sheet.dart';
 
 import '../../core/lang.dart';
 import '../../core/error_text.dart';
+import '../../data/services/registry_service.dart';
 
 class ClientCartScreen extends StatefulWidget {
   /// Тапсырыс сәтті жасалғанда (төлемге дайын) шақырылады — ClientShell
@@ -99,8 +100,10 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
   String _appliedAdminUid = '';
   String? _promoError;
 
+  // registryClaimId кіреді: кәдімгі жол мен тілек тізіміндегі сыйлық жолы
+  // (бір тауар/партия/өлшем) бір-бірінің күйін бұзбауы үшін.
   String _itemKey(CartItemModel item) =>
-      '${item.productId}_${item.batchId}_${item.size}';
+      '${item.productId}_${item.batchId}_${item.size}_${item.registryClaimId}';
 
   // ── Тапсырысқа кіретін жолдар (Wildberries/Kaspi стилі чекбокс) ─────────────
   // Чекбокспен таңдалған ЖӘНЕ қолжетімді (unavailable емес) товарлар ғана
@@ -321,6 +324,23 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
             unavailable.add(key);
           }
         } catch (_) {}
+      }
+      // Тілек тізімінің броні мерзімі өтсе/босатылса — жол қолжетімсіз
+      // (null = желі қатесі, тексермейміз; сервер триггері бәрібір тексереді).
+      final giftIds = cart.items
+          .where((i) => i.registryClaimId.isNotEmpty)
+          .map((i) => i.registryClaimId)
+          .toList();
+      if (giftIds.isNotEmpty) {
+        final valid = await RegistryService().validClaimIds(giftIds);
+        if (valid != null) {
+          for (final i in cart.items) {
+            if (i.registryClaimId.isNotEmpty &&
+                !valid.contains(i.registryClaimId)) {
+              unavailable.add(_itemKey(i));
+            }
+          }
+        }
       }
       if (mounted) {
         setState(() {

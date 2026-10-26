@@ -58,6 +58,12 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- Flutter-дің кіріктірілген deep-link маршруты ӨШІРУЛІ: qoima://gift/<token>
+             қозғалтқышқа «/<token>» бастапқы маршруты болып түспеуі керек —
+             сілтемені тек app_links (lib/core/deep_links.dart) өңдейді. -->
+        <meta-data
+            android:name="flutter_deeplinking_enabled"
+            android:value="false" />
         <!-- FCM хабарламалары осы (HIGH маңыздылық) арнаға түседі — heads-up
              баннер ретінде қалқу үшін (push_service.dart kPushChannelId). -->
         <meta-data

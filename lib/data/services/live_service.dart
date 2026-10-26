@@ -72,9 +72,21 @@ class LiveService {
       _sb.rpc('live_send_message',
           params: {'p_session': sessionId, 'p_body': body});
 
+  /// Хост модерациясы: хабарды жою / қолданушыны чатта бұғаттау.
+  Future<void> deleteMessage(String sessionId, int messageId) =>
+      _sb.rpc('live_delete_message',
+          params: {'p_session': sessionId, 'p_message': messageId});
+
+  Future<void> muteUser(String sessionId, String userUid) =>
+      _sb.rpc('live_mute_user',
+          params: {'p_session': sessionId, 'p_user': userUid});
+
   /// false = шектеуден асты / эфир аяқталды (үнсіз).
-  Future<bool> like(String sessionId) async {
-    final res = await _sb.rpc('live_like', params: {'p_session': sessionId});
+  ///
+  /// [count] — жиналған лайк саны (сервер 1..20-ға қысады).
+  Future<bool> like(String sessionId, {int count = 1}) async {
+    final res = await _sb
+        .rpc('live_like', params: {'p_session': sessionId, 'p_count': count});
     return res == true;
   }
 
@@ -116,6 +128,21 @@ class LiveService {
         .eq('id', sessionId)
         .maybeSingle();
     return row == null ? null : LiveSession.fromMap(row);
+  }
+
+  /// Қазір тірі эфирлер (басты бет қатары). Realtime ЕМЕС: бәрінің басты
+  /// бетінде ағын ашу бір live_sessions жолының әр like/heartbeat-ін барлық
+  /// қолданушыға таратар еді. Сондықтан UI мұны 30 с сайын polling жасайды;
+  /// 'live' мәртебесін cron 2-3 минутта өзі жауып отырады (құрылғы сағатына
+  /// тәуелді емес).
+  Future<List<LiveSession>> getLiveSessions({int limit = 30}) async {
+    final rows = await _sb
+        .from('live_sessions')
+        .select()
+        .eq('status', LiveSession.statusLive)
+        .order('started_at', ascending: false)
+        .limit(limit);
+    return rows.map<LiveSession>(LiveSession.fromMap).toList();
   }
 
   Future<LiveSession?> getLiveSessionForStore(String adminUid) async {
@@ -210,31 +237,10 @@ class LiveService {
 
   // ── Realtime ────────────────────────────────────────────────────────────────
 
-  /// Соңғы эфирлер (жаңасы алдымен). Сүзгісіз әдейі: `.eq('status','live')`
-  /// сүзгісі бар ағын жол 'ended'-ке ауысқанда UPDATE оқиғасын алмай, ескі
-  /// жолды ұстап қалады. Сондықтан соңғы 20-ны аламыз да, UI-де
-  /// [LiveSession.isFreshLive] бойынша сүземіз.
-  Stream<List<LiveSession>> watchLiveSessions() => _sb
-      .from('live_sessions')
-      .stream(primaryKey: ['id'])
-      .order('started_at', ascending: false)
-      .limit(20)
-      .map((rows) => rows.map(LiveSession.fromMap).toList());
-
   Stream<LiveSession?> watchSession(String sessionId) => _sb
       .from('live_sessions')
       .stream(primaryKey: ['id'])
       .eq('id', sessionId)
-      .map((rows) => rows.isEmpty ? null : LiveSession.fromMap(rows.first));
-
-  /// Дүкеннің соңғы эфирі (баннер үшін). admin_uid сүзгісі статус
-  /// өзгерісін де жеткізеді.
-  Stream<LiveSession?> watchStoreLive(String adminUid) => _sb
-      .from('live_sessions')
-      .stream(primaryKey: ['id'])
-      .eq('admin_uid', adminUid)
-      .order('started_at', ascending: false)
-      .limit(1)
       .map((rows) => rows.isEmpty ? null : LiveSession.fromMap(rows.first));
 
   /// Соңғы 100 хабар — ЕСКІСІ алдымен (UI тікелей көрсете береді).
@@ -293,6 +299,9 @@ String liveErrorText(Object? e) {
     case 'live_rate_limited':
       return tr('Не так быстро — подождите пару секунд.',
           'Асықпаңыз — бірер секунд күтіңіз.');
+    case 'live_muted':
+      return tr('Вы не можете писать в чат этого эфира.',
+          'Бұл эфирдің чатына жаза алмайсыз.');
     case 'invalid_message':
       return tr('Сообщение: от 1 до 300 символов.',
           'Хабар: 1-ден 300 таңбаға дейін.');

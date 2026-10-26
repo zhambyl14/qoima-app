@@ -8,6 +8,7 @@ import '../../core/lang.dart';
 import '../../theme/qoima_design.dart';
 import '../../data/models/cart_item_model.dart';
 import '../../data/services/local_notification_service.dart';
+import '../../data/services/registry_service.dart';
 import '../shared/favorite_fly_animation.dart';
 import 'client_home_screen.dart';
 import 'client_catalog_screen.dart';
@@ -57,14 +58,33 @@ class CartProvider extends ChangeNotifier {
 
   bool get isLoaded => _loaded;
 
-  void addItem(CartItemModel item) {
-    final idx = _items.indexWhere(
-        (e) => e.productId == item.productId && e.size == item.size);
+  /// Тілек тізімінен брондалған жол (registryClaimId) кәдімгі жолмен ЕШҚАШАН
+  /// бірікпейді; сол бронь қайта қосылса — саны қосылмай, ауысады (бронь
+  /// санынан асып кетпеуі үшін).
+  void _merge(CartItemModel item) {
+    final idx = _items.indexWhere((e) =>
+        e.productId == item.productId &&
+        e.size == item.size &&
+        e.registryClaimId == item.registryClaimId);
     if (idx >= 0) {
-      _items[idx] = _items[idx].copyWith(qty: _items[idx].qty + item.qty);
+      _items[idx] = item.registryClaimId.isNotEmpty
+          ? _items[idx].copyWith(qty: item.qty)
+          : _items[idx].copyWith(qty: _items[idx].qty + item.qty);
     } else {
       _items.add(item);
     }
+  }
+
+  /// Қолданушы сыйлық жолын себеттен алып тастады — тізімдегі броньды
+  /// босатамыз (басқа қонақ ала алуы үшін). Желі қатесі бұғаттамайды:
+  /// бронь бәрібір 48 сағатта өзі босайды.
+  void _releaseClaim(CartItemModel item) {
+    if (item.registryClaimId.isEmpty) return;
+    RegistryService().release(item.registryClaimId).catchError((_) {});
+  }
+
+  void addItem(CartItemModel item) {
+    _merge(item);
     notifyListeners();
     _persist();
     // Себетте тауар бар — 2 сағаттан кейін еске салу жоспарлаймыз (серверсіз,
@@ -78,13 +98,7 @@ class CartProvider extends ChangeNotifier {
   void addItems(Iterable<CartItemModel> items) {
     var added = false;
     for (final item in items) {
-      final idx = _items.indexWhere(
-          (e) => e.productId == item.productId && e.size == item.size);
-      if (idx >= 0) {
-        _items[idx] = _items[idx].copyWith(qty: _items[idx].qty + item.qty);
-      } else {
-        _items.add(item);
-      }
+      _merge(item);
       added = true;
     }
     if (!added) return;
@@ -94,7 +108,7 @@ class CartProvider extends ChangeNotifier {
   }
 
   void removeAt(int index) {
-    _items.removeAt(index);
+    _releaseClaim(_items.removeAt(index));
     notifyListeners();
     _persist();
     if (_items.isEmpty) LocalNotificationService.instance.cancelCartReminder();
@@ -104,14 +118,16 @@ class CartProvider extends ChangeNotifier {
   /// «+» жылдам батырмасы бір өлшем ғана ұстайды (ауыстыру/жою үшін).
   CartItemModel? findByProduct(String productId) {
     for (final i in _items) {
-      if (i.productId == productId) return i;
+      if (i.productId == productId && i.registryClaimId.isEmpty) return i;
     }
     return null;
   }
 
   void removeByProductAndSize(String productId, String size) {
-    final idx =
-        _items.indexWhere((e) => e.productId == productId && e.size == size);
+    final idx = _items.indexWhere((e) =>
+        e.productId == productId &&
+        e.size == size &&
+        e.registryClaimId.isEmpty);
     if (idx >= 0) removeAt(idx);
   }
 
@@ -145,6 +161,7 @@ class CartProvider extends ChangeNotifier {
     final item = _items[index];
     if (item.qty <= 1) {
       _items.removeAt(index);
+      _releaseClaim(item);
     } else {
       _items[index] = item.copyWith(qty: item.qty - 1);
     }
@@ -155,6 +172,8 @@ class CartProvider extends ChangeNotifier {
 
   void incrementAt(int index) {
     if (index < 0 || index >= _items.length) return;
+    // Сыйлық жолының саны брондалғаннан аспайды.
+    if (_items[index].registryClaimId.isNotEmpty) return;
     _items[index] = _items[index].copyWith(qty: _items[index].qty + 1);
     notifyListeners();
     _persist();
@@ -172,10 +191,12 @@ class CartProvider extends ChangeNotifier {
   /// Тапсырыс сәтті болған соң тек ТАПСЫРЫСҚА кірген жолдарды алып тастайды —
   /// таңдалмаған қалған товарлар себетте қалады (Wildberries/Kaspi стилі).
   void removeItems(Iterable<CartItemModel> toRemove) {
-    final keys =
-        toRemove.map((i) => '${i.productId}_${i.batchId}_${i.size}').toSet();
-    _items.removeWhere(
-        (i) => keys.contains('${i.productId}_${i.batchId}_${i.size}'));
+    // Кілтке registryClaimId кіреді — кәдімгі жол мен сыйлық жолы (бір
+    // тауар/партия/өлшем) бірін-бірі өшірмеуі үшін.
+    String key(CartItemModel i) =>
+        '${i.productId}_${i.batchId}_${i.size}_${i.registryClaimId}';
+    final keys = toRemove.map(key).toSet();
+    _items.removeWhere((i) => keys.contains(key(i)));
     notifyListeners();
     _persist();
     if (_items.isEmpty) LocalNotificationService.instance.cancelCartReminder();

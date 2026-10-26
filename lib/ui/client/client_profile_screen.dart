@@ -19,6 +19,9 @@ import '../auth/account_security_screen.dart';
 import '../auth/legal_documents_screen.dart';
 
 import '../../core/lang.dart';
+import '../../core/feature_flags.dart';
+import '../support/support_entry.dart';
+
 class ClientProfileScreen extends StatelessWidget {
   /// «Тапсырыстарым» басылғанда — ClientShell тапсырыстар экранын ашады.
   final VoidCallback onOpenOrders;
@@ -27,7 +30,9 @@ class ClientProfileScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final appUser = context.watch<AppUser>();
-    final name = appUser.name.isNotEmpty ? appUser.name : tr('Покупатель', 'Сатып алушы');
+    final name = appUser.name.isNotEmpty
+        ? appUser.name
+        : tr('Покупатель', 'Сатып алушы');
     final phone = appUser.phone;
     final initials = _initials(name);
 
@@ -114,30 +119,44 @@ class ClientProfileScreen extends StatelessWidget {
                     MaterialPageRoute(builder: (_) => const FavoritesScreen())),
               ),
               const SizedBox(height: 10),
-              // Тілек тізімдері (той/туған күн) — сілтемемен бөлісіледі.
-              _MenuItem(
-                icon: Icons.checklist_rounded,
-                tone: 'amber',
-                title: tr('Мои списки желаний', 'Тілек тізімдерім'),
-                sub: tr('Свадьба, день рождения, той',
-                    'Той, туған күн, мереке'),
-                onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => const MyRegistriesScreen())),
+              // Тілек тізімдері мен сыйлықтар — суперадмин өшірсе жасырылады
+              // (бұрын жасалғандары сілтеме арқылы бәрібір ашылады).
+              ListenableBuilder(
+                listenable: FeatureFlags.instance,
+                builder: (_, __) => Column(children: [
+                  if (FeatureFlags.instance
+                      .isOn(FeatureFlags.giftRegistry)) ...[
+                    // Тілек тізімдері (той/туған күн) — сілтемемен бөлісіледі.
+                    _MenuItem(
+                      icon: Icons.checklist_rounded,
+                      tone: 'amber',
+                      title: tr('Мои списки желаний', 'Тілек тізімдерім'),
+                      sub: tr('Свадьба, день рождения, той',
+                          'Той, туған күн, мереке'),
+                      onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const MyRegistriesScreen())),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+                  if (FeatureFlags.instance.isOn(FeatureFlags.giftLinks)) ...[
+                    // Сыйлықтар: жіберілген және маған келген (0070).
+                    _MenuItem(
+                      icon: Icons.card_giftcard_rounded,
+                      tone: 'green',
+                      title: tr('Подарки', 'Сыйлықтар'),
+                      sub: tr('Отправленные и полученные',
+                          'Жіберілген және маған келген'),
+                      onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const MyGiftsScreen())),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+                ]),
               ),
-              const SizedBox(height: 10),
-              // Сыйлықтар: жіберілген және маған келген (0070).
-              _MenuItem(
-                icon: Icons.card_giftcard_rounded,
-                tone: 'green',
-                title: tr('Подарки', 'Сыйлықтар'),
-                sub: tr('Отправленные и полученные',
-                    'Жіберілген және маған келген'),
-                onTap: () => Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const MyGiftsScreen())),
-              ),
-              const SizedBox(height: 10),
               _MenuItem(
                 icon: Icons.location_on_outlined,
                 tone: 'blue',
@@ -151,7 +170,9 @@ class ClientProfileScreen extends StatelessWidget {
                 icon: Icons.location_city_outlined,
                 tone: 'blue',
                 title: tr('Город', 'Қала'),
-                value: appUser.city.isNotEmpty ? trValue(appUser.city) : tr('Не выбран', 'Таңдалмаған'),
+                value: appUser.city.isNotEmpty
+                    ? trValue(appUser.city)
+                    : tr('Не выбран', 'Таңдалмаған'),
                 onTap: () => _showCityDialog(context, appUser),
               ),
               const SizedBox(height: 10),
@@ -159,9 +180,10 @@ class ClientProfileScreen extends StatelessWidget {
                 icon: Icons.language_outlined,
                 tone: 'gray',
                 title: context.l10n.language,
-                value: context.watch<LocaleContext>().locale.languageCode == 'kk'
-                    ? context.l10n.kazakh
-                    : context.l10n.russian,
+                value:
+                    context.watch<LocaleContext>().locale.languageCode == 'kk'
+                        ? context.l10n.kazakh
+                        : context.l10n.russian,
                 onTap: () => _showLanguageDialog(context),
               ),
               const SizedBox(height: 10),
@@ -176,6 +198,8 @@ class ClientProfileScreen extends StatelessWidget {
                         builder: (_) => const HiddenStoresScreen())),
               ),
               const SizedBox(height: 10),
+              // Қолдау чаты (өшік болса өзі жасырылады, оқылмаған бейджі бар)
+              const SupportMenuTile(spacing: 10),
               _MenuItem(
                 icon: Icons.shield_outlined,
                 tone: 'green',
@@ -192,9 +216,12 @@ class ClientProfileScreen extends StatelessWidget {
                 icon: Icons.gavel_outlined,
                 tone: 'gray',
                 title: tr('Правовые документы', 'Заңдық құжаттар'),
-                sub: tr('Соглашение и конфиденциальность', 'Келісім мен құпиялылық'),
-                onTap: () => Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const LegalDocumentsScreen())),
+                sub: tr('Соглашение и конфиденциальность',
+                    'Келісім мен құпиялылық'),
+                onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const LegalDocumentsScreen())),
               ),
               const SizedBox(height: 10),
               _MenuItem(
@@ -208,7 +235,8 @@ class ClientProfileScreen extends StatelessWidget {
                     builder: (_) => AlertDialog(
                       title: Text(tr('Выйти', 'Шығу'),
                           style: manrope(17, FontWeight.w700, color: cInk)),
-                      content: Text(tr('Выйти из аккаунта?', 'Аккаунттан шығасыз ба?'),
+                      content: Text(
+                          tr('Выйти из аккаунта?', 'Аккаунттан шығасыз ба?'),
                           style: manrope(14, FontWeight.w500, color: cInk2)),
                       actions: [
                         TextButton(
@@ -219,8 +247,8 @@ class ClientProfileScreen extends StatelessWidget {
                         TextButton(
                             onPressed: () => Navigator.pop(context, true),
                             child: Text(tr('Выйти', 'Шығу'),
-                                style: manrope(14, FontWeight.w600,
-                                    color: cRed))),
+                                style:
+                                    manrope(14, FontWeight.w600, color: cRed))),
                       ],
                     ),
                   );
@@ -260,7 +288,8 @@ class ClientProfileScreen extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
             child: Column(children: [
               Container(
-                width: 36, height: 4,
+                width: 36,
+                height: 4,
                 decoration: BoxDecoration(
                     color: cLine, borderRadius: BorderRadius.circular(2)),
               ),
@@ -270,7 +299,9 @@ class ClientProfileScreen extends StatelessWidget {
                     style: manrope(17, FontWeight.w700, color: cInk)),
               ]),
               const SizedBox(height: 4),
-              Text(tr('Вы будете видеть только магазины своего города', 'Тек өз қалаңыздың дүкендерін көресіз'),
+              Text(
+                  tr('Вы будете видеть только магазины своего города',
+                      'Тек өз қалаңыздың дүкендерін көресіз'),
                   style: manrope(12.5, FontWeight.w500, color: cInk3)),
               const SizedBox(height: 12),
               const Divider(height: 1),
@@ -412,7 +443,9 @@ class _OrdersTile extends StatelessWidget {
                     Text(tr('Мои заказы', 'Тапсырыстарым'),
                         style: manrope(14.5, FontWeight.w800, color: cInk)),
                     const SizedBox(height: 2),
-                    Text(tr('$activeCount активных заказов', '$activeCount белсенді тапсырыс'),
+                    Text(
+                        tr('$activeCount активных заказов',
+                            '$activeCount белсенді тапсырыс'),
                         style: manrope(12.5, FontWeight.w500, color: cInk3)),
                   ]),
             ),
@@ -487,12 +520,12 @@ class _MenuItem extends StatelessWidget {
                   ]),
             ),
             if (value != null)
-              Text(value!,
-                  style: manrope(13.5, FontWeight.w600, color: cInk2)),
+              Text(value!, style: manrope(13.5, FontWeight.w600, color: cInk2)),
             if (!danger)
               const Padding(
                 padding: EdgeInsets.only(left: 6),
-                child: Icon(Icons.chevron_right_rounded, color: cInk3, size: 20),
+                child:
+                    Icon(Icons.chevron_right_rounded, color: cInk3, size: 20),
               ),
           ]),
         ),
@@ -519,8 +552,7 @@ class _LangTile extends StatelessWidget {
           color: selected ? cGreen.withValues(alpha: 0.1) : cBg,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-              color: selected ? cGreen : cLine,
-              width: selected ? 1.5 : 1),
+              color: selected ? cGreen : cLine, width: selected ? 1.5 : 1),
         ),
         child: Row(children: [
           Expanded(

@@ -213,50 +213,60 @@ class _TryOnScreenState extends State<TryOnScreen> {
       listenable: FeatureFlags.instance,
       builder: (context, _) {
         final on = FeatureFlags.instance.isOn(FeatureFlags.aiTryOn);
-        return Scaffold(
-          backgroundColor: cBg,
-          body: Column(children: [
-            QGradientHeader(
-              title: tr('Онлайн-примерка', 'Онлайн киіп көру'),
-              subtitle: widget.product.name,
-              showBack: true,
-            ),
-            Expanded(
-              child: !on
-                  ? Center(
+        // Генерация кезінде кері шығуға тыйым: сұраныс жалғасады, квота
+        // жұмсалады, ал нәтиже көрінбей қалады.
+        return PopScope(
+            canPop: _step != _Step.generating,
+            onPopInvokedWithResult: (didPop, _) {
+              if (!didPop) {
+                _snack(tr('Подождите, примерка ещё создаётся…',
+                    'Күте тұрыңыз, киіп көру әзірленіп жатыр…'));
+              }
+            },
+            child: Scaffold(
+              backgroundColor: cBg,
+              body: Column(children: [
+                QGradientHeader(
+                  title: tr('Онлайн-примерка', 'Онлайн киіп көру'),
+                  subtitle: widget.product.name,
+                  showBack: true,
+                ),
+                Expanded(
+                  child: !on
+                      ? Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(32),
+                            child: Text(
+                              tr('Функция временно отключена',
+                                  'Функция уақытша өшірулі'),
+                              textAlign: TextAlign.center,
+                              style: manrope(15, FontWeight.w600, color: cInk2),
+                            ),
+                          ),
+                        )
+                      : switch (_step) {
+                          _Step.pick => _buildPick(),
+                          _Step.generating => _buildGenerating(),
+                          _Step.result => _buildResult(),
+                        },
+                ),
+              ]),
+              bottomNavigationBar: on && _step == _Step.pick
+                  ? SafeArea(
                       child: Padding(
-                        padding: const EdgeInsets.all(32),
-                        child: Text(
-                          tr('Функция временно отключена',
-                              'Функция уақытша өшірулі'),
-                          textAlign: TextAlign.center,
-                          style: manrope(15, FontWeight.w600, color: cInk2),
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                        child: QPrimaryButton(
+                          label: tr('Создать примерку', 'Киіп көруді бастау'),
+                          icon: const Icon(Icons.auto_awesome,
+                              color: Colors.white, size: 18),
+                          onPressed: (_person == null || _remaining == 0)
+                              ? null
+                              : _generate,
                         ),
                       ),
                     )
-                  : switch (_step) {
-                      _Step.pick => _buildPick(),
-                      _Step.generating => _buildGenerating(),
-                      _Step.result => _buildResult(),
-                    },
-            ),
-          ]),
-          bottomNavigationBar: on && _step == _Step.pick
-              ? SafeArea(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                    child: QPrimaryButton(
-                      label: tr('Создать примерку', 'Киіп көруді бастау'),
-                      icon: const Icon(Icons.auto_awesome,
-                          color: Colors.white, size: 18),
-                      onPressed: (_person == null || _remaining == 0)
-                          ? null
-                          : _generate,
-                    ),
-                  ),
-                )
-              : null,
-        );
+                  : null,
+            ));
       },
     );
   }
@@ -414,8 +424,8 @@ class _TryOnScreenState extends State<TryOnScreen> {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                tr('Ваше фото не сохраняется: оно используется только для примерки и сразу удаляется.',
-                    'Суретіңіз сақталмайды: тек киіп көру үшін қолданылады да, бірден өшіріледі.'),
+                tr('Фото передаётся стороннему сервису обработки изображений (FASHN) только для создания примерки и не сохраняется в Qoima. Нажимая «Создать примерку», вы соглашаетесь на эту передачу.',
+                    'Сурет киіп көруді жасау үшін ғана үшінші тарап сурет өңдеу сервисіне (FASHN) беріледі және Qoima-да сақталмайды. «Киіп көруді бастау» батырмасын басу арқылы осы беруге келісесіз.'),
                 style: manrope(12.5, FontWeight.w600,
                     color: cBlueInk, height: 1.35),
               ),

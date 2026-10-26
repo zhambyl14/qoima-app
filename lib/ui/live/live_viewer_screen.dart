@@ -7,6 +7,7 @@ import 'package:livekit_client/livekit_client.dart' as lk show ConnectionState;
 import 'package:provider/provider.dart';
 
 import '../../core/lang.dart';
+import '../../core/push_navigation.dart' show rootNavigatorKey;
 import '../../data/models/batch_model.dart';
 import '../../data/models/cart_item_model.dart';
 import '../../data/models/live_models.dart';
@@ -19,6 +20,7 @@ import '../client/client_product_detail.dart';
 import '../client/client_shell.dart';
 import '../client/store_public_screen.dart';
 import 'live_navigation.dart';
+import 'live_moderation.dart';
 import 'live_widgets.dart';
 
 /// Көрерменнің толық экранды эфир беті: видео, чат, лайк, бекітілген тауар.
@@ -60,7 +62,8 @@ class _LiveViewerScreenState extends State<LiveViewerScreen> {
   // Лайк: жергілікті жүректер + сервер санағышы.
   int _lastLikes = 0;
   int _pendingOwnLikes = 0;
-  DateTime _lastLikeCall = DateTime.fromMillisecondsSinceEpoch(0);
+  int _likeBuffer = 0;
+  Timer? _likeTimer;
 
   // Бекітілген тауар.
   String _pinnedId = '';
@@ -70,6 +73,9 @@ class _LiveViewerScreenState extends State<LiveViewerScreen> {
   bool _batchesLoading = false;
   String? _selectedSize;
   bool _adding = false;
+  bool _sending = false;
+  Set<String> _hiddenUids = const {}; // жергілікті «жасырылған» қолданушылар
+  bool _storeMissing = false; // дүкен жүктелмеді/табылмады
 
   @override
   void initState() {
@@ -92,6 +98,14 @@ class _LiveViewerScreenState extends State<LiveViewerScreen> {
 
   @override
   void dispose() {
+    // Жиналып қалған лайктарды жіберіп, таймерді тоқтатамыз.
+    _likeTimer?.cancel();
+    if (_likeBuffer > 0 && !_ended) {
+      unawaited(_svc
+          .like(_session.id, count: _likeBuffer)
+          .then((_) => true)
+          .catchError((_) => false));
+    }
     _sessionSub?.cancel();
     _msgSub?.cancel();
     _shelfSub?.cancel();
@@ -199,12 +213,25 @@ class _LiveViewerScreenState extends State<LiveViewerScreen> {
   Future<void> _loadStore() async {
     try {
       final s = await _client.getStoreByAdminUid(_session.adminUid);
-      if (mounted) setState(() => _store = s);
+      if (!mounted) return;
+      setState(() {
+        _store = s;
+        _storeMissing = s == null;
+        if (s == null) _batchesLoading = false;
+      });
       // Дүкен келген соң бекітілген тауардың партияларын жүктей аламыз.
       if (s != null && _pinnedId.isNotEmpty && _batches.isEmpty) {
         _loadPinned(_pinnedId);
       }
-    } catch (_) {}
+    } catch (_) {
+      // Дүкен жүктелмесе карточка шексіз спиннерде қалмасын.
+      if (mounted) {
+        setState(() {
+          _storeMissing = true;
+          _batchesLoading = false;
+        });
+      }
+    }
   }
 
   Future<void> _loadShelfProducts() async {
@@ -273,8 +300,14 @@ class _LiveViewerScreenState extends State<LiveViewerScreen> {
       }
       final store = _store;
       if (store == null) {
-        // _loadStore() аяқталғанда қайта шақырылады.
-        if (mounted && seq == _pinSeq) setState(() => _pinned = p);
+        // _loadStore() аяқталғанда қайта шақырылады (сәтсіз болса — карточка
+        // «қолжетімсіз» күйінде қалады, спиннер емес).
+        if (mounted && seq == _pinSeq) {
+          setState(() {
+            _pinned = p;
+            _batchesLoading = !_storeMissing;
+          });
+        }
         return;
       }
       final batches = await _client.getProductBatches(
@@ -368,6 +401,7 @@ class _LiveViewerScreenState extends State<LiveViewerScreen> {
         articul: p.articul,
         warehouseId: batch.warehouseId,
         warehouseAddress: address,
+        nonReturnable: p.nonReturnable,
       );
       if (!mounted) return;
       context.read<CartProvider>().addItem(item);
@@ -379,7 +413,8 @@ class _LiveViewerScreenState extends State<LiveViewerScreen> {
         action: SnackBarAction(
           label: tr('В корзину', 'Себетке'),
           textColor: Colors.white,
-          onPressed: () => openCartTab(context),
+          onPressed: () =>
+              openCartTab(rootNavigatorKey.currentContext ?? context),
         ),
       );
     } catch (e) {
@@ -392,29 +427,46 @@ class _LiveViewerScreenState extends State<LiveViewerScreen> {
   Future<void> _sendChat() async {
     final text = _chatCtrl.text.trim();
     if (text.isEmpty || _ended) return;
-    _chatCtrl.clear();
+    if (_sending) return;
+    // Мәтінді тек сәтті жіберілгеннен кейін тазалаймыз — қате болса жоғалмайды.
+    setState(() => _sending = true);
     try {
       await _svc.sendMessage(_session.id, text);
+      if (_chatCtrl.text.trim() == text) _chatCtrl.clear();
     } catch (e) {
       _toast(liveErrorText(e));
     }
+    // Сервер шегі 1 хабарлама/2 с — батырманы сол уақытқа бұғаттаймыз.
+    await Future.delayed(const Duration(seconds: 2));
+    if (mounted) setState(() => _sending = false);
   }
 
+  /// Лайктар тап сайын жергілікті жүрек ұшырады, ал серверге 2.5 с сайын
+  /// бір шақырумен жиналып жіберіледі (бір жолға UPDATE мен realtime
+  /// оқиғалар жүктемесін азайту үшін).
   void _like() {
     if (_ended) return;
     _hearts.currentState?.burst(1);
-    final now = DateTime.now();
-    if (now.difference(_lastLikeCall) < const Duration(milliseconds: 300)) {
-      return;
+    // Серверге бір жіберілімде ≤20 (сервер де қияды).
+    if (_likeBuffer < 20) {
+      _likeBuffer++;
+      // Өз лайкымыз жергілікті көрсетілген — ағыннан қайталамаймыз.
+      _pendingOwnLikes++;
     }
-    _lastLikeCall = now;
-    // Өз лайкымызды тек RPC жіберілетін болғанда санаймыз; сервер шектеп
-    // тастаса (false/қате) — кері қайтарамыз, әйтпесе санауыш өсіп кетеді.
-    _pendingOwnLikes++;
-    unawaited(_svc.like(_session.id).then((ok) {
-      if (!ok && _pendingOwnLikes > 0) _pendingOwnLikes--;
+    _likeTimer ??= Timer(const Duration(milliseconds: 2500), _flushLikes);
+  }
+
+  void _flushLikes() {
+    _likeTimer = null;
+    final n = _likeBuffer;
+    _likeBuffer = 0;
+    if (n == 0 || _ended) return;
+    // Сервер шектеп тастаса (false/қате) — кері қайтарамыз, әйтпесе санауыш өсіп кетеді.
+    void rollback() => _pendingOwnLikes = math.max(0, _pendingOwnLikes - n);
+    unawaited(_svc.like(_session.id, count: n).then((ok) {
+      if (!ok) rollback();
     }).catchError((_) {
-      if (_pendingOwnLikes > 0) _pendingOwnLikes--;
+      rollback();
     }));
   }
 
@@ -535,8 +587,12 @@ class _LiveViewerScreenState extends State<LiveViewerScreen> {
     final reconnecting = !_ended &&
         _room != null &&
         (_room!.connectionState == lk.ConnectionState.reconnecting);
+    final kb = MediaQuery.of(context).viewInsets.bottom;
+    final keyboardOpen = kb > 0;
     return Scaffold(
       backgroundColor: Colors.black,
+      // Видео экранда қалады; пернетақта шыққанда тек төменгі UI көтеріледі.
+      resizeToAvoidBottomInset: false,
       body: Stack(fit: StackFit.expand, children: [
         _buildBackdrop(video),
         const IgnorePointer(
@@ -556,21 +612,32 @@ class _LiveViewerScreenState extends State<LiveViewerScreen> {
             ),
           ),
         ),
+        // Жүректер ағыннан тыс қабатта: Column биіктігіне әсер етпейді.
+        if (!_ended)
+          Positioned(
+            right: 12,
+            bottom: kb + 64,
+            child: SafeArea(child: LiveHearts(key: _hearts)),
+          ),
         SafeArea(
-          child: Column(children: [
-            _buildTopBar(),
-            if (reconnecting)
-              _buildBanner(tr('Переподключение…', 'Қайта қосылуда…'),
-                  loading: true),
-            if (_connectError != null && !_ended) _buildError(),
-            const Spacer(),
-            if (!_ended) ...[
-              _buildChatRow(),
-              const SizedBox(height: 8),
-              _buildPinnedCard(),
-              _buildInputRow(),
-            ],
-          ]),
+          child: AnimatedPadding(
+            duration: const Duration(milliseconds: 120),
+            padding: EdgeInsets.only(bottom: kb),
+            child: Column(children: [
+              _buildTopBar(),
+              if (reconnecting)
+                _buildBanner(tr('Переподключение…', 'Қайта қосылуда…'),
+                    loading: true),
+              if (_connectError != null && !_ended) _buildError(),
+              const Spacer(),
+              if (!_ended) ...[
+                _buildChatRow(keyboardOpen),
+                const SizedBox(height: 8),
+                if (!keyboardOpen) _buildPinnedCard(),
+                _buildInputRow(),
+              ],
+            ]),
+          ),
         ),
         if (_ended) _buildEndedOverlay(),
       ]),
@@ -704,18 +771,33 @@ class _LiveViewerScreenState extends State<LiveViewerScreen> {
         ]),
       );
 
-  Widget _buildChatRow() => Padding(
+  Widget _buildChatRow(bool keyboardOpen) => Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-          Expanded(
-            child: FractionallySizedBox(
-              alignment: Alignment.centerLeft,
-              widthFactor: 0.85,
-              child: LiveChatOverlay(messages: _messages, maxHeight: 190),
+        child: Align(
+          alignment: Alignment.bottomLeft,
+          child: FractionallySizedBox(
+            alignment: Alignment.centerLeft,
+            widthFactor: 0.8,
+            child: LiveChatOverlay(
+              messages: _hiddenUids.isEmpty
+                  ? _messages
+                  : _messages
+                      .where((m) => !_hiddenUids.contains(m.userUid))
+                      .toList(),
+              maxHeight: keyboardOpen ? 110 : 190,
+              onMessageLongPress: (m) => showLiveMessageActions(
+                context,
+                message: m,
+                sessionId: _session.id,
+                adminUid: _session.adminUid,
+                storeName: _store?.storeName ?? '',
+                asHost: false,
+                onHideUser: () =>
+                    setState(() => _hiddenUids = {..._hiddenUids, m.userUid}),
+              ),
             ),
           ),
-          LiveHearts(key: _hearts),
-        ]),
+        ),
       );
 
   Widget _buildPinnedCard() {
@@ -769,6 +851,9 @@ class _LiveViewerScreenState extends State<LiveViewerScreen> {
                           height: 14,
                           child: CircularProgressIndicator(
                               strokeWidth: 2, color: cGreen))
+                    else if (_storeMissing)
+                      Text(tr('Магазин недоступен', 'Дүкен қолжетімсіз'),
+                          style: manrope(12.5, FontWeight.w700, color: cRed))
                     else if (pb != null)
                       Row(children: [
                         Text(money(price),
@@ -858,7 +943,7 @@ class _LiveViewerScreenState extends State<LiveViewerScreen> {
                 suffixIcon: IconButton(
                   icon: const Icon(Icons.send_rounded,
                       color: Colors.white, size: 20),
-                  onPressed: _sendChat,
+                  onPressed: _sending ? null : _sendChat,
                 ),
               ),
             ),

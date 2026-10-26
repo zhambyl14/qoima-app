@@ -111,5 +111,8 @@
 		<!-- Telegram-ды tg:// схемасымен тікелей ашу үшін (t.me DNS-ін айналып өту) -->
 		<string>tg</string>
 	</array>
+	<!-- Flutter deep-link маршруты өшірулі: сілтемені тек app_links өңдейді -->
+	<key>FlutterDeepLinkingEnabled</key>
+	<false/>
 </dict>
 </plist>

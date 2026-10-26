@@ -337,7 +337,7 @@ class _CompleteLookSectionState extends State<CompleteLookSection> {
         Row(children: [
           Expanded(
             child: Text(
-              tr('Итого за образ', 'Образдың жиынтығы'),
+              tr('Итого за дополнения', 'Қосымша заттардың жиынтығы'),
               style: manrope(13, FontWeight.w600, color: cInk2),
             ),
           ),

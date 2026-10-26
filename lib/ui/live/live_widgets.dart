@@ -124,8 +124,14 @@ class LiveRoundButton extends StatelessWidget {
 class LiveChatOverlay extends StatelessWidget {
   final List<LiveMessage> messages;
   final double maxHeight;
+
+  /// Хабарды ұзақ басқанда (шағым / модерация). Тек 'chat' хабарларға.
+  final void Function(LiveMessage message)? onMessageLongPress;
   const LiveChatOverlay(
-      {super.key, required this.messages, this.maxHeight = 220});
+      {super.key,
+      required this.messages,
+      this.maxHeight = 220,
+      this.onMessageLongPress});
 
   @override
   Widget build(BuildContext context) {
@@ -149,8 +155,17 @@ class LiveChatOverlay extends StatelessWidget {
           padding: EdgeInsets.zero,
           physics: const ClampingScrollPhysics(),
           itemCount: list.length,
-          itemBuilder: (_, i) =>
-              _LiveMessageRow(message: list[list.length - 1 - i]),
+          itemBuilder: (_, i) {
+            final m = list[list.length - 1 - i];
+            return _LiveMessageRow(
+              message: m,
+              onLongPress: (onMessageLongPress != null &&
+                      m.kind == LiveMessage.kindChat &&
+                      !m.isHost)
+                  ? () => onMessageLongPress!(m)
+                  : null,
+            );
+          },
         ),
       ),
     );
@@ -159,7 +174,8 @@ class LiveChatOverlay extends StatelessWidget {
 
 class _LiveMessageRow extends StatelessWidget {
   final LiveMessage message;
-  const _LiveMessageRow({required this.message});
+  final VoidCallback? onLongPress;
+  const _LiveMessageRow({required this.message, this.onLongPress});
 
   String get _name => message.userName.isNotEmpty
       ? message.userName
@@ -203,23 +219,26 @@ class _LiveMessageRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Align(
         alignment: Alignment.centerLeft,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            color: kLiveScrim,
-            borderRadius: BorderRadius.circular(kR12),
+        child: GestureDetector(
+          onLongPress: onLongPress,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: kLiveScrim,
+              borderRadius: BorderRadius.circular(kR12),
+            ),
+            child: Text.rich(TextSpan(children: [
+              TextSpan(
+                text: m.isHost ? '${tr('Магазин', 'Дүкен')} · ' : '$_name  ',
+                style: manrope(12.5, FontWeight.w800,
+                    color: m.isHost ? cGreenBright : const Color(0xFFFFD27A)),
+              ),
+              TextSpan(
+                text: m.body,
+                style: manrope(12.5, FontWeight.w500, color: Colors.white),
+              ),
+            ])),
           ),
-          child: Text.rich(TextSpan(children: [
-            TextSpan(
-              text: m.isHost ? '${tr('Магазин', 'Дүкен')} · ' : '$_name  ',
-              style: manrope(12.5, FontWeight.w800,
-                  color: m.isHost ? cGreenBright : const Color(0xFFFFD27A)),
-            ),
-            TextSpan(
-              text: m.body,
-              style: manrope(12.5, FontWeight.w500, color: Colors.white),
-            ),
-          ])),
         ),
       ),
     );

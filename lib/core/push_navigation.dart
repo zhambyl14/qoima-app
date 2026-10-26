@@ -23,6 +23,11 @@ import '../ui/seller/returns/seller_return_receive_screen.dart';
 import '../ui/seller/returns/seller_return_review_screen.dart';
 import '../ui/superadmin/marketplace_shops_screen.dart';
 import '../ui/superadmin/subscriptions_screen.dart';
+import 'feature_flags.dart';
+import '../ui/courier/courier_profile_screen.dart';
+import '../ui/superadmin/courier_change_requests_screen.dart';
+import '../ui/superadmin/support_inbox_screen.dart';
+import '../ui/support/support_chat_screen.dart';
 
 /// MaterialApp-тың түбір Navigator-і. AdminShell/SellerShell/ClientShell
 /// bottom-nav таптары бір ортақ Scaffold-ты IndexedStack-пен ауыстырады —
@@ -55,7 +60,8 @@ Future<void> handlePushOpen(Map<String, dynamic> data) async {
   for (var i = 0; !user.isLoaded && i < 100; i++) {
     await Future.delayed(const Duration(milliseconds: 100));
   }
-  if (!user.isLoaded) return; // сессия ешқашан қалпына келмеді — секірер жер жоқ
+  if (!user.isLoaded)
+    return; // сессия ешқашан қалпына келмеді — секірер жер жоқ
 
   try {
     switch (type) {
@@ -126,15 +132,44 @@ Future<void> handlePushOpen(Map<String, dynamic> data) async {
       // Тілек тізімінен біреу сыйлық сатып алды (0069).
       case 'registry_item_bought':
         if (user.isClient) {
-          nav.push(MaterialPageRoute(
-              builder: (_) => const MyRegistriesScreen()));
+          nav.push(
+              MaterialPageRoute(builder: (_) => const MyRegistriesScreen()));
         }
         break;
       // Тікелей эфир басталды: data {sessionId}.
       case 'live_started':
         final sid = data['sessionId'] as String? ?? '';
-        // ignore: use_build_context_synchronously
-        if (sid.isNotEmpty) await openLiveSession(nav.context, sid);
+        // nav.context — Navigator-дың ӨЗ контексті (одан Navigator.of
+        // табылмайды); overlay контексті Navigator-дың ішінде тұр.
+        final liveCtx = nav.overlay?.context;
+        if (sid.isNotEmpty && liveCtx != null && liveCtx.mounted) {
+          await openLiveSession(liveCtx, sid);
+        }
+        break;
+      // Қолдау чаты (0072): суперадминге жаңа хабарлама / пайдаланушыға жауап.
+      case 'support_message':
+        if (!user.isSuperadmin) return;
+        final tid = data['threadId']?.toString() ?? '';
+        nav.push(MaterialPageRoute(
+            builder: (_) => tid.isEmpty
+                ? const SupportInboxScreen()
+                : SupportThreadScreen(threadId: tid)));
+        break;
+      case 'support_reply':
+        if (user.isSuperadmin) return;
+        if (!FeatureFlags.instance.isOn(FeatureFlags.supportChat)) return;
+        nav.push(MaterialPageRoute(builder: (_) => const SupportChatScreen()));
+        break;
+      // Курьер деректерін өзгерту сұранысы (0074).
+      case 'courier_change_request':
+        if (!user.isSuperadmin) return;
+        nav.push(MaterialPageRoute(
+            builder: (_) => const CourierChangeRequestsScreen()));
+        break;
+      case 'courier_change_reviewed':
+        if (!user.isCourier) return;
+        nav.push(
+            MaterialPageRoute(builder: (_) => const CourierProfileScreen()));
         break;
     }
   } catch (e) {
@@ -248,17 +283,11 @@ Future<void> _openOrderStatus(
   final status = data['status'] as String? ?? '';
   // Сыйлықтың АЛУШЫСЫ: тапсырыс оның «Тапсырыстарым» тізімінде жоқ (client_uid
   // — сыйлаушы), сондықтан «Сыйлықтар → Маған келген» табына апарамыз.
-  if (orderId.isNotEmpty) {
-    try {
-      final o = await ClientService().getOrderById(orderId);
-      if (o != null &&
-          o.isGift &&
-          o.giftRecipientUid == user.uid &&
-          o.clientUid != user.uid) {
-        _openGifts(nav, user, tab: 1);
-        return;
-      }
-    } catch (_) {}
+  //  Алушыға orders кестесін оқу құқығы жоқ (0070), сондықтан push өзі
+  //  `gift: recipient` белгісін алып жүреді (on_gift_recipient_push).
+  if (data['gift'] == 'recipient') {
+    _openGifts(nav, user, tab: 1);
+    return;
   }
   final tab = switch (status) {
     'completed' || 'returned' => 1,
@@ -276,8 +305,7 @@ Future<void> _openOrderStatus(
 //  tab: 0 = жіберілген, 1 = маған келген.
 void _openGifts(NavigatorState nav, AppUser user, {required int tab}) {
   if (!user.isClient) return;
-  nav.push(MaterialPageRoute(
-      builder: (_) => MyGiftsScreen(initialTab: tab)));
+  nav.push(MaterialPageRoute(builder: (_) => MyGiftsScreen(initialTab: tab)));
 }
 
 // ── client: қайтару мерзімі бітуге жақын (0062) ──────────────────────────────
@@ -363,8 +391,7 @@ Future<void> _openBanner(
 // ── superadmin: жаңа дүкен тіркелді (0031) ───────────────────────────────────
 void _openStoreRegistered(NavigatorState nav, AppUser user) {
   if (!user.isSuperadmin) return;
-  nav.push(
-      MaterialPageRoute(builder: (_) => const MarketplaceShopsScreen()));
+  nav.push(MaterialPageRoute(builder: (_) => const MarketplaceShopsScreen()));
 }
 
 // ── superadmin: иенің жазылым мерзімі жақындап қалды (0031) ──────────────────

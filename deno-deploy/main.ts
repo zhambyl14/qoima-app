@@ -12,6 +12,9 @@
 //       SUPABASE_SERVICE_ROLE_KEY = <Supabase → Settings → API → service_role key>
 //  4. Save & Deploy. URL аласыз: https://<аты>.deno.dev
 //     Сол URL-ді қосымшаға (SupabaseConfig.shareBaseUrl) жазамыз.
+//  5. (міндетті емес) SUPABASE_ANON_KEY — сыйлық/тілек тізімі беттерінің
+//     публик RPC-лері үшін; болмаса service key қолданылады (қауіпсіз: RPC
+//     auth.uid() = null деп қарайды).
 //
 // ҚАУІПСІЗДІК: тек ПУБЛИЧНЫЙ өрістер беріледі (өзіндік құн/batch_costs МҮЛДЕМ
 // сұралмайды); модерация блогы (users.blocked / stores.status='blocked') → 404;
@@ -124,8 +127,328 @@ function notFound(): Response {
   );
 }
 
+// ─── 🎁 Сыйлық (?g=) және Тілек тізімі (?w=) қонақ беттері ─────────────────────
+//
+// Сілтемені WhatsApp/Telegram-да ашқан адам (қосымшасы жоқ/кірмеген) алдымен
+// осы бетті көреді: сыйлық/тізім мазмұны + «Qoima-да ашу» батырмасы.
+// Деректер ТЕК публиктік RPC арқылы (get_gift_public / get_registry_public) —
+// токен болжанбайтын uuid; бағасы жасырын сыйлықтың бағасы мұнда ЕШҚАШАН
+// шықпайды (қонақ сыйлаушы емес, auth.uid() жоқ → RPC өзі null қайтарады).
+// Қонақтардың жеке деректері (телефон, мекенжай, кім сатып алды) қайтпайды.
+
+// ⚠️ ОРНАТУ: қосымша дүкендеріне сілтемелер. Android id — build.gradle.kts-тан;
+// iOS App Store сілтемесі жарияланғанша бос қалдырыңыз (батырма жасырылады).
+const PLAY_STORE_URL =
+  "https://play.google.com/store/apps/details?id=com.jambyl.qoima.qoima";
+const APP_STORE_URL = ""; // TODO: App Store сілтемесін қойыңыз
+
+// Публик RPC үшін анон кілт (болса). Жоқ болса — service key (RPC бәрібір
+// auth.uid() = null деп қарайды, сондықтан баға жасыру сақталады).
+const RPC_KEY = Deno.env.get("SUPABASE_ANON_KEY") || SERVICE_KEY;
+
+async function rpc(
+  fn: string,
+  args: Record<string, unknown>,
+): Promise<any | null> {
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+      method: "POST",
+      headers: {
+        apikey: RPC_KEY,
+        Authorization: `Bearer ${RPC_KEY}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(args),
+    });
+    if (!r.ok) return null;
+    return await r.json();
+  } catch {
+    return null;
+  }
+}
+
+const LANDING_CSS = `
+  :root{color-scheme:light}
+  *{box-sizing:border-box}
+  body{margin:0;background:linear-gradient(180deg,#E4F7EE 0%,#F1F4F3 55%);color:#0C120F;
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;min-height:100vh}
+  .wrap{max-width:480px;margin:0 auto;padding:22px 16px 40px}
+  .logo{font-weight:800;font-size:22px;letter-spacing:-1px;color:#00A862;text-align:center;margin-bottom:14px}
+  .hero{text-align:center;margin:6px 0 14px}
+  .hero .em{font-size:64px;line-height:1;display:block;margin-bottom:6px}
+  .hero h1{font-size:24px;font-weight:800;letter-spacing:-.5px;margin:0 0 4px}
+  .hero p{margin:0;color:#566B61;font-size:14.5px}
+  .card{background:#fff;border-radius:22px;box-shadow:0 8px 28px rgba(0,100,60,.10);overflow:hidden;margin-top:14px}
+  .card img.pic{width:100%;aspect-ratio:1/1;object-fit:cover;display:block;background:#E4F7EE}
+  .pad{padding:16px 18px}
+  .brand{font-size:11px;font-weight:800;letter-spacing:1px;color:#00A862;text-transform:uppercase}
+  .nm{font-size:19px;font-weight:800;margin:3px 0 0;line-height:1.25}
+  .price{font-size:22px;font-weight:800;margin-top:8px}
+  .msg{background:#FFF7E0;border-radius:16px;padding:14px 16px;margin-top:14px;font-size:15px;
+    line-height:1.5;color:#5B4300;font-style:italic;white-space:pre-wrap}
+  .from{font-size:12.5px;color:#8A6D00;font-style:normal;font-weight:700;margin-top:6px;display:block}
+  .store{display:flex;align-items:center;gap:10px;margin-top:14px;padding:12px 14px;background:#E4F7EE;
+    border-radius:16px;font-size:13.5px;color:#00713F;font-weight:700}
+  .store small{display:block;font-weight:500;color:#3d8a68;font-size:12px}
+  .btn{display:block;text-align:center;text-decoration:none;background:#00A862;color:#fff;font-weight:800;
+    font-size:16px;padding:16px;border-radius:16px;margin-top:18px;box-shadow:0 6px 18px rgba(0,168,98,.35)}
+  .btn.alt{background:#fff;color:#00A862;box-shadow:none;border:1.5px solid #00A862;margin-top:10px;font-size:14.5px;padding:13px}
+  .hint{text-align:center;color:#566B61;font-size:12.5px;margin-top:10px;line-height:1.5}
+  .state{background:#fff;border-radius:18px;padding:16px 18px;margin-top:14px;font-size:14px;line-height:1.5;color:#3d4a44;text-align:center}
+  .item{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid #EEF1F0;align-items:center}
+  .item:last-child{border-bottom:0}
+  .item img{width:56px;height:56px;border-radius:12px;object-fit:cover;background:#E4F7EE;flex:0 0 auto}
+  .item .t{font-size:14px;font-weight:700;line-height:1.3}
+  .item .s{font-size:12px;color:#8A968F;margin-top:2px}
+  .tag{display:inline-block;font-size:11px;font-weight:800;padding:2px 8px;border-radius:8px;margin-left:6px}
+  .tag.ok{background:#E4F7EE;color:#00713F}.tag.done{background:#EEF1F0;color:#8A968F}
+`;
+
+function landingShell(opts: {
+  title: string;
+  desc: string;
+  image: string;
+  pageUrl: string;
+  body: string;
+  status?: number;
+}): Response {
+  const img = safeImg(opts.image);
+  const html = `<!doctype html><html lang="ru"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>${esc(opts.title)} · Qoima</title>
+<meta name="description" content="${esc(opts.desc)}">
+<meta name="robots" content="noindex,nofollow">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Qoima">
+<meta property="og:title" content="${esc(opts.title)}">
+<meta property="og:description" content="${esc(opts.desc)}">
+${img ? `<meta property="og:image" content="${esc(img)}">
+<meta property="og:image:secure_url" content="${esc(img)}">
+<meta name="twitter:image" content="${esc(img)}">` : ""}
+<meta property="og:url" content="${esc(opts.pageUrl)}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="${esc(opts.title)}">
+<meta name="twitter:description" content="${esc(opts.desc)}">
+<style>${LANDING_CSS}</style></head><body>
+<div class="wrap"><div class="logo">Qoima</div>${opts.body}</div>
+</body></html>`;
+  return new Response(html, {
+    status: opts.status ?? 200,
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+      // Сыйлық күйі (төленді/алынды) мен баға жасыру тез өзгереді — кэш жоқ.
+      "cache-control": "no-store",
+    },
+  });
+}
+
+/// «Қосымшада ашу» + дүкенге сілтемелер блогы. [deepLink] — qoima://…
+function openAppHtml(deepLink: string): string {
+  return `
+  <a class="btn" href="${esc(deepLink)}">Открыть в Qoima · Qoima-да ашу</a>
+  ${PLAY_STORE_URL ? `<a class="btn alt" href="${esc(PLAY_STORE_URL)}">Скачать для Android · Android үшін жүктеу</a>` : ""}
+  ${APP_STORE_URL ? `<a class="btn alt" href="${esc(APP_STORE_URL)}">Скачать для iPhone · iPhone үшін жүктеу</a>` : ""}
+  <div class="hint">Нет приложения? Установите Qoima, затем снова нажмите «Открыть».<br>
+  Қосымша жоқ па? Qoima-ны орнатып, «Ашу» батырмасын қайта басыңыз.</div>`;
+}
+
+function landingNotFound(kind: "gift" | "registry"): Response {
+  const g = kind === "gift";
+  return landingShell({
+    title: g ? "Подарок не найден" : "Список не найден",
+    desc: "Qoima",
+    image: "",
+    pageUrl: "",
+    status: 404,
+    body: `<div class="hero"><span class="em">${g ? "🎁" : "📝"}</span>
+      <h1>${g ? "Подарок не найден · Сыйлық табылмады" : "Список не найден · Тізім табылмады"}</h1>
+      <p>Ссылка неверна или устарела.<br>Сілтеме қате немесе ескірген.</p></div>`,
+  });
+}
+
+async function giftLanding(token: string, origin: string): Promise<Response> {
+  const g = await rpc("get_gift_public", { p_token: token });
+  if (!g || typeof g !== "object") return landingNotFound("gift");
+
+  const product = g.product ?? {};
+  const store = g.store ?? {};
+  const giver = String(g.giver_first_name ?? "").trim();
+  const recipient = String(g.recipient_name ?? "").trim();
+  const message = String(g.message ?? "").trim();
+  const status = String(g.status ?? "");
+  const pageUrl = `${origin}/?g=${token}`;
+  const deepLink = `qoima://gift/${token}`;
+  const img = safeImg(product.image_url);
+  // Баға: RPC жасырын бағада null қайтарады (қонақ сыйлаушы емес).
+  const price = typeof g.price === "number" && g.price > 0 ? money(g.price) : "";
+
+  const ogDesc = [product.brand, product.name]
+    .filter((x) => x && String(x).trim())
+    .join(" · ") || "Qoima";
+
+  let stateHtml = "";
+  let showOpen = true;
+  switch (status) {
+    case "awaiting_payment":
+      stateHtml =
+        `<div class="state">⏳ Подарок почти готов — ожидается подтверждение оплаты. Загляните чуть позже.<br>Сыйлық дайындалып жатыр — төлем расталуын күтеміз. Сәл кейінірек қараңыз.</div>`;
+      break;
+    case "claimed":
+      stateHtml =
+        `<div class="state">✅ Этот подарок уже получен. · Бұл сыйлық алынып қойған.</div>`;
+      showOpen = false;
+      break;
+    case "expired":
+      stateHtml =
+        `<div class="state">⌛ Срок получения подарка истёк. Свяжитесь с дарителем.<br>Сыйлықты алу мерзімі өтті. Сыйлаушымен байланысыңыз.</div>`;
+      showOpen = false;
+      break;
+    case "cancelled":
+      stateHtml =
+        `<div class="state">❌ Заказ отменён. · Тапсырыс бас тартылды.</div>`;
+      showOpen = false;
+      break;
+    default: {
+      // Сыйлаушы өлшемді өзі таңдаса (0070, брондалған) — алушы ауыстыра алады,
+      // қайтарылмайтын тауарда — жоқ.
+      const chosen = String(g.chosen_size ?? "").trim();
+      const locked = g.non_returnable === true;
+      stateHtml = chosen
+        ? (locked
+          ? `<div class="state">Размер выбран: ${esc(chosen)}. Откройте в приложении и подтвердите получение.<br>Өлшемі таңдалған: ${esc(chosen)}. Қосымшада ашып, сыйлықты алуды растаңыз.</div>`
+          : `<div class="state">Размер выбран: ${esc(chosen)} — при желании можно поменять размер или товар.<br>Өлшемі таңдалған: ${esc(chosen)} — қаласаңыз ауыстыра аласыз.</div>`)
+        : `<div class="state">Откройте в приложении, выберите свой размер — и подарок поедет к вам.<br>Қосымшада өз өлшеміңізді таңдаңыз — сыйлық сізге жолға шығады.</div>`;
+    }
+  }
+
+  const body = `
+  <div class="hero"><span class="em">🎁</span>
+    <h1>${recipient ? `${esc(recipient)}, ` : ""}Сізге сыйлық бар!</h1>
+    <p>${giver ? `${esc(giver)} · ` : ""}Вам подарок!</p></div>
+  <div class="card">
+    ${img ? `<img class="pic" src="${esc(img)}" alt="${esc(product.name)}">` : ""}
+    <div class="pad">
+      ${product.brand ? `<div class="brand">${esc(product.brand)}</div>` : ""}
+      <div class="nm">${esc(product.name ?? "")}</div>
+      ${price ? `<div class="price">${esc(price)}</div>` : ""}
+    </div>
+  </div>
+  ${
+    message
+      ? `<div class="msg">«${esc(message)}»${giver ? `<span class="from">— ${esc(giver)}</span>` : ""}</div>`
+      : ""
+  }
+  ${
+    store.name
+      ? `<div class="store">🏬<div>${esc(store.name)}<small>${esc([store.city, store.address].filter(Boolean).join(", "))}</small></div></div>`
+      : ""
+  }
+  ${stateHtml}
+  ${showOpen ? openAppHtml(deepLink) : ""}`;
+
+  return landingShell({
+    title: "🎁 Сізге сыйлық бар! · Вам подарок!",
+    desc: ogDesc,
+    image: img,
+    pageUrl,
+    body,
+  });
+}
+
+async function registryLanding(
+  token: string,
+  origin: string,
+): Promise<Response> {
+  const r = await rpc("get_registry_public", { p_token: token });
+  if (!r || typeof r !== "object") return landingNotFound("registry");
+
+  const owner = String(r.owner_name ?? "").trim();
+  const title = String(r.title ?? "").trim() || "Список желаний · Тілек тізімі";
+  const message = String(r.message ?? "").trim();
+  const city = String(r.city ?? "").trim();
+  const items: any[] = Array.isArray(r.items) ? r.items : [];
+  const pageUrl = `${origin}/?w=${token}`;
+  const deepLink = `qoima://registry/${token}`;
+  const firstImg = safeImg(
+    items.find((i) => safeImg(i?.image_url))?.image_url,
+  );
+
+  let dateTxt = "";
+  if (r.event_date) {
+    const d = new Date(String(r.event_date));
+    if (!isNaN(d.getTime())) {
+      dateTxt = `${String(d.getUTCDate()).padStart(2, "0")}.${
+        String(d.getUTCMonth() + 1).padStart(2, "0")
+      }.${d.getUTCFullYear()}`;
+    }
+  }
+
+  const rows = items.slice(0, 12).map((i) => {
+    const rem = Number(i.remaining) || 0;
+    const pic = safeImg(i.image_url);
+    const sub = [
+      i.size ? `Размер ${esc(i.size)}` : "",
+      Number(i.price) > 0 ? esc(money(Number(i.price))) : "",
+    ].filter(Boolean).join(" · ");
+    return `<div class="item">
+      ${pic ? `<img src="${esc(pic)}" alt="">` : `<img alt="" src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==">`}
+      <div><div class="t">${esc(i.product_name ?? "")}${
+      rem > 0
+        ? `<span class="tag ok">${rem}</span>`
+        : `<span class="tag done">✓</span>`
+    }</div>
+      <div class="s">${sub}</div></div>
+    </div>`;
+  }).join("");
+
+  const ogDesc = [owner, dateTxt, city].filter(Boolean).join(" · ") || "Qoima";
+
+  const body = `
+  <div class="hero"><span class="em">🎀</span>
+    <h1>${esc(title)}</h1>
+    <p>${[owner ? esc(owner) : "", dateTxt, city ? esc(city) : ""].filter(Boolean).join(" · ")}</p></div>
+  ${
+    message
+      ? `<div class="msg">«${esc(message)}»${owner ? `<span class="from">— ${esc(owner)}</span>` : ""}</div>`
+      : ""
+  }
+  ${rows ? `<div class="card"><div class="pad">${rows}</div></div>` : ""}
+  ${
+    items.length > 12
+      ? `<div class="hint">+${items.length - 12} ещё в приложении · қосымшада тағы бар</div>`
+      : ""
+  }
+  <div class="state">Выберите подарок из списка и забронируйте его — никто не купит такой же.<br>Тізімнен сыйлық таңдап, брондаңыз — басқа ешкім дәл соны алмайды.</div>
+  ${openAppHtml(deepLink)}`;
+
+  return landingShell({
+    title: owner ? `🎀 ${title} — ${owner}` : `🎀 ${title}`,
+    desc: ogDesc,
+    image: firstImg,
+    pageUrl,
+    body,
+  });
+}
+
 Deno.serve(async (req) => {
   const url = new URL(req.url);
+
+  // ?g=<gift_token> / ?w=<registry_token> — сыйлық және тілек тізімі беттері.
+  const gTok = url.searchParams.get("g");
+  if (gTok !== null) {
+    return UUID_RE.test(gTok)
+      ? await giftLanding(gTok.toLowerCase(), url.origin)
+      : landingNotFound("gift");
+  }
+  const wTok = url.searchParams.get("w");
+  if (wTok !== null) {
+    return UUID_RE.test(wTok)
+      ? await registryLanding(wTok.toLowerCase(), url.origin)
+      : landingNotFound("registry");
+  }
+
   const id = url.searchParams.get("id") ?? "";
   if (!UUID_RE.test(id)) return notFound();
 

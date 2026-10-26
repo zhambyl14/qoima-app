@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/feature_flags.dart';
 import '../../core/lang.dart';
-import '../../data/models/order_model.dart';
 import '../../data/models/product_model.dart';
 import '../../data/models/store_model.dart';
 import '../../theme/qoima_design.dart';
@@ -9,7 +8,8 @@ import '../../theme/qoima_design.dart';
 /// Тауар карточкасындағы «қайтаруға бола ма» белгісі (0073).
 /// • product.nonReturnable → қызғылт-сары/қызыл карточка: «Бұл тауар қайтарылмайды»
 ///   + тауар ескертпесі + дүкеннің жалпы қайтару ережесі.
-/// • әйтпесе — шағын жасыл «Қайтаруға болады (N күн)» (N = OrderModel.returnWindow).
+/// • әйтпесе — ЕШТЕҢЕ көрсетпейді: «қайтаруға болады» деп жазу клиентті
+///   қайтаруға итермелейді (иесінің шешімі).
 /// Функция суперадминнен өшірулі болса — ештеңе көрсетпейді (жаңа тапсырыс
 /// снапшотталмайды, сондықтан «қайтарылмайды» деп қорқыту жалған болар еді).
 class ReturnabilityBadge extends StatelessWidget {
@@ -29,30 +29,8 @@ class ReturnabilityBadge extends StatelessWidget {
         if (!FeatureFlags.instance.isOn(FeatureFlags.nonReturnable)) {
           return const SizedBox.shrink();
         }
-        return product.nonReturnable ? _blocked() : _returnable();
+        return product.nonReturnable ? _blocked() : const SizedBox.shrink();
       },
-    );
-  }
-
-  Widget _returnable() {
-    final days = OrderModel.returnWindow.inDays;
-    final note = store.returnPolicyNote.trim();
-    return Padding(
-      padding: const EdgeInsets.only(top: 10),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Align(
-          alignment: Alignment.centerLeft,
-          child: QPill(
-            tr('Можно вернуть ($days дн.)', 'Қайтаруға болады ($days күн)'),
-            tone: 'green',
-            icon: const Icon(Icons.replay_rounded, size: 13, color: cGreenDeep),
-          ),
-        ),
-        if (note.isNotEmpty) ...[
-          const SizedBox(height: 6),
-          Text(note, style: manrope(12, FontWeight.w500, color: cInk2)),
-        ],
-      ]),
     );
   }
 

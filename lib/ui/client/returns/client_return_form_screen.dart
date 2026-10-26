@@ -167,6 +167,18 @@ class _ClientReturnFormScreenState extends State<ClientReturnFormScreen> {
   void _removePhoto(int i) => setState(() => _photos.removeAt(i));
 
   Future<void> _submit() async {
+    // 🎁 Сыйлық (0070): ақшалай қайтару жоқ — тек дүкенде ауыстыру (серверде де
+    // 'gift_exchange_only' бөгейді).
+    if (widget.order.isGift) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(tr(
+            'Подарок можно только обменять — принесите товар в магазин (14 дней)',
+            'Сыйлықты тек ауыстыруға болады — тауарды дүкенге апарыңыз (14 күн)')),
+        backgroundColor: cRed,
+        behavior: SnackBarBehavior.floating,
+      ));
+      return;
+    }
     setState(() => _submitting = true);
     try {
       // Фотолар — тек растап жіберер алдында жүктейміз (тізімнен алып тастауға

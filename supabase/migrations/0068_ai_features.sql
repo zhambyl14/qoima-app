@@ -23,6 +23,36 @@
 -- ════════════════════════════════════════════════════════════════════════════
 
 
+-- ── 0. Жеңілдік мерзімін қауіпсіз оқу ───────────────────────────────────────
+--  Dart starts_at/ends_at-ты toIso8601String() арқылы жазады: жергілікті уақыт
+--  болса ЗОНАСЫЗ ('2026-10-26T12:00:00.000'). ::timestamptz оны UTC деп санар еді
+--  (Қазақстанда +5 сағат ығысу), ал Dart DateTime.parse оны ЖЕРГІЛІКТІ деп оқиды.
+--  Сондықтан зонасыз жолды Asia/Almaty деп түсінеміз; жарамсыз жол search_catalog-ты
+--  құлатпауы үшін null қайтарамыз (мерзім жоқ = шектеусіз, Dart-пен бірдей).
+create or replace function public._discount_ts(p_text text)
+returns timestamptz
+language plpgsql
+immutable
+security invoker
+set search_path = public
+as $function$
+begin
+  if p_text is null or btrim(p_text) = '' then
+    return null;
+  end if;
+  if p_text ~ '(Z|[+-][0-9]{2}(:?[0-9]{2})?)$' then
+    return p_text::timestamptz;
+  end if;
+  return (p_text::timestamp) at time zone 'Asia/Almaty';
+exception when others then
+  return null;
+end;
+$function$;
+
+revoke execute on function public._discount_ts(text) from public, anon;
+grant execute on function public._discount_ts(text) to authenticated;
+
+
 -- ── 1. Каталог іздеуі ───────────────────────────────────────────────────────
 --  Қайтарады: әр тауар үшін БІР жол.
 --    price / base_price / batch_id / warehouse_id — ең арзан қолжетімді партия;
@@ -106,10 +136,10 @@ as $function$
       b.selling_price::numeric as base_price,
       (case
          when coalesce((b.discount ->> 'active')::boolean, false)
-          and (nullif(b.discount ->> 'starts_at', '') is null
-               or (b.discount ->> 'starts_at')::timestamptz <= now())
-          and (nullif(b.discount ->> 'ends_at', '') is null
-               or (b.discount ->> 'ends_at')::timestamptz >= now())
+          and (public._discount_ts(b.discount ->> 'starts_at') is null
+               or public._discount_ts(b.discount ->> 'starts_at') <= now())
+          and (public._discount_ts(b.discount ->> 'ends_at') is null
+               or public._discount_ts(b.discount ->> 'ends_at') >= now())
          then greatest(0::numeric, round(
                 case when coalesce(b.discount ->> 'type', 'percent') = 'percent'
                      then b.selling_price::numeric

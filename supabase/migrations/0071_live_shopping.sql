@@ -22,6 +22,9 @@
 --     'feature_disabled'. live_end / live_heartbeat / live_pin_product ашық
 --     қалады (қызметкер ашық тұрған эфирін таза жаба алсын), ал cron өшік
 --     кезде тірі эфирлердің бәрін жабады.
+--   • Модерация: live_delete_message / live_mute_user (тек қызметкер),
+--     live_mutes кестесі; мұқаба тек дүкен тауарларының суреті; тауар тек
+--     сөредегі (жасырылмаған, «В наличии»); like клиентте жиналып жіберіледі.
 --   • Хост желіден түсіп қалса: pg_cron минут сайын heartbeat-і 2 минуттан
 --     ескі эфирлерді жабады.
 -- ════════════════════════════════════════════════════════════════════════════
@@ -94,17 +97,28 @@ create table if not exists public.live_rate_limits (
   primary key (session_id, user_uid, kind)
 );
 
+-- Чаттан бұғатталғандар (хост модерациясы). RLS қосулы, саясат ЖОҚ →
+-- клиентке жабық; жазу тек live_mute_user арқылы, оқу live_send_message ішінде.
+create table if not exists public.live_mutes (
+  session_id uuid not null references public.live_sessions(id) on delete cascade,
+  user_uid   uuid not null,
+  created_at timestamptz not null default now(),
+  primary key (session_id, user_uid)
+);
+
 -- ── 2. RLS ──────────────────────────────────────────────────────────────────
 alter table public.live_sessions         enable row level security;
 alter table public.live_session_products enable row level security;
 alter table public.live_messages         enable row level security;
 alter table public.live_rate_limits      enable row level security;
+alter table public.live_mutes            enable row level security;
 
 -- Тікелей жазу гранты да алынады (саясат жоқ болса да — қосымша қабат).
 revoke insert, update, delete, truncate on public.live_sessions         from anon, authenticated;
 revoke insert, update, delete, truncate on public.live_session_products from anon, authenticated;
 revoke insert, update, delete, truncate on public.live_messages         from anon, authenticated;
 revoke all on public.live_rate_limits from anon, authenticated;
+revoke all on public.live_mutes       from anon, authenticated;
 
 -- Дүкеннің эфирі көрінетін бе: өз қызметкері / superadmin — әрқашан;
 -- басқа кірген қолданушы — дүкен жарияланған, блокталмаған, иесі глобал
@@ -206,6 +220,18 @@ returns boolean language sql stable set search_path = public as $$
 $$;
 revoke execute on function public.live_is_staff(uuid) from public, anon, authenticated;
 
+-- Дәл сол тексеріс, бірақ ӘРБІР қолданушы үшін (мақсатты қолданушы қызметкер ме).
+create or replace function public.live_is_staff_uid(p_uid uuid, p_admin uuid)
+returns boolean language sql stable set search_path = public as $$
+  select exists (
+    select 1 from public.users u
+    where u.id = p_uid
+      and u.role in ('admin','seller')
+      and coalesce(u.owner_id, u.id) = p_admin
+  );
+$$;
+revoke execute on function public.live_is_staff_uid(uuid, uuid) from public, anon, authenticated;
+
 -- ── 4. RPC: эфирді бастау ───────────────────────────────────────────────────
 create or replace function public.live_start(
   p_title text, p_product_ids uuid[], p_cover_url text default null)
@@ -256,12 +282,22 @@ begin
     order by t.id, t.ord
   ) d;
   if cardinality(v_ids) > 50 then raise exception 'too_many_products'; end if;
+  -- Тек сөредегі (жасырылмаған, қоймада бар) тауарлар: RPC тікелей
+  -- шақырылса да, Dart-тағы getHostProducts сүзгісін айналып өтпейді.
   select count(*) into v_valid from public.products p
-    where p.id = any(v_ids) and p.owner_uid = v_owner;
+    where p.id = any(v_ids) and p.owner_uid = v_owner
+      and not coalesce(p.storefront_hidden, false)
+      and p.status = 'В наличии';
   if v_valid <> cardinality(v_ids) then raise exception 'product_not_in_store'; end if;
 
   if v_title = '' then v_title := left(coalesce(nullif(btrim(v_store.store_name), ''), 'Live'), 80); end if;
-  if v_cover is not null and (v_cover not like 'https://%' or char_length(v_cover) > 500) then
+  -- Мұқаба — тек осы дүкен тауарларының өз суреті болуы мүмкін: еркін URL
+  -- көрермендердің IP-ін сырттағы хостқа ағызып жібермесін (tracking).
+  if v_cover is not null and (
+       char_length(v_cover) > 500
+       or not exists (select 1 from public.products p
+                      where p.owner_uid = v_owner and v_cover = any(p.images))
+     ) then
     v_cover := null;
   end if;
 
@@ -291,7 +327,17 @@ begin
       union
       select client_uid as uid from public.orders
         where admin_uid = v_owner and status = 'completed'
-    ) t where uid is not null;
+    ) t
+    where uid is not null
+      -- дүкенді жасырғандар мен блокталғандарға push жіберілмейді
+      and not exists (select 1 from public.hidden_stores h
+                      where h.admin_uid = v_owner and h.client_uid = t.uid)
+      and not exists (select 1 from public.users bu
+                      where bu.id = t.uid and coalesce(bu.blocked, false));
+    -- Жауап жылдамдығы үшін аудитория шегі (push синхронды орындалады).
+    if v_uids is not null and cardinality(v_uids) > 2000 then
+      v_uids := v_uids[1:2000];
+    end if;
     if v_uids is not null then
       perform public.notify_push(
         v_uids,
@@ -353,7 +399,9 @@ begin
 
   if p_product is not null then
     if not exists (select 1 from public.products
-                   where id = p_product and owner_uid = v_sess.admin_uid) then
+                   where id = p_product and owner_uid = v_sess.admin_uid
+                     and not coalesce(storefront_hidden, false)
+                     and status = 'В наличии') then
       raise exception 'product_not_in_store';
     end if;
     -- Тізімде жоқ болса — эфир барысында қосамыз (≤50).
@@ -419,6 +467,10 @@ begin
     raise exception 'live_not_found';
   end if;
   if v_stat <> 'live' then raise exception 'live_ended'; end if;
+  if exists (select 1 from public.live_mutes
+             where session_id = p_session and user_uid = v_uid) then
+    raise exception 'live_muted';
+  end if;
   if not public.live_rate_hit(p_session, 'chat', 1, interval '2 seconds') then
     raise exception 'live_rate_limited';
   end if;
@@ -431,7 +483,7 @@ revoke execute on function public.live_send_message(uuid, text) from public, ano
 grant execute on function public.live_send_message(uuid, text) to authenticated;
 
 -- ── 9. RPC: лайк (арзан — тек санағыш; шектеуден асса үнсіз false) ──────────
-create or replace function public.live_like(p_session uuid)
+create or replace function public.live_like(p_session uuid, p_count integer default 1)
 returns boolean
 language plpgsql security definer set search_path = public as $$
 declare
@@ -448,12 +500,16 @@ begin
   if not public.live_rate_hit(p_session, 'like', 10, interval '10 seconds') then
     return false;
   end if;
-  update public.live_sessions set like_count = like_count + 1 where id = p_session;
+  -- Клиент лайктарды 2-3 с сайын бір шақыруға жинайды (p_count) — бір жолға
+  -- түсетін UPDATE және realtime оқиғалар саны азаяды.
+  update public.live_sessions
+    set like_count = like_count + least(greatest(coalesce(p_count, 1), 1), 20)
+    where id = p_session;
   return true;
 end;
 $$;
-revoke execute on function public.live_like(uuid) from public, anon;
-grant execute on function public.live_like(uuid) to authenticated;
+revoke execute on function public.live_like(uuid, integer) from public, anon;
+grant execute on function public.live_like(uuid, integer) to authenticated;
 
 -- ── 10. RPC: «себетке қосты» сигналы (санағыш + чаттағы жүйелік жол) ────────
 --  Себет клиенттің жергілікті күйі (CartProvider) — қойма/ақшаға ТИМЕЙДІ,
@@ -481,6 +537,12 @@ begin
   if not public.live_rate_hit(p_session, 'cart', 5, interval '1 minute') then
     return false;
   end if;
+  -- Бір қолданушы бір тауарды сағатына 1 рет санайды — қайталап жіберіп
+  -- санауышты/чатты бұрмалай алмайды (себет жергілікті, сервер тексермейді,
+  -- сондықтан сан шамамен ғана).
+  if not public.live_rate_hit(p_session, 'cart:' || p_product::text, 1, interval '1 hour') then
+    return false;
+  end if;
   update public.live_session_products set add_to_cart_count = add_to_cart_count + 1
     where session_id = p_session and product_id = p_product;
   select left(coalesce(nullif(btrim(name), ''), '—'), 120) into v_name
@@ -494,6 +556,49 @@ end;
 $$;
 revoke execute on function public.live_track_cart(uuid, uuid) from public, anon;
 grant execute on function public.live_track_cart(uuid, uuid) to authenticated;
+
+-- ── 10b. Чат модерациясы (UGC: App Store 1.2 / Play) ────────────────────────
+--  Хабарға шағым — клиенттегі бар content_reports ағыны (showReportSheet);
+--  бұл жерде хосттың өз құралдары: хабарды жою және қолданушыны бұғаттау.
+create or replace function public.live_delete_message(p_session uuid, p_message bigint)
+returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  v_admin uuid;
+begin
+  if auth.uid() is null then raise exception 'not_authorized'; end if;
+  select admin_uid into v_admin from public.live_sessions where id = p_session;
+  if v_admin is null then raise exception 'live_not_found'; end if;
+  if not public.live_is_staff(v_admin) then raise exception 'not_authorized'; end if;
+  delete from public.live_messages
+    where id = p_message and session_id = p_session and kind in ('chat', 'cart');
+end;
+$$;
+revoke execute on function public.live_delete_message(uuid, bigint) from public, anon;
+grant execute on function public.live_delete_message(uuid, bigint) to authenticated;
+
+create or replace function public.live_mute_user(p_session uuid, p_user uuid)
+returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  v_admin uuid;
+begin
+  if auth.uid() is null then raise exception 'not_authorized'; end if;
+  select admin_uid into v_admin from public.live_sessions where id = p_session;
+  if v_admin is null then raise exception 'live_not_found'; end if;
+  if not public.live_is_staff(v_admin) then raise exception 'not_authorized'; end if;
+  -- Қызметкерді (өзін де) бұғаттауға болмайды.
+  if p_user is null or p_user = auth.uid() or public.live_is_staff_uid(p_user, v_admin) then
+    raise exception 'not_authorized';
+  end if;
+  insert into public.live_mutes(session_id, user_uid) values (p_session, p_user)
+    on conflict (session_id, user_uid) do nothing;
+  delete from public.live_messages
+    where session_id = p_session and user_uid = p_user and kind in ('chat', 'cart');
+end;
+$$;
+revoke execute on function public.live_mute_user(uuid, uuid) from public, anon;
+grant execute on function public.live_mute_user(uuid, uuid) to authenticated;
 
 -- ── 11. pg_cron: ілініп қалған эфирлерді жабу (минут сайын) ─────────────────
 create or replace function public.sweep_stale_live_sessions() returns void
@@ -538,3 +643,5 @@ begin
 end $$;
 -- Тауар жолы өшкенде (DELETE) session_id сүзгісі жұмыс істеуі үшін.
 alter table public.live_session_products replica identity full;
+-- Хабар жойылғанда (DELETE) session_id сүзгісі клиентке жетуі үшін.
+alter table public.live_messages replica identity full;

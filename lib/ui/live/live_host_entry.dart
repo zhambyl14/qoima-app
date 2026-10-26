@@ -11,6 +11,7 @@ import '../../data/models/store_model.dart';
 import '../../data/services/live_service.dart';
 import '../../theme/qoima_design.dart';
 import 'live_host_screen.dart';
+import 'live_navigation.dart';
 import 'live_widgets.dart';
 
 /// Дүкен иесі / сатушы үшін эфирге кіру нүктесі.
@@ -29,7 +30,7 @@ Future<void> openLiveHost(BuildContext context) async {
   }
 
   // Суперадмин өшірсе — жаңа эфир бастауға болмайды.
-  await FeatureFlags.instance.refresh();
+  await ensureLiveFlagLoaded();
   if (!context.mounted) return;
   if (!FeatureFlags.instance.isOn(FeatureFlags.liveShopping)) {
     say('Функция временно отключена', 'Функция уақытша өшірулі');
@@ -95,7 +96,7 @@ Future<void> openLiveHost(BuildContext context) async {
 
   // Басқа құрылғыда (не басқа қызметкерде) тірі эфир болса — ескертеміз:
   // жаңасын бастау ескісін жабады.
-  if (running != null && running.isFreshLive) {
+  if (running != null && running.isLive) {
     final go = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(

@@ -25,11 +25,11 @@ String giftShareText({
   final who = giver.trim();
   return tr(
     '🎁 Для тебя подарок!\n'
-    '${who.isEmpty ? 'Тебе' : who} дарит «$product» из магазина «$store». '
-    'Открой ссылку, выбери размер — остальное мы доставим:\n$url',
+        '${who.isEmpty ? 'Тебе' : who} дарит «$product» из магазина «$store». '
+        'Открой ссылку, выбери размер — остальное мы доставим:\n$url',
     '🎁 Саған сыйлық бар!\n'
-    '${who.isEmpty ? 'Саған' : who} «$store» дүкенінен «$product» сыйлайды. '
-    'Сілтемені аш, өлшемді таңда — қалғанын өзіміз жеткіземіз:\n$url',
+        '${who.isEmpty ? 'Саған' : who} «$store» дүкенінен «$product» сыйлайды. '
+        'Сілтемені аш, өлшемді таңда — қалғанын өзіміз жеткіземіз:\n$url',
   );
 }
 
@@ -45,8 +45,8 @@ Future<void> shareGiftToken(
   final url = SupabaseConfig.giftShareUrl(token);
   if (url.isEmpty) return;
   final giver = context.read<AppUser>().name.trim().split(' ').first;
-  final text = giftShareText(
-      giver: giver, product: product, store: store, url: url);
+  final text =
+      giftShareText(giver: giver, product: product, store: store, url: url);
   Rect? origin;
   final box = originKey?.currentContext?.findRenderObject() as RenderBox?;
   if (box != null && box.hasSize) {
@@ -219,25 +219,24 @@ class _GiftShareScreenState extends State<GiftShareScreen> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            tr('Чек ещё не прикреплён',
-                                'Чек әлі тіркелмеген'),
-                            style: manrope(14, FontWeight.w700,
-                                color: cAmberInk),
+                            tr('Чек ещё не прикреплён', 'Чек әлі тіркелмеген'),
+                            style:
+                                manrope(14, FontWeight.w700, color: cAmberInk),
                           ),
                         ),
                       ]),
                       const SizedBox(height: 6),
                       Text(
                         tr(
-                          'Заказ ждёт оплаты. Прикрепите чек, иначе бронь снимется.',
-                          'Тапсырыс төлемді күтуде. Чекті тіркеңіз, әйтпесе бронь алынады.',
+                          'Заказ ждёт оплаты. Прикрепите чек в течение 30 минут, иначе заказ отменится.',
+                          'Тапсырыс төлемді күтуде. Чекті 30 минут ішінде тіркеңіз, әйтпесе тапсырыс бас тартылады.',
                         ),
                         style: manrope(13, FontWeight.w500, color: cInk2),
                       ),
                       const SizedBox(height: 10),
                       QSoftButton(
-                        label: tr('Оплатить и прикрепить чек',
-                            'Төлеп, чекті тіркеу'),
+                        label: tr(
+                            'Оплатить и прикрепить чек', 'Төлеп, чекті тіркеу'),
                         tone: 'amber',
                         onPressed: _attachReceipt,
                       ),

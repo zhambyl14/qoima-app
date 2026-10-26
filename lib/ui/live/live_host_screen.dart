@@ -9,6 +9,7 @@ import '../../data/models/product_model.dart';
 import '../../data/models/store_model.dart';
 import '../../data/services/live_service.dart';
 import '../../theme/qoima_design.dart';
+import 'live_moderation.dart';
 import 'live_widgets.dart';
 
 /// Хосттың толық экранды эфир беті: камера, чат, сөре, бекіту, аяқтау.
@@ -32,7 +33,8 @@ class LiveHostScreen extends StatefulWidget {
   State<LiveHostScreen> createState() => _LiveHostScreenState();
 }
 
-class _LiveHostScreenState extends State<LiveHostScreen> {
+class _LiveHostScreenState extends State<LiveHostScreen>
+    with WidgetsBindingObserver {
   final _svc = LiveService();
   final _chatCtrl = TextEditingController();
 
@@ -56,6 +58,7 @@ class _LiveHostScreenState extends State<LiveHostScreen> {
   bool _ending = false;
   bool _finished = false; // эфир аяқталды → қорытынды көрсетіледі
   bool _loadingProducts = false;
+  bool _chatSending = false;
 
   // Қорытынды үшін өз көшірмеміз (stream жабылғаннан кейін де қалады).
   Duration _finalDuration = Duration.zero;
@@ -66,6 +69,7 @@ class _LiveHostScreenState extends State<LiveHostScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _sessionSub = _svc.watchSession(_session.id).listen((s) {
       if (!mounted || s == null) return;
       setState(() => _session = s);
@@ -88,13 +92,23 @@ class _LiveHostScreenState extends State<LiveHostScreen> {
       ..on<RoomDisconnectedEvent>((_) => _onRoomDisconnected());
 
     _clock = Timer.periodic(const Duration(seconds: 1), (_) => _tick.value++);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _showKeepAwakeHint());
     _sendHeartbeat();
     _heartbeat =
         Timer.periodic(const Duration(seconds: 20), (_) => _sendHeartbeat());
   }
 
+  /// Қолданба фонға кетіп қайтқанда бірден heartbeat жібереміз — әйтпесе
+  /// келесі 20 с тактіге дейін cron эфирді жауып тастауы мүмкін. (Экран
+  /// өшіп қалмауы үшін wakelock жоқ — қараңыз: _showKeepAwakeHint.)
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _sendHeartbeat();
+  }
+
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _sessionSub?.cancel();
     _msgSub?.cancel();
     _shelfSub?.cancel();
@@ -223,12 +237,18 @@ class _LiveHostScreenState extends State<LiveHostScreen> {
   Future<void> _sendChat() async {
     final text = _chatCtrl.text.trim();
     if (text.isEmpty) return;
-    _chatCtrl.clear();
+    if (_chatSending) return;
+    _chatSending = true;
+    // Мәтін тек сәтті жіберілгенде тазаланады — қате болса жоғалмайды.
     try {
       await _svc.sendMessage(_session.id, text);
+      if (_chatCtrl.text.trim() == text) _chatCtrl.clear();
     } catch (e) {
       _toast(liveErrorText(e));
     }
+    // Сервер шегі 1 хабарлама/2 с.
+    await Future.delayed(const Duration(seconds: 2));
+    _chatSending = false;
   }
 
   // ── Басқару ───────────────────────────────────────────────────────────────
@@ -286,13 +306,28 @@ class _LiveHostScreenState extends State<LiveHostScreen> {
     if (!await _confirmEnd() || !mounted) return;
     setState(() => _ending = true);
     try {
-      final ended = await _svc.end(_session.id);
+      final ended = await _endWithRetry();
       if (ended != null) _session = ended;
     } catch (e) {
-      // Серверге жетпесе де экранды жабамыз — cron эфирді өзі аяқтайды.
+      // Қайталаудан кейін де жетпесе, экранды жабамыз — cron эфирді өзі аяқтайды.
       _toast(liveErrorText(e));
     }
     if (mounted) _finish();
+  }
+
+  /// live_end желі қатесінде 3 рет қайталанады (1 с, 2 с үзіліспен): сервер
+  /// эфирді жаппай қалса, көрермендер 2 минутқа дейін «тірі» көре береді.
+  Future<LiveSession?> _endWithRetry() async {
+    Object? last;
+    for (var i = 0; i < 3; i++) {
+      try {
+        return await _svc.end(_session.id);
+      } catch (e) {
+        last = e;
+        if (i < 2) await Future.delayed(Duration(seconds: i + 1));
+      }
+    }
+    throw last!;
   }
 
   /// Қорытынды экранға өту: камера/микрофонды жауып, санағыштарды тіркеу.
@@ -310,6 +345,20 @@ class _LiveHostScreenState extends State<LiveHostScreen> {
       _finalCart = cart;
     });
     unawaited(_releaseMedia());
+  }
+
+  /// Wakelock-қа жаңа тәуелділік қосуға болмайды, сондықтан хостқа экранды
+  /// өшірмеуді ескертеміз (экран ұйқыға кетсе, камера тоқтап, cron 2 минуттан
+  /// кейін эфирді жабады).
+  void _showKeepAwakeHint() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(tr(
+          'Не блокируйте экран и не сворачивайте приложение во время эфира',
+          'Эфир кезінде экранды құлыптамаңыз және қолданбаны жаппаңыз')),
+      duration: const Duration(seconds: 6),
+      behavior: SnackBarBehavior.floating,
+    ));
   }
 
   void _toast(String text) {
@@ -443,7 +492,18 @@ class _LiveHostScreenState extends State<LiveHostScreen> {
           alignment: Alignment.centerLeft,
           child: FractionallySizedBox(
             widthFactor: 0.78,
-            child: LiveChatOverlay(messages: _messages, maxHeight: 190),
+            child: LiveChatOverlay(
+              messages: _messages,
+              maxHeight: 190,
+              onMessageLongPress: (m) => showLiveMessageActions(
+                context,
+                message: m,
+                sessionId: _session.id,
+                adminUid: widget.store.adminUid,
+                storeName: widget.store.storeName,
+                asHost: true,
+              ),
+            ),
           ),
         ),
       );

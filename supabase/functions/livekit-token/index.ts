@@ -215,7 +215,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       iss: LIVEKIT_API_KEY,
       // Қызметкер көрермен ретінде кірсе — бөлек identity (хостты үзбеу үшін).
       sub: identity,
-      jti: `${identity}_${now}`,
+      jti: identity, // LiveKit SDK-лар да jti = identity қояды
       name: firstName,
       nbf: now - 10,
       exp: now + TOKEN_TTL_SEC,

@@ -11,6 +11,19 @@ import '../guest/guest_shell.dart';
 import '../shared/require_login.dart';
 import 'live_viewer_screen.dart';
 
+/// Жалаушалар жүктелгенше күтеді. refresh() басқа жүктеу жүріп жатса бірден
+/// қайтады (суық старттағы push/deep link), сондықтан бос кэшті «өшік» деп
+/// оқымас үшін жүктелгенше аз-аздап қайталаймыз (ең көбі ~3 с).
+Future<void> ensureLiveFlagLoaded() async {
+  for (var i = 0; i < 20 && !FeatureFlags.instance.isLoaded; i++) {
+    await FeatureFlags.instance.refresh();
+    if (FeatureFlags.instance.isLoaded) break;
+    await Future.delayed(const Duration(milliseconds: 150));
+  }
+  // Жүктелген болса да, ескірген мәнді жаңартып аламыз.
+  await FeatureFlags.instance.refresh();
+}
+
 /// Эфирді көрермен ретінде ашу (home қатары, дүкен баннері, push, deep link).
 ///
 /// Көру үшін LiveKit токені керек → алдымен кіруді талап етеміз. Эфир
@@ -18,7 +31,7 @@ import 'live_viewer_screen.dart';
 Future<void> openLiveSession(BuildContext context, String sessionId) async {
   if (sessionId.isEmpty) return;
   // Суперадмин өшірсе — push/deep link арқылы келсе де ашылмайды.
-  await FeatureFlags.instance.refresh();
+  await ensureLiveFlagLoaded();
   if (!context.mounted) return;
   if (!FeatureFlags.instance.isOn(FeatureFlags.liveShopping)) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -70,7 +83,11 @@ Future<void> openLiveSession(BuildContext context, String sessionId) async {
 /// таппайды. Shell-де GlobalKey жоқ — оны өзгертпеу үшін ағашты бір рет
 /// аралаймыз (тек батырма басылғанда).
 void openCartTab(BuildContext context) {
-  Navigator.of(context).popUntil((r) => r.isFirst);
+  // Экран жабылып қойған болуы мүмкін (snackbar әрекеті кейін басылады) —
+  // сондықтан контекстке емес, түбірлік Navigator-ға сүйенеміз.
+  final nav = rootNavigatorKey.currentState ??
+      (context.mounted ? Navigator.of(context) : null);
+  nav?.popUntil((r) => r.isFirst);
   WidgetsBinding.instance.addPostFrameCallback((_) {
     final root = rootNavigatorKey.currentContext;
     if (root == null) return;

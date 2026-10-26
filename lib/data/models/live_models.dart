@@ -47,16 +47,6 @@ class LiveSession {
 
   bool get isLive => status == statusLive;
 
-  /// Тірі ЖӘНЕ хост соңғы 2.5 минутта heartbeat жіберген. Cron 2 минуттан соң
-  /// жабады, бірақ realtime ағыны ескі жолды ұстап қалуы мүмкін — UI-де
-  /// «ілулі» эфирді көрсетпеу үшін осыны қолданамыз.
-  bool get isFreshLive {
-    if (!isLive) return false;
-    final hb = heartbeatAt;
-    if (hb == null) return true;
-    return DateTime.now().difference(hb) < const Duration(seconds: 150);
-  }
-
   Duration get duration {
     final d = (endedAt ?? DateTime.now()).difference(startedAt);
     return d.isNegative ? Duration.zero : d;

@@ -19,7 +19,8 @@
 //     (клиент жіберген URL-ге сенбейміз → SSRF/ойдан сурет жоқ).
 //   • Қолжетімділік ережесі lib/ui/client/ai/try_on_eligibility.dart-пен БІРДЕЙ.
 //   • Квота consume_ai_quota('tryon') — тек провайдерді шақыру алдында;
-//     сәтсіздік/таймаутта refund_ai_quota (тек service_role).
+//     refund_ai_quota (тек service_role) — тек провайдер ақауында (5xx, output
+//     жоқ, кіріске қатысты емес қате). Кіріс қатесі мен таймаутта қайтарылмайды.
 //   • Secrets: FASHN_API_KEY (міндетті; жоқ болса 503 not_configured).
 //
 // Қателер: bad_request 400, not_eligible 400, no_auth/invalid_session 401,
@@ -37,6 +38,19 @@ const POLL_TOTAL_MS = 55_000;
 const POLL_EVERY_MS = 2_000;
 // ~4 МБ бинар ≈ 5.4 млн base64 таңба; шағын қор қалдырамыз.
 const MAX_B64_CHARS = 5_700_000;
+// Бүкіл JSON денесінің шегі (base64 + аз ғана қосымша өріс).
+const MAX_BODY_BYTES = 6_000_000;
+
+// FASHN қателері: пайдаланушының кірісіне байланысты (суреті жарамсыз, поза
+// табылмады, модерация) — бұларда квота ҚАЙТАРЫЛМАЙДЫ, әйтпесе жарамсыз
+// суретпен шексіз тегін шақыруға болады. Қалғаны — провайдер ақауы.
+const USER_INPUT_ERRORS = new Set([
+  "ImageLoadError",
+  "PoseError",
+  "ContentModerationError",
+  "InputValidationError",
+  "ValidationError",
+]);
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -114,10 +128,15 @@ Deno.serve(async (req) => {
   const uid = (await whoRes.json())?.id as string | undefined;
   if (!uid) return json({ error: "invalid_session" }, 401);
 
+  // Дене өлшемі: парсингтен БҰРЫН шектейміз (жадты тауыспау үшін).
+  const declared = Number(req.headers.get("content-length") ?? 0);
+  if (declared > MAX_BODY_BYTES) return json({ error: "bad_request" }, 413);
   // deno-lint-ignore no-explicit-any
   let body: any;
   try {
-    body = await req.json();
+    const raw = await req.text();
+    if (raw.length > MAX_BODY_BYTES) return json({ error: "bad_request" }, 413);
+    body = JSON.parse(raw);
   } catch (_) {
     return json({ error: "bad_request" }, 400);
   }
@@ -157,11 +176,16 @@ Deno.serve(async (req) => {
   );
   if (!category) return json({ error: "not_eligible" }, 400);
 
-  const images = ((p.images ?? []) as string[]).filter((u) =>
-    typeof u === "string" && u.startsWith("https://")
-  );
-  if (!images.length) return json({ error: "not_eligible" }, 400);
-  const garment = images[Math.min(imageIndex, images.length - 1)];
+  // Индекс ТҮПНҰСҚА p.images массивіне қатысты (клиент нобайы сол тізім).
+  // Таңдалған сурет https емес болса — алғашқы https суретке түсеміз.
+  const allImages = (p.images ?? []) as unknown[];
+  const isHttps = (u: unknown): u is string =>
+    typeof u === "string" && u.startsWith("https://");
+  const picked = allImages[imageIndex];
+  const garment: string | undefined = isHttps(picked)
+    ? picked
+    : allImages.find(isHttps);
+  if (!garment) return json({ error: "not_eligible" }, 400);
 
   // Кілт жоқ болса — квотаны жұмсамаймыз.
   if (!FASHN_API_KEY) return json({ error: "not_configured" }, 503);
@@ -218,7 +242,8 @@ Deno.serve(async (req) => {
     const runJson = await runRes.json().catch(() => ({}));
     if (!runRes.ok || !runJson?.id) {
       console.error("fashn_run", runRes.status, JSON.stringify(runJson?.error ?? runJson).slice(0, 300));
-      await refund();
+      // Қайтару тек провайдер жағының ақауында (5xx/429); 4xx — біздің кіріс.
+      if (runRes.status >= 500 || runRes.status === 429) await refund();
       return json({ error: "tryon_failed" }, 502);
     }
     const predId = String(runJson.id);
@@ -247,14 +272,16 @@ Deno.serve(async (req) => {
       }
       if (st?.status === "failed") {
         console.error("fashn_failed", JSON.stringify(st.error ?? {}).slice(0, 300));
-        await refund();
+        const errName = String(st.error?.name ?? "");
+        if (!USER_INPUT_ERRORS.has(errName)) await refund();
         return json({ error: "tryon_failed" }, 502);
       }
     }
-    // Таймаут (немесе күтпеген жауап)
-    await refund();
+    // Таймаут: FASHN тапсырмасы жалғасып, төлемге жазылуы мүмкін — квота
+    // ҚАЙТАРЫЛМАЙДЫ (қайтарсақ, тегін шақырудың тесігі болады).
     return json({ error: "tryon_timeout" }, 504);
   } catch (e) {
+    // Желі/күтпеген қате: провайдерге жетпеуі мүмкін → қайтарамыз.
     console.error("tryon_error", (e as Error)?.message);
     await refund();
     return json({ error: "tryon_failed" }, 502);
