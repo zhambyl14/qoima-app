@@ -22,14 +22,19 @@
 // Қателер {error:'code'}: bad_request 400, no_auth/invalid_session 401,
 //   feature_disabled 403, ai_quota_exceeded 429, ai_failed 502, ai_busy 503,
 //   not_configured 503.
-import Anthropic from "npm:@anthropic-ai/sdk@1.3.0";
+import type Anthropic from "npm:@anthropic-ai/sdk@1.3.0";
+import {
+  aiConfigured,
+  aiModel,
+  makeLlmClient,
+  supportsServerFallback,
+} from "../_shared/llm.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
-const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY") ?? "";
-const AI_MODEL = Deno.env.get("AI_MODEL") || "claude-haiku-5-5";
+// Провайдер (Anthropic / Gemini) мен кілттер — ../_shared/llm.ts ішінде.
 
 const MAX_MESSAGES = 20;
 const MAX_CHARS = 2000;
@@ -248,15 +253,16 @@ function strArrOrNull(v: unknown): string[] | null {
 // thinking параметрі жіберілмейді (adaptive әдепкі), temperature/top_p жоқ,
 // tool_choice мәжбүрленбейді (auto).
 async function callClaude(
-  client: Anthropic,
+  // deno-lint-ignore no-explicit-any
+  client: any,
   system: string,
   messages: Anthropic.MessageParam[],
   // deno-lint-ignore no-explicit-any
 ): Promise<any> {
-  const isHaiku = AI_MODEL.startsWith("claude-haiku");
+  const isHaiku = !supportsServerFallback();
   // deno-lint-ignore no-explicit-any
   const body: any = {
-    model: AI_MODEL,
+    model: aiModel(),
     max_tokens: 4096,
     system,
     tools: TOOLS,
@@ -325,7 +331,7 @@ Deno.serve(async (req) => {
     return json({ error: "bad_request" }, 400);
   }
 
-  if (!ANTHROPIC_API_KEY) return json({ error: "not_configured" }, 503);
+  if (!aiConfigured()) return json({ error: "not_configured" }, 503);
 
   // ── Жалау + квота (ШАҚЫРУШЫНЫҢ атынан) ──
   const userClient = createClient(SUPABASE_URL, ANON_KEY, {
@@ -364,8 +370,7 @@ Deno.serve(async (req) => {
 
   try {
     // Бір квотаға — шектелген шығын: қысқа таймаут, 1 қайталау, жалпы мерзім.
-    const client = new Anthropic({
-      apiKey: ANTHROPIC_API_KEY,
+    const client = makeLlmClient({
       timeout: CALL_TIMEOUT_MS,
       maxRetries: 1,
     });

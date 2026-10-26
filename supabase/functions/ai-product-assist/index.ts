@@ -24,14 +24,19 @@
 // Қателер: {error:'code'} — bad_request 400, no_auth/invalid_session 401,
 //   not_authorized 403, feature_disabled 403, ai_quota_exceeded 429, refused 422, ai_failed 502,
 //   not_configured 503.
-import Anthropic from "npm:@anthropic-ai/sdk@1.3.0";
+import type Anthropic from "npm:@anthropic-ai/sdk@1.3.0";
+import {
+  aiConfigured,
+  aiModel,
+  makeLlmClient,
+  supportsServerFallback,
+} from "../_shared/llm.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
-const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY") ?? "";
-const AI_MODEL = Deno.env.get("AI_MODEL") || "claude-haiku-5-5";
+// Провайдер (Anthropic / Gemini) мен кілттер — ../_shared/llm.ts ішінде.
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -424,16 +429,16 @@ async function callClaude(params: {
   maxTokens: number;
   format?: unknown;
 }): Promise<string> {
-  const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
+  const client = makeLlmClient({ timeout: 45_000, maxRetries: 1 });
   // Haiku 5.5-те сервер жағындағы fallback ЖОҚ: `fallbacks` пен beta-ны
   // жібермейміз (қате болады) — қарапайым messages.create. Opus/Sonnet
   // модельдерінде ғана fallbacks:'default' қосылады (классификатор бас
   // тартса, сұрау серверде басқа модельде қайта орындалады). SDK типтері
   // бұл өрісті әлі білмеуі мүмкін — сондықтан минималды cast.
-  const isHaiku = AI_MODEL.startsWith("claude-haiku");
+  const isHaiku = !supportsServerFallback();
   // deno-lint-ignore no-explicit-any
   const body: any = {
-    model: AI_MODEL,
+    model: aiModel(),
     max_tokens: params.maxTokens,
     system: params.system,
     messages: [{ role: "user", content: params.content }],
@@ -559,7 +564,7 @@ Deno.serve(async (req) => {
   }
 
   // Кілт жоқ болса квотаны тұтынбай-ақ қайтарамыз.
-  if (!ANTHROPIC_API_KEY) return json({ error: "not_configured" }, 503);
+  if (!aiConfigured()) return json({ error: "not_configured" }, 503);
 
   // Квота — шақырушының атынан (RLS/auth.uid() сол адамдікі).
   const userClient = createClient(SUPABASE_URL, ANON_KEY, {

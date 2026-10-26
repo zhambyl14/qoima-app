@@ -22,14 +22,19 @@
 // Қателер: bad_request 400, no_auth/invalid_session 401, feature_disabled 403,
 //   not_found 404, not_enough_items 404, not_supported 400, ai_quota_exceeded 429,
 //   refused 422, ai_failed 502, ai_busy 503, not_configured 503.
-import Anthropic from "npm:@anthropic-ai/sdk@1.3.0";
+import type Anthropic from "npm:@anthropic-ai/sdk@1.3.0";
+import {
+  aiConfigured,
+  aiModel,
+  makeLlmClient,
+  supportsServerFallback,
+} from "../_shared/llm.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
-const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY") ?? "";
-const AI_MODEL = Deno.env.get("AI_MODEL") || "claude-haiku-5-5";
+// Провайдер (Anthropic / Gemini) мен кілттер — ../_shared/llm.ts ішінде.
 
 const MAX_BODY_BYTES = 10_000;
 
@@ -141,12 +146,8 @@ function slim(r: Row) {
 // fallbacks:'default'. SDK типтері білмеуі мүмкін — минималды cast.
 async function callClaude(system: string, user: string): Promise<string> {
   // Қысқа таймаут + 1 қайталау: бір квотаға шектелген шығын.
-  const client = new Anthropic({
-    apiKey: ANTHROPIC_API_KEY,
-    timeout: 40_000,
-    maxRetries: 1,
-  });
-  const isHaiku = AI_MODEL.startsWith("claude-haiku");
+  const client = makeLlmClient({ timeout: 40_000, maxRetries: 1 });
+  const isHaiku = !supportsServerFallback();
   const schema = {
     type: "object",
     properties: {
@@ -171,7 +172,7 @@ async function callClaude(system: string, user: string): Promise<string> {
   };
   // deno-lint-ignore no-explicit-any
   const body: any = {
-    model: AI_MODEL,
+    model: aiModel(),
     max_tokens: 2048,
     system,
     messages: [{ role: "user", content: user }],
@@ -242,7 +243,7 @@ Deno.serve(async (req) => {
     ? body.city.trim().slice(0, 60)
     : "";
 
-  if (!ANTHROPIC_API_KEY) return json({ error: "not_configured" }, 503);
+  if (!aiConfigured()) return json({ error: "not_configured" }, 503);
 
   const userClient = createClient(SUPABASE_URL, ANON_KEY, {
     global: { headers: { Authorization: authHeader } },
