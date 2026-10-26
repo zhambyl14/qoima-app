@@ -388,8 +388,8 @@ class _ReceivedCard extends StatelessWidget {
             : o.byPlatformCourier
                 ? tr('Магазин собирает, затем курьер',
                     'Дүкен жинайды, сосын курьер')
-                : tr('Магазин готовит подарок',
-                    'Дүкен сыйлықты дайындап жатыр');
+                : tr(
+                    'Магазин готовит подарок', 'Дүкен сыйлықты дайындап жатыр');
         tone = toClaim ? 'amber' : 'blue';
     }
 
@@ -403,17 +403,29 @@ class _ReceivedCard extends StatelessWidget {
                 builder: (_) => ClientOrderDetailScreen(order: o))),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            // Тосынсый: алушы «Сыйлықты ашу» басқанша тауар суреті/атауы көрінбейді.
             SizedBox(
               width: 68,
               height: 68,
-              child: QShoeImage(imageUrl: item?.imageUrl, height: 68),
+              child: toClaim
+                  ? Container(
+                      decoration: BoxDecoration(
+                          gradient: kGrad,
+                          borderRadius: BorderRadius.circular(kR16)),
+                      child: const Icon(Icons.card_giftcard_rounded,
+                          color: Colors.white, size: 34),
+                    )
+                  : QShoeImage(imageUrl: item?.imageUrl, height: 68),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(item?.productName ?? '',
+                    Text(
+                        toClaim
+                            ? tr('Вам подарок!', 'Сізге сыйлық бар!')
+                            : (item?.productName ?? ''),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: manrope(15, FontWeight.w700)),
@@ -423,7 +435,7 @@ class _ReceivedCard extends StatelessWidget {
                         if (o.giftGiverName.isNotEmpty)
                           tr('От: ${o.giftGiverName}',
                               'Кімнен: ${o.giftGiverName}'),
-                        o.storeName,
+                        if (!toClaim) o.storeName,
                       ].join(' · '),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -437,7 +449,7 @@ class _ReceivedCard extends StatelessWidget {
           if (toClaim) ...[
             const SizedBox(height: 12),
             QPrimaryButton(
-              label: tr('Получить подарок', 'Сыйлықты алу'),
+              label: tr('Открыть подарок', 'Сыйлықты ашу'),
               icon: const Icon(Icons.card_giftcard_rounded,
                   color: Colors.white, size: 20),
               height: 48,
@@ -445,18 +457,18 @@ class _ReceivedCard extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-                tr('Выберите размер, способ получения (магазин или курьер) и укажите свой телефон.',
-                    'Өлшемді, алу тәсілін (дүкен немесе курьер) таңдап, телефоныңызды жазыңыз.'),
+                tr('Откройте подарок, выберите способ получения (магазин или курьер) и укажите свой телефон.',
+                    'Сыйлықты ашып, алу тәсілін (дүкен немесе курьер) таңдаңыз да, телефоныңызды жазыңыз.'),
                 style: manrope(12, FontWeight.w500, color: cInk3)),
           ],
-          if (item != null && item.size.isNotEmpty) ...[
+          if (!toClaim && item != null && item.size.isNotEmpty) ...[
             const SizedBox(height: 10),
             Text(
                 tr('Размер: ${trValue(item.size)}',
                     'Өлшемі: ${trValue(item.size)}'),
                 style: manrope(13, FontWeight.w600)),
           ],
-          if (!hidePrice && item != null) ...[
+          if (!toClaim && !hidePrice && item != null) ...[
             const SizedBox(height: 4),
             Text(
                 tr('Стоимость: ${money(item.price)}',

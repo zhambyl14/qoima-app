@@ -129,6 +129,10 @@ Future<void> handlePushOpen(Map<String, dynamic> data) async {
         _openGifts(nav, user, tab: 0);
         break;
       // Тілек тізімінен біреу сыйлық сатып алды (0069).
+      // Біреу Qoima ішінде сыйлық жіберді: «Подарки → Маған келген».
+      case 'gift_received':
+        _openGifts(nav, user, tab: 1);
+        break;
       case 'registry_item_bought':
         // Сыйлық енді «Подарки → Маған келген» бөліміне түседі (алу осы жерде).
         _openGifts(nav, user, tab: 1);

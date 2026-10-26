@@ -126,7 +126,8 @@ class GiftStoreNote extends StatelessWidget {
                 final l = order.giftExchangeLog.last;
                 final from =
                     '${l['from_product'] ?? ''} ${l['from_size'] ?? ''}'.trim();
-                final to = '${l['to_product'] ?? ''} ${l['to_size'] ?? ''}'.trim();
+                final to =
+                    '${l['to_product'] ?? ''} ${l['to_size'] ?? ''}'.trim();
                 return tr('Обмен: $from → $to', 'Ауыстыру: $from → $to');
               }(),
               style: manrope(12, FontWeight.w700, color: cInk2),

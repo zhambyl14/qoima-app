@@ -286,21 +286,17 @@
     const g = await rpc("get_gift_public", { p_token: token });
     if (!g || typeof g !== "object") return landingNotFound("gift");
 
-    const product = g.product ?? {};
-    const store = g.store ?? {};
+    // 🎁 Тосынсый: сайтта да, сілтеме превьюінде де тауар суреті, атауы, бағасы,
+    // дүкені және тілек мәтіні ЕШҚАШАН көрсетілмейді — алушы бәрін тек қосымшада
+    // «Сыйлықты ашу» басқанда көреді.
     const giver = String(g.giver_first_name ?? "").trim();
     const recipient = String(g.recipient_name ?? "").trim();
-    const message = String(g.message ?? "").trim();
     const status = String(g.status ?? "");
     const pageUrl = `${origin}/?g=${token}`;
     const deepLink = `qoima://gift/${token}`;
-    const img = safeImg(product.image_url);
-    // Баға: RPC жасырын бағада null қайтарады (қонақ сыйлаушы емес).
-    const price = typeof g.price === "number" && g.price > 0 ? money(g.price) : "";
-
-    const ogDesc = [product.brand, product.name]
-      .filter((x) => x && String(x).trim())
-      .join(" · ") || "Qoima";
+    const ogDesc = giver
+      ? `${giver} · Qoima`
+      : "Qoima";
 
     let stateHtml = "";
     let showOpen = true;
@@ -324,48 +320,23 @@
           `<div class="state">❌ Заказ отменён. · Тапсырыс бас тартылды.</div>`;
         showOpen = false;
         break;
-      default: {
-        // Сыйлаушы өлшемді өзі таңдаса (0070, брондалған) — алушы ауыстыра алады,
-        // қайтарылмайтын тауарда — жоқ.
-        const chosen = String(g.chosen_size ?? "").trim();
-        const locked = g.non_returnable === true;
-        stateHtml = chosen
-          ? (locked
-            ? `<div class="state">Размер выбран: ${esc(chosen)}. Откройте в приложении и подтвердите получение.<br>Өлшемі таңдалған: ${esc(chosen)}. Қосымшада ашып, сыйлықты алуды растаңыз.</div>`
-            : `<div class="state">Размер выбран: ${esc(chosen)} — при желании можно поменять размер или товар.<br>Өлшемі таңдалған: ${esc(chosen)} — қаласаңыз ауыстыра аласыз.</div>`)
-          : `<div class="state">Откройте в приложении, выберите свой размер — и подарок поедет к вам.<br>Қосымшада өз өлшеміңізді таңдаңыз — сыйлық сізге жолға шығады.</div>`;
-      }
+      default:
+        stateHtml =
+          `<div class="state">Откройте приложение и нажмите «Открыть подарок».<br>Қосымшаны ашып, «Сыйлықты ашу» батырмасын басыңыз.</div>`;
     }
 
     const body = `
     <div class="hero"><span class="em">🎁</span>
       <h1>${recipient ? `${esc(recipient)}, ` : ""}Сізге сыйлық бар!</h1>
       <p>${giver ? `${esc(giver)} · ` : ""}Вам подарок!</p></div>
-    <div class="card">
-      ${img ? `<img class="pic" src="${esc(img)}" alt="${esc(product.name)}">` : ""}
-      <div class="pad">
-        ${product.brand ? `<div class="brand">${esc(product.brand)}</div>` : ""}
-        <div class="nm">${esc(product.name ?? "")}</div>
-        ${price ? `<div class="price">${esc(price)}</div>` : ""}
-      </div>
-    </div>
-    ${
-      message
-        ? `<div class="msg">«${esc(message)}»${giver ? `<span class="from">— ${esc(giver)}</span>` : ""}</div>`
-        : ""
-    }
-    ${
-      store.name
-        ? `<div class="store">🏬<div>${esc(store.name)}<small>${esc([store.city, store.address].filter(Boolean).join(", "))}</small></div></div>`
-        : ""
-    }
+    <div class="state">${giver ? `${esc(giver)} отправил(а) вам сюрприз.<br>${esc(giver)} сізге тосынсый жіберді.` : "Для вас приготовлен сюрприз.<br>Сізге тосынсый дайындалған."}<br><br>Что внутри — увидите в приложении Qoima.<br>Ішінде не бар — Qoima қосымшасында көресіз.</div>
     ${stateHtml}
     ${showOpen ? openAppHtml(deepLink) : ""}`;
 
     return landingShell({
       title: "🎁 Сізге сыйлық бар! · Вам подарок!",
       desc: ogDesc,
-      image: img,
+      image: "",
       pageUrl,
       body,
     });

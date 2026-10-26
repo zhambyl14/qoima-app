@@ -15,21 +15,20 @@ import '../payment_instructions_sheet.dart';
 import 'my_gifts_screen.dart';
 
 /// Сыйлау сілтемесімен бірге жіберілетін жылы мәтін (WhatsApp/Telegram).
-/// Бағасы ЕШҚАШАН мәтінге кірмейді — сыйлаушы жасырғысы келуі мүмкін.
+/// Тосынсый: тауар атауы, дүкен және баға мәтінде ЕШҚАШАН болмайды — алушы
+/// сыйлықты тек қосымшада «Сыйлықты ашу» басқанда көреді.
 String giftShareText({
   required String giver,
-  required String product,
-  required String store,
   required String url,
 }) {
   final who = giver.trim();
   return tr(
     '🎁 Для тебя подарок!\n'
-        '${who.isEmpty ? 'Тебе' : who} дарит «$product» из магазина «$store». '
-        'Открой ссылку, выбери размер — остальное мы доставим:\n$url',
+        '${who.isEmpty ? 'Тебе' : who} отправил(а) тебе сюрприз. '
+        'Открой ссылку в Qoima — внутри подарок:\n$url',
     '🎁 Саған сыйлық бар!\n'
-        '${who.isEmpty ? 'Саған' : who} «$store» дүкенінен «$product» сыйлайды. '
-        'Сілтемені аш, өлшемді таңда — қалғанын өзіміз жеткіземіз:\n$url',
+        '${who.isEmpty ? 'Саған' : who} тосынсый жіберді. '
+        'Сілтемені Qoima-да аш — ішінде сыйлық:\n$url',
   );
 }
 
@@ -38,15 +37,12 @@ String giftShareText({
 Future<void> shareGiftToken(
   BuildContext context, {
   required String token,
-  required String product,
-  required String store,
   GlobalKey? originKey,
 }) async {
   final url = SupabaseConfig.giftShareUrl(token);
   if (url.isEmpty) return;
   final giver = context.read<AppUser>().name.trim().split(' ').first;
-  final text =
-      giftShareText(giver: giver, product: product, store: store, url: url);
+  final text = giftShareText(giver: giver, url: url);
   Rect? origin;
   final box = originKey?.currentContext?.findRenderObject() as RenderBox?;
   if (box != null && box.hasSize) {
@@ -62,8 +58,6 @@ Future<void> shareGiftLink(BuildContext context, OrderModel order,
     shareGiftToken(
       context,
       token: order.giftToken,
-      product: order.items.isNotEmpty ? order.items.first.productName : '',
-      store: order.storeName,
       originKey: originKey,
     );
 
@@ -132,6 +126,8 @@ class _GiftShareScreenState extends State<GiftShareScreen> {
   Widget build(BuildContext context) {
     final o = widget.order;
     final item = o.items.isNotEmpty ? o.items.first : null;
+    // Алушы Qoima-да тіркелген: сыйлық оған қосымша ішінде ғана жіберіледі.
+    final inApp = o.giftRecipientUid.isNotEmpty;
     return Scaffold(
       backgroundColor: cBg,
       body: Stack(children: [
@@ -168,10 +164,14 @@ class _GiftShareScreenState extends State<GiftShareScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                tr(
-                  'Отправьте ссылку получателю. Как только магазин подтвердит оплату, он откроет подарок и выберет размер.',
-                  'Сілтемені алушыға жіберіңіз. Дүкен төлемді растағанда, ол сыйлықты ашып, өлшемін таңдайды.',
-                ),
+                inApp
+                    ? tr(
+                        'Подарок отправлен в приложение получателя. Как только магазин подтвердит оплату, ${o.giftRecipientName.isEmpty ? 'он' : o.giftRecipientName} получит уведомление и откроет подарок.',
+                        'Сыйлық алушының қосымшасына жіберілді. Дүкен төлемді растағанда, ${o.giftRecipientName.isEmpty ? 'ол' : o.giftRecipientName} хабарландыру алып, сыйлықты ашады.')
+                    : tr(
+                        'Отправьте ссылку получателю. Как только магазин подтвердит оплату, он откроет подарок и выберет размер.',
+                        'Сілтемені алушыға жіберіңіз. Дүкен төлемді растағанда, ол сыйлықты ашып, өлшемін таңдайды.',
+                      ),
                 textAlign: TextAlign.center,
                 style: manrope(14, FontWeight.w500, color: cInk2),
               ),
@@ -245,24 +245,26 @@ class _GiftShareScreenState extends State<GiftShareScreen> {
                 ),
               ],
               const SizedBox(height: 22),
-              KeyedSubtree(
-                key: _shareKey,
-                child: QPrimaryButton(
-                  label: tr('Отправить подарок', 'Сыйлықты жіберу'),
-                  icon: const Icon(Icons.ios_share_rounded,
-                      color: Colors.white, size: 20),
-                  height: 56,
-                  onPressed: () =>
-                      shareGiftLink(context, o, originKey: _shareKey),
+              if (!inApp) ...[
+                KeyedSubtree(
+                  key: _shareKey,
+                  child: QPrimaryButton(
+                    label: tr('Отправить подарок', 'Сыйлықты жіберу'),
+                    icon: const Icon(Icons.ios_share_rounded,
+                        color: Colors.white, size: 20),
+                    height: 56,
+                    onPressed: () =>
+                        shareGiftLink(context, o, originKey: _shareKey),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 10),
-              QSoftButton(
-                label: tr('Скопировать ссылку', 'Сілтемені көшіру'),
-                icon: const Icon(Icons.link_rounded, color: cGreen, size: 20),
-                onPressed: () => copyGiftLink(context, o),
-              ),
-              const SizedBox(height: 10),
+                const SizedBox(height: 10),
+                QSoftButton(
+                  label: tr('Скопировать ссылку', 'Сілтемені көшіру'),
+                  icon: const Icon(Icons.link_rounded, color: cGreen, size: 20),
+                  onPressed: () => copyGiftLink(context, o),
+                ),
+                const SizedBox(height: 10),
+              ],
               QSoftButton(
                 label: tr('Мои подарки', 'Менің сыйлықтарым'),
                 tone: 'gray',

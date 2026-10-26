@@ -194,6 +194,12 @@ class GiftPublic {
   /// Сыйлаушы таңдап, брондаған өлшем (алушы әлі растамаған) — бос болуы мүмкін.
   final String chosenSize;
 
+  /// Өлшемді сыйлаушы таңдаған: алушы өлшемді де, тауарды да өзгерте алмайды (0079).
+  final bool sizeLocked;
+
+  /// Сыйлық нақты адамға (телефон / тілек тізімі) арналған.
+  final bool recipientBound;
+
   /// Қайтарылмайтын тауар: өлшем/тауар ауыстырылмайды.
   final bool nonReturnable;
 
@@ -239,6 +245,8 @@ class GiftPublic {
     this.availableSizes = const [],
     this.sizeOptions = const [],
     this.chosenSize = '',
+    this.sizeLocked = false,
+    this.recipientBound = false,
     this.nonReturnable = false,
     this.fittingAvailable = false,
     this.fittingFee = 0,
@@ -255,6 +263,9 @@ class GiftPublic {
 
   bool get isCourier => deliveryMode == 'courier';
   bool get readyToClaim => status == 'ready_to_claim';
+
+  /// Сыйлық басқа адамға арналған (кірген бөгде адам ашты).
+  bool get notForYou => status == 'not_for_you';
 
   factory GiftPublic.fromMap(Map<String, dynamic> m) {
     final p = Map<String, dynamic>.from((m['product'] as Map?) ?? const {});
@@ -293,6 +304,8 @@ class GiftPublic {
       ],
       sizeOptions: GiftSizeOption.listFrom(m['size_options']),
       chosenSize: m['chosen_size'] as String? ?? '',
+      sizeLocked: m['size_locked'] as bool? ?? false,
+      recipientBound: m['recipient_bound'] as bool? ?? false,
       nonReturnable: m['non_returnable'] as bool? ?? false,
       fittingAvailable: m['fitting_available'] as bool? ?? false,
       fittingFee: (m['fitting_fee'] as num?)?.toDouble() ?? 0,
@@ -311,6 +324,22 @@ class GiftPublic {
       orderStatus: m['order_status'] as String? ?? '',
     );
   }
+}
+
+/// Промокодты алдын ала тексеру нәтижесі (gift_promo_preview).
+class GiftPromoPreview {
+  final bool ok;
+  final String reason; // ok == false болса: promo_* коды
+  final double discount;
+  final double price;
+  final double minOrder;
+  const GiftPromoPreview({
+    required this.ok,
+    this.reason = '',
+    this.discount = 0,
+    this.price = 0,
+    this.minOrder = 0,
+  });
 }
 
 /// «Сыйлау» (0070) сервисі. Тапсырысты жасау да, алу да, ауыстыру да СЕРВЕР
@@ -332,6 +361,8 @@ class GiftService {
     required String message,
     required bool hidePrice,
     String? size,
+    String? promo,
+    String? recipientPhone,
   }) async {
     final sz = (size ?? '').trim();
     try {
@@ -342,10 +373,53 @@ class GiftService {
         'p_message': message.trim(),
         'p_hide_price': hidePrice,
         'p_size': sz.isEmpty ? null : sz,
+        'p_promo': (promo ?? '').trim().isEmpty ? null : promo!.trim(),
+        'p_recipient_phone': (recipientPhone ?? '').trim().isEmpty
+            ? null
+            : recipientPhone!.trim(),
       });
       return OrderModel.fromMap(Map<String, dynamic>.from(res as Map));
     } on PostgrestException catch (e) {
       throw Exception(_message(e.message, creating: true));
+    }
+  }
+
+  /// Промокодты тексереді (жеңілдікті көрсету үшін; нақты есепті сервер жасайды).
+  Future<GiftPromoPreview> previewPromo({
+    required String productId,
+    required String code,
+    String? size,
+  }) async {
+    try {
+      final res = await _sb.rpc('gift_promo_preview', params: {
+        'p_product': productId,
+        'p_size': (size ?? '').isEmpty ? null : size,
+        'p_code': code.trim(),
+      });
+      final m = Map<String, dynamic>.from(res as Map);
+      return GiftPromoPreview(
+        ok: m['ok'] as bool? ?? false,
+        reason: m['reason'] as String? ?? '',
+        discount: (m['discount'] as num?)?.toDouble() ?? 0,
+        price: (m['price'] as num?)?.toDouble() ?? 0,
+        minOrder: (m['min_order'] as num?)?.toDouble() ?? 0,
+      );
+    } on PostgrestException catch (e) {
+      throw Exception(_message(e.message, creating: true));
+    }
+  }
+
+  /// Алушы Qoima-да тіркелген бе (телефон бойынша). Тіркелгенде тек аты қайтады.
+  /// null — тіркелмеген (сыйлықты сілтеме арқылы жібереді).
+  Future<String?> findRecipient(String phone) async {
+    try {
+      final res =
+          await _sb.rpc('find_gift_recipient', params: {'p_phone': phone});
+      final m = Map<String, dynamic>.from(res as Map);
+      if (m['found'] != true) return null;
+      return (m['first_name'] as String?) ?? '';
+    } on PostgrestException {
+      return null;
     }
   }
 
@@ -397,6 +471,7 @@ class GiftService {
     required String message,
     required bool hidePrice,
     bool fitting = false,
+    String? promo,
   }) async {
     try {
       final res = await _sb.rpc('create_registry_gift_order', params: {
@@ -404,6 +479,7 @@ class GiftService {
         'p_message': message.trim(),
         'p_hide_price': hidePrice,
         'p_fitting': fitting,
+        'p_promo': (promo ?? '').trim().isEmpty ? null : promo!.trim(),
       });
       return OrderModel.fromMap(Map<String, dynamic>.from(res as Map));
     } on PostgrestException catch (e) {
@@ -511,6 +587,9 @@ class GiftService {
 
   /// RPC қате кодтарын пайдаланушыға түсінікті мәтінге айналдырады.
   /// [creating] — сыйлық жасау кезінде (өлшем міндетті = қайтарылмайтын тауар).
+  /// Қате/себеп кодының адам тіліндегі мәтіні (мыс. `promo_expired`).
+  static String errorText(String raw) => _message(raw, creating: true);
+
   static String _message(String raw, {bool creating = false}) {
     final m = raw.toLowerCase();
     bool has(String k) => m.contains(k);
@@ -550,8 +629,8 @@ class GiftService {
       return tr('Выбран тот же товар и размер', 'Сол тауар мен өлшем таңдалды');
     }
     if (has('gift_exchange_expired')) {
-      return tr(
-          'Срок обмена (14 дней) истёк', 'Ауыстыру мерзімі (14 күн) өтіп кетті');
+      return tr('Срок обмена (14 дней) истёк',
+          'Ауыстыру мерзімі (14 күн) өтіп кетті');
     }
     if (has('gift_handover_in_progress')) {
       return tr('Выдача подарка ещё оформляется — повторите через минуту',
@@ -597,6 +676,54 @@ class GiftService {
       return tr('Курьер доставит подарок только в городе магазина',
           'Курьер сыйлықты тек дүкен қаласына жеткізеді');
     }
+    if (has('gift_size_locked')) {
+      return tr(
+          'Отправитель выбрал размер — его нельзя изменить. После получения можно обменять в магазине.',
+          'Өлшемді сыйлаушы таңдаған — оны өзгертуге болмайды. Алған соң дүкенде ауыстыруға болады.');
+    }
+    if (has('gift_not_for_you')) {
+      return tr('Этот подарок отправлен другому человеку',
+          'Бұл сыйлық басқа адамға жіберілген');
+    }
+    if (has('promo_not_found')) {
+      return tr('Промокод не найден', 'Промокод табылмады');
+    }
+    if (has('promo_inactive')) {
+      return tr('Промокод отключён', 'Промокод өшірілген');
+    }
+    if (has('promo_not_started')) {
+      return tr('Промокод ещё не активен', 'Промокод әлі белсенді емес');
+    }
+    if (has('promo_expired')) {
+      return tr('Срок действия промокода истёк', 'Промокодтың мерзімі өткен');
+    }
+    if (has('promo_exhausted')) {
+      return tr('Лимит использований исчерпан', 'Қолдану лимиті таусылған');
+    }
+    if (has('promo_referral_self')) {
+      return tr(
+          'Нельзя использовать свой же код', 'Өз кодыңызды қолдануға болмайды');
+    }
+    if (has('promo_referral_first_only')) {
+      return tr('Код друга действует только на первый заказ в этом магазине',
+          'Дос коды бұл дүкендегі тек бірінші тапсырысқа жарамды');
+    }
+    if (has('promo_not_yours')) {
+      return tr('Этот промокод выдан другому пользователю',
+          'Бұл промокод басқа қолданушыға берілген');
+    }
+    if (has('promo_limit_user')) {
+      return tr('Вы уже использовали этот промокод',
+          'Сіз бұл промокодты бұрын қолдандыңыз');
+    }
+    if (has('promo_not_applicable')) {
+      return tr('Промокод не применим к этому товару',
+          'Промокод бұл тауарға қолданылмайды');
+    }
+    if (has('promo_min_order')) {
+      return tr('Сумма меньше минимальной для этого промокода',
+          'Сома бұл промокодтың ең аз сомасынан аз');
+    }
     if (has('gift_delivery_required')) {
       return tr('Выберите, как получить подарок: в магазине или курьером',
           'Сыйлықты қалай алатыныңызды таңдаңыз: дүкеннен немесе курьермен');
@@ -613,8 +740,7 @@ class GiftService {
     }
     if (has('gift_size_required')) {
       return creating
-          ? tr(
-              'Этот товар нельзя обменять — подарите, зная размер',
+          ? tr('Этот товар нельзя обменять — подарите, зная размер',
               'Бұл тауарды ауыстыруға болмайды, өлшемін біліп сыйлаңыз')
           : tr('Выберите размер', 'Өлшемді таңдаңыз');
     }

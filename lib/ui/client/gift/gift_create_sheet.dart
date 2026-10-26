@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -153,6 +155,15 @@ class _GiftSheetState extends State<_GiftSheet> {
   final _gifts = GiftService();
   final _nameCtrl = TextEditingController();
   final _msgCtrl = TextEditingController();
+  final _phoneCtrl = TextEditingController();
+  final _promoCtrl = TextEditingController();
+  Timer? _lookupTimer;
+
+  /// Алушы Qoima-да тіркелген (телефон бойынша табылды): сыйлық оған қосымша ішінде жіберіледі.
+  String? _foundName;
+  GiftPromoPreview? _promo;
+  String? _promoMsg;
+  bool _promoBusy = false;
 
   bool _loading = true;
   bool _busy = false;
@@ -215,9 +226,83 @@ class _GiftSheetState extends State<_GiftSheet> {
 
   @override
   void dispose() {
+    _lookupTimer?.cancel();
+    _phoneCtrl.dispose();
+    _promoCtrl.dispose();
     _nameCtrl.dispose();
     _msgCtrl.dispose();
     super.dispose();
+  }
+
+  /// Жеңілдік сомасы (сервер бағасынан аспайды).
+  double get _discount {
+    final d = _promo?.discount ?? 0;
+    final p = _price ?? 0;
+    return d > p ? p : d;
+  }
+
+  void _onPhoneChanged(String v) {
+    _lookupTimer?.cancel();
+    final digits = v.replaceAll(RegExp(r'\D'), '');
+    if (digits.length < 10) {
+      if (_foundName != null) setState(() => _foundName = null);
+      return;
+    }
+    _lookupTimer = Timer(const Duration(milliseconds: 450), () async {
+      final name = await _gifts.findRecipient(v);
+      if (!mounted) return;
+      setState(() {
+        _foundName = name;
+        if (name != null && name.isNotEmpty && _nameCtrl.text.trim().isEmpty) {
+          _nameCtrl.text = name;
+        }
+      });
+    });
+  }
+
+  Future<void> _applyPromo() async {
+    final code = _promoCtrl.text.trim();
+    if (code.isEmpty) {
+      setState(() {
+        _promo = null;
+        _promoMsg = null;
+      });
+      return;
+    }
+    setState(() {
+      _promoBusy = true;
+      _promoMsg = null;
+    });
+    try {
+      final r = await _gifts.previewPromo(
+        productId: widget.product.id,
+        code: code,
+        size: _needSize ? _size : null,
+      );
+      if (!mounted) return;
+      setState(() {
+        _promoBusy = false;
+        if (r.ok) {
+          _promo = r;
+          _promoMsg = null;
+        } else {
+          _promo = null;
+          _promoMsg = GiftService.errorText(r.reason);
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _promoBusy = false;
+        _promo = null;
+        _promoMsg = friendlyError(e);
+      });
+    }
+  }
+
+  /// Өлшем/режим өзгергенде бағаға байланысты жеңілдікті қайта есептейді.
+  void _reapplyPromo() {
+    if (_promo != null || _promoCtrl.text.trim().isNotEmpty) _applyPromo();
   }
 
   Future<void> _load() async {
@@ -285,6 +370,7 @@ class _GiftSheetState extends State<_GiftSheet> {
               message: _msgCtrl.text,
               hidePrice: _hidePrice,
               fitting: withFitting,
+              promo: _promo != null ? _promoCtrl.text : null,
             )
           : await _gifts.createGift(
               productId: widget.product.id,
@@ -293,6 +379,8 @@ class _GiftSheetState extends State<_GiftSheet> {
               message: _msgCtrl.text,
               hidePrice: _hidePrice,
               size: _needSize ? _size : null,
+              promo: _promo != null ? _promoCtrl.text : null,
+              recipientPhone: _foundName != null ? _phoneCtrl.text : null,
             );
       if (!mounted) return;
       Navigator.of(context).pop(order);
@@ -456,7 +544,10 @@ class _GiftSheetState extends State<_GiftSheet> {
               title: tr('Размер выберет получатель', 'Өлшемді алушы таңдайды'),
               sub: tr('Цена по самому дорогому размеру — подойдёт любой',
                   'Ең қымбат өлшемнің бағасы — кез келгені келеді'),
-              onTap: () => setState(() => _knowSize = false),
+              onTap: () {
+                setState(() => _knowSize = false);
+                _reapplyPromo();
+              },
             ),
             const SizedBox(height: 8),
             _deliveryOption(
@@ -466,7 +557,10 @@ class _GiftSheetState extends State<_GiftSheet> {
               sub: tr(
                   'Забронируем размер сразу. Получатель сможет поменять размер или товар',
                   'Өлшемді бірден брондаймыз. Алушы өлшемді не тауарды ауыстыра алады'),
-              onTap: () => setState(() => _knowSize = true),
+              onTap: () {
+                setState(() => _knowSize = true);
+                _reapplyPromo();
+              },
             ),
           ],
           if (_needSize) ...[
@@ -493,6 +587,31 @@ class _GiftSheetState extends State<_GiftSheet> {
           decoration: _dec(tr('Имя получателя', 'Алушының аты'),
               icon: Icons.person_outline_rounded),
         ),
+        if (!_isRegistry) ...[
+          const SizedBox(height: 10),
+          TextField(
+            controller: _phoneCtrl,
+            keyboardType: TextInputType.phone,
+            onChanged: _onPhoneChanged,
+            decoration: _dec(
+                tr('Телефон получателя (необязательно)',
+                    'Алушының телефоны (міндетті емес)'),
+                icon: Icons.phone_outlined),
+          ),
+          const SizedBox(height: 6),
+          if (_foundName != null)
+            _infoBox(
+              tr('${_foundName!.isEmpty ? 'Получатель' : _foundName} зарегистрирован в Qoima — подарок придёт ему в приложение, ссылка не нужна.',
+                  '${_foundName!.isEmpty ? 'Алушы' : _foundName} Qoima-да тіркелген — сыйлық оның қосымшасына түседі, сілтеме керек емес.'),
+              Icons.verified_user_outlined,
+            )
+          else
+            Text(
+              tr('Если номер зарегистрирован в Qoima, подарок придёт в приложение. Иначе вы получите ссылку для отправки.',
+                  'Нөмір Qoima-да тіркелген болса, сыйлық қосымшаға түседі. Әйтпесе жіберу үшін сілтеме аласыз.'),
+              style: manrope(12, FontWeight.w500, color: cInk3),
+            ),
+        ],
         const SizedBox(height: 6),
         QSecLabel(tr('Пожелание', 'Тілек')),
         const SizedBox(height: 8),
@@ -578,6 +697,48 @@ class _GiftSheetState extends State<_GiftSheet> {
           ),
         ],
         const SizedBox(height: 18),
+        // ── Промокод ──
+        QSecLabel(tr('Промокод', 'Промокод')),
+        const SizedBox(height: 8),
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(
+            child: TextField(
+              controller: _promoCtrl,
+              textCapitalization: TextCapitalization.characters,
+              onChanged: (_) {
+                if (_promo != null || _promoMsg != null) {
+                  setState(() {
+                    _promo = null;
+                    _promoMsg = null;
+                  });
+                }
+              },
+              decoration: _dec(tr('Введите промокод', 'Промокод енгізіңіз'),
+                  icon: Icons.local_offer_outlined),
+            ),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            height: 52,
+            child: QSoftButton(
+              label: tr('Применить', 'Қолдану'),
+              onPressed: _promoBusy ? null : _applyPromo,
+            ),
+          ),
+        ]),
+        if (_promo != null) ...[
+          const SizedBox(height: 6),
+          Text(
+              tr('Скидка ${money(_discount)} применена к подарку',
+                  'Жеңілдік ${money(_discount)} сыйлыққа қолданылды'),
+              style: manrope(12.5, FontWeight.w700, color: cGreenDeep)),
+        ],
+        if (_promoMsg != null) ...[
+          const SizedBox(height: 6),
+          Text(_promoMsg!,
+              style: manrope(12.5, FontWeight.w600, color: cRedInk)),
+        ],
+        const SizedBox(height: 18),
         // ── Баға ──
         QCard(
           color: cGreenTint,
@@ -642,13 +803,24 @@ class _GiftSheetState extends State<_GiftSheet> {
                     style: manrope(14, FontWeight.w700, color: cInk2)),
               ]),
             ],
+            if (_discount > 0) ...[
+              const Divider(height: 20, color: cGreenTint2),
+              Row(children: [
+                Expanded(
+                  child: Text(tr('Промокод', 'Промокод'),
+                      style: manrope(13, FontWeight.w600, color: cInk2)),
+                ),
+                Text('−${money(_discount)}',
+                    style: manrope(14, FontWeight.w700, color: cGreenDeep)),
+              ]),
+            ],
             const Divider(height: 20, color: cGreenTint2),
             Row(children: [
               Expanded(
                 child: Text(tr('Оплатить сейчас', 'Қазір төлеу'),
                     style: manrope(15, FontWeight.w700)),
               ),
-              Text(money(price + fit),
+              Text(money(price - _discount + fit),
                   style: manrope(20, FontWeight.w800, color: cGreenDeep)),
             ]),
           ]),
@@ -679,6 +851,23 @@ class _GiftSheetState extends State<_GiftSheet> {
     );
   }
 
+  Widget _infoBox(String text, IconData icon) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: cGreenTint,
+          borderRadius: BorderRadius.circular(kR14),
+        ),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Icon(icon, size: 18, color: cGreenDeep),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(text,
+                style: manrope(12.5, FontWeight.w600, color: cGreenDeep)),
+          ),
+        ]),
+      );
+
   Widget _sizeChip(String s) {
     final sel = _size == s;
     final p = _sizePrice[s];
@@ -687,6 +876,7 @@ class _GiftSheetState extends State<_GiftSheet> {
       onTap: () {
         HapticFeedback.selectionClick();
         setState(() => _size = s);
+        _reapplyPromo();
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 160),

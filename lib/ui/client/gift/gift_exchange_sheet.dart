@@ -12,7 +12,8 @@ import '../../../theme/qoima_design.dart';
 /// тізіміндегі ретпен (S, M, L…). Сыйлау экрандарының бәрі осыны қолданады.
 List<String> sortGiftSizes(Iterable<String> input, String categoryKey) {
   final sizes = input.toSet().toList();
-  final nums = sizes.map((s) => double.tryParse(s.replaceAll(',', '.'))).toList();
+  final nums =
+      sizes.map((s) => double.tryParse(s.replaceAll(',', '.'))).toList();
   if (nums.every((n) => n != null)) {
     final idx = List<int>.generate(sizes.length, (i) => i)
       ..sort((a, b) => nums[a]!.compareTo(nums[b]!));
@@ -337,8 +338,9 @@ class _GiftExchangePickerState extends State<_GiftExchangePicker> {
                 label: tr('Выбрать', 'Таңдау'),
                 icon: const Icon(Icons.check_rounded,
                     color: Colors.white, size: 20),
-                onPressed:
-                    choice == null ? null : () => Navigator.pop(context, choice),
+                onPressed: choice == null
+                    ? null
+                    : () => Navigator.pop(context, choice),
               ),
             ]),
           ),
@@ -466,8 +468,7 @@ class _GiftExchangePickerState extends State<_GiftExchangePicker> {
             child: Align(
               alignment: Alignment.centerLeft,
               child: Wrap(spacing: 8, runSpacing: 8, children: [
-                for (final s in sizes)
-                  _sizeChip(p, byName[s]!),
+                for (final s in sizes) _sizeChip(p, byName[s]!),
               ]),
             ),
           ),
@@ -494,8 +495,7 @@ class _GiftExchangePickerState extends State<_GiftExchangePicker> {
           color: sel ? cGreen : cSurface,
           borderRadius: BorderRadius.circular(kR12),
           border: Border.all(
-              color: sel ? cGreen : (current ? cGreenDeep : cLine),
-              width: 1.4),
+              color: sel ? cGreen : (current ? cGreenDeep : cLine), width: 1.4),
         ),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Text(trValue(s.size),

@@ -415,6 +415,15 @@ class _GiftReceiveScreenState extends State<GiftReceiveScreen>
               child: CircularProgressIndicator(color: cGreen, strokeWidth: 2))
         else if (_error != null)
           _errorView()
+        else if (g != null && g.notForYou)
+          _messageView(
+            icon: Icons.lock_outline_rounded,
+            title: tr(
+                'Подарок для другого человека', 'Сыйлық басқа адамға арналған'),
+            text: tr(
+                'Этот подарок отправлен другому пользователю Qoima. Войдите в нужный аккаунт.',
+                'Бұл сыйлық Qoima-ның басқа қолданушысына жіберілген. Керекті аккаунтқа кіріңіз.'),
+          )
         else if (g == null)
           _messageView(
             icon: Icons.search_off_rounded,
@@ -925,7 +934,7 @@ class _GiftReceiveScreenState extends State<GiftReceiveScreen>
     final sizes =
         sortGiftSizes(byName.keys, _otherProduct?.categoryKey ?? g.categoryKey);
     final sel = _selectedOption(g);
-    final canSwitch = !g.nonReturnable;
+    final canSwitch = !g.nonReturnable && !g.sizeLocked;
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       _stepLabel(1, tr('Выберите размер', 'Өлшемді таңдаңыз')),
       const SizedBox(height: 10),
@@ -939,11 +948,9 @@ class _GiftReceiveScreenState extends State<GiftReceiveScreen>
                   'Размер ${trValue(g.chosenSize)} выбран отправителем. Этот товар обменять нельзя.',
                   '${trValue(g.chosenSize)} өлшемін сыйлаушы таңдаған. Бұл тауарды ауыстыруға болмайды.')
               : tr(
-                  'Отправитель выбрал размер ${trValue(g.chosenSize)} и забронировал его. Не подходит — выберите другой размер или товар.',
-                  'Сыйлаушы ${trValue(g.chosenSize)} өлшемін таңдап, брондап қойды. Келмесе — басқа өлшемді не тауарды таңдаңыз.'),
-          icon: g.nonReturnable
-              ? Icons.lock_outline_rounded
-              : Icons.bookmark_added_rounded,
+                  'Отправитель выбрал для вас размер ${trValue(g.chosenSize)} — при получении его изменить нельзя. Если не подойдёт, после получения обменяете в магазине: на другой размер или более дешёвый товар (дороже — с доплатой).',
+                  'Сыйлаушы сізге ${trValue(g.chosenSize)} өлшемін таңдады — алғанда оны өзгертуге болмайды. Келмесе, алған соң дүкенде ауыстырасыз: басқа өлшемге не арзанырақ тауарға (қымбатырағына — доплатамен).'),
+          icon: Icons.lock_outline_rounded,
         ),
         const SizedBox(height: 10),
       ],
@@ -1418,6 +1425,14 @@ class _GiftReceiveScreenState extends State<GiftReceiveScreen>
 
   // ── Сыйлаушыға әрекеттер ───────────────────────────────────────────────────
   Widget _giverActions(GiftPublic g) {
+    // Алушы Qoima-да тіркелген: сыйлық оған қосымша ішінде жіберілген — сілтеме керек емес.
+    if (g.recipientBound) {
+      return _hint(
+        tr('Подарок отправлен получателю в приложение. Как только оплата подтвердится, он получит уведомление.',
+            'Сыйлық алушыға қосымшада жіберілді. Төлем расталғанда, ол хабарландыру алады.'),
+        icon: Icons.mark_email_read_outlined,
+      );
+    }
     return Column(children: [
       KeyedSubtree(
         key: _shareKey,
@@ -1426,10 +1441,7 @@ class _GiftReceiveScreenState extends State<GiftReceiveScreen>
           icon: const Icon(Icons.ios_share_rounded,
               color: Colors.white, size: 20),
           onPressed: () => shareGiftToken(context,
-              token: widget.token,
-              product: g.productName,
-              store: g.storeName,
-              originKey: _shareKey),
+              token: widget.token, originKey: _shareKey),
         ),
       ),
       const SizedBox(height: 10),
