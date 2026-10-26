@@ -5,10 +5,12 @@
 //   • ANTHROPIC_API_KEY бар → нағыз Anthropic SDK (Claude Haiku 5.5 әдепкі);
 //   • болмаса GEMINI_API_KEY бар → Gemini-ге аударатын жеңіл адаптер
 //     (мәтін, сурет, tool-use, JSON-схема) — Anthropic кілті келгенше уақытша;
-//   • AI_PROVIDER=anthropic|gemini — қолмен мәжбүрлеу.
+//   • Суперадмин таңдауы: app_settings.ai_provider = auto|gemini|anthropic
+//     (0080; refreshProviderSetting() әр сұраудың басында, 60 с кэш);
+//   • AI_PROVIDER=anthropic|gemini (Secret) — бәрінен басым, қолмен мәжбүрлеу.
 //
 // Secrets: ANTHROPIC_API_KEY, AI_MODEL (әдепкі claude-haiku-5-5),
-//          GEMINI_API_KEY, GEMINI_MODEL (әдепкі gemini-2.5-flash).
+//          GEMINI_API_KEY, GEMINI_MODEL (әдепкі gemini-3.1-flash-lite).
 // Кілттер ЕШҚАШАН кодта/клиентте емес — тек Supabase Secrets-те.
 import Anthropic from "npm:@anthropic-ai/sdk@1.3.0";
 
@@ -16,13 +18,49 @@ const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY") ?? "";
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") ?? "";
 const FORCED = (Deno.env.get("AI_PROVIDER") ?? "").toLowerCase();
 const CLAUDE_MODEL = Deno.env.get("AI_MODEL") || "claude-haiku-5-5";
-const GEMINI_MODEL = Deno.env.get("GEMINI_MODEL") || "gemini-2.5-flash";
+// gemini-2.5-flash тегін деңгейде күніне 20 сұрау ғана — lite модель әлдеқайда кең.
+const GEMINI_MODEL = Deno.env.get("GEMINI_MODEL") || "gemini-3.1-flash-lite";
 
 export type Provider = "anthropic" | "gemini";
 
+// ── Суперадмин таңдауы (app_settings.ai_provider) ──────────────────────────
+const SB_URL = Deno.env.get("SUPABASE_URL") ?? "";
+const SB_SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+let setting = "auto";
+let settingAt = 0;
+
+/// app_settings.ai_provider-ді оқиды (60 секундтық кэш). Оқу сәтсіз болса
+/// бұрынғы мән қалады — AI сол үшін тоқтап қалмайды.
+export async function refreshProviderSetting(): Promise<void> {
+  if (Date.now() - settingAt < 60_000 || !SB_URL || !SB_SERVICE) return;
+  settingAt = Date.now();
+  try {
+    const r = await fetch(
+      `${SB_URL}/rest/v1/app_settings?key=eq.ai_provider&select=value`,
+      { headers: { apikey: SB_SERVICE, Authorization: `Bearer ${SB_SERVICE}` } },
+    );
+    if (!r.ok) return;
+    const rows = await r.json();
+    const v = String(rows?.[0]?.value ?? "auto").toLowerCase();
+    setting = v === "gemini" || v === "anthropic" ? v : "auto";
+  } catch (_) {
+    // желі қатесі — бұрынғы мән
+  }
+}
+
+/// Суперадминнің таңдауы ('auto' | 'gemini' | 'anthropic').
+export function providerSetting(): string {
+  return FORCED === "gemini" || FORCED === "anthropic" ? FORCED : setting;
+}
+
+export function hasGeminiKey(): boolean {
+  return !!GEMINI_API_KEY;
+}
+
 export function aiProvider(): Provider | null {
-  if (FORCED === "anthropic" && ANTHROPIC_API_KEY) return "anthropic";
-  if (FORCED === "gemini" && GEMINI_API_KEY) return "gemini";
+  const want = providerSetting();
+  if (want === "gemini" && GEMINI_API_KEY) return "gemini";
+  if (want === "anthropic" && ANTHROPIC_API_KEY) return "anthropic";
   if (ANTHROPIC_API_KEY) return "anthropic";
   if (GEMINI_API_KEY) return "gemini";
   return null;
@@ -96,7 +134,7 @@ function cleanSchema(s: Any): Any {
 // ── Сурет: URL → inlineData ───────────────────────────────────────────────
 const MAX_IMG_BYTES = 6 * 1024 * 1024;
 
-async function fetchImage(url: string): Promise<{ mime: string; data: string }> {
+export async function fetchImage(url: string): Promise<{ mime: string; data: string }> {
   if (!/^https:\/\//i.test(url)) throw new LlmHttpError(400, "bad_image_url");
   const ctl = new AbortController();
   const t = setTimeout(() => ctl.abort(), 10_000);
@@ -202,12 +240,14 @@ async function geminiCreate(body: Any, timeoutMs: number, retries: number): Prom
     contents: await toGeminiContents(body.messages ?? []),
     generationConfig: {
       maxOutputTokens: body.max_tokens ?? 2048,
-      // Жылдамдық пен тегін лимит үшін ойлауды өшіреміз (GEMINI_THINKING_BUDGET).
-      thinkingConfig: {
-        thinkingBudget: Number(Deno.env.get("GEMINI_THINKING_BUDGET") ?? "0"),
-      },
     },
   };
+  // Ойлауды азайтамыз (жылдамдық + тегін лимит): 2.x — thinkingBudget,
+  // 3.x — thinkingLevel. Баптау: GEMINI_THINKING (2.x-те сан, 3.x-те деңгей).
+  const think = Deno.env.get("GEMINI_THINKING") ?? "";
+  payload.generationConfig.thinkingConfig = model.startsWith("gemini-2")
+    ? { thinkingBudget: Number(think || "0") }
+    : { thinkingLevel: think || "low" };
   if (body.system) {
     payload.systemInstruction = {
       parts: [{ text: typeof body.system === "string" ? body.system : JSON.stringify(body.system) }],
@@ -333,3 +373,60 @@ export function makeLlmClient(
 
 let claudeDownUntil = 0;
 
+// ── Gemini сурет генерациясы (уақытша «киіп көру») ─────────────────────────
+const GEMINI_IMAGE_MODEL = Deno.env.get("GEMINI_IMAGE_MODEL") || "gemini-2.5-flash-image";
+
+export type GeminiImageResult =
+  | { ok: true; mime: string; data: string }
+  | { ok: false; status: number; reason: "blocked" | "no_image" | "http"; message: string };
+
+/// Мәтін + суреттер → бір сурет. Суреттер {mime, data(base64)}.
+export async function geminiGenerateImage(
+  prompt: string,
+  images: { mime: string; data: string }[],
+  timeoutMs = 60_000,
+): Promise<GeminiImageResult> {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), timeoutMs);
+  try {
+    const r = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_IMAGE_MODEL}:generateContent`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-goog-api-key": GEMINI_API_KEY },
+        signal: ctl.signal,
+        body: JSON.stringify({
+          contents: [{
+            role: "user",
+            parts: [
+              { text: prompt },
+              ...images.map((i) => ({ inlineData: { mimeType: i.mime, data: i.data } })),
+            ],
+          }],
+          generationConfig: { responseModalities: ["IMAGE"] },
+        }),
+      },
+    );
+    if (!r.ok) {
+      return { ok: false, status: r.status, reason: "http", message: (await r.text()).slice(0, 1500) };
+    }
+    const data = await r.json();
+    if (data?.promptFeedback?.blockReason) {
+      return { ok: false, status: 200, reason: "blocked", message: String(data.promptFeedback.blockReason) };
+    }
+    const cand = data?.candidates?.[0];
+    for (const p of (cand?.content?.parts ?? []) as Any[]) {
+      if (p?.inlineData?.data) {
+        return { ok: true, mime: p.inlineData.mimeType ?? "image/png", data: p.inlineData.data };
+      }
+    }
+    const fr = String(cand?.finishReason ?? "");
+    const blocked = ["SAFETY", "PROHIBITED_CONTENT", "IMAGE_SAFETY", "BLOCKLIST", "SPII", "IMAGE_PROHIBITED_CONTENT"]
+      .includes(fr);
+    return { ok: false, status: 200, reason: blocked ? "blocked" : "no_image", message: fr };
+  } catch (e) {
+    return { ok: false, status: 504, reason: "http", message: (e as Error)?.message ?? "network" };
+  } finally {
+    clearTimeout(timer);
+  }
+}

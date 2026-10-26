@@ -21,12 +21,26 @@
 //   • Квота consume_ai_quota('tryon') — тек провайдерді шақыру алдында;
 //     refund_ai_quota (тек service_role) — тек провайдер ақауында (5xx, output
 //     жоқ, кіріске қатысты емес қате). Кіріс қатесі мен таймаутта қайтарылмайды.
-//   • Secrets: FASHN_API_KEY (міндетті; жоқ болса 503 not_configured).
+//   • Secrets: FASHN_API_KEY немесе GEMINI_API_KEY (екеуі де жоқ → 503).
+//
+// Қозғалтқыш (0080): суперадмин app_settings.ai_provider = 'gemini' қойса —
+//   Gemini сурет моделі (gemini-2.5-flash-image, уақытша/арзан нұсқа);
+//   әйтпесе FASHN кілті бар болса — FASHN; болмаса Gemini.
+//   Gemini нәтижесі жабық 'tryon-results' bucket-ке жазылып, клиентке 1 сағаттық
+//   signed URL қайтады (жауап пішімі өзгермейді: {imageUrl, remaining}).
+//   Сол пайдаланушының 1 сағаттан ескі нәтижелері келесі шақыруда өшіріледі.
 //
 // Қателер: bad_request 400, not_eligible 400, no_auth/invalid_session 401,
 //   feature_disabled 403, not_found 404, ai_quota_exceeded 429, tryon_failed 502,
 //   tryon_timeout 504, not_configured 503.
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import {
+  fetchImage,
+  geminiGenerateImage,
+  hasGeminiKey,
+  providerSetting,
+  refreshProviderSetting,
+} from "../_shared/llm.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -187,8 +201,17 @@ Deno.serve(async (req) => {
     : allImages.find(isHttps);
   if (!garment) return json({ error: "not_eligible" }, 400);
 
-  // Кілт жоқ болса — квотаны жұмсамаймыз.
-  if (!FASHN_API_KEY) return json({ error: "not_configured" }, 503);
+  // Қозғалтқыш: суперадмин таңдауы → FASHN → Gemini. Кілт жоқ — квота жұмсалмайды.
+  await refreshProviderSetting();
+  const engine: "gemini" | "fashn" | null =
+    providerSetting() === "gemini" && hasGeminiKey()
+      ? "gemini"
+      : FASHN_API_KEY
+      ? "fashn"
+      : hasGeminiKey()
+      ? "gemini"
+      : null;
+  if (!engine) return json({ error: "not_configured" }, 503);
 
   // ── Квота: провайдерді шақыру алдында ──
   const { data: remaining, error: qErr } = await userClient.rpc(
@@ -214,6 +237,10 @@ Deno.serve(async (req) => {
       console.error("refund_failed", e);
     }
   };
+
+  if (engine === "gemini") {
+    return await geminiTryOn({ uid, person, garment, category, remaining, refund });
+  }
 
   const fashnHeaders = {
     "Content-Type": "application/json",
@@ -287,3 +314,84 @@ Deno.serve(async (req) => {
     return json({ error: "tryon_failed" }, 502);
   }
 });
+
+// ── Gemini арқылы киіп көру ────────────────────────────────────────────────
+const CATEGORY_TEXT: Record<string, string> = {
+  "tops": "the upper-body garment (top / jacket)",
+  "bottoms": "the lower-body garment (pants / skirt / shorts)",
+  "one-pieces": "the full outfit (dress / suit / jumpsuit)",
+  "auto": "the clothing item",
+};
+
+async function geminiTryOn(a: {
+  uid: string;
+  person: string; // data URI
+  garment: string; // https URL (ДБ-дан)
+  category: string;
+  remaining: unknown;
+  refund: () => Promise<void>;
+}): Promise<Response> {
+  const m = /^data:(image\/[a-z]+);base64,(.*)$/s.exec(a.person);
+  if (!m) return json({ error: "bad_request" }, 400);
+  const person = { mime: m[1] === "image/jpg" ? "image/jpeg" : m[1], data: m[2] };
+
+  let garment: { mime: string; data: string };
+  try {
+    garment = await fetchImage(a.garment);
+  } catch (e) {
+    console.error("garment_fetch", (e as Error)?.message);
+    await a.refund();
+    return json({ error: "tryon_failed" }, 502);
+  }
+
+  const what = CATEGORY_TEXT[a.category] ?? CATEGORY_TEXT.auto;
+  const prompt =
+    "Virtual try-on. Image 1 is a photo of a person. Image 2 is a product photo of " +
+    `${what}. Generate ONE photorealistic image of the SAME person from image 1 ` +
+    `wearing ${what} from image 2, replacing what they currently wear in that area. ` +
+    "Keep the person's face, identity, skin tone, hair, body shape, pose, framing and " +
+    "background exactly as in image 1. Reproduce the garment's color, fabric, pattern, " +
+    "logos and details exactly as in image 2, with a natural fit and realistic folds and " +
+    "lighting. Do not add text, watermarks or extra people. Output only the image.";
+
+  const res = await geminiGenerateImage(prompt, [person, garment]);
+  if (!res.ok) {
+    console.error("gemini_tryon", res.status, res.reason, res.message.slice(0, 300));
+    // Модерация (суреттің өзі) — квота қайтарылмайды; қалғаны провайдер ақауы.
+    if (res.reason !== "blocked") await a.refund();
+    // Тегін деңгейде сурет моделі жабық (limit: 0) — Google-да төлем қосылмаған.
+    if (res.status === 429 && /limit:\s*0/.test(res.message)) {
+      return json({ error: "not_configured" }, 503);
+    }
+    return json({ error: "tryon_failed" }, 502);
+  }
+
+  try {
+    const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
+    const bucket = admin.storage.from("tryon-results");
+    // Сол пайдаланушының 1 сағаттан ескі нәтижелерін тазалаймыз.
+    try {
+      const { data: old } = await bucket.list(a.uid, { limit: 100 });
+      const cutoff = Date.now() - 60 * 60_000;
+      const stale = (old ?? [])
+        .filter((o) => o.created_at && Date.parse(o.created_at) < cutoff)
+        .map((o) => `${a.uid}/${o.name}`);
+      if (stale.length) await bucket.remove(stale);
+    } catch (_) {
+      // тазалау сәтсіз — басты жұмысқа кедергі емес
+    }
+
+    const ext = res.mime.includes("jpeg") ? "jpg" : res.mime.includes("webp") ? "webp" : "png";
+    const path = `${a.uid}/${crypto.randomUUID()}.${ext}`;
+    const bin = Uint8Array.from(atob(res.data), (c) => c.charCodeAt(0));
+    const up = await bucket.upload(path, bin, { contentType: res.mime, upsert: false });
+    if (up.error) throw up.error;
+    const signed = await bucket.createSignedUrl(path, 60 * 60);
+    if (signed.error || !signed.data?.signedUrl) throw signed.error ?? new Error("sign_failed");
+    return json({ imageUrl: signed.data.signedUrl, remaining: a.remaining });
+  } catch (e) {
+    console.error("tryon_store", (e as Error)?.message);
+    await a.refund();
+    return json({ error: "tryon_failed" }, 502);
+  }
+}

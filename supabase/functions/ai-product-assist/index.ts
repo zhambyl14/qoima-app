@@ -29,6 +29,7 @@ import {
   aiConfigured,
   aiModel,
   makeLlmClient,
+  refreshProviderSetting,
   supportsServerFallback,
 } from "../_shared/llm.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
@@ -564,6 +565,7 @@ Deno.serve(async (req) => {
   }
 
   // Кілт жоқ болса квотаны тұтынбай-ақ қайтарамыз.
+  await refreshProviderSetting();
   if (!aiConfigured()) return json({ error: "not_configured" }, 503);
 
   // Квота — шақырушының атынан (RLS/auth.uid() сол адамдікі).

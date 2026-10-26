@@ -155,6 +155,11 @@ class _PlatformSettingsScreenState extends State<PlatformSettingsScreen> {
   Object? _error;
   bool _qaPublic = false;
   bool _qaSaving = false;
+
+  /// AI провайдері (0080): 'auto' | 'gemini' | 'anthropic'. Edge функциялар
+  /// app_settings.ai_provider-ді оқиды (≤60 с ішінде күшіне енеді).
+  String _aiProvider = 'auto';
+  bool _aiProviderSaving = false;
   final Map<String, TextEditingController> _limitCtrl = {};
   final Map<String, int> _limitSaved = {};
   final Set<String> _limitSaving = {};
@@ -187,6 +192,7 @@ class _PlatformSettingsScreenState extends State<PlatformSettingsScreen> {
       final rows =
           await _sb.from('app_settings').select('key,value').inFilter('key', [
         'qa_public',
+        'ai_provider',
         ..._limitInfos.map((e) => e.key),
         ...FeatureFlags.all.map((n) => 'feature_$n'),
       ]);
@@ -197,6 +203,8 @@ class _PlatformSettingsScreenState extends State<PlatformSettingsScreen> {
       if (!mounted) return;
       setState(() {
         _qaPublic = m['qa_public'] == 'true';
+        final ap = m['ai_provider'] ?? 'auto';
+        _aiProvider = (ap == 'gemini' || ap == 'anthropic') ? ap : 'auto';
         // Кілт жоқ — сервер (feature_enabled) оны өшік деп есептейді.
         for (final n in FeatureFlags.all) {
           _flagDb[n] = m['feature_$n'] == 'true';
@@ -341,6 +349,8 @@ class _PlatformSettingsScreenState extends State<PlatformSettingsScreen> {
                       children: [
                         _featuresSection(),
                         const SizedBox(height: 22),
+                        _aiProviderSection(),
+                        const SizedBox(height: 22),
                         _qaSection(),
                         const SizedBox(height: 22),
                         _limitsSection(),
@@ -351,6 +361,104 @@ class _PlatformSettingsScreenState extends State<PlatformSettingsScreen> {
         ),
       ]),
     );
+  }
+
+  // ── AI провайдері ──────────────────────────────────────────────────────────
+
+  Future<void> _setAiProvider(String v) async {
+    if (_aiProviderSaving || v == _aiProvider) return;
+    HapticFeedback.selectionClick();
+    final prev = _aiProvider;
+    setState(() {
+      _aiProvider = v;
+      _aiProviderSaving = true;
+    });
+    try {
+      await _upsert('ai_provider', v);
+      _snack(
+          tr('Сохранено — применится в течение минуты',
+              'Сақталды — бір минут ішінде күшіне енеді'),
+          cGreen);
+    } catch (e) {
+      if (mounted) setState(() => _aiProvider = prev);
+      _snack(friendlyError(e), cRed);
+    } finally {
+      if (mounted) setState(() => _aiProviderSaving = false);
+    }
+  }
+
+  Widget _aiProviderSection() {
+    Widget opt(String value, String titleRu, String titleKk, String subRu,
+        String subKk, IconData icon) {
+      final sel = _aiProvider == value;
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(kR16),
+          onTap: _aiProviderSaving ? null : () => _setAiProvider(value),
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: sel ? cGreenTint : cSurface,
+              borderRadius: BorderRadius.circular(kR16),
+              border:
+                  Border.all(color: sel ? cGreen : cLine, width: sel ? 1.6 : 1),
+            ),
+            child: Row(children: [
+              Icon(icon, color: sel ? cGreen : cInk3, size: 22),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(tr(titleRu, titleKk),
+                        style: manrope(14, FontWeight.w800, color: cInk)),
+                    const SizedBox(height: 2),
+                    Text(tr(subRu, subKk),
+                        style: manrope(12, FontWeight.w500,
+                            color: cInk2, height: 1.35)),
+                  ],
+                ),
+              ),
+              if (sel)
+                const Icon(Icons.check_circle_rounded, color: cGreen, size: 22),
+            ]),
+          ),
+        ),
+      );
+    }
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      QSecLabel(tr('AI-провайдер', 'AI провайдері')),
+      Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Text(
+            tr('Через какой ИИ работают помощник, стилист, описание товара и примерка. Ключи хранятся в Supabase Secrets.',
+                'Көмекші, стилист, тауар сипаттамасы және киіп көру қай AI арқылы жұмыс істейді. Кілттер Supabase Secrets-те.'),
+            style: manrope(12.5, FontWeight.w500, color: cInk2, height: 1.4)),
+      ),
+      opt(
+          'gemini',
+          'Gemini (Google)',
+          'Gemini (Google)',
+          'Ключ GEMINI_API_KEY. Текст — бесплатный лимит; примерка (генерация фото) — только при включённой оплате в Google.',
+          'GEMINI_API_KEY кілті. Мәтін — тегін лимит; киіп көру (сурет генерациясы) — тек Google-да төлем қосылғанда.',
+          Icons.auto_awesome_rounded),
+      opt(
+          'anthropic',
+          'Claude (Anthropic)',
+          'Claude (Anthropic)',
+          'Ключ ANTHROPIC_API_KEY. Если ключ не работает — автоматически Gemini. Примерка — через FASHN.',
+          'ANTHROPIC_API_KEY кілті. Кілт жұмыс істемесе — автоматты Gemini. Киіп көру — FASHN арқылы.',
+          Icons.psychology_alt_rounded),
+      opt(
+          'auto',
+          'Автоматически',
+          'Автоматты',
+          'Claude, если есть ключ, иначе Gemini.',
+          'Кілті болса Claude, әйтпесе Gemini.',
+          Icons.tune_rounded),
+    ]);
   }
 
   // ── 1. Функциялар ──────────────────────────────────────────────────────────
