@@ -301,7 +301,7 @@ class _SaleCard extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
-            color: _typeColor(o.orderType).withValues(alpha: 0.07),
+            color: _typeColor(o).withValues(alpha: 0.07),
             borderRadius:
                 const BorderRadius.vertical(top: Radius.circular(16)),
           ),
@@ -343,12 +343,12 @@ class _SaleCard extends StatelessWidget {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                     decoration: BoxDecoration(
-                      color: _typeColor(o.orderType).withValues(alpha: 0.12),
+                      color: _typeColor(o).withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(5),
                     ),
-                    child: Text(_typeLabel(o.orderType),
+                    child: Text(_typeLabel(o),
                         style: TextStyle(
-                            color: _typeColor(o.orderType),
+                            color: _typeColor(o),
                             fontSize: 9.5,
                             fontWeight: FontWeight.w800)),
                   ),
@@ -430,6 +430,20 @@ class _SaleCard extends StatelessWidget {
                         style: manrope(13, FontWeight.w800, color: cAmber)),
                   ]),
                 ],
+                // Чекте тауар + почта бірге тұрады: бұл жолсыз сан чекпен шықпайды.
+                if (o.kazpostFee > 0) ...[
+                  const SizedBox(height: 3),
+                  Row(children: [
+                    Expanded(
+                      child: Text(
+                          tr('Казпочта (в составе перевода)',
+                              'Казпочта (аударым ішінде)'),
+                          style: manrope(12.5, FontWeight.w500, color: cInk2)),
+                    ),
+                    Text(money(o.kazpostFee),
+                        style: manrope(13, FontWeight.w800, color: cAmber)),
+                  ]),
+                ],
                 if (o.isSmartReservation) ...[
                   const SizedBox(height: 3),
                   Row(children: [
@@ -489,8 +503,9 @@ class _SaleCard extends StatelessWidget {
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-Color _typeColor(String t) {
-  switch (t) {
+Color _typeColor(OrderModel o) {
+  if (o.isKazpost) return cPurple;
+  switch (o.orderType) {
     case OrderModel.typeSmartReservation:
       return const Color(0xFF3B82F6);
     case OrderModel.typeClickCollect:
@@ -502,8 +517,9 @@ Color _typeColor(String t) {
   }
 }
 
-String _typeLabel(String t) {
-  switch (t) {
+String _typeLabel(OrderModel o) {
+  if (o.isKazpost) return tr('КАЗПОЧТА', 'КАЗПОЧТА');
+  switch (o.orderType) {
     case OrderModel.typeSmartReservation:
       return tr('БРОНЬ', 'БРОНЬ');
     case OrderModel.typeClickCollect:
@@ -511,7 +527,7 @@ String _typeLabel(String t) {
     case OrderModel.typeDelivery:
       return tr('ДОСТАВКА', 'ЖЕТКІЗУ');
     default:
-      return t.toUpperCase();
+      return o.orderType.toUpperCase();
   }
 }
 

@@ -7,6 +7,7 @@ import '../../core/feature_flags.dart';
 import '../../core/lang.dart';
 import '../../theme/qoima_design.dart';
 import 'courier_change_requests_screen.dart';
+import 'kazpost_tariffs_screen.dart';
 import 'return_policy_stores_screen.dart';
 import 'support_inbox_screen.dart';
 
@@ -123,6 +124,24 @@ const _flagInfos = <_FlagInfo>[
     'Қайтарылмайтын тауар',
     'Магазины с вашего разрешения помечают товары, которые нельзя вернуть.',
     'Сіздің рұқсатыңызбен дүкендер қайтаруға болмайтын тауарларды белгілейді.',
+  ),
+  _FlagInfo(
+    FeatureFlags.kazpostDelivery,
+    Icons.local_post_office_outlined,
+    'blue',
+    'Доставка Казпочтой',
+    'Казпочтамен жеткізу',
+    'Покупатель из другого города получает товар почтой. Цены задаются ниже в разделе «Тарифы Казпочты».',
+    'Басқа қаладағы сатып алушы тауарды почтамен алады. Бағалар төмендегі «Казпочта тарифтері» бөлімінде қойылады.',
+  ),
+  _FlagInfo(
+    FeatureFlags.returnNotice,
+    Icons.fact_check_outlined,
+    'green',
+    'Условия возврата при получении',
+    'Алған кезде қайтару шарттары',
+    'Покупатель один раз видит условия магазина, когда заказ у него на руках.',
+    'Сатып алушы тапсырыс қолына тигенде дүкен шарттарын бір рет көреді.',
   ),
 ];
 
@@ -746,6 +765,34 @@ class _PlatformSettingsScreenState extends State<PlatformSettingsScreen> {
             'Курьер деректерін өзгерту сұраулары'),
         subtitle: tr('Имя, телефон, город', 'Аты, телефон, қала'),
         onTap: () => open(const CourierChangeRequestsScreen()),
+      ),
+      const SizedBox(height: 8),
+      // Жалауша өшік болса да көрінеді: тарифті қосар алдында толтырады.
+      QMenuItem(
+        icon: Icons.local_post_office_outlined,
+        tone: 'purple',
+        title: tr('Тарифы Казпочты', 'Казпочта тарифтері'),
+        subtitle: tr('Цены по направлениям и включение доставки',
+            'Бағыт бағалары және жеткізуді қосу'),
+        onTap: () async {
+          await Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => const KazpostTariffsScreen()));
+          // Сол жалауша ол экранда да ауыстырылады: _flagDb ескірмесін.
+          try {
+            final row = await _sb
+                .from('app_settings')
+                .select('value')
+                .eq('key', 'feature_${FeatureFlags.kazpostDelivery}')
+                .maybeSingle();
+            if (!mounted) return;
+            setState(() => _flagDb[FeatureFlags.kazpostDelivery] =
+                row?['value']?.toString() == 'true');
+          } catch (_) {
+            // Желі жоқ: қосқыш келесі ашқанда жаңарады.
+          }
+        },
       ),
     ]);
   }

@@ -23,6 +23,8 @@ class FeatureFlags extends ChangeNotifier {
   static const giftLinks = 'gift_links';
   static const supportChat = 'support_chat';
   static const nonReturnable = 'non_returnable';
+  static const kazpostDelivery = 'kazpost_delivery';
+  static const returnNotice = 'return_notice';
 
   /// Суперадмин бетіндегі реттілік.
   static const all = [
@@ -35,6 +37,8 @@ class FeatureFlags extends ChangeNotifier {
     giftLinks,
     supportChat,
     nonReturnable,
+    kazpostDelivery,
+    returnNotice,
   ];
 
   static const _ttl = Duration(minutes: 5);

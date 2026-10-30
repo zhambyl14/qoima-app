@@ -1,4 +1,5 @@
 import 'cart_item_model.dart';
+import 'return_policy.dart';
 
 /// Курьермен қоймаға қайтып келе жатқан позиция («өлшеп көру» кезінде клиент
 /// таңдамаған өлшем). [fromHold] — ол броньда тұр ма (қосалқы өлшем) әлде
@@ -59,6 +60,24 @@ class OrderModel {
   /// Жеткізу ақысы — КУРЬЕРДІКІ. Клиент оны тапсырысты алған сәтте курьерге
   /// ТІКЕЛЕЙ төлейді, дүкеннің кассасына мүлде тимейді (0053).
   final double deliveryFee;
+
+  // ── Казпочта (0081) ─────────────────────────────────────────────────────────
+  // Бөлек баған: delivery_fee «курьерге» деп көрсетіледі және курьер есебіне
+  // кіреді, ал бұл ақыны дүкен почтаға өзі төлейді. deposit_amount-қа КІРЕДІ
+  // (бір аударым), бірақ sales_history-ге кірмейді — транзит ақша, кіріс емес.
+  final double kazpostFee;
+  final String postRecipientName;
+  final String postRecipientPhone;
+  final String postIndex;
+  final String postTracking;
+  final String postStatus; // '' | shipped | delivered
+  final DateTime? postShippedAt;
+  final DateTime? postDeliveredAt;
+
+  // ── Қайтару шарттарының снапшоты (0082) ─────────────────────────────────────
+  // Сату сәтінде сервер жазады. null — ескі тапсырыс, сыйлық немесе жалауша өшік.
+  final ReturnPolicy? returnPolicy;
+  final DateTime? returnNoticeAckAt;
   /// «Өлшеп көру» ақысы (0050) — ДҮКЕННІҢ қызмет кірісі: екінші жұп оның
   /// қоймасынан шығады, тәуекел де соныкі. Дүкенге аударылады.
   final double fittingFee;
@@ -174,6 +193,12 @@ class OrderModel {
 
   static const String deliveryByCourier = 'courier';
   static const String deliveryByStore = 'store';
+  static const String deliveryByKazpost = 'kazpost';
+  static const String postShipped = 'shipped';
+  static const String postDelivered = 'delivered';
+
+  /// Дүкен «тапсырылды» деп жаба алатын ең ерте мерзім (0081 kazpost_complete_order).
+  static const Duration postStoreCloseAfter = Duration(days: 7);
 
   const OrderModel({
     required this.id,
@@ -194,6 +219,16 @@ class OrderModel {
     this.note = '',
     this.depositAmount = 0.0,
     this.deliveryFee = 0.0,
+    this.kazpostFee = 0.0,
+    this.postRecipientName = '',
+    this.postRecipientPhone = '',
+    this.postIndex = '',
+    this.postTracking = '',
+    this.postStatus = '',
+    this.postShippedAt,
+    this.postDeliveredAt,
+    this.returnPolicy,
+    this.returnNoticeAckAt,
     this.fittingFee = 0.0,
     this.deliveryFeeCollected = false,
     this.deliveryFeeCollectedAt,
@@ -327,7 +362,12 @@ class OrderModel {
   double get courierAmount => deliveryFee;
 
   /// Клиенттің жалпы шығыны — тек КӨРСЕТУ үшін (екі төлемнің қосындысы).
-  double get clientTotal => storeAmount + courierAmount;
+  double get clientTotal => storeAmount + courierAmount + kazpostFee;
+
+  /// Клиент дүкенге аударатын сома: тауар + (бар болса) Казпочта.
+  double get transferAmount => isSmartReservation
+      ? depositAmount
+      : storeAmount + kazpostFee;
 
   /// Дүкенде қалатын доплата (тек бронь үшін мағыналы).
   double get remainingAmount =>
@@ -344,8 +384,21 @@ class OrderModel {
 
   /// Тапсырысты платформа курьері жеткізе ме (қалада қызмет қосулы ма).
   /// false болса — дүкен өзі жеткізеді/жөнелтеді (0055).
-  bool get byPlatformCourier => isDelivery && deliveryMode != deliveryByStore;
+  bool get byPlatformCourier =>
+      isDelivery &&
+      deliveryMode != deliveryByStore &&
+      deliveryMode != deliveryByKazpost;
   bool get storeDeliversItself => isDelivery && deliveryMode == deliveryByStore;
+  bool get isKazpost => isDelivery && deliveryMode == deliveryByKazpost;
+
+  /// Посылка почтада, жолда.
+  bool get postInTransit => isKazpost && postStatus == postShipped;
+
+  /// Дүкен «тапсырылды» деп жаба ала ма (жібергеніне 7 күн өтті ме).
+  bool get storeCanClosePost =>
+      postInTransit &&
+      postShippedAt != null &&
+      DateTime.now().difference(postShippedAt!) >= postStoreCloseAfter;
 
   bool get hasCourier => courierUid.isNotEmpty;
   bool get courierOnWay => courierStatus == courierPickedUp;
@@ -365,8 +418,8 @@ class OrderModel {
 
   /// Мерзім қашан бітеді. [completedAt] жоқ ескі жазбаларда ғана [createdAt]
   /// қолданылады (0045-ке дейін аяқталған тапсырыстар).
-  DateTime get returnDeadline =>
-      (completedAt ?? createdAt).add(returnWindow);
+  DateTime get returnDeadline => (completedAt ?? createdAt).add(
+      returnPolicy == null ? returnWindow : Duration(days: returnPolicy!.days));
 
   /// Осы тапсырысты қайтаруға принципті түрде бола ма (алынған + мерзімінде).
   /// Нақты батырманың көрінуі бұған ҚОСА «бұл тапсырыс бойынша қайтару бар ма»
@@ -381,7 +434,7 @@ class OrderModel {
   }
 
   bool get isAwaitingReview => status == statusPending && receiptUrl.isNotEmpty;
-  bool get canHandOver => status == statusConfirmed;
+  bool get canHandOver => status == statusConfirmed && !isKazpost;
   bool get isFullPrepay => orderType != typeSmartReservation;
   bool get isExpired =>
       deadlineAt != null && DateTime.now().isAfter(deadlineAt!);
@@ -417,6 +470,16 @@ class OrderModel {
       note: m['note'] as String? ?? '',
       depositAmount: (m['deposit_amount'] as num?)?.toDouble() ?? 0,
       deliveryFee: (m['delivery_fee'] as num?)?.toDouble() ?? 0,
+      kazpostFee: (m['kazpost_fee'] as num?)?.toDouble() ?? 0,
+      postRecipientName: m['post_recipient_name'] as String? ?? '',
+      postRecipientPhone: m['post_recipient_phone'] as String? ?? '',
+      postIndex: m['post_index'] as String? ?? '',
+      postTracking: m['post_tracking'] as String? ?? '',
+      postStatus: m['post_status'] as String? ?? '',
+      postShippedAt: dtn(m['post_shipped_at']),
+      postDeliveredAt: dtn(m['post_delivered_at']),
+      returnPolicy: ReturnPolicy.fromSnapshot(m['return_policy']),
+      returnNoticeAckAt: dtn(m['return_notice_ack_at']),
       fittingFee: (m['fitting_fee'] as num?)?.toDouble() ?? 0,
       deliveryFeeCollected: m['delivery_fee_collected'] as bool? ?? false,
       deliveryFeeCollectedAt: dtn(m['delivery_fee_collected_at']),
@@ -498,6 +561,14 @@ class OrderModel {
         'delivery_fee': deliveryFee,
         'fitting_fee': fittingFee,
         'delivery_mode': deliveryMode,
+        // Тек Казпочтада: қалған кезде бағандар әдепкі мәнде қалады.
+        // post_tracking/post_status/return_policy ӘДЕЙІ ЖОҚ — оларды сервер жазады.
+        if (deliveryMode == deliveryByKazpost) ...{
+          'kazpost_fee': kazpostFee,
+          'post_recipient_name': postRecipientName,
+          'post_recipient_phone': postRecipientPhone,
+          'post_index': postIndex,
+        },
         'pickup_code': pickupCode,
         'order_number': orderNumber,
         'seller_id': sellerId,
@@ -542,6 +613,16 @@ class OrderModel {
     String? note,
     double? depositAmount,
     double? deliveryFee,
+    double? kazpostFee,
+    String? postRecipientName,
+    String? postRecipientPhone,
+    String? postIndex,
+    String? postTracking,
+    String? postStatus,
+    DateTime? postShippedAt,
+    DateTime? postDeliveredAt,
+    ReturnPolicy? returnPolicy,
+    DateTime? returnNoticeAckAt,
     double? fittingFee,
     bool? deliveryFeeCollected,
     DateTime? deliveryFeeCollectedAt,
@@ -615,6 +696,16 @@ class OrderModel {
         note: note ?? this.note,
         depositAmount: depositAmount ?? this.depositAmount,
         deliveryFee: deliveryFee ?? this.deliveryFee,
+        kazpostFee: kazpostFee ?? this.kazpostFee,
+        postRecipientName: postRecipientName ?? this.postRecipientName,
+        postRecipientPhone: postRecipientPhone ?? this.postRecipientPhone,
+        postIndex: postIndex ?? this.postIndex,
+        postTracking: postTracking ?? this.postTracking,
+        postStatus: postStatus ?? this.postStatus,
+        postShippedAt: postShippedAt ?? this.postShippedAt,
+        postDeliveredAt: postDeliveredAt ?? this.postDeliveredAt,
+        returnPolicy: returnPolicy ?? this.returnPolicy,
+        returnNoticeAckAt: returnNoticeAckAt ?? this.returnNoticeAckAt,
         fittingFee: fittingFee ?? this.fittingFee,
         deliveryFeeCollected: deliveryFeeCollected ?? this.deliveryFeeCollected,
         deliveryFeeCollectedAt:

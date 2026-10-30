@@ -29,6 +29,8 @@ class CourierInfoBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!order.isDelivery) return const SizedBox.shrink();
+    // Казпочтада курьер ЕШҚАШАН келмейді: «Ищем курьера» жалған үміт болар еді.
+    if (order.isKazpost) return const SizedBox.shrink();
 
     final blocks = <Widget>[];
 

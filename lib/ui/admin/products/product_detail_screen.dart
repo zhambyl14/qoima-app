@@ -14,9 +14,9 @@ import '../../../data/services/cloudinary_service.dart';
 import '../../../theme/qoima_design.dart';
 import '../../shared/color_picker_sheet.dart';
 import '../../shared/prompt_text_dialog.dart';
-import '../../widgets/image_crop_screen.dart';
+import '../../widgets/multi_shot_camera_screen.dart';
 import '../../../core/color_naming.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:image_picker/image_picker.dart' show ImageSource;
 import 'ai/ai_description_assist.dart';
 import 'ai/non_returnable_fields.dart';
 
@@ -1874,11 +1874,9 @@ class _PhotoManagerSheet extends StatefulWidget {
 
 class _PhotoManagerSheetState extends State<_PhotoManagerSheet> {
   static const int _maxImages = 4;
-  static const int _cropSize = 1080;
 
   final _service = FirestoreService();
   final _cloud = CloudinaryService();
-  final _picker = ImagePicker();
 
   late List<String> _imgs = List.of(widget.initial);
   bool _busy = false;
@@ -1951,43 +1949,31 @@ class _PhotoManagerSheetState extends State<_PhotoManagerSheet> {
       return;
     }
     final remaining = _maxImages - _imgs.length;
-    List<XFile> picked;
-    if (source == ImageSource.camera) {
-      final shot =
-          await _picker.pickImage(source: ImageSource.camera, imageQuality: 90);
-      picked = shot == null ? <XFile>[] : [shot];
-    } else {
-      picked = await _picker.pickMultiImage(imageQuality: 90);
-    }
-    if (picked.isEmpty) return;
-    final toAdd = picked.take(remaining).toList();
 
-    // Әр суретке қолмен кадрлау экраны (жылжыту/масштабтау, 1:1).
-    final bytesList = <Uint8List>[];
-    for (var i = 0; i < toAdd.length; i++) {
-      final raw = await toAdd[i].readAsBytes();
-      if (!mounted) return;
-      final cropped = await Navigator.push<Uint8List>(
-        context,
-        MaterialPageRoute(
-          builder: (_) => ImageCropScreen(
-            raw: raw,
-            outputSize: _cropSize,
-            title: toAdd.length > 1 ? tr('Фото ${i + 1} из ${toAdd.length}', 'Фото ${i + 1} / ${toAdd.length}') : null,
-          ),
-        ),
-      );
-      if (cropped != null) bytesList.add(cropped);
-    }
-    if (bytesList.isEmpty || !mounted) return;
-
+    // Камера да, галерея да ортасынан 1:1 өздігінен кеседі (кадрлау экранынсыз).
+    final pick = source == ImageSource.camera
+        ? MultiShotCameraScreen.captureWithOriginals(context,
+            maxShots: remaining)
+        : pickGalleryPhotos(maxShots: remaining);
     setState(() => _busy = true);
     try {
-      final urls = await _cloud.uploadBytesList(bytesList);
-      setState(() => _imgs = [..._imgs, ...urls]);
-      await _persist();
-      if (picked.length > remaining) {
+      final batch = await pick;
+      if (batch.photos.isNotEmpty) {
+        final urls = await _cloud
+            .uploadBytesList([for (final p in batch.photos) p.cropped]);
+        // Парақша жабылып кетсе де сурет тауарға жазылуы керек: жүктелді.
+        final next = [..._imgs, ...urls];
+        if (mounted) {
+          setState(() => _imgs = next);
+        } else {
+          _imgs = next;
+        }
+        await _persist();
+      }
+      if (batch.overLimit > 0) {
         _snack(tr('Добавлено $remaining — лимит $_maxImages фото', 'Қосылды $remaining — лимит $_maxImages фото'));
+      } else if (batch.failed > 0) {
+        _snack(tr('Не удалось обработать фото: ${batch.failed}', 'Өңделмеген фото: ${batch.failed}'), error: true);
       }
     } catch (e) {
       _snack(tr('Ошибка загрузки: $e', 'Жүктеу қатесі: $e'), error: true);
@@ -2108,4 +2094,3 @@ class _PhotoManagerSheetState extends State<_PhotoManagerSheet> {
   }
 }
 
-// (Ескі авто-центр кесу ImageCropScreen-ге көшті — қолданушы кадрды өзі таңдайды.)

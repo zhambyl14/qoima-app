@@ -3,6 +3,7 @@ import '../../../core/l10n_ext.dart';
 import '../../../data/models/return_model.dart';
 import '../../../data/services/return_service.dart';
 import '../../../theme/qoima_design.dart';
+import '../../shared/post_tracking_row.dart';
 import 'seller_return_receive_screen.dart';
 
 import '../../../core/lang.dart';
@@ -206,7 +207,15 @@ class _ReviewBodyState extends State<_ReviewBody> {
                     if (r.clientPhone.isNotEmpty)
                       _Row('Телефон', r.clientPhone),
                     _Row(tr('Тип', 'Түрі'), r.type.label(context)),
-                    _Row(tr('Доставка', 'Жеткізу'), r.pickup.label(context)),
+                    // pickup.label — клиенттің сөзі («Отправлю»); сатушыға
+                    // үшінші жақпен жазамыз.
+                    _Row(
+                        tr('Доставка', 'Жеткізу'),
+                        r.byPost
+                            ? tr('Отправит Казпочтой', 'Казпочтамен жібереді')
+                            : r.pickup.label(context)),
+                    if (r.byPost && r.postTracking.isNotEmpty)
+                      PostTrackingRow(r.postTracking),
                     _Row(tr('Возврат средств', 'Ақшаны қайтару'), r.refundMethod.label(context)),
                   ],
                 ),

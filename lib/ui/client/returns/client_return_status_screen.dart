@@ -3,6 +3,7 @@ import '../../../core/l10n_ext.dart';
 import '../../../data/models/return_model.dart';
 import '../../../data/services/return_service.dart';
 import '../../../theme/qoima_design.dart';
+import '../../shared/post_tracking_row.dart';
 
 import '../../../core/lang.dart';
 import '../../../core/error_text.dart';
@@ -191,6 +192,7 @@ class _StatusBodyState extends State<_StatusBody> {
                     _Row(tr('Тип', 'Түрі'), r.type.label(context)),
                     _Row(context.l10n.returnPickupLabel,
                         r.pickup.label(context)),
+                    if (r.byPost) _PostTrackingEditor(ret: r),
                     _Row(context.l10n.returnRefundMethodLabel,
                         r.refundMethod.label(context)),
                     // «Заказ ID» (UUID) көрсетілмейді: клиент үшін ол мағынасыз
@@ -355,6 +357,87 @@ class _StatusBodyState extends State<_StatusBody> {
 }
 
 // ── Timeline ──────────────────────────────────────────────────────────────────
+/// Почтамен қайтарым: трек дүкен мақұлдаған соң, посылка жіберілгенде ғана
+/// белгілі болады, сондықтан өтініштен кейін де жазылады және түзетіледі.
+class _PostTrackingEditor extends StatefulWidget {
+  final ReturnModel ret;
+  const _PostTrackingEditor({required this.ret});
+
+  @override
+  State<_PostTrackingEditor> createState() => _PostTrackingEditorState();
+}
+
+class _PostTrackingEditorState extends State<_PostTrackingEditor> {
+  bool _saving = false;
+
+  bool get _editable =>
+      widget.ret.status == ReturnStatus.requested ||
+      widget.ret.status == ReturnStatus.approved;
+
+  Future<void> _edit() async {
+    final ctrl = TextEditingController(text: widget.ret.postTracking);
+    final value = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(tr('Трек-номер Казпочты', 'Казпочта трек-нөмірі'),
+            style: manrope(17, FontWeight.w700, color: cInk)),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          textCapitalization: TextCapitalization.characters,
+          style: manrope(15, FontWeight.w600),
+          decoration: const InputDecoration(hintText: 'RR123456789KZ'),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(context.l10n.cancel,
+                  style: manrope(14, FontWeight.w600, color: cInk2))),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, ctrl.text),
+              child: Text(tr('Сохранить', 'Сақтау'),
+                  style: manrope(14, FontWeight.w700, color: cGreen))),
+        ],
+      ),
+    );
+    ctrl.dispose();
+    if (value == null || !mounted) return;
+    setState(() => _saving = true);
+    try {
+      await ReturnService().setPostTracking(widget.ret.id, value);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(friendlyError(e)),
+          backgroundColor: cRed,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final track = widget.ret.postTracking;
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      if (track.isNotEmpty) PostTrackingRow(track),
+      if (_editable)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: QSoftButton(
+            label: track.isEmpty
+                ? tr('Указать трек-номер', 'Трек-нөмірді көрсету')
+                : tr('Изменить трек-номер', 'Трек-нөмірді өзгерту'),
+            onPressed: _saving ? null : _edit,
+          ),
+        ),
+    ]);
+  }
+}
+
 class _Timeline extends StatelessWidget {
   final ReturnModel ret;
   const _Timeline({required this.ret});

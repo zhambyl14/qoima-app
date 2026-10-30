@@ -76,6 +76,7 @@ class ReturnService {
           photoUrls: input.photoUrls,
           pickup: input.pickup,
           pickupAddress: input.pickupAddress,
+          postTracking: input.postTracking,
           refundMethod: input.refundMethod,
           status: ReturnStatus.requested,
           createdAt: now,
@@ -117,6 +118,31 @@ class ReturnService {
   /// Иесі: дүкеннің жалпы қайтару ережесі (≤500, модерациясыз).
   Future<void> setStoreReturnNote(String note) =>
       _sb.rpc('set_store_return_note', params: {'p_note': note.trim()});
+
+  /// Дүкеннің толық қайтару шарттары (0082).
+  Future<void> setStoreReturnPolicy({
+    required String mode,
+    required int days,
+    required List<String> conditions,
+    required String note,
+  }) =>
+      _sb.rpc('set_store_return_policy', params: {
+        'p_mode': mode,
+        'p_days': days,
+        'p_conditions': conditions,
+        'p_note': note.trim(),
+      });
+
+  /// Клиент посылканы жіберген соң трегін жазады (0081).
+  Future<void> setPostTracking(String returnId, String tracking) =>
+      _sb.rpc('return_set_post_tracking', params: {
+        'p_return': returnId,
+        'p_tracking': tracking,
+      });
+
+  /// Клиент «түсінікті» деді: хабарлама бұл тапсырысқа қайта шықпайды (0082).
+  Future<void> ackReturnNotice(String orderId) =>
+      _sb.rpc('ack_return_notice', params: {'p_order': orderId});
 
   /// Клиенттің барлық дүкендердегі қайтарулары (returns.client_uid тікелей).
   Stream<List<ReturnModel>> watchClientReturns(String clientUid) => _sb

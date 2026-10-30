@@ -253,6 +253,9 @@ class _PaymentInstructionsSheetState extends State<_PaymentInstructionsSheet> {
   bool get _hasActionableGroup => _groups.any(
       (g) => !_done.contains(g.id) && orderedBankQrs(g.bankQrs).isNotEmpty);
 
+  double _postageOf(List<OrderModel> orders) =>
+      orders.fold<double>(0, (s, o) => s + o.kazpostFee);
+
   @override
   Widget build(BuildContext context) {
     final multi = _groups.length > 1;
@@ -339,6 +342,35 @@ class _PaymentInstructionsSheetState extends State<_PaymentInstructionsSheet> {
             ),
           );
         }),
+        // Казпочта, курьер ақысынан айырмасы, ОСЫ аударымның ішінде. Көп аударымда
+        // сан әр дүкеннің өз блогында: қосылған сан бір аударым сияқты көрінер еді.
+        Builder(builder: (_) {
+          final postage = _postageOf(widget.orders);
+          if (_loading || multi || postage <= 0) return const SizedBox.shrink();
+          return Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: cBg,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.markunread_mailbox_outlined,
+                    color: cGreenDeep, size: 18),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    tr('В том числе Казпочта ${money(postage)} — входит в этот перевод.',
+                        'Оның ішінде Казпочта ${money(postage)} — осы аударымға кіреді.'),
+                    style: manrope(12, FontWeight.w700, color: cInk2),
+                  ),
+                ),
+              ]),
+            ),
+          );
+        }),
         const SizedBox(height: 16),
         if (_loading)
           const Padding(
@@ -406,6 +438,14 @@ class _PaymentInstructionsSheetState extends State<_PaymentInstructionsSheet> {
             Text(money(g.amount),
                 style: manrope(18, FontWeight.w800, color: cGreen)),
           ]),
+          if (_postageOf(g.orders) > 0) ...[
+            const SizedBox(height: 4),
+            Text(
+              tr('В том числе Казпочта ${money(_postageOf(g.orders))} — входит в этот перевод',
+                  'Оның ішінде Казпочта ${money(_postageOf(g.orders))} — осы аударымға кіреді'),
+              style: manrope(11.5, FontWeight.w600, color: cInk2),
+            ),
+          ],
           const SizedBox(height: 10),
         ],
         if (qrs.isEmpty)

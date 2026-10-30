@@ -82,6 +82,49 @@ class OrderTimeline extends StatelessWidget {
       return steps;
     }
 
+    // ── Басқа қала: Казпочта (0081) ─────────────────────────────────────────
+    //  Курьер де, «дүкен байланысады» да жоқ: клиент тректі күтеді де, сәлемдемені
+    //  почтадан өзі алады.
+    if (o.isKazpost) {
+      final delivered = completed || o.postStatus == OrderModel.postDelivered;
+      final shipped = delivered || o.postStatus == OrderModel.postShipped;
+      steps.add(_Step(
+        icon: Icons.inventory_2_rounded,
+        title: tr('Магазин готовит посылку', 'Дүкен сәлемдемені дайындап жатыр'),
+        subtitle: paid
+            ? tr('Отправит и укажет трек-номер', 'Жіберіп, трек-нөмірін көрсетеді')
+            : tr('Отправит после подтверждения оплаты',
+                'Төлем расталған соң жібереді'),
+        done: shipped,
+      ));
+      steps.add(_Step(
+        icon: Icons.local_post_office_rounded,
+        title: tr('Отправлено Казпочтой', 'Казпочтамен жіберілді'),
+        subtitle: o.postTracking.isEmpty
+            ? null
+            : tr('Трек-номер: ${o.postTracking}',
+                'Трек-нөмір: ${o.postTracking}'),
+        done: shipped,
+        keepSubtitle: true,
+      ));
+      steps.add(_Step(
+        icon: Icons.check_circle_rounded,
+        title: tr('Посылка у вас', 'Сәлемдеме сізде'),
+        done: delivered,
+      ));
+      if (cancelled) {
+        steps.add(_Step(
+          icon: Icons.cancel_rounded,
+          title: tr('Заказ отменён', 'Тапсырыс болдырылмады'),
+          subtitle: o.rejectionReason.isEmpty ? null : o.rejectionReason,
+          done: true,
+          tone: 'red',
+          keepSubtitle: true,
+        ));
+      }
+      return steps;
+    }
+
     // ── Қалада курьерлік қызмет жоқ: дүкен өзі жеткізеді (0055) ────────────
     //  Курьер қадамдарын көрсету жалған үміт болар еді — ол ешқашан келмейді.
     if (o.storeDeliversItself) {

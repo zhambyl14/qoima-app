@@ -45,6 +45,13 @@ class StoreModel {
   // Дүкеннің жалпы қайтару ережесі (≤500) — иесі модерациясыз жазады
   // (set_store_return_note RPC). toMap-қа ӘДЕЙІ ЖОҚ — тек RPC арқылы.
   final String returnPolicyNote;
+  // Қайтару шарттары (0082) — тек set_store_return_policy RPC арқылы, toMap-қа
+  // ӘДЕЙІ ЖОҚ. 'none' тек allowNonReturnable болса (DB триггері бөгейді).
+  final String returnPolicyMode;
+  final int returnDays;
+  final List<String> returnConditions;
+  // Дүкен Казпочтамен жібере ме (0081). toMap-қа ӘДЕЙІ ЖОҚ.
+  final bool kazpostEnabled;
 
   bool get isBlocked => status == 'blocked';
   bool get referralEnabled => referralPercent > 0;
@@ -89,6 +96,10 @@ class StoreModel {
     this.referralPercent = 0,
     this.allowNonReturnable = false,
     this.returnPolicyNote = '',
+    this.returnPolicyMode = 'accept',
+    this.returnDays = 14,
+    this.returnConditions = const [],
+    this.kazpostEnabled = true,
   });
 
   static String generateSlug(String name) => name
@@ -138,6 +149,13 @@ class StoreModel {
       referralPercent: (m['referral_percent'] as num?)?.toInt() ?? 0,
       allowNonReturnable: m['allow_non_returnable'] as bool? ?? false,
       returnPolicyNote: m['return_policy_note'] as String? ?? '',
+      returnPolicyMode: m['return_policy_mode'] as String? ?? 'accept',
+      returnDays: (m['return_days'] as num?)?.toInt() ?? 14,
+      returnConditions: (m['return_conditions'] as List?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          const [],
+      kazpostEnabled: m['kazpost_enabled'] as bool? ?? true,
     );
   }
 
@@ -201,6 +219,10 @@ class StoreModel {
     int? referralPercent,
     bool? allowNonReturnable,
     String? returnPolicyNote,
+    String? returnPolicyMode,
+    int? returnDays,
+    List<String>? returnConditions,
+    bool? kazpostEnabled,
   }) =>
       StoreModel(
         adminUid: adminUid ?? this.adminUid,
@@ -235,5 +257,9 @@ class StoreModel {
         referralPercent: referralPercent ?? this.referralPercent,
         allowNonReturnable: allowNonReturnable ?? this.allowNonReturnable,
         returnPolicyNote: returnPolicyNote ?? this.returnPolicyNote,
+        returnPolicyMode: returnPolicyMode ?? this.returnPolicyMode,
+        returnDays: returnDays ?? this.returnDays,
+        returnConditions: returnConditions ?? this.returnConditions,
+        kazpostEnabled: kazpostEnabled ?? this.kazpostEnabled,
       );
 }

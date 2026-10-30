@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import '../../../core/error_text.dart';
 import '../../../core/feature_flags.dart';
 import '../../../core/warehouse_context.dart';
 import '../../../data/models/store_discount_model.dart';
@@ -9,6 +10,7 @@ import '../../../data/repositories/admin_questions_repository.dart';
 import '../../../data/repositories/admin_reviews_repository.dart';
 import '../../../data/repositories/my_store_repository.dart';
 import '../../../data/services/firestore_service.dart';
+import '../../../data/services/kazpost_service.dart';
 import '../../../theme/qoima_design.dart';
 import '../../live/live_host_entry.dart';
 import '../promos/promos_screen.dart';
@@ -357,12 +359,14 @@ class AdminMyStoreHubScreen extends StatelessWidget {
                               MaterialPageRoute(
                                   builder: (_) => const StoreDataScreen())),
                         ),
-                        // Қайтару ережесі — қайтарылмайтын тауар функциясы
-                        // қосулы болғанда
+                        // Қайтару шарттары — екі жалаушаның бірі қосулы болса
+                        // (set_store_return_policy да солай тексереді, 0082)
                         ListenableBuilder(
                           listenable: FeatureFlags.instance,
-                          builder: (_, __) => !FeatureFlags.instance
-                                  .isOn(FeatureFlags.nonReturnable)
+                          builder: (_, __) => !(FeatureFlags.instance
+                                      .isOn(FeatureFlags.returnNotice) ||
+                                  FeatureFlags.instance
+                                      .isOn(FeatureFlags.nonReturnable))
                               ? const SizedBox.shrink()
                               : Padding(
                                   padding: const EdgeInsets.only(top: 10),
@@ -372,14 +376,26 @@ class AdminMyStoreHubScreen extends StatelessWidget {
                                     title: tr(
                                         'Правила возврата', 'Қайтару ережесі'),
                                     subtitle: tr(
-                                        'Товары без возврата и правило магазина',
-                                        'Қайтарылмайтын тауар және дүкен ережесі'),
+                                        'Срок и условия для покупателей',
+                                        'Сатып алушыларға арналған мерзім мен шарттар'),
                                     onTap: () => Navigator.push(
                                         context,
                                         MaterialPageRoute(
                                             builder: (_) =>
                                                 const ReturnPolicySettingsScreen())),
                                   ),
+                                ),
+                        ),
+                        // Казпочта — суперадмин қосқанда ғана көрінеді
+                        ListenableBuilder(
+                          listenable: FeatureFlags.instance,
+                          builder: (_, __) => store == null ||
+                                  !FeatureFlags.instance
+                                      .isOn(FeatureFlags.kazpostDelivery)
+                              ? const SizedBox.shrink()
+                              : Padding(
+                                  padding: const EdgeInsets.only(top: 10),
+                                  child: _KazpostToggleRow(store: store),
                                 ),
                         ),
                         const SizedBox(height: 32),
@@ -439,6 +455,87 @@ class _HubStat extends StatelessWidget {
           ]),
         ),
       );
+}
+
+// ── Казпочта — optimistic, сервер қабылдамаса артқа қайтады ──────────────────
+class _KazpostToggleRow extends StatefulWidget {
+  final StoreModel store;
+  const _KazpostToggleRow({required this.store});
+
+  @override
+  State<_KazpostToggleRow> createState() => _KazpostToggleRowState();
+}
+
+class _KazpostToggleRowState extends State<_KazpostToggleRow> {
+  bool? _optimistic;
+  bool _saving = false;
+
+  @override
+  void didUpdateWidget(_KazpostToggleRow old) {
+    super.didUpdateWidget(old);
+    if (widget.store.kazpostEnabled != old.store.kazpostEnabled) {
+      _optimistic = null;
+    }
+  }
+
+  Future<void> _toggle(bool next) async {
+    if (_saving) return;
+    HapticFeedback.selectionClick();
+    setState(() {
+      _optimistic = next;
+      _saving = true;
+    });
+    try {
+      await KazpostService().setStoreEnabled(widget.store.adminUid, next);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _optimistic = null); // сәтсіз — артқа қайтарамыз
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(friendlyError(e)),
+        backgroundColor: cRed,
+        behavior: SnackBarBehavior.floating,
+      ));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return QCard(
+      padding: const EdgeInsets.fromLTRB(12, 12, 6, 12),
+      child: Row(children: [
+        const QIconTile(
+          tone: 'purple',
+          size: 40,
+          icon: Icon(Icons.local_post_office_outlined,
+              size: 20, color: cPurpleInk),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(tr('Отправка Казпочтой', 'Казпочтамен жөнелту'),
+                  style: manrope(14.5, FontWeight.w800, color: cInk)),
+              const SizedBox(height: 2),
+              Text(
+                  tr('Покупатели из других городов смогут оплатить доставку почтой.',
+                      'Басқа қаладағы сатып алушылар почтамен жеткізуді төлей алады.'),
+                  style: manrope(12.5, FontWeight.w500,
+                      color: cInk2, height: 1.35)),
+            ],
+          ),
+        ),
+        Switch.adaptive(
+          value: _optimistic ?? widget.store.kazpostEnabled,
+          activeThumbColor: Colors.white,
+          activeTrackColor: cGreen,
+          onChanged: _saving ? null : _toggle,
+        ),
+      ]),
+    );
+  }
 }
 
 // ── Online toggle — optimistic (realtime растауын күтпей бірден басады) ──────

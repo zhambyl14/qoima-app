@@ -2,9 +2,10 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:image_picker/image_picker.dart' show ImageSource;
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../../core/error_text.dart';
 import '../../../core/feature_flags.dart';
 import '../../../core/locale_context.dart';
 import '../../../core/warehouse_context.dart';
@@ -20,6 +21,8 @@ import '../../shared/h_scroll_chips.dart';
 import '../../shared/mandatory_warehouse_picker.dart';
 import '../../shared/prompt_text_dialog.dart';
 import '../../widgets/image_crop_screen.dart';
+import '../../widgets/multi_shot_camera_screen.dart';
+import 'add_product_helpers.dart';
 import 'ai/ai_description_assist.dart';
 import 'ai/ai_fill_card.dart';
 import 'ai/non_returnable_fields.dart';
@@ -36,7 +39,6 @@ class AddProductScreen extends StatefulWidget {
 class _AddProductScreenState extends State<AddProductScreen> {
   final _firestoreService = FirestoreService();
   final _cloudinaryService = CloudinaryService();
-  final _imagePicker = ImagePicker();
 
   final _nameCtrl = TextEditingController();
   final _brandCtrl = TextEditingController();
@@ -72,6 +74,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
   //  болғанша «✨ AI» белгісі тұрады, иесі өзгертсе белгі өздігінен кетеді.
   final _assist = ProductAssistService();
   final List<Uint8List> _aiPending = []; // түс таңдалғанға дейінгі фото
+  // Кесілген фото → түпнұсқа (identity). Қайта кадрлау кесілгеннен емес,
+  // түпнұсқадан басталуы керек: әйтпесе кесілген шет қайтып келмейді.
+  final Map<Uint8List, Uint8List> _photoOriginals = Map.identity();
+  bool _photoBusy = false; // галереядан таңдалғандар кесіліп жатыр
   final Map<String, String> _aiValues = {};
   String? _aiColorKey; // AI қосқан түс нұсқасының кілті
   bool _aiBusy = false;
@@ -90,6 +96,17 @@ class _AddProductScreenState extends State<AddProductScreen> {
 
   // Қадам 1-де «Далее» басылған соң бос міндетті өрістер қызылдана бастайды.
   bool _attempted0 = false;
+
+  // «Дополнительно» бөлімі. Мәні бар болса өздігінен ашылады (AI толтырса да);
+  // иесі өзі жапса, келесі AI толтыруына дейін жабық қалады.
+  bool _moreOpen = false;
+  bool _moreUserClosed = false;
+
+  // Соңғы таңдау (add_product_last_v1). `_memValues` — жадыдан алдын ала қойылған
+  // мәндер: иесі растамаған, сондықтан AI оларды бос өріс деп санайды, әйтпесе
+  // өткен категория фотодан анықталғанның орнында қалып қояр еді.
+  AddProductMemory _memory = const AddProductMemory();
+  final Map<String, String> _memValues = {};
 
   String? _type;
   String? _material;
@@ -144,7 +161,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
   static const int _maxImages = 4;
   static const int _cropSize = 1080; // тіркелген размер — админ өзгерте алмайды
   bool _isLoading = false;
-  int _step = 0; // 0=Товар, 1=Цены, 2=Размеры, 3=Фото
+  int _step = 0; // 0=Товар, 1=Цена и размеры, 2=Фото
+  static const int _lastStep = 2;
 
   static const Map<String, List<String>> _sizesByCat = {
     'Мужские': ['39', '40', '41', '42', '43', '44', '45', '46'],
@@ -190,6 +208,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
     _loadCustomPresets();
     _loadBrands();
     _loadAssistState();
+    _loadLastChoice();
     _nameCtrl.addListener(_scheduleSimilarSearch);
     _brandCtrl.addListener(_scheduleSimilarSearch);
   }
@@ -215,6 +234,52 @@ class _AddProductScreenState extends State<AddProductScreen> {
       );
       if (mounted) setState(() => _similar = found);
     } catch (_) {}
+  }
+
+  // ── Соңғы таңдау: категория/кімге/түр алдын ала таңдалады ───────────────
+  Future<void> _loadLastChoice() async {
+    final AddProductMemory mem;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      mem = AddProductMemory.parse(prefs.getString(AddProductMemory.prefKey));
+    } catch (_) {
+      return;
+    }
+    if (!mounted) return;
+    setState(() => _memory = mem);
+    // Жүктелгенше иесі өзі таңдап үлгерсе — тимейміз.
+    if (_categoryKey != null) return;
+    final choice = mem.validChoice();
+    final category = choice.category;
+    if (category == null) return;
+    _onCategoryKeyChanged(category);
+    _memValues['category'] = category;
+    final type = choice.type;
+    if (type != null) {
+      setState(() => _type = type);
+      _memValues['type'] = type;
+    }
+    final audience = choice.audience;
+    if (audience != null) {
+      _onTargetGroupChanged(audience);
+      _memValues['audience'] = audience;
+    }
+  }
+
+  void _rememberChoice() {
+    final category = _categoryKey;
+    if (category == null) return;
+    final mem = _memory.remember(
+      category: category,
+      audience: _targetGroup,
+      type: _type,
+      purchase: parsePriceInput(_purchaseCtrl.text),
+      selling: parsePriceInput(_sellingCtrl.text),
+    );
+    _memory = mem;
+    unawaited(SharedPreferences.getInstance()
+        .then((p) => p.setString(AddProductMemory.prefKey, mem.encode()))
+        .catchError((_) => false));
   }
 
   // Бренд ұсыныстары вид товарға (categoryKey) байланысты болады.
@@ -456,7 +521,11 @@ class _AddProductScreenState extends State<AddProductScreen> {
       final imgs = _variantImages[key];
       _selectedColors.remove(key);
       // Соңғы нұсқа кетсе, фото AI карточкасында қалады.
-      if (_selectedColors.isEmpty && imgs != null) _aiPending.addAll(imgs);
+      if (_selectedColors.isEmpty && imgs != null) {
+        _aiPending.addAll(imgs);
+      } else {
+        imgs?.forEach(_photoOriginals.remove);
+      }
       if (_aiColorKey == key) _aiColorKey = null;
       _variantColorOf.remove(key);
       _variantHexOf.remove(key);
@@ -530,198 +599,114 @@ class _AddProductScreenState extends State<AddProductScreen> {
   }
 
   // ── Фото ──────────────────────────────────────────────────────────────
-  // Кадрды (1:1, _cropSize) қолданушы ImageCropScreen-де өзі таңдайды:
-  // жылжытып/масштабтап шеттерін не төбесін кесе алады.
+  // Камера да, галерея да ортасынан 1:1 өздігінен кеседі: міндетті кадрлау
+  // экраны жоқ. Кадрды түзету керек болса, суретті басады (_recropPhoto).
 
   // Белсенді түс вариантының бос фото орындары.
   int get _remainingSlots => _maxImages - _activeImages.length;
 
+  /// Топтаманы тізімге қосады (лимит тағы тексеріледі). Қосылды ма — қайтарады.
+  bool _addPhotos(PhotoBatch batch, List<Uint8List>? list) {
+    if (list == null) return false; // күткенше нұсқа өшірілген
+    final room = _maxImages - list.length;
+    final take = batch.photos.take(room < 0 ? 0 : room).toList();
+    setState(() {
+      for (final p in take) {
+        list.add(p.cropped);
+        _photoOriginals[p.cropped] = p.original;
+      }
+    });
+    if (batch.overLimit + batch.photos.length > take.length) {
+      _err(tr('Добавлено только ${take.length} — лимит $_maxImages фото',
+          'Тек ${take.length} қосылды — лимит $_maxImages фото'));
+    } else if (batch.failed > 0) {
+      _err(tr('Не удалось обработать фото: ${batch.failed}',
+          'Өңделмеген фото: ${batch.failed}'));
+    }
+    return take.isNotEmpty;
+  }
+
+  Future<bool> _runPhotoPick(Future<PhotoBatch> Function() pick,
+      List<Uint8List>? Function() target) async {
+    if (_photoBusy) return false;
+    setState(() => _photoBusy = true);
+    var added = false;
+    try {
+      final batch = await pick();
+      if (mounted) added = _addPhotos(batch, target());
+    } catch (e) {
+      if (mounted) _err(friendlyError(e));
+    } finally {
+      if (mounted) setState(() => _photoBusy = false);
+    }
+    return added;
+  }
+
   Future<void> _pickFromGallery() async {
-    Navigator.pop(context);
-    if (_remainingSlots <= 0) {
-      _err(tr('Максимум $_maxImages фото', 'Ең көбі $_maxImages фото'));
-      return;
-    }
-    final picked = await _imagePicker.pickMultiImage(imageQuality: 90);
-    if (picked.isEmpty) return;
-    await _processPicked(picked);
+    final key = _activeColor;
+    if (key == null) return;
+    await _runPhotoPick(() => pickGalleryPhotos(maxShots: _remainingSlots),
+        () => _variantImages[key]);
   }
 
-  // Камерамен бірнеше сурет ретімен түсіру: әр түсірімнен кейін «Тағы фото /
-  // Готово» сұралады (ең көбі _maxImages-ке дейін). Кадрлау (crop) тек СОҢЫНДА,
-  // барлық түсірілген суреттер бойынша бірге жүреді (_processPicked ішінде).
   Future<void> _pickFromCamera() async {
-    Navigator.pop(context);
-    if (_remainingSlots <= 0) {
-      _err(tr('Максимум $_maxImages фото', 'Ең көбі $_maxImages фото'));
-      return;
-    }
-    final maxShots = _remainingSlots;
-    final shots = <XFile>[];
-    while (shots.length < maxShots) {
-      final shot = await _imagePicker.pickImage(
-          source: ImageSource.camera, imageQuality: 90);
-      if (shot == null) break; // камерадан бас тартты
-      shots.add(shot);
-      if (shots.length >= maxShots) break;
-      if (!mounted) return;
-      final again = await _confirmTakeAnother(shots.length, maxShots);
-      if (!again) break;
-    }
-    if (shots.isEmpty || !mounted) return;
-    await _processPicked(shots);
+    final key = _activeColor;
+    if (key == null) return;
+    final added = await _runPhotoPick(
+        () => MultiShotCameraScreen.captureWithOriginals(context,
+            maxShots: _remainingSlots),
+        () => _variantImages[key]);
+    if (added && mounted) _goToNextEmptyVariant(key);
   }
 
-  /// «Снято N из M. Сфотографировать ещё или обрезать снятые?» — true = тағы,
-  /// false = тоқтап, түсірілгендерді бірге кадрлауға өту.
-  Future<bool> _confirmTakeAnother(int taken, int max) async {
-    final result = await showModalBottomSheet<bool>(
-      context: context,
-      isDismissible: false,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (_) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Container(
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(2))),
-            const SizedBox(height: 16),
-            Icon(Icons.photo_camera_rounded, color: cGreen, size: 34),
-            const SizedBox(height: 10),
-            Text(tr('Снято $taken из $max', '$taken / $max түсірілді'),
-                style: manrope(16, FontWeight.w800, color: cInk)),
-            const SizedBox(height: 4),
-            Text(
-                tr('Сфотографировать ещё или обрезать снятые фото?',
-                    'Тағы түсіресіз бе, әлде түсірілгендерді кесеміз бе?'),
-                textAlign: TextAlign.center,
-                style: manrope(13, FontWeight.w500, color: cInk3)),
-            const SizedBox(height: 18),
-            Row(children: [
-              Expanded(
-                child: SizedBox(
-                  height: 48,
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.pop(context, true),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: cInk2,
-                      side: const BorderSide(color: cLine),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14)),
-                    ),
-                    child: Text(tr('Ещё фото', 'Тағы фото'),
-                        style: manrope(14, FontWeight.w700, color: cInk2)),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: SizedBox(
-                  height: 48,
-                  child: ElevatedButton.icon(
-                    onPressed: () => Navigator.pop(context, false),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: cGreen,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14)),
-                    ),
-                    icon: const Icon(Icons.check_rounded, size: 18),
-                    label: Text(tr('Готово', 'Дайын'),
-                        style:
-                            manrope(14, FontWeight.w700, color: Colors.white)),
-                  ),
-                ),
-              ),
-            ]),
-          ]),
-        ),
+  /// Түсіріп болған соң келесі фотосыз түске өзі ауысады: 3 түсті тауарда
+  /// иесі табтарды іздеп жүрмесін.
+  void _goToNextEmptyVariant(String from) {
+    final start = _selectedColors.indexOf(from);
+    if (start < 0) return;
+    for (var i = 1; i < _selectedColors.length; i++) {
+      final next = _selectedColors[(start + i) % _selectedColors.length];
+      if ((_variantImages[next] ?? const []).isNotEmpty) continue;
+      setState(() => _activeColor = next);
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(
+          content: Text(tr('Теперь фото для «${_variantLabel(next)}»',
+              'Енді «${_variantLabel(next)}» фотосы')),
+          backgroundColor: cGreen,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ));
+      return;
+    }
+  }
+
+  /// Суретті басқанда: кадрды қолмен түзету (түпнұсқадан).
+  Future<void> _recropPhoto(int i) async {
+    final list = _variantImages[_activeColor];
+    if (list == null || i >= list.length) return;
+    final current = list[i];
+    final source = _photoOriginals[current] ?? current;
+    final cropped = await Navigator.push<Uint8List>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ImageCropScreen(raw: source, outputSize: _cropSize),
       ),
     );
-    return result ?? false;
+    if (cropped == null || !mounted) return;
+    final at = list.indexOf(current);
+    if (at < 0) return;
+    setState(() {
+      list[at] = cropped;
+      _photoOriginals.remove(current);
+      _photoOriginals[cropped] = source;
+    });
   }
 
-  Future<void> _processPicked(List<XFile> picked) async {
-    // Тек бос орын санынша аламыз
-    final toAdd = picked.take(_remainingSlots).toList();
-    final overflow = picked.length > _remainingSlots;
-    for (var i = 0; i < toAdd.length; i++) {
-      final raw = await toAdd[i].readAsBytes();
-      if (!mounted) return;
-      // Қолмен кадрлау (1:1): бас тартылса — сол сурет өткізіледі.
-      final cropped = await Navigator.push<Uint8List>(
-        context,
-        MaterialPageRoute(
-          builder: (_) => ImageCropScreen(
-            raw: raw,
-            outputSize: _cropSize,
-            title: toAdd.length > 1
-                ? tr('Фото ${i + 1} из ${toAdd.length}',
-                    'Фото ${i + 1} / ${toAdd.length}')
-                : null,
-          ),
-        ),
-      );
-      if (cropped != null && mounted && _activeColor != null) {
-        setState(() => _variantImages[_activeColor!]!.add(cropped));
-      }
-    }
-    if (overflow && mounted) {
-      _err(tr('Добавлено только $_remainingSlots — лимит $_maxImages фото',
-          'Тек $_remainingSlots қосылды — лимит $_maxImages фото'));
-    }
-  }
-
-  void _showImageOptions() {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (_) => SafeArea(
-          child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(2))),
-          const SizedBox(height: 16),
-          ListTile(
-              leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                      color: cGreen.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8)),
-                  child: const Icon(Icons.camera_alt_outlined, color: cGreen)),
-              title: Text(tr('Сфотографировать', 'Суретке түсіру'),
-                  style: TextStyle(fontWeight: FontWeight.w500)),
-              subtitle: Text(tr('Камера телефона', 'Телефон камерасы')),
-              onTap: _pickFromCamera),
-          ListTile(
-              leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                      color: cGreen.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8)),
-                  child:
-                      const Icon(Icons.photo_library_outlined, color: cGreen)),
-              title: Text(tr('Из галереи', 'Галереядан'),
-                  style: TextStyle(fontWeight: FontWeight.w500)),
-              subtitle: Text(tr('До $_remainingSlots фото сразу',
-                  'Бірден $_remainingSlots фотоға дейін')),
-              onTap: _pickFromGallery),
-          const SizedBox(height: 8),
-        ]),
-      )),
-    );
+  void _removePhoto(int i) {
+    final list = _variantImages[_activeColor];
+    if (list == null || i >= list.length) return;
+    setState(() => _photoOriginals.remove(list.removeAt(i)));
   }
 
   bool _validateStep() {
@@ -772,16 +757,24 @@ class _AddProductScreenState extends State<AddProductScreen> {
       }
     }
     if (_step == 1) {
-      if (_purchaseCtrl.text.isEmpty) {
+      if (_purchaseCtrl.text.trim().isEmpty) {
         _err(tr('Введите закупочную цену', 'Сатып алу бағасын енгізіңіз'));
         return false;
       }
-      if (_sellingCtrl.text.isEmpty) {
+      if (!isValidPurchasePrice(_purchaseCtrl.text)) {
+        _err(tr('Закупочная цена указана неверно',
+            'Сатып алу бағасы қате жазылған'));
+        return false;
+      }
+      if (_sellingCtrl.text.trim().isEmpty) {
         _err(tr('Введите цену продажи', 'Сату бағасын енгізіңіз'));
         return false;
       }
-    }
-    if (_step == 2) {
+      if (!isValidSellingPrice(_sellingCtrl.text)) {
+        _err(tr('Цена продажи должна быть больше нуля',
+            'Сату бағасы нөлден үлкен болуы керек'));
+        return false;
+      }
       // Әр түс вариантында кемінде 1 тауар болуы керек.
       for (final color in _selectedColors) {
         if (_variantTotal(color) == 0) {
@@ -903,6 +896,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
         _savedColors.add(color);
       }
 
+      _rememberChoice();
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -982,7 +976,11 @@ class _AddProductScreenState extends State<AddProductScreen> {
         )
       : const SizedBox.shrink();
 
-  Map<String, String> _assistFields() {
+  /// [forFill] — «Суреттен толтыру»: жадыдан қойылған мәндер AI-ға берілмейді,
+  /// иесі растамаған категория AI-ды өз жағына бұрып жібермесін.
+  Map<String, String> _assistFields({bool forFill = false}) {
+    String own(String key, String? value) =>
+        forFill && _memValues[key] == value ? '' : (value ?? '');
     final sizes = <String>[];
     if (_selectedColors.isNotEmpty) {
       (_variantSizes[_selectedColors.first] ?? {}).forEach((k, v) {
@@ -992,9 +990,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
     return {
       'name': _nameCtrl.text,
       'brand': _brandCtrl.text,
-      'category_key': _categoryKey ?? '',
-      'type': _type ?? '',
-      'category': _targetGroup ?? '',
+      'category_key': own('category', _categoryKey),
+      'type': own('type', _type),
+      'category': own('audience', _targetGroup),
       'color':
           _selectedColors.isEmpty ? '' : _baseColor(_selectedColors.first),
       'material': _material ?? '',
@@ -1044,54 +1042,26 @@ class _AddProductScreenState extends State<AddProductScreen> {
     );
   }
 
-  /// Суретті таңдап, әдеттегідей 1:1 кадрлаймыз (дәл сол ImageCropScreen) —
-  /// сақталғанда да осы кадрланған сурет кетеді.
+  /// Фото AI карточкасына: жаңа камера не галерея, ортасынан өздігінен кесіледі
+  /// (сақталғанда да осы кесілген сурет кетеді).
   Future<void> _pickAiPhotos(ImageSource source) async {
     final slots = _maxImages - _cardPhotos.length;
     if (slots <= 0) {
       _err(tr('Максимум $_maxImages фото', 'Ең көбі $_maxImages фото'));
       return;
     }
-    final List<XFile> picked;
-    if (source == ImageSource.camera) {
-      final shot =
-          await _imagePicker.pickImage(source: source, imageQuality: 90);
-      picked = shot == null ? [] : [shot];
-    } else {
-      picked = await _imagePicker.pickMultiImage(imageQuality: 90);
-    }
-    if (picked.isEmpty || !mounted) return;
-    final toAdd = picked.take(slots).toList();
-    for (var i = 0; i < toAdd.length; i++) {
-      final raw = await toAdd[i].readAsBytes();
-      if (!mounted) return;
-      final cropped = await Navigator.push<Uint8List>(
-        context,
-        MaterialPageRoute(
-          builder: (_) => ImageCropScreen(
-            raw: raw,
-            outputSize: _cropSize,
-            title: toAdd.length > 1
-                ? tr('Фото ${i + 1} из ${toAdd.length}',
-                    'Фото ${i + 1} / ${toAdd.length}')
-                : null,
-          ),
-        ),
-      );
-      if (cropped != null && mounted && _cardPhotos.length < _maxImages) {
-        setState(() => _cardPhotos.add(cropped));
-      }
-    }
-    if (picked.length > slots && mounted) {
-      _err(tr('Добавлено только $slots — лимит $_maxImages фото',
-          'Тек $slots қосылды — лимит $_maxImages фото'));
-    }
+    await _runPhotoPick(
+        () => source == ImageSource.camera
+            ? MultiShotCameraScreen.captureWithOriginals(context,
+                maxShots: slots)
+            : pickGalleryPhotos(maxShots: slots),
+        () => _cardPhotos);
   }
 
   void _removeAiPhoto(int i) {
     final list = _cardPhotos;
     if (i < 0 || i >= list.length) return;
-    setState(() => list.removeAt(i));
+    setState(() => _photoOriginals.remove(list.removeAt(i)));
   }
 
   /// Қате кодына қарай: жалауша өшсе — жалаушаларды жаңартамыз (карточка
@@ -1111,7 +1081,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
     try {
       final s = await _assist.suggest(
         images: [for (final p in photos) AssistImage.bytes(p)],
-        fields: _assistFields(),
+        fields: _assistFields(forFill: true),
       );
       if (!mounted) return;
       _applySuggestion(s);
@@ -1143,33 +1113,48 @@ class _AddProductScreenState extends State<AddProductScreen> {
       n++;
     }
 
-    if (_categoryKey == null &&
+    // Жадыдан алдын ала қойылған мән бос өріс сияқты: иесі оны растаған жоқ.
+    bool isOpen(String key, String? current) =>
+        current == null || _memValues[key] == current;
+    if (isOpen('category', _categoryKey) &&
+        s.categoryKey != _categoryKey &&
         s.categoryKey.isNotEmpty &&
         kCategories.any((c) => c.key == s.categoryKey)) {
       _onCategoryKeyChanged(s.categoryKey);
+      _memValues.clear();
       mark('category', s.categoryKey);
     }
     if (_categoryKey == s.categoryKey) {
-      if (_type == null && s.type.isNotEmpty && _currentTypes.contains(s.type)) {
+      if (isOpen('type', _type) &&
+          s.type.isNotEmpty &&
+          _currentTypes.contains(s.type)) {
         setState(() => _type = s.type);
+        _memValues.remove('type');
         mark('type', s.type);
       }
-      if (_targetGroup == null &&
+      if (isOpen('audience', _targetGroup) &&
           s.category.isNotEmpty &&
           categoryByKey(_categoryKey).hasAudience &&
           _targetGroups.contains(s.category)) {
         _onTargetGroupChanged(s.category);
+        _memValues.remove('audience');
         mark('audience', s.category);
       }
       if (_material == null &&
           s.material.isNotEmpty &&
           _currentMaterials.contains(s.material)) {
-        setState(() => _material = s.material);
+        setState(() {
+          _material = s.material;
+          _moreUserClosed = false;
+        });
         mark('material', s.material);
       }
     }
     if (_season == null && kSeasons.contains(s.season)) {
-      setState(() => _season = s.season);
+      setState(() {
+        _season = s.season;
+        _moreUserClosed = false;
+      });
       mark('season', s.season);
     }
     if (_selectedColors.isEmpty &&
@@ -1296,14 +1281,18 @@ class _AddProductScreenState extends State<AddProductScreen> {
   Widget build(BuildContext context) {
     final steps = [
       tr('Товар', 'Тауар'),
-      tr('Цены', 'Бағалар'),
-      tr('Размеры', 'Өлшемдер'),
+      tr('Цена и размеры', 'Баға мен өлшем'),
       'Фото'
     ];
     return PopScope(
-      canPop: !_hasUnsavedData(),
+      // Жүйелік «артқа» алдымен алдыңғы қадамға апарады, форманы жаппайды.
+      canPop: _step == 0 && !_hasUnsavedData(),
       onPopInvokedWithResult: (didPop, _) async {
-        if (didPop) return;
+        if (didPop || _isLoading) return;
+        if (_step > 0) {
+          setState(() => _step--);
+          return;
+        }
         final navigator = Navigator.of(context);
         if (await _confirmDiscard()) navigator.pop();
       },
@@ -1351,14 +1340,14 @@ class _AddProductScreenState extends State<AddProductScreen> {
                       GestureDetector(
                         onTap: () {
                           if (!_validateStep()) return;
-                          if (_step < 3) {
+                          if (_step < _lastStep) {
                             setState(() => _step++);
                           } else {
                             _save();
                           }
                         },
                         child: Text(
-                          _step < 3
+                          _step < _lastStep
                               ? tr('Далее →', 'Әрі қарай →')
                               : tr('Сохранить', 'Сақтау'),
                           style: manrope(14.5, FontWeight.w700,
@@ -1473,7 +1462,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                           ? null
                           : () {
                               if (!_validateStep()) return;
-                              if (_step < 3) {
+                              if (_step < _lastStep) {
                                 setState(() => _step++);
                               } else {
                                 _save();
@@ -1487,13 +1476,13 @@ class _AddProductScreenState extends State<AddProductScreen> {
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           elevation: 0),
                       child: Text(
-                          _isLoading && _step == 3
+                          _isLoading && _step == _lastStep
                               ? (_selectedColors.length > 1
                                   ? tr(
                                       'Сохранение $_savingIndex/${_selectedColors.length}…',
                                       'Сақталуда $_savingIndex/${_selectedColors.length}…')
                                   : tr('Сохранение…', 'Сақталуда…'))
-                              : _step == 3
+                              : _step == _lastStep
                                   ? (_selectedColors.length > 1
                                       ? tr(
                                           'Сохранить ${_selectedColors.length} варианта',
@@ -1514,10 +1503,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
       case 0:
         return _buildStepInfo();
       case 1:
-        return _buildStepPrices();
+        return _buildStepPriceSizes();
       case 2:
-        return _buildStepSizes();
-      case 3:
         return _buildStepPhotos();
       default:
         return const SizedBox.shrink();
@@ -1668,18 +1655,25 @@ class _AddProductScreenState extends State<AddProductScreen> {
             }
             return Padding(
               padding: const EdgeInsets.only(bottom: 18),
-              child: AiFillCard(
-                photos: _cardPhotos,
-                maxPhotos: _maxImages,
-                onAddPhotos: _showAiPhotoOptions,
-                onRemovePhoto: _removeAiPhoto,
-                onFill: _runAiFill,
-                busy: _aiBusy,
-                remaining: _aiRemaining,
-                filledCount: _aiFilledCount,
-                lowConfidence: _aiLowConf,
-                unclear: _aiUnclear,
-              ),
+              child: Column(children: [
+                AiFillCard(
+                  photos: _cardPhotos,
+                  maxPhotos: _maxImages,
+                  onAddPhotos: _showAiPhotoOptions,
+                  onRemovePhoto: _removeAiPhoto,
+                  onFill: _runAiFill,
+                  busy: _aiBusy,
+                  remaining: _aiRemaining,
+                  filledCount: _aiFilledCount,
+                  lowConfidence: _aiLowConf,
+                  unclear: _aiUnclear,
+                ),
+                if (_photoBusy)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 8),
+                    child: LinearProgressIndicator(color: cPurple),
+                  ),
+              ]),
             );
           },
         ),
@@ -1742,6 +1736,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
               requiredText:
                   _attempted0 ? tr('Введите название', 'Атауын енгізіңіз') : null,
               aiValue: _aiValues['name']),
+          _buildNameSuggestion(),
           const SizedBox(height: 12),
           _Field(
               controller: _brandCtrl,
@@ -1789,6 +1784,95 @@ class _AddProductScreenState extends State<AddProductScreen> {
                   'Бір түсті екі рет қосуға болады (мыс. екі ақ) — айырмашылығын жазыңыз, сонда бөлек товар болады.'),
               style: manrope(11, FontWeight.w500, color: cInk3)),
         ],
+        const SizedBox(height: 16),
+        _buildMoreSection(),
+        // «Қайтарылмайтын тауар» — тек суперадмин дүкенге рұқсат бергенде.
+        if (_storeAllowsNonReturnable) ...[
+          const SizedBox(height: 16),
+          NonReturnableFields(
+            storeAllowed: _storeAllowsNonReturnable,
+            value: _nonReturnable,
+            onChanged: (v) => setState(() => _nonReturnable = v),
+            noteCtrl: _returnNoteCtrl,
+          ),
+        ],
+      ]);
+
+  /// Атау бос, түрі мен бренді бар болса — бір басып қоятын атау.
+  Widget _buildNameSuggestion() => ListenableBuilder(
+        listenable: Listenable.merge([_nameCtrl, _brandCtrl]),
+        builder: (context, _) {
+          final type = _type ?? '';
+          final brand = _brandCtrl.text.trim();
+          if (_nameCtrl.text.trim().isNotEmpty ||
+              type.isEmpty ||
+              brand.isEmpty) {
+            return const SizedBox.shrink();
+          }
+          final suggestion = '${trValue(type)} $brand';
+          return Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: _SuggestChip(
+                icon: Icons.auto_fix_high_rounded,
+                label: suggestion,
+                onTap: () => _nameCtrl.text = suggestion,
+              ),
+            ),
+          );
+        },
+      );
+
+  int get _optionalFilled => [
+        _material != null,
+        _season != null,
+        _countryCtrl.text.trim().isNotEmpty,
+        _keywordsCtrl.text.trim().isNotEmpty,
+        _descCtrl.text.trim().isNotEmpty,
+      ].where((filled) => filled).length;
+
+  /// Міндетті емес өрістер (материал, сезон, ел, сөздер, сипаттама): әдепкіде
+  /// жабық, форма қысқа көрінсін. Мәні бар болса жасырмаймыз. Міндетті өрістер
+  /// мен «қайтарылмайтын» бөлімі бұл жерде ЕМЕС.
+  Widget _buildMoreSection() {
+    final filled = _optionalFilled;
+    if (filled > 0 && !_moreUserClosed) _moreOpen = true;
+    final open = _moreOpen;
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => setState(() {
+          _moreOpen = !open;
+          _moreUserClosed = open;
+        }),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: cLine),
+          ),
+          child: Row(children: [
+            const Icon(Icons.tune_rounded, size: 18, color: cGreen),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                  filled > 0
+                      ? tr('Дополнительно · заполнено $filled',
+                          'Қосымша · $filled толтырылды')
+                      : tr('Дополнительно', 'Қосымша'),
+                  style: manrope(13.5, FontWeight.w700, color: cInk)),
+            ),
+            Icon(
+                open
+                    ? Icons.keyboard_arrow_up_rounded
+                    : Icons.keyboard_arrow_down_rounded,
+                color: cInk3),
+          ]),
+        ),
+      ),
+      if (open) ...[
         if (_categoryKey != null && _currentMaterials.isNotEmpty) ...[
           const SizedBox(height: 16),
           _aiLabel(tr('Материал (необязательно)', 'Материал (міндетті емес)'),
@@ -1896,17 +1980,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
             showAi: FeatureFlags.instance.isOn(FeatureFlags.aiProductAssist),
           ),
         ),
-        // «Қайтарылмайтын тауар» — тек суперадмин дүкенге рұқсат бергенде.
-        if (_storeAllowsNonReturnable) ...[
-          const SizedBox(height: 16),
-          NonReturnableFields(
-            storeAllowed: _storeAllowsNonReturnable,
-            value: _nonReturnable,
-            onChanged: (v) => setState(() => _nonReturnable = v),
-            noteCtrl: _returnNoteCtrl,
-          ),
-        ],
-      ]);
+      ],
+    ]);
+  }
 
   static const Map<String, String> _seasonIcons = {
     'Лето': '☀️',
@@ -2122,7 +2198,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
         final isOn = _categoryKey == c.key;
         final tone = toneFor(c.tone);
         return GestureDetector(
-          onTap: () => _onCategoryKeyChanged(c.key),
+          onTap: () {
+            _memValues.clear();
+            _onCategoryKeyChanged(c.key);
+          },
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 160),
             padding: const EdgeInsets.fromLTRB(10, 8, 13, 8),
@@ -2207,6 +2286,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
         ),
       ],
       onChanged: (v) {
+        _memValues.remove('type');
         if (v == _customTypeOption) {
           _promptCustomType();
         } else {
@@ -2225,12 +2305,97 @@ class _AddProductScreenState extends State<AddProductScreen> {
           .map((g) => _SelectChip(
               label: '${_targetGroupIcons[g] ?? ''} ${trValue(g)}',
               selected: _targetGroup == g,
-              onTap: () => _onTargetGroupChanged(g)))
+              onTap: () {
+                _memValues.remove('audience');
+                _onTargetGroupChanged(g);
+              }))
           .toList(),
     );
   }
 
-  // ── Шаг 2: Цены ───────────────────────────────────────────────────────
+  // ── Шаг 2: Цена и размеры (бұрын екі бөлек қадам еді) ─────────────────
+  Widget _buildStepPriceSizes() =>
+      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _buildStepPrices(),
+        const SizedBox(height: 24),
+        _buildStepSizes(),
+      ]);
+
+  // Бір баға жолы: өріс атауымен бір қатарда, қадам ұзарып кетпесін. Өткен баға
+  // чип болып тұрады, өзі толмайды: қате баға байқаусыз сақталмасын.
+  Widget _priceCard({
+    required TextEditingController ctrl,
+    required IconData icon,
+    required Color color,
+    required Color tint,
+    required String title,
+    required String subtitle,
+    required double? last,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: cLine)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+        Row(children: [
+          Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                  color: tint, borderRadius: BorderRadius.circular(8)),
+              child: Icon(icon, color: color, size: 18)),
+          const SizedBox(width: 10),
+          Expanded(
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(title,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w600, fontSize: 14, color: cInk)),
+              Text(subtitle,
+                  style: const TextStyle(fontSize: 11, color: cInk2)),
+            ]),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 124,
+            child: TextField(
+                controller: ctrl,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[\d.]'))
+                ],
+                textAlign: TextAlign.end,
+                onChanged: (_) => setState(() {}),
+                style: const TextStyle(
+                    fontSize: 20, fontWeight: FontWeight.w700, color: cInk),
+                decoration: const InputDecoration(
+                    hintText: '0',
+                    hintStyle: TextStyle(color: cInk3, fontSize: 20),
+                    suffixText: ' ₸',
+                    suffixStyle: TextStyle(fontSize: 16, color: cInk2),
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    disabledBorder: InputBorder.none,
+                    errorBorder: InputBorder.none,
+                    filled: false,
+                    contentPadding: EdgeInsets.zero)),
+          ),
+        ]),
+        if (last != null && last > 0 && ctrl.text.isEmpty) ...[
+          const SizedBox(height: 8),
+          _SuggestChip(
+            icon: Icons.history_rounded,
+            label: tr('Прошлая: ${money(last)}', 'Соңғы: ${money(last)}'),
+            onTap: () => setState(() => ctrl.text = formatPriceInput(last)),
+          ),
+        ],
+      ]),
+    );
+  }
+
   Widget _buildStepPrices() {
     final purchase = double.tryParse(_purchaseCtrl.text) ?? 0;
     final selling = double.tryParse(_sellingCtrl.text) ?? 0;
@@ -2283,114 +2448,29 @@ class _AddProductScreenState extends State<AddProductScreen> {
       const SizedBox(height: 12),
 
       // Закупочная
-      Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: cLine)),
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                      color: cRedTint, borderRadius: BorderRadius.circular(8)),
-                  child: const Icon(Icons.arrow_downward_rounded,
-                      color: cRed, size: 18)),
-              const SizedBox(width: 10),
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(tr('Закупочная цена', 'Сатып алу бағасы'),
-                    style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                        color: cInk)),
-                Text(
-                    tr('Сколько заплатили за партию',
-                        'Партияға қанша төледіңіз'),
-                    style: TextStyle(fontSize: 11, color: cInk2)),
-              ]),
-            ]),
-            const SizedBox(height: 12),
-            TextField(
-                controller: _purchaseCtrl,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'[\d.]'))
-                ],
-                onChanged: (_) => setState(() {}),
-                style: const TextStyle(
-                    fontSize: 22, fontWeight: FontWeight.w700, color: cInk),
-                decoration: const InputDecoration(
-                    hintText: '0',
-                    hintStyle: TextStyle(color: cInk3, fontSize: 22),
-                    suffixText: '₸',
-                    suffixStyle: TextStyle(fontSize: 18, color: cInk2),
-                    border: InputBorder.none,
-                    enabledBorder: InputBorder.none,
-                    focusedBorder: InputBorder.none,
-                    disabledBorder: InputBorder.none,
-                    errorBorder: InputBorder.none,
-                    filled: false,
-                    contentPadding: EdgeInsets.zero)),
-          ])),
+      _priceCard(
+        ctrl: _purchaseCtrl,
+        icon: Icons.arrow_downward_rounded,
+        color: cRed,
+        tint: cRedTint,
+        title: tr('Закупочная цена', 'Сатып алу бағасы'),
+        subtitle:
+            tr('Сколько заплатили за партию', 'Партияға қанша төледіңіз'),
+        last: _memory.lastPurchase(_categoryKey),
+      ),
       const SizedBox(height: 12),
 
       // Цена продажи
-      Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: cLine)),
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                      color: cGreenTint,
-                      borderRadius: BorderRadius.circular(8)),
-                  child: const Icon(Icons.arrow_upward_rounded,
-                      color: cGreen, size: 18)),
-              const SizedBox(width: 10),
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(tr('Цена продажи', 'Сату бағасы'),
-                    style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                        color: cInk)),
-                Text(
-                    tr('По какой цене будете продавать',
-                        'Қандай бағамен сатасыз'),
-                    style: TextStyle(fontSize: 11, color: cInk2)),
-              ]),
-            ]),
-            const SizedBox(height: 12),
-            TextField(
-                controller: _sellingCtrl,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'[\d.]'))
-                ],
-                onChanged: (_) => setState(() {}),
-                style: const TextStyle(
-                    fontSize: 22, fontWeight: FontWeight.w700, color: cInk),
-                decoration: const InputDecoration(
-                    hintText: '0',
-                    hintStyle: TextStyle(color: cInk3, fontSize: 22),
-                    suffixText: '₸',
-                    suffixStyle: TextStyle(fontSize: 18, color: cInk2),
-                    border: InputBorder.none,
-                    enabledBorder: InputBorder.none,
-                    focusedBorder: InputBorder.none,
-                    disabledBorder: InputBorder.none,
-                    errorBorder: InputBorder.none,
-                    filled: false,
-                    contentPadding: EdgeInsets.zero)),
-          ])),
+      _priceCard(
+        ctrl: _sellingCtrl,
+        icon: Icons.arrow_upward_rounded,
+        color: cGreen,
+        tint: cGreenTint,
+        title: tr('Цена продажи', 'Сату бағасы'),
+        subtitle:
+            tr('По какой цене будете продавать', 'Қандай бағамен сатасыз'),
+        last: _memory.lastSelling(_categoryKey),
+      ),
       const SizedBox(height: 16),
 
       if (purchase > 0 && selling > 0)
@@ -2734,7 +2814,19 @@ class _AddProductScreenState extends State<AddProductScreen> {
     ]);
   }
 
-  // ── Шаг 3: Размеры ────────────────────────────────────────────────────
+  // Басу = +1. Сатушы партияны санап отырып енгізеді: әр размерге парақша ашу
+  // бұрын ең баяу жер еді. Нақты сан үшін ұзақ басу бар.
+  void _bumpSize(String size, int delta) {
+    final color = _activeColor;
+    if (color == null) return;
+    // Баға өрісінен шығамыз: клавиатура торды жауып тұрмасын.
+    FocusManager.instance.primaryFocus?.unfocus();
+    HapticFeedback.selectionClick();
+    final next = (_activeSizes[size] ?? 0) + delta;
+    setState(() => _variantSizes[color]![size] = next < 0 ? 0 : next);
+  }
+
+  // ── Өлшемдер бөлімі (Цена и размеры қадамында) ────────────────────────
   Widget _buildStepSizes() {
     if (_selectedColors.isEmpty || _activeColor == null) {
       return Center(
@@ -2792,8 +2884,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
             Expanded(
               child: Text(
                   multi
-                      ? tr('${trValue(activeColor)}:',
-                          '${trValue(activeColor)}:')
+                      ? tr('${_variantLabel(activeColor)}:',
+                          '${_variantLabel(activeColor)}:')
                       : tr('Итого в партии:', 'Партияда барлығы:'),
                   style: const TextStyle(color: Colors.white70, fontSize: 13)),
             ),
@@ -2937,6 +3029,11 @@ class _AddProductScreenState extends State<AddProductScreen> {
                         color: cRed,
                         fontWeight: FontWeight.w600)))),
       ]),
+      const SizedBox(height: 4),
+      Text(
+          tr('Нажатие — +1, долгое нажатие — ввести число',
+              'Басу — +1, ұзақ басу — санды теру'),
+          style: manrope(11, FontWeight.w500, color: cInk3)),
       const SizedBox(height: 8),
       GridView.builder(
         shrinkWrap: true,
@@ -2953,7 +3050,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
           final isCustom = _customSizes.contains(size);
           return Stack(clipBehavior: Clip.none, children: [
             GestureDetector(
-              onTap: () => _showSizeInputSheet(size, qty),
+              onTap: () => _bumpSize(size, 1),
+              onLongPress: () => _showSizeInputSheet(size, qty),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 150),
                 width: double.infinity,
@@ -2975,6 +3073,29 @@ class _AddProductScreenState extends State<AddProductScreen> {
                 ),
               ),
             ),
+            // Кішкентай минус: сол жақ шет түгел басылады, саусақ дәл тимесе де
+            // +1 болып кетпесін.
+            if (qty > 0)
+              Positioned(
+                left: 0,
+                top: 0,
+                bottom: 0,
+                width: 34,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => _bumpSize(size, -1),
+                  child: Center(
+                    child: Container(
+                      width: 20,
+                      height: 20,
+                      decoration: const BoxDecoration(
+                          color: cGreen, shape: BoxShape.circle),
+                      child: const Icon(Icons.remove_rounded,
+                          color: Colors.white, size: 14),
+                    ),
+                  ),
+                ),
+              ),
             if (isCustom)
               Positioned(
                 top: -6,
@@ -3002,7 +3123,34 @@ class _AddProductScreenState extends State<AddProductScreen> {
     ]);
   }
 
-  // ── Шаг 4: Фото ───────────────────────────────────────────────────────
+  Widget _buildPhotoSourceTile({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) =>
+      GestureDetector(
+        onTap: _photoBusy ? null : onTap,
+        child: Opacity(
+          opacity: _photoBusy ? 0.5 : 1,
+          child: Container(
+            height: 84,
+            decoration: BoxDecoration(
+                color: cGreenTint,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                    color: cGreen.withValues(alpha: 0.3), width: 1.5)),
+            child:
+                Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Icon(icon, size: 28, color: cGreen),
+              const SizedBox(height: 6),
+              Text(label,
+                  style: manrope(13.5, FontWeight.w700, color: cGreenDeep)),
+            ]),
+          ),
+        ),
+      );
+
+  // ── Шаг 3: Фото ───────────────────────────────────────────────────────
   Widget _buildStepPhotos() =>
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         _StepHeader(
@@ -3035,35 +3183,35 @@ class _AddProductScreenState extends State<AddProductScreen> {
         const SizedBox(height: 14),
         // Түс табтары (әр түстің өз фотолары)
         _buildColorTabs(photosStep: true),
-        if (_remainingSlots > 0)
-          GestureDetector(
-            onTap: _showImageOptions,
-            child: Container(
-                width: double.infinity,
-                height: 100,
-                decoration: BoxDecoration(
-                    color: cGreenTint,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                        color: cGreen.withValues(alpha: 0.3), width: 1.5)),
-                child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.add_a_photo_outlined,
-                          size: 32, color: cGreen),
-                      const SizedBox(height: 8),
-                      Text(tr('Добавить фото', 'Фото қосу'),
-                          style: TextStyle(
-                              color: cGreen,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14)),
-                      Text(
-                          tr('Можно выбрать до $_remainingSlots сразу',
-                              'Бірден $_remainingSlots дейін таңдауға болады'),
-                          style: const TextStyle(color: cInk3, fontSize: 11)),
-                    ])),
+        if (_remainingSlots > 0) ...[
+          // Бір басу: бұрын батырма + парақша екі басу еді.
+          Row(children: [
+            Expanded(
+              child: _buildPhotoSourceTile(
+                  icon: Icons.photo_camera_outlined,
+                  label: tr('Камера', 'Камера'),
+                  onTap: _pickFromCamera),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _buildPhotoSourceTile(
+                  icon: Icons.photo_library_outlined,
+                  label: tr('Галерея', 'Галерея'),
+                  onTap: _pickFromGallery),
+            ),
+          ]),
+          const SizedBox(height: 6),
+          Text(
+              tr('Можно добавить ещё $_remainingSlots',
+                  'Тағы $_remainingSlots қосуға болады'),
+              style: manrope(11, FontWeight.w500, color: cInk3)),
+          const SizedBox(height: 16),
+        ],
+        if (_photoBusy)
+          const Padding(
+            padding: EdgeInsets.only(bottom: 12),
+            child: LinearProgressIndicator(color: cGreen),
           ),
-        if (_remainingSlots > 0) const SizedBox(height: 16),
         if (_activeImages.isNotEmpty) ...[
           Text(
               _selectedColors.length > 1
@@ -3073,6 +3221,11 @@ class _AddProductScreenState extends State<AddProductScreen> {
                   : tr('Добавлено: ${_activeImages.length} / $_maxImages фото',
                       'Қосылды: ${_activeImages.length} / $_maxImages фото'),
               style: const TextStyle(fontWeight: FontWeight.w600, color: cInk)),
+          const SizedBox(height: 2),
+          Text(
+              tr('Нажмите на фото, чтобы поправить кадр',
+                  'Кадрды түзету үшін фотоны басыңыз'),
+              style: manrope(11, FontWeight.w500, color: cInk3)),
           const SizedBox(height: 10),
           GridView.builder(
             shrinkWrap: true,
@@ -3085,18 +3238,20 @@ class _AddProductScreenState extends State<AddProductScreen> {
             itemCount: _activeImages.length,
             itemBuilder: (_, i) {
               return Stack(children: [
-                ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Image.memory(_activeImages[i],
-                        fit: BoxFit.cover,
-                        width: double.infinity,
-                        height: double.infinity)),
+                GestureDetector(
+                  onTap: () => _recropPhoto(i),
+                  child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.memory(_activeImages[i],
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                          height: double.infinity)),
+                ),
                 Positioned(
                     top: 4,
                     right: 4,
                     child: GestureDetector(
-                        onTap: () => setState(
-                            () => _variantImages[_activeColor]?.removeAt(i)),
+                        onTap: () => _removePhoto(i),
                         child: Container(
                             decoration: const BoxDecoration(
                                 color: Colors.red, shape: BoxShape.circle),
@@ -3267,6 +3422,37 @@ class _Field extends StatelessWidget {
                     borderRadius: BorderRadius.circular(12),
                     borderSide: const BorderSide(color: cGreen, width: 1.5))));
       });
+}
+
+/// Ұсыныс чипі: өзі ештеңе толтырмайды, иесі басқанда ғана қойылады.
+class _SuggestChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  const _SuggestChip(
+      {required this.icon, required this.label, required this.onTap});
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: cGreenTint,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: cGreen.withValues(alpha: 0.35)),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(icon, size: 14, color: cGreenDeep),
+            const SizedBox(width: 5),
+            Flexible(
+              child: Text(label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: manrope(12, FontWeight.w700, color: cGreenDeep)),
+            ),
+          ]),
+        ),
+      );
 }
 
 class _SelectChip extends StatelessWidget {

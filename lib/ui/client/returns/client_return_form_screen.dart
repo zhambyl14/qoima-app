@@ -1,5 +1,5 @@
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/app_user.dart';
@@ -11,6 +11,7 @@ import '../../../data/services/app_settings_service.dart';
 import '../../../data/services/cloudinary_service.dart';
 import '../../../data/services/return_service.dart';
 import '../../../theme/qoima_design.dart';
+import '../return_notice_sheet.dart';
 import 'client_return_status_screen.dart';
 
 import '../../../core/lang.dart';
@@ -48,7 +49,11 @@ class _ClientReturnFormScreenState extends State<ClientReturnFormScreen> {
   final List<Uint8List> _photos = [];
   final _imagePicker = ImagePicker();
   static const int _maxPhotos = 3;
-  ReturnPickup _pickup = ReturnPickup.selfBring;
+  // Казпочта тапсырысының клиенті көбіне басқа қалада — әдепкісі почта.
+  late ReturnPickup _pickup =
+      widget.order.isKazpost ? ReturnPickup.post : ReturnPickup.selfBring;
+  /// Клиент почтамен жібергендегі трек (міндетті емес, 0081).
+  final _trackingCtrl = TextEditingController();
   /// Курьер тауарды алатын мекенжай. Әдепкіде — тапсырыстың жеткізу мекенжайы.
   late final _addressCtrl = TextEditingController(text: widget.order.address);
   // Қайтару әдісі = төлем әдісі (таңдау жоқ). Онлайн заказ электронды төленеді →
@@ -70,6 +75,9 @@ class _ClientReturnFormScreenState extends State<ClientReturnFormScreen> {
   /// қайтарылмайтын тауардың түсіндірмесінде көрсетіледі.
   String _storeReturnNote = '';
 
+  /// Почтамен жіберілетін мекенжай: дүкеннің қаласы мен мекенжайы.
+  String _storeDestination = '';
+
   /// Қайтарылмайтын жолдардың кілттері (itemMap кілті): таңдауға болмайды.
   late final Set<String> _lockedKeys = {
     for (final i in widget.order.items)
@@ -84,8 +92,20 @@ class _ClientReturnFormScreenState extends State<ClientReturnFormScreen> {
   /// Бұрын шегерілетін: клиент 20 000 ₸-лік тауарды қайтарса 18 500 ₸ алатын.
   /// Бұл дұрыс емес әрі дау туғызады — тауардың толық құны қайтарылуы керек,
   /// ал жеткізу қызметі бөлек төленетін жеке қызмет (ақшасы курьерге барады).
+  ///
+  /// Казпочта ақысы (kazpostFee) да мұнда жоқ: ол тек тауар құны, почта ақысы
+  /// қайтарылмайды.
   double get _refundTotal =>
       _selectedItems.fold(0.0, (s, i) => s + i.subtotal);
+
+  /// Клиентке ұсынылатын әдістер. Enum-ды тікелей айналмаймыз: почта тек
+  /// Казпочта тапсырысына, курьер тек қызмет бар қалаға және почтасыз тапсырысқа.
+  List<ReturnPickup> get _pickupOptions => widget.order.isKazpost
+      ? const [ReturnPickup.post, ReturnPickup.selfBring]
+      : [
+          ReturnPickup.selfBring,
+          if (_courierAvailable) ReturnPickup.courier,
+        ];
 
   @override
   void initState() {
@@ -97,22 +117,31 @@ class _ClientReturnFormScreenState extends State<ClientReturnFormScreen> {
     final tariff = await AppSettingsService().getDeliveryTariff();
     var city = '';
     var policyNote = '';
+    var destination = '';
     try {
       final row = await Supabase.instance.client
           .from('stores')
-          .select('city,return_policy_note')
+          .select('city,address,return_policy_note')
           .eq('admin_uid', widget.order.adminUid)
           .maybeSingle();
       city = (row?['city'] as String? ?? '').trim();
       policyNote = (row?['return_policy_note'] as String? ?? '').trim();
+      destination = [
+        city,
+        (row?['address'] as String? ?? '').trim(),
+      ].where((e) => e.isNotEmpty).join(', ');
     } catch (_) {}
     if (!mounted) return;
     setState(() {
       _storeReturnNote = policyNote;
+      _storeDestination = destination;
       _courierFee = tariff.returnFee;
-      _courierAvailable = tariff.courierWorksIn(city);
+      _courierAvailable =
+          !widget.order.isKazpost && tariff.courierWorksIn(city);
       // Қызмет жоқ болса — таңдау «өзім әкелемін»-ге қайтарылады.
-      if (!_courierAvailable) _pickup = ReturnPickup.selfBring;
+      if (!_courierAvailable && _pickup == ReturnPickup.courier) {
+        _pickup = ReturnPickup.selfBring;
+      }
     });
   }
 
@@ -120,6 +149,7 @@ class _ClientReturnFormScreenState extends State<ClientReturnFormScreen> {
   void dispose() {
     _noteCtrl.dispose();
     _addressCtrl.dispose();
+    _trackingCtrl.dispose();
     super.dispose();
   }
 
@@ -202,6 +232,9 @@ class _ClientReturnFormScreenState extends State<ClientReturnFormScreen> {
           pickup: _pickup,
           pickupAddress: _pickup == ReturnPickup.courier
               ? _addressCtrl.text.trim()
+              : '',
+          postTracking: _pickup == ReturnPickup.post
+              ? _trackingCtrl.text.trim().toUpperCase()
               : '',
           refundMethod: _refundMethod,
         ),
@@ -313,7 +346,11 @@ class _ClientReturnFormScreenState extends State<ClientReturnFormScreen> {
                   ? _ItemsPage(
                       itemMap: _itemMap,
                       lockedKeys: _lockedKeys,
-                      storeNote: _storeReturnNote,
+                      // Снапшот бар болса, шартты төмендегі блок толық айтады.
+                      storeNote: widget.order.returnPolicy == null
+                          ? _storeReturnNote
+                          : '',
+                      order: widget.order,
                       onToggle: (k, v) {
                         // Қайтарылмайтын тауарды таңдауға тыйым (сервер де бөгейді).
                         if (_lockedKeys.contains(k)) return;
@@ -343,6 +380,14 @@ class _ClientReturnFormScreenState extends State<ClientReturnFormScreen> {
                               courierFee: _courierFee,
                               addressCtrl: _addressCtrl,
                               courierAvailable: _courierAvailable,
+                              options: _pickupOptions,
+                              kazpost: widget.order.isKazpost,
+                              storeName: widget.order.storeName,
+                              storePhone: widget.order.storePhone,
+                              destination: _storeDestination.isNotEmpty
+                                  ? _storeDestination
+                                  : widget.order.warehouseAddress,
+                              trackingCtrl: _trackingCtrl,
                             )
                           : _SummaryPage(
                               items: _selectedItems,
@@ -352,6 +397,7 @@ class _ClientReturnFormScreenState extends State<ClientReturnFormScreen> {
                               refundMethod: _refundMethod,
                               refundTotal: _refundTotal,
                               courierFee: _courierFee,
+                              postTracking: _trackingCtrl.text.trim(),
                               onSubmit: _submit,
                               submitting: _submitting,
                             ),
@@ -368,6 +414,7 @@ class _ItemsPage extends StatelessWidget {
   final Map<String, ({bool selected, ReturnItem item})> itemMap;
   final Set<String> lockedKeys;
   final String storeNote;
+  final OrderModel order;
   final void Function(String, ({bool selected, ReturnItem item})) onToggle;
   final VoidCallback onNext;
 
@@ -375,6 +422,7 @@ class _ItemsPage extends StatelessWidget {
     required this.itemMap,
     required this.lockedKeys,
     required this.storeNote,
+    required this.order,
     required this.onToggle,
     required this.onNext,
   });
@@ -382,6 +430,7 @@ class _ItemsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasSelection = itemMap.values.any((e) => e.selected);
+    final policy = order.returnPolicy;
     return Column(children: [
       Expanded(
         child: ListView(
@@ -440,6 +489,20 @@ class _ItemsPage extends StatelessWidget {
                 ),
               );
             }),
+            if (policy != null) ...[
+              const SizedBox(height: 8),
+              QCard(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(tr('Условия возврата', 'Қайтару шарттары'),
+                          style: manrope(13, FontWeight.w800, color: cInk)),
+                      const SizedBox(height: 10),
+                      ReturnPolicyBody(policy,
+                          items: order.items, kazpost: order.isKazpost),
+                    ]),
+              ),
+            ],
           ],
         ),
       ),
@@ -700,6 +763,14 @@ class _DeliveryPage extends StatelessWidget {
   final TextEditingController addressCtrl;
   /// Дүкеннің қаласында курьерлік қызмет бар ма (0055).
   final bool courierAvailable;
+  /// Бұл тапсырысқа ұсынылатын әдістер (почта тек Казпочта тапсырысында).
+  final List<ReturnPickup> options;
+  final bool kazpost;
+  final String storeName;
+  final String storePhone;
+  /// Почтамен қайда жіберу керек.
+  final String destination;
+  final TextEditingController trackingCtrl;
 
   const _DeliveryPage({
     required this.pickup,
@@ -709,6 +780,12 @@ class _DeliveryPage extends StatelessWidget {
     required this.courierFee,
     required this.addressCtrl,
     required this.courierAvailable,
+    required this.options,
+    required this.kazpost,
+    required this.storeName,
+    required this.storePhone,
+    required this.destination,
+    required this.trackingCtrl,
   });
 
   @override
@@ -723,11 +800,10 @@ class _DeliveryPage extends StatelessWidget {
             const SizedBox(height: 10),
             // Курьерлік қызмет жоқ қалада «курьер шақыру» опциясы мүлде
             // көрсетілмейді — оны ешкім орындамайды, сұраныс ілініп қалады.
-            ...ReturnPickup.values
-                .where((p) => p != ReturnPickup.courier || courierAvailable)
-                .map((p) {
+            ...options.map((p) {
               final active = pickup == p;
               final isCourier = p == ReturnPickup.courier;
+              final isPost = p == ReturnPickup.post;
               return GestureDetector(
                 onTap: () => onPickupChanged(p),
                 child: Container(
@@ -760,9 +836,12 @@ class _DeliveryPage extends StatelessWidget {
                             isCourier
                                 ? tr('${courierFee.toStringAsFixed(0)} ₸ — оплачивается курьеру',
                                     '${courierFee.toStringAsFixed(0)} ₸ — курьерге төленеді')
-                                : tr('Бесплатно', 'Тегін'),
+                                : isPost
+                                    ? tr('Пересылку оплачиваете вы',
+                                        'Жөнелту ақысын өзіңіз төлейсіз')
+                                    : tr('Бесплатно', 'Тегін'),
                             style: manrope(12, FontWeight.w600,
-                                color: isCourier ? cAmber : cGreen),
+                                color: isCourier || isPost ? cAmber : cGreen),
                           ),
                           if (isCourier)
                             Text(
@@ -778,7 +857,7 @@ class _DeliveryPage extends StatelessWidget {
               );
             }),
 
-            if (!courierAvailable)
+            if (!courierAvailable && !kazpost)
               Padding(
                 padding: const EdgeInsets.only(bottom: 6),
                 child: Text(
@@ -818,6 +897,11 @@ class _DeliveryPage extends StatelessWidget {
                       borderSide: const BorderSide(color: cGreen, width: 1.5)),
                 ),
               ),
+            ],
+
+            if (pickup == ReturnPickup.post) ...[
+              const SizedBox(height: 6),
+              _postBlock(),
             ],
 
             const SizedBox(height: 16),
@@ -864,6 +948,72 @@ class _DeliveryPage extends StatelessWidget {
       _NextButton(label: tr('Далее', 'Әрі қарай'), onTap: onNext),
     ]);
   }
+
+  /// Почтамен қайтару: қайда жіберу, трек, ақыны кім төлейді.
+  Widget _postBlock() {
+    final recipient = [
+      if (storeName.trim().isNotEmpty) storeName.trim(),
+      if (storePhone.trim().isNotEmpty) storePhone.trim(),
+    ].join(' · ');
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(tr('Куда отправить', 'Қайда жіберу керек'),
+          style: manrope(13, FontWeight.w600, color: cInk3)),
+      const SizedBox(height: 8),
+      Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: cSurface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: cLine),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          if (recipient.isNotEmpty)
+            Text(recipient, style: manrope(13.5, FontWeight.w700, color: cInk)),
+          const SizedBox(height: 2),
+          Text(
+              destination.trim().isNotEmpty
+                  ? destination.trim()
+                  : tr('Адрес уточните у магазина',
+                      'Мекенжайды дүкеннен нақтылаңыз'),
+              style: manrope(13, FontWeight.w500, color: cInk2)),
+        ]),
+      ),
+      const SizedBox(height: 10),
+      TextField(
+        controller: trackingCtrl,
+        maxLength: 30,
+        textCapitalization: TextCapitalization.characters,
+        inputFormatters: [
+          FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9]')),
+        ],
+        style: manrope(13.5, FontWeight.w600, color: cInk),
+        decoration: InputDecoration(
+          hintText: tr('Трек-номер (необязательно)',
+              'Трек-нөмір (міндетті емес)'),
+          hintStyle: manrope(13, FontWeight.w500, color: cInk3),
+          counterText: '',
+          filled: true,
+          fillColor: cSurface,
+          contentPadding: const EdgeInsets.all(14),
+          border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: cLine)),
+          enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: cLine)),
+          focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: cGreen, width: 1.5)),
+        ),
+      ),
+      const SizedBox(height: 8),
+      Text(
+          tr('Обратную пересылку оплачиваете вы, кроме случаев, когда товар с браком.',
+              'Кері жөнелту ақысын өзіңіз төлейсіз, тек тауарда ақау болған жағдайда төлемейсіз.'),
+          style: manrope(11.5, FontWeight.w600, color: cInk3, height: 1.35)),
+    ]);
+  }
 }
 
 // ── Page 3: Summary ───────────────────────────────────────────────────────────
@@ -875,6 +1025,7 @@ class _SummaryPage extends StatelessWidget {
   final RefundMethod refundMethod;
   final double refundTotal;
   final double courierFee;
+  final String postTracking;
   final VoidCallback onSubmit;
   final bool submitting;
 
@@ -886,6 +1037,7 @@ class _SummaryPage extends StatelessWidget {
     required this.refundMethod,
     required this.refundTotal,
     required this.courierFee,
+    required this.postTracking,
     required this.onSubmit,
     required this.submitting,
   });
@@ -893,6 +1045,7 @@ class _SummaryPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isCourier = pickup == ReturnPickup.courier;
+    final isPost = pickup == ReturnPickup.post;
     final itemsTotal = items.fold(0.0, (s, i) => s + i.subtotal);
 
     return Column(children: [
@@ -966,11 +1119,20 @@ class _SummaryPage extends StatelessWidget {
                       Text(
                         isCourier
                             ? '${courierFee.toStringAsFixed(0)} ₸'
-                            : tr('Бесплатно', 'Тегін'),
+                            : isPost
+                                ? tr('За ваш счёт', 'Өз есебіңізден')
+                                : tr('Бесплатно', 'Тегін'),
                         style: manrope(13, FontWeight.w600,
-                            color: isCourier ? cAmber : cGreen),
+                            color: isCourier || isPost ? cAmber : cGreen),
                       ),
                     ]),
+                    if (isPost && postTracking.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 3),
+                        child: Text(
+                            '${tr('Трек-номер', 'Трек-нөмір')}: ${postTracking.toUpperCase()}',
+                            style: manrope(12, FontWeight.w600, color: cInk2)),
+                      ),
                     if (isCourier)
                       Padding(
                         padding: const EdgeInsets.only(top: 3),
@@ -1011,20 +1173,8 @@ class _SummaryPage extends StatelessWidget {
                         style: manrope(13, FontWeight.w600, color: cInk)),
                   ],
                 ),
-                if (isCourier) ...[
-                  const SizedBox(height: 4),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Курьер',
-                          style:
-                              manrope(13, FontWeight.w500, color: cInk2)),
-                      Text('-${courierFee.toStringAsFixed(0)} ₸',
-                          style:
-                              manrope(13, FontWeight.w600, color: cAmber)),
-                    ],
-                  ),
-                ],
+                // Курьер ақысы мұнда ЖОҚ: ол қайтарымнан шегерілмейді (0052), жоғарыда
+                // «курьерге бөлек төленеді» деп жазылған.
                 const Divider(height: 14, color: cGreen),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,

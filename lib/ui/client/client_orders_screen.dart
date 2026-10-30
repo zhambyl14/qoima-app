@@ -13,6 +13,7 @@ import '../../core/order_helpers.dart';
 import '../../theme/qoima_design.dart';
 import 'client_order_detail_screen.dart';
 import 'client_shell.dart';
+import 'kazpost_tracking_card.dart';
 import 'payment_instructions_sheet.dart';
 import 'reservation_timer_widget.dart';
 import 'returns/client_returns_history_screen.dart';
@@ -393,6 +394,14 @@ class _OrderCardState extends State<_OrderCard> {
     if (order.status == OrderModel.statusReturned) {
       return tr('Возврат оформлен', 'Қайтарым рәсімделді');
     }
+    if (order.postInTransit) {
+      return tr('Посылка в пути · ${order.postTracking}',
+          'Сәлемдеме жолда · ${order.postTracking}');
+    }
+    // Төлем расталмай «дайындап жатыр» деуге болмайды: төменде «Төлемді күтуде».
+    if (order.isKazpost && order.status == OrderModel.statusConfirmed) {
+      return tr('Магазин готовит посылку', 'Дүкен сәлемдемені дайындап жатыр');
+    }
     if (order.storeDeliversItself) {
       return tr('Магазин свяжется с вами', 'Дүкен сізбен байланысады');
     }
@@ -441,7 +450,7 @@ class _OrderCardState extends State<_OrderCard> {
           ? tr('Срок подарка истёк', 'Сыйлық мерзімі өтті')
           : tr('Ждём получателя', 'Алушыны күтеміз');
     }
-    return orderStatusLabel(o.status);
+    return kazpostStatusLabel(o) ?? orderStatusLabel(o.status);
   }
 
   IconData get _statusIcon {
@@ -466,7 +475,9 @@ class _OrderCardState extends State<_OrderCard> {
       case OrderModel.typeSmartReservation:
         return tr('Бронь', 'Бронь');
       case OrderModel.typeDelivery:
-        return tr('Доставка', 'Жеткізу');
+        return o.isKazpost
+            ? tr('Казпочта', 'Казпочта')
+            : tr('Доставка', 'Жеткізу');
       default:
         return o.orderType;
     }
@@ -477,7 +488,7 @@ class _OrderCardState extends State<_OrderCard> {
       case OrderModel.typeClickCollect:
         return 'green';
       case OrderModel.typeDelivery:
-        return 'amber';
+        return o.isKazpost ? 'blue' : 'amber';
       default:
         return 'blue';
     }
@@ -745,6 +756,10 @@ class _OrderCardState extends State<_OrderCard> {
             // бір ақпаратты екі рет оқыту. Дүкен/сатушы экрандарында ол
             // қалады: онда беру коды мен «Қабылдадым» батырмасы бар.
             OrderTimeline(order: o),
+            if (o.isKazpost) ...[
+              const SizedBox(height: 8),
+              KazpostTrackingCard(order: o),
+            ],
           ],
 
           if (_expanded && o.isSmartReservation && o.depositAmount > 0) ...[
@@ -1073,7 +1088,9 @@ class _HistoryOrderCardState extends State<_HistoryOrderCard> {
       case OrderModel.typeSmartReservation:
         return tr('Бронь', 'Бронь');
       case OrderModel.typeDelivery:
-        return tr('Доставка', 'Жеткізу');
+        return o.isKazpost
+            ? tr('Казпочта', 'Казпочта')
+            : tr('Доставка', 'Жеткізу');
       default:
         return o.orderType;
     }
@@ -1084,7 +1101,7 @@ class _HistoryOrderCardState extends State<_HistoryOrderCard> {
       case OrderModel.typeClickCollect:
         return 'green';
       case OrderModel.typeDelivery:
-        return 'amber';
+        return o.isKazpost ? 'blue' : 'amber';
       default:
         return 'blue';
     }

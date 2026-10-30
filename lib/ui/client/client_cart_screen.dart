@@ -1,18 +1,24 @@
 import 'dart:async';
+import 'dart:convert';
 
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../core/app_user.dart';
 import '../../core/feature_flags.dart';
 import '../../core/kz_cities.dart';
+import '../../core/phone_input.dart';
 import '../../data/models/cart_item_model.dart';
 import '../../data/models/delivery_tariff.dart';
 import '../../data/models/order_model.dart';
 import '../../data/models/promo_model.dart';
+import '../../data/models/return_policy.dart';
 import '../../data/models/store_model.dart';
 import '../../data/services/app_settings_service.dart';
 import '../../data/services/client_service.dart';
+import '../../data/services/kazpost_service.dart';
 import '../../theme/qoima_design.dart';
 import '../auth/auth_widgets.dart';
 import '../auth/login_screen.dart';
@@ -63,17 +69,22 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
   // тауарларына келісім ӘРҚАШАН сұралады (fail-closed): әйтпесе сервер
   // триггері снапшот жасағанда клиент келіспеген болып шығар еді.
   Set<String> _nrUnknownAdmins = {};
+  // «Без возврата» режиміндегі дүкендер (0082): бүкіл тауары қайтарылмайтын
+  // болып снапшотталады (snapshot_order_non_returnable), шарт сол күйінде.
+  Set<String> _noReturnAdmins = {};
   // Клиент «қайтарылмайтын тауармен келісемін» деп белгілеген бе.
   bool _nrConsent = false;
 
   bool _lineNonReturnable(CartItemModel i) =>
       FeatureFlags.instance.isOn(FeatureFlags.nonReturnable) &&
-      _nonReturnableIds.contains(i.productId);
+      (_nonReturnableIds.contains(i.productId) ||
+          _noReturnAdmins.contains(i.adminUid));
 
   // Келісім чекбоксын көрсету/талап ету керек пе (белгі белгісіз дүкен де).
   bool _lineNeedsConsent(CartItemModel i) =>
       FeatureFlags.instance.isOn(FeatureFlags.nonReturnable) &&
       (_nonReturnableIds.contains(i.productId) ||
+          _noReturnAdmins.contains(i.adminUid) ||
           _nrUnknownAdmins.contains(i.adminUid));
 
   // Себеттегі дүкендердің қалалары (adminUid → city) — доставка мәтіні үшін:
@@ -93,7 +104,28 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
   //  БЕРМЕЙМІЗ: «анықталуда» деп ашық жазамыз да, төлемді де ұстап тұрамыз.
   bool _tariffLoaded = false;
   bool _storeCitiesLoaded = false;
-  bool get _deliveryInfoReady => _tariffLoaded && _storeCitiesLoaded;
+  bool get _deliveryInfoReady =>
+      _tariffLoaded && _storeCitiesLoaded && _kazpostLoaded;
+
+  // ── Казпочта (0081) ───────────────────────────────────────────────────────
+  //  Бөлек тәсіл ЕМЕС: дүкен басқа қалада әрі бағыт ашық болса, «Жеткізу» осылай
+  //  орындалады. Шешімді сервер береді (дүкеннің қаласы, келісімі, жалауша):
+  //  adminUid → бағыт бағасы; жауапта жоқ дүкен = Казпочта жоқ.
+  static const _postIndexPrefsKey = 'kazpost_index_v1';
+  final _kazpost = KazpostService();
+  Map<String, double> _kazpostQuotes = const {};
+  bool _kazpostLoaded = false;
+  // Қай дүкендер үшін сұралды: себетке ЖАҢА дүкен түскенде ғана қайта сұраймыз.
+  Set<String> _quotedAdmins = const {};
+  // Қала ауысса, ескі қаланың кеш келген жауабы жаңасын жаппауы үшін.
+  int _quoteSeq = 0;
+  bool _kazpostFlagSeen = false;
+  CartProvider? _cartRef;
+
+  final _postNameCtrl = TextEditingController();
+  final _postPhoneCtrl = TextEditingController();
+  final _postIndexCtrl = TextEditingController();
+  Map<String, String> _savedPostIndex = {};
 
   // Применённый промокод (привязан к магазину appliedAdminUid)
   PromoModel? _appliedPromo;
@@ -214,8 +246,13 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
       if (myCity.isNotEmpty && _deliveryCity.isEmpty && mounted) {
         setState(() => _deliveryCity = myCity);
       }
+      _cartRef = context.read<CartProvider>()..addListener(_onCartChanged);
+      unawaited(_loadSavedPostIndex());
+      unawaited(_reloadKazpostQuotes());
     });
     _reloadTariff();
+    _kazpostFlagSeen = FeatureFlags.instance.isOn(FeatureFlags.kazpostDelivery);
+    FeatureFlags.instance.addListener(_onFlagsChanged);
   }
 
   /// Тарифті ҚАЙТА оқиды.
@@ -237,10 +274,209 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
 
   @override
   void dispose() {
+    _cartRef?.removeListener(_onCartChanged);
+    FeatureFlags.instance.removeListener(_onFlagsChanged);
     _addressCtrl.dispose();
     _noteCtrl.dispose();
     _promoCtrl.dispose();
+    _postNameCtrl.dispose();
+    _postPhoneCtrl.dispose();
+    _postIndexCtrl.dispose();
     super.dispose();
+  }
+
+  // ── Казпочта бағасы ────────────────────────────────────────────────────────
+
+  Set<String> _cartAdmins() =>
+      context.read<CartProvider>().items.map((i) => i.adminUid).toSet();
+
+  /// null — желі қатесі. Жалауша әлі жүктелмесе де сұраймыз: сервер өзі
+  /// тексереді, ал алдымен «дүкен жібереді» деп жазып, сосын Казпочтаға ауысу
+  /// клиентті шатастырады.
+  Future<Map<String, double>?> _fetchKazpostQuotes(Set<String> admins) async {
+    final flags = FeatureFlags.instance;
+    if (flags.isLoaded && !flags.isOn(FeatureFlags.kazpostDelivery)) {
+      return const {};
+    }
+    // Қонақ: RPC тек кірген адамға ашық, ал кіргенде shell қайта құрылады.
+    if (Supabase.instance.client.auth.currentUser == null) return const {};
+    try {
+      return await _kazpost.quote(
+          adminUids: admins.toList(), toCity: _deliveryCity.trim());
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Желі қатесі = экранда Казпочта жоқ: төлемді бөгемейміз, ескі жол істейді
+  /// (дүкен өзі жөнелтеді). Төлер алдында [_kazpostQuoteChanged] қайта сұрайды.
+  Future<void> _reloadKazpostQuotes() async {
+    final seq = ++_quoteSeq;
+    final admins = _cartAdmins();
+    final quotes = await _fetchKazpostQuotes(admins) ?? const <String, double>{};
+    if (!mounted || seq != _quoteSeq) return;
+    setState(() {
+      _kazpostQuotes = quotes;
+      _quotedAdmins = admins;
+      _kazpostLoaded = true;
+    });
+    if (quotes.isNotEmpty) _prefillRecipient();
+  }
+
+  void _onCartChanged() {
+    if (!mounted) return;
+    final admins = _cartAdmins();
+    // Дүкен кетсе баға бұрынғыдай дұрыс, қайта сұраудың қажеті жоқ.
+    if (_quotedAdmins.containsAll(admins)) return;
+    setState(() => _kazpostLoaded = false);
+    unawaited(_reloadKazpostQuotes());
+  }
+
+  void _onFlagsChanged() {
+    final on = FeatureFlags.instance.isOn(FeatureFlags.kazpostDelivery);
+    if (on == _kazpostFlagSeen || !mounted) return;
+    _kazpostFlagSeen = on;
+    setState(() => _kazpostLoaded = false);
+    unawaited(_reloadKazpostQuotes());
+  }
+
+  /// Қала ауысса бағыт та, индекс те басқа: ескі қаланың индексі қалып қойса,
+  /// сәлемдеме қате бөлімшеге кетер еді.
+  void _setDeliveryCity(String city) {
+    if (city == _deliveryCity) {
+      setState(() => _cityPickerOpen = false);
+      return;
+    }
+    _postIndexCtrl.text = _savedPostIndex[city.trim()] ?? '';
+    setState(() {
+      _deliveryCity = city;
+      _cityPickerOpen = false;
+      _kazpostQuotes = const {};
+      _kazpostLoaded = false;
+    });
+    unawaited(_reloadKazpostQuotes());
+  }
+
+  /// Төлер алдындағы соңғы тексеріс: бағаны модератор себет ашық тұрғанда
+  /// өзгертуі мүмкін. Қойма әлі қозғалмаған кезде тоқтаймыз — клиент көрмеген
+  /// сомаға аудармауы тиіс. Жаңадан ашылған бағыт та өзгеріс: ол соманы да,
+  /// толтыратын өрістерді де өзгертеді.
+  Future<bool> _kazpostQuoteChanged(List<CartItemModel> items) async {
+    final seq = ++_quoteSeq;
+    final admins = _cartAdmins();
+    final fresh = await _fetchKazpostQuotes(admins);
+    if (!mounted) return true;
+    // Тексеріп жатқанда қала ауысты: бұл жауап ескі, клиент қайта растайды.
+    if (seq != _quoteSeq) return true;
+    // Желі қатесі: экрандағы санмен жалғасамыз, orders триггері бәрібір тексереді.
+    if (fresh == null) {
+      setState(() => _kazpostLoaded = true);
+      return false;
+    }
+    final changed = items
+        .map((i) => i.adminUid)
+        .toSet()
+        .where((a) => _kazpostQuotes[a] != fresh[a])
+        .toSet();
+    setState(() {
+      _kazpostQuotes = fresh;
+      _quotedAdmins = admins;
+      _kazpostLoaded = true;
+    });
+    if (fresh.isNotEmpty) _prefillRecipient();
+    if (changed.isEmpty) return false;
+    await _showQuoteChangedDialog(_planSubOrders(items), changed);
+    return true;
+  }
+
+  Future<void> _showQuoteChangedDialog(
+      List<_SubOrderPlan> plans, Set<String> changed) {
+    final lines = <String>[];
+    for (final admin in changed) {
+      final own = plans.where((p) => p.adminUid == admin).toList();
+      if (own.isEmpty) continue;
+      final name = own.first.storeName;
+      final transfer = own.fold<double>(0, (s, p) => s + p.transferAmount);
+      final postage = own.fold<double>(0, (s, p) => s + p.kazpostFee);
+      lines.add(own.first.isKazpost
+          ? tr('«$name»: Казпочта ${money(postage)}, сумма перевода ${money(transfer)}',
+              '«$name»: Казпочта ${money(postage)}, аударым сомасы ${money(transfer)}')
+          : tr('«$name»: Казпочта недоступна, магазин доставит сам. Сумма перевода ${money(transfer)}',
+              '«$name»: Казпочта қолжетімсіз, дүкен өзі жеткізеді. Аударым сомасы ${money(transfer)}'));
+    }
+    return showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(
+            tr('Условия Казпочты изменились', 'Казпочта шарты өзгерді'),
+            style: manrope(17, FontWeight.w700, color: cInk)),
+        content: Text(
+            '${lines.join('\n')}\n\n${tr('Заказ ещё не оформлен. Проверьте сумму и подтвердите заказ ещё раз.', 'Тапсырыс әлі рәсімделген жоқ. Соманы тексеріп, тапсырысты қайта растаңыз.')}',
+            style: manrope(14, FontWeight.w500, color: cInk2, height: 1.4)),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(tr('Понятно', 'Түсінікті'),
+                  style: manrope(14, FontWeight.w700, color: cGreenDeep))),
+        ],
+      ),
+    );
+  }
+
+  // ── Казпочта алушысы ───────────────────────────────────────────────────────
+
+  void _prefillRecipient() {
+    final user = context.read<AppUser>();
+    if (_postNameCtrl.text.trim().isEmpty) _postNameCtrl.text = user.name;
+    if (_postPhoneCtrl.text.trim().isEmpty && user.phone.isNotEmpty) {
+      _postPhoneCtrl.text = KzPhoneInputFormatter()
+          .formatEditUpdate(
+              TextEditingValue.empty, TextEditingValue(text: user.phone))
+          .text;
+    }
+  }
+
+  /// Соңғы индекс қала бойынша есте қалады: клиент көбіне бір бөлімшеден алады.
+  Future<void> _loadSavedPostIndex() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_postIndexPrefsKey);
+      if (raw == null || !mounted) return;
+      final map = (jsonDecode(raw) as Map)
+          .map((k, v) => MapEntry(k.toString(), v.toString()));
+      _savedPostIndex = map;
+      if (_postIndexCtrl.text.isEmpty) {
+        _postIndexCtrl.text = map[_deliveryCity.trim()] ?? '';
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _rememberPostIndex() async {
+    _savedPostIndex = {
+      ..._savedPostIndex,
+      _deliveryCity.trim(): _postIndexCtrl.text.trim(),
+    };
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_postIndexPrefsKey, jsonEncode(_savedPostIndex));
+    } catch (_) {}
+  }
+
+  /// null — дұрыс. Желіге шықпай тұрып нақты қате айтамыз.
+  String? _postFormError() {
+    if (_postNameCtrl.text.trim().isEmpty) {
+      return tr('Укажите ФИО получателя посылки',
+          'Сәлемдеме алушының аты-жөнін көрсетіңіз');
+    }
+    if (!isValidKzPhone(_postPhoneCtrl.text)) {
+      return tr('Проверьте телефон получателя: +7 и 10 цифр',
+          'Алушының телефонын тексеріңіз: +7 және 10 сан');
+    }
+    if (!RegExp(r'^\d{6}$').hasMatch(_postIndexCtrl.text.trim())) {
+      return tr('Почтовый индекс должен состоять ровно из 6 цифр',
+          'Пошта индексі дәл 6 саннан тұруы керек');
+    }
+    return null;
   }
 
   Future<void> _checkAvailability() async {
@@ -263,6 +499,12 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
       setState(() {
         if (stores.isNotEmpty) {
           _storeCityByAdmin = {for (final s in stores) s.adminUid: s.city};
+          _noReturnAdmins = {
+            for (final s in stores)
+              if (s.returnPolicyMode == ReturnPolicy.modeNone &&
+                  s.allowNonReturnable)
+                s.adminUid,
+          };
         }
         // Қате болса да «дайын» деп белгілейміз: клиентті мәңгі күттіріп
         // қоюдан гөрі қауіпсіз әдепкіге (дүкен өзі жеткізеді) көшкен жөн.
@@ -294,6 +536,8 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
       final nonReturnableIds = <String>{};
       final nrUnknown = <String>{};
       for (final adminUid in admins) {
+        // Дүкен тізімде жоқ — оның режимін білмейміз, сол себепті келісім сұраймыз.
+        if (!visibleByAdmin.containsKey(adminUid)) nrUnknown.add(adminUid);
         try {
           final prods = await _service.getStoreProducts(adminUid);
           storefrontIds.addAll(prods.map((p) => p.id));
@@ -406,6 +650,8 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
   //
   //    әр суб-тапсырыстың storeAmount  → СОЛ ДҮКЕНГЕ (өз картасына, бөлек)
   //    әр суб-тапсырыстың courierFee   → СОЛ ЖЕТКІЗУДІ орындайтын КУРЬЕРГЕ
+  //    әр суб-тапсырыстың kazpostFee   → СОЛ ДҮКЕНГЕ, аударымның ішінде (дүкен
+  //                                      почтаға өзі төлейді, кірісі емес)
   //
   //  ⚠️ Экранда көрсетілетін сан мен базаға жазылатын сан ОСЫ функциядан
   //  ғана шығады. Бұрын екеуі бөлек саналатын да, көп дүкенді себетте
@@ -413,11 +659,16 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
   //  жалпы сомадан алынған 10%-ға тең емес).
 
   /// Бір суб-тапсырыстың (бір қойманың) толық ақша есебі.
-  List<_SubOrderPlan> _planSubOrders(List<CartItemModel> items) {
+  ///
+  /// [previewDelivery] — «Жеткізу» әлі таңдалмағанда да оның мәтініне Казпочта
+  /// бағасын алу үшін (тек kazpostFee/isKazpost оқылады).
+  List<_SubOrderPlan> _planSubOrders(List<CartItemModel> items,
+      {bool previewDelivery = false}) {
     final byWarehouse = _byWarehouse(items);
     if (byWarehouse.isEmpty) return const [];
 
     final courierDelivery = _isCourierDelivery(items);
+    final delivery = previewDelivery || _orderType == OrderModel.typeDelivery;
     final totalPromo = _promoDiscount(items);
     final feeBase =
         (items.fold<double>(0, (s, i) => s + i.subtotal) - totalPromo)
@@ -475,6 +726,11 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
       final fitting = courierDelivery && whItems.any((i) => i.hasAltSize)
           ? _tariff.fittingFee
           : 0.0;
+      // Казпочта — ӘР ҚОЙМА бойынша шешіледі: бір қойма = бір сәлемдеме, сондықтан
+      // әрқайсысы бағыт бағасын ТОЛЫҚ төлейді (көп дүкенге жеңілдік жоқ). Бағасы
+      // жоқ дүкен осы себетте де дүкен өзі жөнелтетін ескі жолмен қалады.
+      final kazpostQuote =
+          delivery && !courierDelivery ? _kazpostQuotes[first.adminUid] : null;
       // Дүкенге аударылатын сома. Жеткізу ақысы мұнда ЖОҚ — ол курьердікі.
       final storeAmount = (_orderType == OrderModel.typeSmartReservation
               ? (goodsFinal * 0.1).ceilToDouble()
@@ -495,6 +751,8 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
         storeAmount: storeAmount,
         isPromoUsageOwner: entry.key == usageOwnerWh && promo != null,
         courierDelivery: courierDelivery,
+        isKazpost: kazpostQuote != null,
+        kazpostFee: kazpostQuote ?? 0.0,
       ));
       index++;
     }
@@ -546,12 +804,17 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
     // Профильдегі емес, ТАҢДАЛҒАН жеткізу қаласы: клиенттердің профилінде қала
     // көбіне бос болатын да, бұл тексеріс үнемі `null` қайтарып, «басқа қала»
     // жағдайы мүлде байқалмайтын.
-    final myCity = _deliveryCity.trim().isNotEmpty
-        ? _deliveryCity.trim()
-        : context.read<AppUser>().city.trim();
+    // Сервердегі kazpost_fee_for сияқты салыстырамыз (lower + trim): әйтпесе бір
+    // қала екі түрлі жазылса, экран мен сервер әртүрлі шешім шығарады.
+    final myCity = (_deliveryCity.trim().isNotEmpty
+            ? _deliveryCity
+            : context.read<AppUser>().city)
+        .trim()
+        .toLowerCase();
     if (myCity.isEmpty || items.isEmpty) return null;
     for (final i in items) {
-      final storeCity = (_storeCityByAdmin[i.adminUid] ?? '').trim();
+      final storeCity =
+          (_storeCityByAdmin[i.adminUid] ?? '').trim().toLowerCase();
       if (storeCity.isNotEmpty && storeCity != myCity) return false;
     }
     return true;
@@ -563,6 +826,8 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
     if (!_deliveryInfoReady) {
       return tr('Определяем способ доставки…', 'Жеткізу тәсілі анықталуда…');
     }
+    final preview = _planSubOrders(items, previewDelivery: true);
+    if (preview.any((p) => p.isKazpost)) return _kazpostSubtitle(preview);
     if (_allStoresInMyCity(items) == false) {
       return tr('В ваш город — магазин отправит после 100% оплаты',
           'Сіздің қалаға — 100% төлемнен кейін дүкен жөнелтеді');
@@ -583,6 +848,38 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
         orderTotal: total, storeCount: _byWarehouse(items).length);
     return tr('Курьер привезёт — ${money(fee)} курьеру при получении',
         'Курьер жеткізеді — алғанда курьерге ${money(fee)}');
+  }
+
+  /// Бір бағаны бір жолмен айтамыз; бағасы әртүрлі немесе Казпочтасы жоқ дүкен
+  /// араласса — әр дүкенді атап жазамыз, клиент кім қалай жіберетінін білуі керек.
+  String _kazpostSubtitle(List<_SubOrderPlan> plans) {
+    final city = trValue(_deliveryCity.trim());
+    final kazpost = plans.where((p) => p.isKazpost).toList();
+    final byStore = <String, double>{};
+    for (final p in kazpost) {
+      byStore[p.storeName] = (byStore[p.storeName] ?? 0) + p.kazpostFee;
+    }
+    final others = plans
+        .where((p) => !p.isKazpost)
+        .map((p) => '«${p.storeName}»')
+        .toSet()
+        .join(', ');
+
+    if (others.isEmpty && byStore.length == 1) {
+      final total = byStore.values.first;
+      return kazpost.length == 1
+          ? tr('Казпочтой в $city · ${money(total)}',
+              '$city қаласына Казпочтамен · ${money(total)}')
+          : tr('Казпочтой в $city · посылок: ${kazpost.length} · ${money(total)}',
+              '$city қаласына Казпочтамен · ${kazpost.length} сәлемдеме · ${money(total)}');
+    }
+    final priced =
+        byStore.entries.map((e) => '«${e.key}» — ${money(e.value)}').join(', ');
+    final ru = 'Казпочтой в $city: $priced';
+    final kk = '$city қаласына Казпочтамен: $priced';
+    if (others.isEmpty) return tr(ru, kk);
+    return tr('$ru. $others доставит сам — после 100% оплаты',
+        '$kk. $others өзі жеткізеді — 100% төлемнен кейін');
   }
 
   String _warehouseAddress(List<CartItemModel> items) =>
@@ -647,6 +944,15 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
     // да, көп дүкенді себетте айырма шығатын (әр қойма үшін бөлек
     // дөңгелектенген 10% депозит жалпы 10%-бен сәйкеспейтін).
     final plans = _planSubOrders(checkoutItems);
+    final hasKazpost = plans.any((p) => p.isKazpost);
+    final postError = hasKazpost ? _postFormError() : null;
+    if (postError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(postError),
+        behavior: SnackBarBehavior.floating,
+      ));
+      return;
+    }
 
     // Тапсырыс қорытындысы — растау (true) немесе бас тарту (null).
     final confirmed = await showModalBottomSheet<bool>(
@@ -657,12 +963,17 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
         orderType: _orderType!,
         plans: plans,
         promoCode: _appliedPromo?.code ?? '',
-        // Курьер жоқ (басқа қала немесе қалада қызмет қосылмаған) → дүкен
-        // өзі жеткізеді, шартын клиентпен өзі келіседі.
-        kazpost: _orderType == OrderModel.typeDelivery &&
-            !_isCourierDelivery(checkoutItems),
+        // Курьер де, Казпочта да жоқ қойма (басқа қала немесе қалада қызмет
+        // қосылмаған) → дүкен өзі жеткізеді, шартын клиентпен өзі келіседі.
+        storeDelivers: _orderType == OrderModel.typeDelivery &&
+            plans.any((p) => !p.courierDelivery && !p.isKazpost),
         warehouseAddress: _warehouseAddress(checkoutItems),
-        deliveryAddress: _addressCtrl.text.trim(),
+        deliveryAddress: hasKazpost
+            ? '${_postIndexCtrl.text.trim()}, ${trValue(_deliveryCity.trim())}, ${_addressCtrl.text.trim()}'
+            : _addressCtrl.text.trim(),
+        postRecipient: hasKazpost
+            ? '${_postNameCtrl.text.trim()}, ${_postPhoneCtrl.text.trim()}'
+            : '',
       ),
     );
 
@@ -707,11 +1018,23 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
         return;
       }
 
+      // Қойма қозғалмай тұрып: Казпочта бағасы клиент растағанмен бірдей ме.
+      // Сервер де kazpost_fee_changed деп қайтарады, бірақ оған дейін тоқтаған дұрыс.
+      if (_orderType == OrderModel.typeDelivery &&
+          await _kazpostQuoteChanged(stillGood)) {
+        return;
+      }
+      if (!mounted) return;
+
       // ⚠️ Клиент растаған сандармен ДӘЛ сол есеп: жоспар қайта құрылады, ал
       // тізім өзгермегені жоғарыда тексерілді (droppedKeys бос). Сондықтан
       // экрандағы сома мен жазылатын сома әрқашан бірдей.
       final promo = _appliedPromo;
       final placedOrders = <OrderModel>[];
+      // Рәсімделген дүкендердің тауарлары: бір дүкен сәтсіз болса, тек осылар
+      // себеттен шығады. Әйтпесе қайта басқанда тапсырыс пен қойма қосарланады.
+      final placedItems = <CartItemModel>[];
+      Object? partialError;
       for (final plan in _planSubOrders(stillGood)) {
         final order = OrderModel(
           id: '',
@@ -736,23 +1059,36 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
           clientCity:
               _orderType == OrderModel.typeDelivery ? _deliveryCity.trim() : '',
           note: _noteCtrl.text.trim(),
-          // ДҮКЕНГЕ: тауар/депозит + «өлшеп көру».
-          depositAmount: plan.storeAmount,
+          // ДҮКЕНГЕ: тауар/депозит + «өлшеп көру» + (бар болса) Казпочта.
+          depositAmount: plan.transferAmount,
           // КУРЬЕРГЕ: жеткізу ақысы. Дүкеннің кассасына түспейді.
           deliveryFee: plan.courierFee,
+          kazpostFee: plan.kazpostFee,
           fittingFee: plan.fittingFee,
           // Қалада курьер қызметі жоқ болса — дүкен өзі жеткізеді (0055).
-          deliveryMode:
-              _orderType == OrderModel.typeDelivery && !plan.courierDelivery
+          deliveryMode: plan.isKazpost
+              ? OrderModel.deliveryByKazpost
+              : _orderType == OrderModel.typeDelivery && !plan.courierDelivery
                   ? OrderModel.deliveryByStore
                   : OrderModel.deliveryByCourier,
+          postRecipientName: plan.isKazpost ? _postNameCtrl.text.trim() : '',
+          postRecipientPhone:
+              plan.isKazpost ? kzPhoneToE164(_postPhoneCtrl.text) : '',
+          postIndex: plan.isKazpost ? _postIndexCtrl.text.trim() : '',
           promoId: plan.promoDiscount > 0 && promo != null ? promo.id : '',
           promoCode: plan.promoDiscount > 0 && promo != null ? promo.code : '',
           promoDiscount: plan.promoDiscount,
           promoCountsUsage: plan.isPromoUsageOwner,
         );
-        final placed = await _service.placeOrder(order);
-        placedOrders.add(placed);
+        try {
+          final placed = await _service.placeOrder(order);
+          placedOrders.add(placed);
+          placedItems.addAll(plan.items);
+        } catch (e) {
+          if (placedOrders.isEmpty) rethrow;
+          partialError = e;
+          break;
+        }
       }
 
       // Бір төлемнен бірнеше дүкен шықса — курьер оларды БІРГЕ алуы үшін
@@ -760,11 +1096,14 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
       if (placedOrders.length > 1) {
         await _service.linkOrderGroup(placedOrders.map((o) => o.id).toList());
       }
+      if (placedOrders.any((o) => o.isKazpost)) {
+        unawaited(_rememberPostIndex());
+      }
 
       if (!mounted) return;
       // Тек тапсырысқа кеткен товарлар өшеді — таңдалмаған қалғаны себетте
       // қалады (Wildberries/Kaspi стилі).
-      cart.removeItems(stillGood);
+      cart.removeItems(partialError == null ? stillGood : placedItems);
       _nrConsent = false; // келесі тапсырыс үшін келісім қайта сұралады
       _appliedPromo = null;
       _appliedAdminUid = '';
@@ -790,16 +1129,25 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
         shell?.openOrdersFromCart();
       }
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(attached == true
-            ? tr('Чек отправлен на проверку ✓', 'Чек тексеруге жіберілді ✓')
-            : tr('Заказ создан — оплатите и прикрепите чек в течение 30 минут',
-                'Тапсырыс жасалды — 30 минут ішінде төлеп, чекті тіркеңіз')),
-        backgroundColor: attached == true ? cGreen : cAmber,
+        content: Text(partialError != null
+            ? tr('Часть товаров оформить не удалось, они остались в корзине. ${friendlyError(partialError)}',
+                'Кейбір тауарды рәсімдеу мүмкін болмады, олар себетте қалды. ${friendlyError(partialError)}')
+            : attached == true
+                ? tr('Чек отправлен на проверку ✓',
+                    'Чек тексеруге жіберілді ✓')
+                : tr('Заказ создан — оплатите и прикрепите чек в течение 30 минут',
+                    'Тапсырыс жасалды — 30 минут ішінде төлеп, чекті тіркеңіз')),
+        backgroundColor:
+            partialError == null && attached == true ? cGreen : cAmber,
         behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 4),
+        duration: Duration(seconds: partialError != null ? 7 : 4),
       ));
     } catch (e) {
       if (mounted) {
+        // Сервер Казпочта бағасын қабылдамады: экрандағы сан ескі, жаңартамыз.
+        if (e.toString().contains('kazpost_')) {
+          unawaited(_reloadKazpostQuotes());
+        }
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(friendlyError(e)),
           backgroundColor: cRed,
@@ -816,6 +1164,8 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
     final cart = context.watch<CartProvider>();
     final itemCount = cart.items.length;
     final checkoutItems = _checkoutItems(cart);
+    final showPostForm = _orderType == OrderModel.typeDelivery &&
+        _planSubOrders(checkoutItems).any((p) => p.isKazpost);
     // «Барлығын таңдау» — қолжетімді (unavailable емес) товарлардың бәрі
     // таңдалған ба (Wildberries/Kaspi стиліндегі шапка чекбоксы).
     final selectableItems = cart.items
@@ -1078,10 +1428,7 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                           children: kzCities.map((c) {
                             final on = _deliveryCity == c;
                             return GestureDetector(
-                              onTap: () => setState(() {
-                                _deliveryCity = c;
-                                _cityPickerOpen = false;
-                              }),
+                              onTap: () => _setDeliveryCity(c),
                               child: Container(
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 12, vertical: 7),
@@ -1118,6 +1465,40 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                           ]),
                         ),
                       const SizedBox(height: 12),
+                      if (showPostForm) ...[
+                        _PostField(
+                          controller: _postNameCtrl,
+                          label: tr('ФИО получателя *', 'Алушының аты-жөні *'),
+                          hint: tr('Как в удостоверении', 'Жеке куәліктегідей'),
+                          icon: Icons.person_outline_rounded,
+                          capitalization: TextCapitalization.words,
+                        ),
+                        _PostField(
+                          controller: _postPhoneCtrl,
+                          label: tr('Телефон получателя *', 'Алушының телефоны *'),
+                          hint: '+7 (700) 000-00-00',
+                          icon: Icons.call_outlined,
+                          keyboardType: TextInputType.phone,
+                          formatters: [
+                            LengthLimitingTextInputFormatter(18),
+                            KzPhoneInputFormatter(),
+                          ],
+                        ),
+                        _PostField(
+                          controller: _postIndexCtrl,
+                          label: tr('Почтовый индекс *', 'Пошта индексі *'),
+                          hint: '050000',
+                          helper: tr(
+                              'Ровно 6 цифр: индекс отделения, куда придёт посылка',
+                              'Дәл 6 сан: сәлемдеме келетін бөлімшенің индексі'),
+                          icon: Icons.markunread_mailbox_outlined,
+                          keyboardType: TextInputType.number,
+                          formatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                            LengthLimitingTextInputFormatter(6),
+                          ],
+                        ),
+                      ],
                       Text(tr('Адрес доставки *', 'Жеткізу мекенжайы *'),
                           style: manrope(12.5, FontWeight.w700, color: cInk2)),
                       const SizedBox(height: 6),
@@ -1198,7 +1579,9 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                           style: manrope(14, FontWeight.w500, color: cInk),
                           onChanged: (_) => setState(() {}),
                           decoration: InputDecoration(
-                            hintText: tr('Город, улица, дом', 'Қала, көше, үй'),
+                            hintText: showPostForm
+                                ? tr('Улица, дом, квартира', 'Көше, үй, пәтер')
+                                : tr('Город, улица, дом', 'Қала, көше, үй'),
                             hintStyle:
                                 manrope(14, FontWeight.w500, color: cInk3),
                             prefixIcon: const Icon(Icons.location_on_outlined,
@@ -1306,8 +1689,10 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                         plans.fold<double>(0, (s, p) => s + p.courierFee);
                     final fittingFee =
                         plans.fold<double>(0, (s, p) => s + p.fittingFee);
-                    final storeTotal =
-                        plans.fold<double>(0, (s, p) => s + p.storeAmount);
+                    final kazpostFee =
+                        plans.fold<double>(0, (s, p) => s + p.kazpostFee);
+                    final transferTotal =
+                        plans.fold<double>(0, (s, p) => s + p.transferAmount);
                     return Column(children: [
                       if (productSavings > 0)
                         _SummaryLine(
@@ -1322,11 +1707,16 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                         _SummaryLine(
                             tr('Примерка', 'Өлшеп көру'), money(fittingFee),
                             color: cInk2),
+                      // Курьер ақысынан айырмасы: Казпочта аударымның ІШІНДЕ.
+                      if (kazpostFee > 0)
+                        _SummaryLine(tr('Казпочта', 'Казпочта'), money(kazpostFee),
+                            color: cInk2),
                       if (productSavings > 0 ||
                           promoDiscount > 0 ||
-                          fittingFee > 0)
+                          fittingFee > 0 ||
+                          kazpostFee > 0)
                         const SizedBox(height: 8),
-                      // storeTotal — жоспардан алынған, растау парағындағы
+                      // transferTotal — жоспардан алынған, растау парағындағы
                       // сомамен дәл бірдей сан.
                       Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1345,7 +1735,7 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                             ),
                             Text(
                               money(
-                                  _orderType == null ? finalTotal : storeTotal),
+                                  _orderType == null ? finalTotal : transferTotal),
                               style: manrope(20, FontWeight.w800, color: cInk),
                             ),
                           ]),
@@ -1482,6 +1872,7 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
 /// Ақша бөлінісі ҚАТАҢ:
 ///   [storeAmount] → дүкеннің картасына аударым (тауар/депозит + «өлшеп көру»)
 ///   [courierFee]  → тапсырысты жеткізетін курьерге, қолма-қол
+///   [kazpostFee]  → дүкеннің картасына, сол аударымның ішінде ([transferAmount])
 class _SubOrderPlan {
   final String warehouseId, adminUid, storeName, warehouseAddress;
   final List<CartItemModel> items;
@@ -1504,6 +1895,12 @@ class _SubOrderPlan {
   final bool isPromoUsageOwner;
   final bool courierDelivery;
 
+  /// Бағасы 0 болған бағыт та Казпочта, сондықтан бөлек белгі.
+  final bool isKazpost;
+
+  /// Бір сәлемдеменің бағыт бағасы (дүкеннің кірісі ЕМЕС, почтаға өтеді).
+  final double kazpostFee;
+
   const _SubOrderPlan({
     required this.warehouseId,
     required this.adminUid,
@@ -1518,7 +1915,12 @@ class _SubOrderPlan {
     required this.storeAmount,
     required this.isPromoUsageOwner,
     required this.courierDelivery,
+    required this.isKazpost,
+    required this.kazpostFee,
   });
+
+  /// Клиент дүкенге аударатын сома. Бұл сан БАСҚА ЖЕРДЕ есептелмейді.
+  double get transferAmount => storeAmount + kazpostFee;
 
   /// Бронь депозитінен кейін дүкенде қалатын доплата.
   double get remainingInStore =>
@@ -1871,14 +2273,20 @@ class _PaymentSheet extends StatelessWidget {
   /// қосылған бір сан жеткіліксіз — клиент нақты кімге қанша төлейтінін
   /// осы тізімнен көреді.
   final List<_SubOrderPlan> plans;
-  final bool kazpost;
+
+  /// Кемінде бір қойманы дүкен өзі жеткізеді (курьер де, Казпочта да жоқ).
+  final bool storeDelivers;
+
+  /// Казпочта алушысы (аты, телефоны); Казпочта жоқ болса бос.
+  final String postRecipient;
   const _PaymentSheet({
     required this.orderType,
     required this.plans,
     required this.promoCode,
-    required this.kazpost,
+    required this.storeDelivers,
     required this.warehouseAddress,
     required this.deliveryAddress,
+    this.postRecipient = '',
   });
 
   /// Дүкен (adminUid) бойынша топтама — клиент әр дүкенге БІР аударым жасайды,
@@ -1894,7 +2302,8 @@ class _PaymentSheet extends StatelessWidget {
   double get _subtotal => plans.fold(0.0, (s, p) => s + p.goods);
   double get _promoDiscount => plans.fold(0.0, (s, p) => s + p.promoDiscount);
   double get _fittingFee => plans.fold(0.0, (s, p) => s + p.fittingFee);
-  double get _storeTotal => plans.fold(0.0, (s, p) => s + p.storeAmount);
+  double get _kazpostTotal => plans.fold(0.0, (s, p) => s + p.kazpostFee);
+  double get _transferTotal => plans.fold(0.0, (s, p) => s + p.transferAmount);
   double get _courierTotal => plans.fold(0.0, (s, p) => s + p.courierFee);
   double get _remainingInStore =>
       plans.fold(0.0, (s, p) => s + p.remainingInStore);
@@ -1907,13 +2316,18 @@ class _PaymentSheet extends StatelessWidget {
     final stores = _byStore;
     final multiStore = stores.length > 1;
     final deliveryFee = _courierTotal;
-    final deposit = _storeTotal;
+    final deposit = _transferTotal;
+    final kazpostPlans = plans.where((p) => p.isKazpost).toList();
+    final hasKazpost = kazpostPlans.isNotEmpty;
+    final kazpostFee = _kazpostTotal;
 
     final String typeLabel = isSmartRes
         ? tr('Бронь', 'Бронь')
         : isCC
             ? tr('Самовывоз', 'Өзім барып аламын')
-            : tr('Доставка', 'Жеткізу');
+            : hasKazpost && kazpostPlans.length == plans.length
+                ? tr('Казпочта', 'Казпочта')
+                : tr('Доставка', 'Жеткізу');
 
     return Container(
       constraints:
@@ -2012,11 +2426,15 @@ class _PaymentSheet extends StatelessWidget {
           // Курьер жеткізуін қайта түсіндірмейміз — жоғарыдағы белгі мен
           // «Доставка» пиллі айтып тұр. Ал «дүкен өзі жеткізеді» — БАСҚА ереже,
           // ол айтылуы керек.
-          if (isDelivery && kazpost) ...[
+          if (isDelivery && storeDelivers) ...[
             const SizedBox(height: 6),
             Text(
-              tr('Магазин доставит сам — условия согласуете после оплаты',
-                  'Дүкен өзі жеткізеді — шартын төлемнен кейін келісесіз'),
+              hasKazpost
+                  ? tr(
+                      '${plans.where((p) => !p.isKazpost).map((p) => '«${p.storeName}»').toSet().join(', ')} доставит сам — условия согласуете после оплаты',
+                      '${plans.where((p) => !p.isKazpost).map((p) => '«${p.storeName}»').toSet().join(', ')} өзі жеткізеді — шартын төлемнен кейін келісесіз')
+                  : tr('Магазин доставит сам — условия согласуете после оплаты',
+                      'Дүкен өзі жеткізеді — шартын төлемнен кейін келісесіз'),
               textAlign: TextAlign.center,
               style: manrope(13, FontWeight.w500, color: cInk3),
             ),
@@ -2025,11 +2443,18 @@ class _PaymentSheet extends StatelessWidget {
           //  Жеңілдік те, «өлшеп көру» де жоқ болса «Аралық сома» мен «Дүкенге
           //  аударыммен» — жоғарыдағы үлкен санның дәл өзі. Үш жерде бір санды
           //  көрсетудің қажеті жоқ.
-          if (_promoDiscount > 0 || _fittingFee > 0 || multiStore) ...[
+          if (_promoDiscount > 0 ||
+              _fittingFee > 0 ||
+              kazpostFee > 0 ||
+              multiStore) ...[
             const SizedBox(height: 16),
             Container(height: 1, color: cLine),
             const SizedBox(height: 12),
-            if (_promoDiscount > 0 || _fittingFee > 0) ...[
+            // Көп дүкенде Казпочта осында ЕМЕС, әр дүкеннің өз жолында: қосылған
+            // сан клиентке бір аударым сияқты көрінер еді.
+            if (_promoDiscount > 0 ||
+                _fittingFee > 0 ||
+                (kazpostFee > 0 && !multiStore)) ...[
               _SummaryLine(tr('Подытог', 'Аралық сома'), money(_subtotal),
                   color: cInk2),
               if (_promoDiscount > 0)
@@ -2041,20 +2466,35 @@ class _PaymentSheet extends StatelessWidget {
                 _SummaryLine(
                     tr('Примерка', 'Өлшеп көру'), '+${money(_fittingFee)}',
                     color: cInk2),
+              if (kazpostFee > 0 && !multiStore)
+                _SummaryLine(
+                    kazpostPlans.length > 1
+                        ? tr('Казпочта (посылок: ${kazpostPlans.length})',
+                            'Казпочта (${kazpostPlans.length} сәлемдеме)')
+                        : tr('Казпочта', 'Казпочта'),
+                    '+${money(kazpostFee)}',
+                    color: cInk2),
               const SizedBox(height: 8),
             ],
             // ── Дүкендер: әрқайсысы жеке жол (бір дүкенде — жоғарыда) ─────────
-            ...stores.entries.map((e) {
+            ...stores.entries.expand((e) {
               final list = e.value;
-              final amount = list.fold(0.0, (s, p) => s + p.storeAmount);
-              return _SummaryLine(
-                  multiStore
-                      ? tr('«${list.first.storeName}» переводом',
-                          '«${list.first.storeName}» аударыммен')
-                      : tr('Магазину переводом', 'Дүкенге аударыммен'),
-                  money(amount),
-                  color: cInk,
-                  bold: true);
+              final amount = list.fold(0.0, (s, p) => s + p.transferAmount);
+              final postage = list.fold(0.0, (s, p) => s + p.kazpostFee);
+              return [
+                _SummaryLine(
+                    multiStore
+                        ? tr('«${list.first.storeName}» переводом',
+                            '«${list.first.storeName}» аударыммен')
+                        : tr('Магазину переводом', 'Дүкенге аударыммен'),
+                    money(amount),
+                    color: cInk,
+                    bold: true),
+                if (multiStore && postage > 0)
+                  _SummaryLine(tr('в том числе Казпочта', 'оның ішінде Казпочта'),
+                      money(postage),
+                      color: cInk2),
+              ];
             }),
             // Курьер жолы — тек бірнеше дүкенде: бір дүкенде ол жоғарыда белгі
             // ретінде тұр.
@@ -2087,12 +2527,32 @@ class _PaymentSheet extends StatelessWidget {
             ]),
             const SizedBox(height: 12),
           ],
+          // Клиент бұл ережелерді аударымға ДЕЙІН көруі керек: сома кімге
+          // барады, сәлемдеме қашан кетеді, возвратта не қайтпайды.
+          if (hasKazpost) ...[
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Icon(Icons.info_outline_rounded, color: cInk3, size: 15),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  tr('Казпочта входит в перевод, почте платит магазин. Посылку отправят после подтверждения оплаты. При возврате стоимость пересылки не возвращается.',
+                      'Казпочта аударымға кіреді, почтаға дүкен төлейді. Сәлемдеме төлем расталған соң жіберіледі. Қайтару кезінде почта ақысы қайтарылмайды.'),
+                  style:
+                      manrope(11.5, FontWeight.w600, color: cInk3, height: 1.3),
+                ),
+              ),
+            ]),
+            const SizedBox(height: 12),
+          ],
           if (!isDelivery && warehouseAddress.isNotEmpty)
             _InfoRow(Icons.location_on_outlined,
                 tr('Адрес получения', 'Алу мекенжайы'), warehouseAddress),
           if (isDelivery && deliveryAddress.isNotEmpty)
             _InfoRow(Icons.local_shipping_outlined, tr('Доставка', 'Жеткізу'),
                 deliveryAddress),
+          if (isDelivery && postRecipient.isNotEmpty)
+            _InfoRow(Icons.person_outline_rounded, tr('Получатель', 'Алушы'),
+                postRecipient),
           if (isSmartRes)
             _InfoRow(Icons.timer_outlined, tr('Срок брони', 'Бронь мерзімі'),
                 tr('1 час', '1 сағат')),
@@ -2142,6 +2602,66 @@ class _InfoRow extends StatelessWidget {
             TextSpan(
                 text: value, style: manrope(13, FontWeight.w700, color: cInk)),
           ]))),
+        ]),
+      );
+}
+
+// ── Казпочта алушысының өрісі ──────────────────────────────────────────────────
+class _PostField extends StatelessWidget {
+  final TextEditingController controller;
+  final String label, hint;
+  final String? helper;
+  final IconData icon;
+  final TextInputType? keyboardType;
+  final List<TextInputFormatter>? formatters;
+  final TextCapitalization capitalization;
+  const _PostField({
+    required this.controller,
+    required this.label,
+    required this.hint,
+    required this.icon,
+    this.helper,
+    this.keyboardType,
+    this.formatters,
+    this.capitalization = TextCapitalization.none,
+  });
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(label, style: manrope(12.5, FontWeight.w700, color: cInk2)),
+          const SizedBox(height: 6),
+          Container(
+            decoration: BoxDecoration(
+              color: cSurface,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: cLine, width: 1.5),
+            ),
+            child: TextField(
+              controller: controller,
+              keyboardType: keyboardType,
+              inputFormatters: formatters,
+              textCapitalization: capitalization,
+              style: manrope(14, FontWeight.w500, color: cInk),
+              decoration: InputDecoration(
+                hintText: hint,
+                hintStyle: manrope(14, FontWeight.w500, color: cInk3),
+                prefixIcon: Icon(icon, color: cInk3, size: 19),
+                filled: false,
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                disabledBorder: InputBorder.none,
+                errorBorder: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+            ),
+          ),
+          if (helper != null) ...[
+            const SizedBox(height: 5),
+            Text(helper!, style: manrope(11.5, FontWeight.w600, color: cInk3)),
+          ],
         ]),
       );
 }

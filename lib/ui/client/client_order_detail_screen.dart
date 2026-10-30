@@ -10,6 +10,7 @@ import '../../core/order_helpers.dart';
 import '../../data/models/cart_item_model.dart';
 import '../../data/models/order_model.dart';
 import '../../data/models/return_model.dart';
+import '../../data/models/return_policy.dart';
 import '../../data/models/review_model.dart';
 import '../../data/services/client_service.dart';
 import '../../data/services/gift_service.dart';
@@ -18,8 +19,10 @@ import '../../theme/qoima_design.dart';
 import '../shared/order_money_card.dart';
 import 'client_shell.dart';
 import 'order_timeline.dart';
+import 'return_notice_sheet.dart';
 import 'gift/gift_share_screen.dart';
 import 'gift/gift_widgets.dart';
+import 'kazpost_tracking_card.dart';
 import 'returns/client_return_form_screen.dart';
 import 'reviews_section.dart';
 
@@ -306,7 +309,7 @@ class _ClientOrderDetailScreenState extends State<ClientOrderDetailScreen> {
 
   String get _statusLabel => o.status == OrderModel.statusCancelled
       ? cancelledByLabel(o, viewerUid: AppUser.current.uid)
-      : orderStatusLabel(o.status);
+      : kazpostStatusLabel(o) ?? orderStatusLabel(o.status);
 
   String get _typeLabel {
     switch (o.orderType) {
@@ -315,7 +318,9 @@ class _ClientOrderDetailScreenState extends State<ClientOrderDetailScreen> {
       case OrderModel.typeSmartReservation:
         return tr('Бронь', 'Бронь');
       case OrderModel.typeDelivery:
-        return tr('Доставка', 'Жеткізу');
+        return o.isKazpost
+            ? tr('Казпочта', 'Казпочта')
+            : tr('Доставка', 'Жеткізу');
       default:
         return o.orderType;
     }
@@ -326,7 +331,7 @@ class _ClientOrderDetailScreenState extends State<ClientOrderDetailScreen> {
       case OrderModel.typeClickCollect:
         return 'green';
       case OrderModel.typeDelivery:
-        return 'amber';
+        return o.isKazpost ? 'blue' : 'amber';
       default:
         return 'blue';
     }
@@ -372,6 +377,10 @@ class _ClientOrderDetailScreenState extends State<ClientOrderDetailScreen> {
                 ],
                 OrderTimeline(order: o),
                 const SizedBox(height: 12),
+                if (o.isKazpost) ...[
+                  KazpostTrackingCard(order: o),
+                  const SizedBox(height: 12),
+                ],
               ] else
                 ..._plainMoney(),
               // «Где забрать / Позвонить» — тек тауар ӘЛІ АЛЫНБАҒАН тапсырыста
@@ -384,8 +393,10 @@ class _ClientOrderDetailScreenState extends State<ClientOrderDetailScreen> {
                   o.status != OrderModel.statusCancelled &&
                   (o.warehouseAddress.isNotEmpty || o.storePhone.isNotEmpty))
                 _pickupCard(),
-              // 🎁 Сыйлаушыға алушының мекенжайы көрсетілмейді (жеке дерек)
+              // 🎁 Сыйлаушыға алушының мекенжайы көрсетілмейді (жеке дерек).
+              // Казпочтада мекенжай трекинг карточкасының ішінде тұр.
               if (o.isDelivery &&
+                  !o.isKazpost &&
                   o.address.trim().isNotEmpty &&
                   !(o.isGift && !_isRecipient))
                 _addressCard(),
@@ -393,6 +404,11 @@ class _ClientOrderDetailScreenState extends State<ClientOrderDetailScreen> {
                   o.rejectionReason.isNotEmpty)
                 _reasonCard(tr('Причина отклонения', 'Қабылданбау себебі'),
                     o.rejectionReason),
+              // Снапшот (0082): дүкен шартын кейін өзгертсе де осы күйінде қалады.
+              if (o.status == OrderModel.statusCompleted &&
+                  !o.isGift &&
+                  o.returnPolicy != null)
+                _returnPolicyCard(o.returnPolicy!),
               const SizedBox(height: 6),
               ..._actions(),
             ],
@@ -495,7 +511,10 @@ class _ClientOrderDetailScreenState extends State<ClientOrderDetailScreen> {
         if (item != null && item.altSize.isNotEmpty && active)
           tr('Курьер привезёт два размера: ${trValue(item.size)} и ${trValue(item.altSize)} — оставите подходящий.',
               'Курьер екі өлшем әкеледі: ${trValue(item.size)} және ${trValue(item.altSize)} — сәйкесін қалдырасыз.'),
-        if (o.status == OrderModel.statusCompleted)
+        // Снапшотта қайтарылмайтын позиция — сервер ауыстыруды да бөгейді.
+        if (o.status == OrderModel.statusCompleted && o.isGiftLocked)
+          tr('Этот подарок нельзя обменять.', 'Бұл сыйлықты ауыстыруға болмайды.')
+        else if (o.status == OrderModel.statusCompleted)
           o.giftExchangeOpen
               ? tr('Подарок можно только обменять: принесите товар в магазин «${o.storeName}» до ${_dateOnly(o.returnDeadline)} — другой размер или товар.',
                   'Сыйлықты тек ауыстыруға болады: тауарды ${_dateOnly(o.returnDeadline)} дейін «${o.storeName}» дүкеніне апарыңыз — басқа өлшем не тауар.')
@@ -835,6 +854,28 @@ class _ClientOrderDetailScreenState extends State<ClientOrderDetailScreen> {
         ),
       );
 
+  // Әдепкіде жабық: 0076 бойынша қайтаруды алдыңғы орынға шығармаймыз.
+  Widget _returnPolicyCard(ReturnPolicy policy) => Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: _card(
+          child: ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            childrenPadding: const EdgeInsets.only(top: 4, bottom: 2),
+            minTileHeight: 24,
+            shape: const Border(),
+            collapsedShape: const Border(),
+            expandedCrossAxisAlignment: CrossAxisAlignment.start,
+            iconColor: cInk3,
+            collapsedIconColor: cInk3,
+            title: Text(tr('Условия возврата', 'Қайтару шарттары'),
+                style: manrope(13, FontWeight.w800, color: cInk)),
+            children: [
+              ReturnPolicyBody(policy, items: o.items, kazpost: o.isKazpost),
+            ],
+          ),
+        ),
+      );
+
   // ── Әрекеттер ──────────────────────────────────────────────────────────────
   List<Widget> _actions() {
     final widgets = <Widget>[];
@@ -888,12 +929,15 @@ class _ClientOrderDetailScreenState extends State<ClientOrderDetailScreen> {
         const SizedBox(height: 14),
         Center(
           child: Text(
-              o.giftExchangeOpen
-                  ? tr(
-                      'Подарок можно только обменять — принесите товар в магазин (14 дней, до ${_dateOnly(o.returnDeadline)})',
-                      'Сыйлықты тек ауыстыруға болады — тауарды дүкенге апарыңыз (14 күн, ${_dateOnly(o.returnDeadline)} дейін)')
-                  : tr('Срок обмена подарка истёк',
-                      'Сыйлықты ауыстыру мерзімі өтті'),
+              o.isGiftLocked
+                  ? tr('Этот подарок нельзя обменять.',
+                      'Бұл сыйлықты ауыстыруға болмайды.')
+                  : o.giftExchangeOpen
+                      ? tr(
+                          'Подарок можно только обменять — принесите товар в магазин (14 дней, до ${_dateOnly(o.returnDeadline)})',
+                          'Сыйлықты тек ауыстыруға болады — тауарды дүкенге апарыңыз (14 күн, ${_dateOnly(o.returnDeadline)} дейін)')
+                      : tr('Срок обмена подарка истёк',
+                          'Сыйлықты ауыстыру мерзімі өтті'),
               textAlign: TextAlign.center,
               style: manrope(11.5, FontWeight.w600, color: cInk3)),
         ),
@@ -911,6 +955,12 @@ class _ClientOrderDetailScreenState extends State<ClientOrderDetailScreen> {
                   tone: 'amber',
                   icon: const Icon(Icons.loop_rounded,
                       size: 12, color: Color(0xFF92400E))),
+        ));
+      } else if (o.returnPolicy?.isNoReturns == true) {
+        // Мерзімге қарамастан: мұнда «срок истёк» деген дұрыс болмас еді.
+        widgets.add(Center(
+          child: Text(tr('Возврат не предусмотрен', 'Қайтару қарастырылмаған'),
+              style: manrope(11.5, FontWeight.w600, color: cInk3)),
         ));
       } else if (_canOpenReturn) {
         widgets.addAll([

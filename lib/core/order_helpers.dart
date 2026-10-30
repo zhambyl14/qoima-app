@@ -30,6 +30,13 @@ String orderStatusLabel(String status) {
   }
 }
 
+/// Казпочта: «confirmed» екі кезеңді жасырады (дайындалып жатыр / жолда), ал
+/// «Оплачен · Готов» клиентке «алуға болады» деп оқылады. Басқа тапсырыста null.
+String? kazpostStatusLabel(OrderModel o) {
+  if (!o.isKazpost || o.status != OrderModel.statusConfirmed) return null;
+  return o.postInTransit ? tr('В пути', 'Жолда') : tr('Оплачен', 'Төленді');
+}
+
 Color orderStatusColor(String status) {
   switch (status) {
     case OrderModel.statusPending:

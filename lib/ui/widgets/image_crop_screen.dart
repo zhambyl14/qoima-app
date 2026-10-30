@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
@@ -89,13 +91,21 @@ class _ImageCropScreenState extends State<ImageCropScreen> {
         y: (-ty / s * k).round(),
         size: (_side / s * k).round(),
       );
-      final bytes = await compute(_cropWorker, <String, dynamic>{
+      final args = <String, dynamic>{
         'raw': widget.raw,
         'x': crop.x,
         'y': crop.y,
         'size': crop.size,
         'out': widget.outputSize,
-      });
+      };
+      var bytes = await compute(_cropWorker, args);
+      // `image` оқи алмаса (HEIC) бұрын кесілмеген түпнұсқа қайтатын еді.
+      if (bytes == null) {
+        final png = await _engineDecodeToPng(widget.raw);
+        if (png == null) throw StateError('decode failed');
+        bytes = await compute(_cropWorker, {...args, 'raw': png});
+      }
+      if (bytes == null) throw StateError('decode failed');
       if (mounted) Navigator.pop(context, bytes);
     } catch (_) {
       if (mounted) {
@@ -269,11 +279,12 @@ class _GridPainter extends CustomPainter {
 }
 
 /// Ауыр кесу жұмысы (isolate-та): decode → copyCrop → resize → JPG.
-Uint8List _cropWorker(Map<String, dynamic> args) {
+/// `image` пакеті оқи алмаса — null (шақырушы engine декодеріне ауысады).
+Uint8List? _cropWorker(Map<String, dynamic> args) {
   final raw = args['raw'] as Uint8List;
   final out = args['out'] as int;
-  final decoded = img.decodeImage(raw);
-  if (decoded == null) return raw;
+  final decoded = _decodeUpright(raw);
+  if (decoded == null) return null;
 
   var x = args['x'] as int;
   var y = args['y'] as int;
@@ -285,9 +296,108 @@ Uint8List _cropWorker(Map<String, dynamic> args) {
   x = x.clamp(0, decoded.width - size);
   y = y.clamp(0, decoded.height - size);
 
-  final cropped =
-      img.copyCrop(decoded, x: x, y: y, width: size, height: size);
+  return _encodeSquare(decoded, x, y, size, out, kProductPhotoQuality);
+}
+
+// ── Авто-центр кесу: камера да, галерея да осыны қолданады ─────────────────────
+
+/// Тауар фотосының тіркелген өлшемі мен сапасы (бір жерде ғана).
+const int kProductPhotoSize = 1080;
+const int kProductPhotoQuality = 85;
+
+/// Суретті ТІК күйінде декодтайды. JPEG декодері EXIF бағытын өзі қолданады;
+/// басқа форматта тег қалса, осында сіңіреміз. bakeOrientation әрқашан толық
+/// көшірме жасайды, сондықтан тег бар кезде ғана шақырамыз.
+img.Image? _decodeUpright(Uint8List raw) {
+  final img.Image? decoded;
+  try {
+    decoded = img.decodeImage(raw);
+  } catch (_) {
+    return null; // бүлінген файл: decodeImage null емес, қате лақтыра алады
+  }
+  if (decoded == null) return null;
+  final ifd = decoded.exif.imageIfd;
+  if (!ifd.hasOrientation || ifd.orientation == 1) return decoded;
+  return img.bakeOrientation(decoded);
+}
+
+Uint8List _encodeSquare(
+    img.Image src, int x, int y, int side, int out, int quality) {
+  final cropped = img.copyCrop(src, x: x, y: y, width: side, height: side);
   final resized = img.copyResize(cropped,
       width: out, height: out, interpolation: img.Interpolation.average);
-  return Uint8List.fromList(img.encodeJpg(resized, quality: 85));
+  // EXIF-ті алып тастаймыз: бағыты пиксельге сіңді, ал GPS пен құрылғы
+  // деректері витринаға жарияланатын суретке шықпауы керек.
+  resized.exif.clear();
+  return Uint8List.fromList(img.encodeJpg(resized, quality: quality));
+}
+
+/// [width]×[height] суреттің ортасынан алынатын шаршының қабырғасы.
+///
+/// [previewAspect] — камера превьюінің пропорциясы. Әдетте суреттікімен бірдей,
+/// сонда шаршы қысқа қабырғаға тең. Бірақ кей құрылғыда сурет 4:3, превью 16:9
+/// болады: превью сенсордың ортаңғы бөлігі ғана, яғни кадрда көрінгені суреттің
+/// қысқа қабырғасынан КІШІ. Кадрда не көрінсе, сол сақталуы үшін соған кішірейтеміз.
+int centerCropSide(int width, int height, {double? previewAspect}) {
+  final short = width < height ? width : height;
+  final long = width < height ? height : width;
+  if (short <= 0) return 1;
+  var side = short.toDouble();
+  if (previewAspect != null && previewAspect > 0) {
+    final p = previewAspect < 1 ? 1 / previewAspect : previewAspect;
+    final q = long / short;
+    if (p > q) side = short * q / p;
+  }
+  final s = side.round();
+  return s < 1 ? 1 : (s > short ? short : s);
+}
+
+/// Суретті ортасынан 1:1 кесіп, [size]×[size] JPEG қайтарады (EXIF бағыты
+/// ескеріледі). Оқылмаса — null. Таза функция: UI-ға да, платформаға да тәуелді
+/// емес, сондықтан тікелей тестіленеді. Экранда [autoCenterCropAsync] қолданыңыз.
+Uint8List? autoCenterCrop(
+  Uint8List raw, {
+  int size = kProductPhotoSize,
+  int quality = kProductPhotoQuality,
+  double? previewAspect,
+}) {
+  final decoded = _decodeUpright(raw);
+  if (decoded == null) return null;
+  final side = centerCropSide(decoded.width, decoded.height,
+      previewAspect: previewAspect);
+  return _encodeSquare(decoded, (decoded.width - side) ~/ 2,
+      (decoded.height - side) ~/ 2, side, size, quality);
+}
+
+Uint8List? _autoCropIsolate((Uint8List, int, int, double?) a) =>
+    autoCenterCrop(a.$1, size: a.$2, quality: a.$3, previewAspect: a.$4);
+
+/// [autoCenterCrop] фондық isolate-та (UI тоқтамайды). `image` пакеті оқи
+/// алмаған формат (мыс. Android-тағы HEIC) engine арқылы тағы бір рет сыналады.
+Future<Uint8List?> autoCenterCropAsync(
+  Uint8List raw, {
+  int size = kProductPhotoSize,
+  int quality = kProductPhotoQuality,
+  double? previewAspect,
+}) async {
+  final out =
+      await compute(_autoCropIsolate, (raw, size, quality, previewAspect));
+  if (out != null) return out;
+  final png = await _engineDecodeToPng(raw);
+  if (png == null) return null;
+  return compute(_autoCropIsolate, (png, size, quality, previewAspect));
+}
+
+/// Flutter engine декодері (EXIF-ті де, HEIC-ті де біледі) → PNG bytes.
+Future<Uint8List?> _engineDecodeToPng(Uint8List raw) async {
+  try {
+    final codec = await ui.instantiateImageCodec(raw);
+    final frame = await codec.getNextFrame();
+    final data = await frame.image.toByteData(format: ui.ImageByteFormat.png);
+    frame.image.dispose();
+    codec.dispose();
+    return data?.buffer.asUint8List();
+  } catch (_) {
+    return null;
+  }
 }

@@ -12,6 +12,7 @@ import '../client/gift/gift_widgets.dart';
 import '../client/reservation_timer_widget.dart';
 import '../shared/courier_info_banner.dart';
 import '../shared/fitting_swap_sheet.dart';
+import '../shared/kazpost_store_card.dart';
 import '../shared/order_item_row.dart';
 import '../shared/order_money_card.dart';
 import '../shared/prompt_text_dialog.dart';
@@ -497,6 +498,7 @@ class _OrderCardState extends State<_OrderCard> {
   OrderModel get o => widget.order;
 
   Color get _typeColor {
+    if (o.isKazpost) return cPurple;
     switch (o.orderType) {
       case OrderModel.typeSmartReservation:
         return const Color(0xFF3B82F6);
@@ -510,6 +512,7 @@ class _OrderCardState extends State<_OrderCard> {
   }
 
   String get _typeLabel {
+    if (o.isKazpost) return tr('КАЗПОЧТА', 'КАЗПОЧТА');
     switch (o.orderType) {
       case OrderModel.typeSmartReservation:
         return tr('БРОНЬ', 'БРОНЬ');
@@ -538,6 +541,12 @@ class _OrderCardState extends State<_OrderCard> {
       case OrderModel.statusRejected:
         return tr('Чек отклонён', 'Чек қабылданбады');
       case OrderModel.statusConfirmed:
+        // Казпочта тапсырысын «беру» жоқ: дүкен почтаға апарады.
+        if (o.isKazpost) {
+          return o.postInTransit
+              ? tr('Посылка в пути', 'Сәлемдеме жолда')
+              : tr('Оплачено · Отправить', 'Төленді · Жіберу');
+        }
         return tr('Оплачено · Готов к выдаче', 'Төленді · Беруге дайын');
       case OrderModel.statusCompleted:
         return tr('Завершён', 'Аяқталды');
@@ -807,8 +816,11 @@ class _OrderCardState extends State<_OrderCard> {
         content: Text(o.isSmartReservation
             ? tr('Деньги по чеку получены? Бронь будет подтверждена на 1 час.',
                 'Чек бойынша ақша түсті ме? Бронь 1 сағатқа расталады.')
-            : tr('Деньги по чеку получены? Заказ станет «Готов к выдаче».',
-                'Чек бойынша ақша түсті ме? Тапсырыс «Беруге дайын» болады.')),
+            : o.isKazpost
+                ? tr('Деньги по чеку получены? В переводе также стоимость почты. После подтверждения отправьте посылку.',
+                    'Чек бойынша ақша түсті ме? Аударымда почта ақысы да бар. Растаған соң сәлемдемені жіберіңіз.')
+                : tr('Деньги по чеку получены? Заказ станет «Готов к выдаче».',
+                    'Чек бойынша ақша түсті ме? Тапсырыс «Беруге дайын» болады.')),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),
@@ -1107,7 +1119,14 @@ class _OrderCardState extends State<_OrderCard> {
                             ],
                             // Жеткізу — ҚАЛАСЫМЕН: басқа қала болса жөнелту
                             // қызметі керек, оны шатастыруға болмайды.
-                            if (o.isDelivery)
+                            // Казпочтада мекенжай бланкінің ішінде — екі рет
+                            // көрсетпейміз.
+                            if (o.isKazpost)
+                              KazpostStoreCard(
+                                order: o,
+                                onChanged: widget.onChanged,
+                              )
+                            else if (o.isDelivery)
                               OrderDestinationCard(
                                 city: o.clientCity,
                                 address: o.address,
@@ -1141,26 +1160,28 @@ class _OrderCardState extends State<_OrderCard> {
                               // Төлем әдісі сол картаның ішінде («Дүкенге»
                               // блогының астында), бөлек жол керек емес.
                               OrderMoneyCard(order: o, audience: 'store'),
-                              const SizedBox(height: 10),
-                              CourierInfoBanner(
-                                order: o,
-                                forStore: true,
-                                onConfirmReturnLeg: () async {
-                                  try {
-                                    await widget.service.confirmReturnLeg(o);
-                                    widget.onChanged();
-                                  } catch (e) {
-                                    if (context.mounted) {
-                                      ScaffoldMessenger.of(context)
-                                          .showSnackBar(SnackBar(
-                                              content: Text(friendlyError(e)),
-                                              backgroundColor: cRed,
-                                              behavior:
-                                                  SnackBarBehavior.floating));
+                              if (!o.isKazpost) ...[
+                                const SizedBox(height: 10),
+                                CourierInfoBanner(
+                                  order: o,
+                                  forStore: true,
+                                  onConfirmReturnLeg: () async {
+                                    try {
+                                      await widget.service.confirmReturnLeg(o);
+                                      widget.onChanged();
+                                    } catch (e) {
+                                      if (context.mounted) {
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(SnackBar(
+                                                content: Text(friendlyError(e)),
+                                                backgroundColor: cRed,
+                                                behavior:
+                                                    SnackBarBehavior.floating));
+                                      }
                                     }
-                                  }
-                                },
-                              ),
+                                  },
+                                ),
+                              ],
                             ] else ...[
                               // ⚠️ ТҮЗЕТУ: бұрын мұнда `o.total` (промокодқа дейінгі
                               // толық сома) көрсетілетін — админ клиенттің НАҚТЫ
@@ -1193,7 +1214,12 @@ class _OrderCardState extends State<_OrderCard> {
                           // «Выдать»/«Отменить» ете АЛМАЙДЫ: тауар физикалық
                           // түрде курьерде. Оны тек курьер жабады (0052 —
                           // серверде де guard_courier_order_lock триггері бар).
-                          if (isActive && !_lockedByCourier) ...[
+                          // Посылка почтаға кетті: болдыруға болмайды (сервер
+                          // kazpost_already_shipped қайтарады), қалған әрекет
+                          // KazpostStoreCard-та.
+                          if (isActive &&
+                              !_lockedByCourier &&
+                              !o.postInTransit) ...[
                             const SizedBox(height: 12),
 
                             // Pending + чек тіркелді → тексеру/растау/қабылдамау
@@ -1346,7 +1372,8 @@ class _OrderCardState extends State<_OrderCard> {
                                       color: cPurpleInk),
                                 ),
                               )
-                            else if (o.status == OrderModel.statusConfirmed)
+                            else if (o.status == OrderModel.statusConfirmed &&
+                                !o.isKazpost)
                               // Платформа курьері келетін тапсырыс — беруді
                               // курьер жабады. Мұнда тек қосалқы жол қалады.
                               if (o.byPlatformCourier)

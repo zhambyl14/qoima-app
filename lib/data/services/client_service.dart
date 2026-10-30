@@ -1,5 +1,5 @@
 import 'dart:math';
-import 'package:flutter/foundation.dart' show ValueNotifier;
+import 'package:flutter/foundation.dart' show ValueNotifier, debugPrint;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/store_model.dart';
 import '../models/product_model.dart';
@@ -692,6 +692,8 @@ class ClientService {
     }
 
     // Қойма: бронь → reserved_sizes +qty; қалғаны → sizes_quantity −qty (guard).
+    // Нақты алынғанын санап отырамыз: кейін құласа, ДӘЛ соны қайтару үшін.
+    final stockTaken = <CartItemModel>[];
     for (final item in order.items) {
       try {
         await _sb.rpc('adjust_batch_sizes', params: {
@@ -701,9 +703,12 @@ class ClientService {
               order.isSmartReservation ? 'reserved_sizes' : 'sizes_quantity',
           'p_guard': true,
         });
-      } on PostgrestException catch (e) {
-        if (e.message.contains('insufficient_stock') ||
-            e.message.contains('batch_not_found')) {
+        stockTaken.add(item);
+      } catch (e) {
+        await _undoPlacement(order, stock: stockTaken);
+        if (e is PostgrestException &&
+            (e.message.contains('insufficient_stock') ||
+                e.message.contains('batch_not_found'))) {
           throw Exception(
               tr('Недостаточно остатка «${item.productName}» в размере ${item.size}', '«${item.productName}» ${item.size} өлшемінде жеткілікті қор жоқ'));
         }
@@ -739,6 +744,7 @@ class ClientService {
     }
 
     // Промокод есептегішін арттырамыз.
+    var promoTaken = false;
     if (countsPromo) {
       try {
         await _sb.rpc('adjust_promo_usage', params: {
@@ -746,6 +752,7 @@ class ClientService {
           'p_client': order.clientUid.isEmpty ? null : order.clientUid,
           'p_delta': 1,
         });
+        promoTaken = true;
       } catch (_) {}
     }
 
@@ -760,8 +767,23 @@ class ClientService {
       paymentBank: cardBank,
       storePhone: storePhone,
     );
-    final row =
-        await _sb.from('orders').insert(placed.toMap()).select('id').single();
+    // ⚠️ Қойма жазудан БҰРЫН алынады, ал сервер енді жазуды жиі қайтарады (баға,
+    // индекс, брон тексерістері). Қайтармасақ, тапсырыссыз қойма жоғалады: қайтаратын
+    // тапсырыс та жоқ. Жазылып ҮЛГЕРГЕН тапсырысқа тимейміз — оның қоймасы өзінде.
+    final Map<String, dynamic> row;
+    try {
+      row = await _sb.from('orders').insert(placed.toMap()).select('id').single();
+    } catch (e) {
+      if (e is PostgrestException || !await _orderMayExist(placed)) {
+        await _undoPlacement(
+          order,
+          stock: stockTaken,
+          altHolds: items.where((i) => i.hasAltSize).toList(),
+          promo: promoTaken,
+        );
+      }
+      rethrow;
+    }
     final orderId = row['id'] as String;
     final orderNumber = await _nextOrderNumber(placed.adminUid);
     await _sb
@@ -779,6 +801,66 @@ class ClientService {
     } catch (_) {}
 
     return placed.copyWith(id: orderId, orderNumber: orderNumber);
+  }
+
+  /// Желі үзілсе сұраныс серверге жеткен-жетпегені белгісіз: жеткен болса, қойманы
+  /// қайтару оны екі есе арттырады (тапсырыс болдырылғанда тағы қайтарылады).
+  /// Білу мүмкін болмаса да true: желі жоқта қайтару бәрібір өтпейді.
+  Future<bool> _orderMayExist(OrderModel placed) async {
+    try {
+      final row = await _sb
+          .from('orders')
+          .select('id')
+          .eq('client_uid', placed.clientUid)
+          .eq('admin_uid', placed.adminUid)
+          .eq('pickup_code', placed.pickupCode)
+          .maybeSingle();
+      return row != null;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  /// [placeOrder] алған нәрсені қайтарады. Әр қадам өз try-ында: біреуі құласа да
+  /// қалғаны орындалады, әрі шақырушы БАСТАПҚЫ қатені көреді.
+  Future<void> _undoPlacement(
+    OrderModel order, {
+    List<CartItemModel> stock = const [],
+    List<CartItemModel> altHolds = const [],
+    bool promo = false,
+  }) async {
+    Future<void> attempt(String fn, Map<String, dynamic> params) async {
+      try {
+        await _sb.rpc(fn, params: params);
+      } catch (e) {
+        debugPrint('placeOrder undo failed: $fn $params: $e');
+      }
+    }
+
+    for (final item in stock) {
+      await attempt('adjust_batch_sizes', {
+        'p_batch': item.batchId,
+        'p_deltas': {item.size: order.isSmartReservation ? -item.qty : item.qty},
+        'p_field':
+            order.isSmartReservation ? 'reserved_sizes' : 'sizes_quantity',
+        'p_guard': false,
+      });
+    }
+    for (final item in altHolds) {
+      await attempt('adjust_batch_sizes', {
+        'p_batch': item.batchId,
+        'p_deltas': {item.altSize: -item.qty},
+        'p_field': 'reserved_sizes',
+        'p_guard': false,
+      });
+    }
+    if (promo) {
+      await attempt('adjust_promo_usage', {
+        'p_promo': order.promoId,
+        'p_client': order.clientUid.isEmpty ? null : order.clientUid,
+        'p_delta': -1,
+      });
+    }
   }
 
   /// Бір төлеммен жасалған суб-тапсырыстарды БІР топқа байлайды (0057).

@@ -15,6 +15,7 @@ import 'client_catalog_screen.dart';
 import 'client_cart_screen.dart';
 import 'client_profile_screen.dart';
 import 'client_orders_screen.dart';
+import 'return_notice_gate.dart';
 
 // ── Cart state ─────────────────────────────────────────────────────────────────
 class CartProvider extends ChangeNotifier {
@@ -271,7 +272,9 @@ class ClientShellState extends State<ClientShell> {
 
     return Scaffold(
       backgroundColor: cBg,
-      body: IndexedStack(index: _currentIndex, children: screens),
+      body: ReturnNoticeGate(
+        child: IndexedStack(index: _currentIndex, children: screens),
+      ),
       bottomNavigationBar: ClipRect(
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),

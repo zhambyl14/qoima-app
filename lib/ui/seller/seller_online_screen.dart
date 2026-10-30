@@ -11,6 +11,7 @@ import '../client/gift/gift_widgets.dart';
 import '../client/reservation_timer_widget.dart';
 import '../shared/courier_info_banner.dart';
 import '../shared/fitting_swap_sheet.dart';
+import '../shared/kazpost_store_card.dart';
 import '../shared/order_item_row.dart';
 import '../shared/order_money_card.dart';
 import '../../data/models/return_model.dart';
@@ -636,6 +637,7 @@ class _OrderCardState extends State<_OrderCard> {
   OrderModel get o => widget.order;
 
   String get _typeTone {
+    if (o.isKazpost) return 'purple';
     switch (o.orderType) {
       case OrderModel.typeSmartReservation:
         return 'blue';
@@ -649,6 +651,7 @@ class _OrderCardState extends State<_OrderCard> {
   }
 
   String get _typeLabel {
+    if (o.isKazpost) return tr('Казпочта', 'Казпочта');
     switch (o.orderType) {
       case OrderModel.typeSmartReservation:
         return tr('Бронь', 'Бронь');
@@ -674,6 +677,12 @@ class _OrderCardState extends State<_OrderCard> {
       case OrderModel.statusReserved:
         return tr('Бронь · ждёт доплату', 'Бронь · доплата күтілуде');
       case OrderModel.statusConfirmed:
+        // Казпочта тапсырысын «беру» жоқ: дүкен почтаға апарады.
+        if (o.isKazpost) {
+          return o.postInTransit
+              ? tr('Посылка в пути', 'Сәлемдеме жолда')
+              : tr('Нужно отправить', 'Жіберу керек');
+        }
         return tr('Оплачено · выдать', 'Төленді · беру');
       case OrderModel.statusCompleted:
         return tr('Завершён', 'Аяқталды');
@@ -972,8 +981,8 @@ class _OrderCardState extends State<_OrderCard> {
             ),
           ]),
 
-          // Pickup code
-          if (o.pickupCode.isNotEmpty) ...[
+          // Pickup code (Казпочтада кодты айтатын адам жоқ)
+          if (o.pickupCode.isNotEmpty && !o.isKazpost) ...[
             const SizedBox(height: 6),
             Row(children: [
               const Icon(Icons.qr_code_rounded, size: 14, color: cGreen),
@@ -1037,7 +1046,10 @@ class _OrderCardState extends State<_OrderCard> {
             ],
 
             // Жеткізу — ҚАЛАСЫМЕН (басқа қала болса жөнелту қызметі керек).
-            if (o.isDelivery)
+            // Казпочтада мекенжай бланкінің ішінде — екі рет көрсетпейміз.
+            if (o.isKazpost)
+              KazpostStoreCard(order: o, onChanged: widget.onChanged)
+            else if (o.isDelivery)
               OrderDestinationCard(
                 city: o.clientCity,
                 address: o.address,
@@ -1066,24 +1078,26 @@ class _OrderCardState extends State<_OrderCard> {
               // Ақшаның толық жіктелуі: дүкенге не тиесілі, курьерге не тиесілі.
               // Төлем әдісі сол картаның ішінде тұр — бөлек жол қажет емес.
               OrderMoneyCard(order: o, audience: 'store'),
-              const SizedBox(height: 10),
-              CourierInfoBanner(
-                order: o,
-                forStore: true,
-                onConfirmReturnLeg: () async {
-                  try {
-                    await widget.service.confirmReturnLeg(o);
-                    widget.onChanged();
-                  } catch (e) {
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                          content: Text(friendlyError(e)),
-                          backgroundColor: cRed,
-                          behavior: SnackBarBehavior.floating));
+              if (!o.isKazpost) ...[
+                const SizedBox(height: 10),
+                CourierInfoBanner(
+                  order: o,
+                  forStore: true,
+                  onConfirmReturnLeg: () async {
+                    try {
+                      await widget.service.confirmReturnLeg(o);
+                      widget.onChanged();
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                            content: Text(friendlyError(e)),
+                            backgroundColor: cRed,
+                            behavior: SnackBarBehavior.floating));
+                      }
                     }
-                  }
-                },
-              ),
+                  },
+                ),
+              ],
             ] else ...[
               // ⚠️ ТҮЗЕТУ: бұрын `o.total` (промокодқа дейінгі толық сома)
               // көрсетілетін. Енді `o.finalTotal` — deposit_amount-пен сәйкес.
@@ -1106,8 +1120,9 @@ class _OrderCardState extends State<_OrderCard> {
             ],
           ],
 
-          // Action buttons (курьер алып кеткен соң қолжетімсіз)
-          if (_isActive && !_lockedByCourier) ...[
+          // Action buttons (курьер алып кеткен соң қолжетімсіз). Посылка почтаға
+          // кетсе де: болдыруға болмайды, қалған әрекет KazpostStoreCard-та.
+          if (_isActive && !_lockedByCourier && !o.postInTransit) ...[
             const SizedBox(height: 12),
 
             // confirmed → тауарды беру.
@@ -1136,7 +1151,7 @@ class _OrderCardState extends State<_OrderCard> {
                   style: manrope(12.5, FontWeight.w700, color: cPurpleInk),
                 ),
               )
-            else if (o.status == OrderModel.statusConfirmed)
+            else if (o.status == OrderModel.statusConfirmed && !o.isKazpost)
               // Платформа курьері келетін тапсырысты курьер жабады.
               if (o.byPlatformCourier)
                 SizedBox(

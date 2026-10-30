@@ -487,11 +487,14 @@ class _ReceivedCard extends StatelessWidget {
           if (o.status == OrderModel.statusCompleted) ...[
             const SizedBox(height: 6),
             Text(
-                o.giftExchangeOpen
-                    ? tr(
-                        'Не подошёл? Обменяйте в магазине до ${_d(o.returnDeadline)} (только обмен, без возврата денег)',
-                        'Келмеді ме? ${_d(o.returnDeadline)} дейін дүкенде ауыстырыңыз (тек ауыстыру, ақша қайтарылмайды)')
-                    : tr('Срок обмена истёк', 'Ауыстыру мерзімі өтті'),
+                o.isGiftLocked
+                    ? tr('Этот подарок нельзя обменять.',
+                        'Бұл сыйлықты ауыстыруға болмайды.')
+                    : o.giftExchangeOpen
+                        ? tr(
+                            'Не подошёл? Обменяйте в магазине до ${_d(o.returnDeadline)} (только обмен, без возврата денег)',
+                            'Келмеді ме? ${_d(o.returnDeadline)} дейін дүкенде ауыстырыңыз (тек ауыстыру, ақша қайтарылмайды)')
+                        : tr('Срок обмена истёк', 'Ауыстыру мерзімі өтті'),
                 style: manrope(12, FontWeight.w600, color: cInk2)),
           ],
           if (!o.byPlatformCourier &&

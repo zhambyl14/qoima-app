@@ -3,6 +3,7 @@ import '../../../core/l10n_ext.dart';
 import '../../../data/models/return_model.dart';
 import '../../../data/services/return_service.dart';
 import '../../../theme/qoima_design.dart';
+import '../../shared/post_tracking_row.dart';
 
 import '../../../core/lang.dart';
 import '../../../core/error_text.dart';
@@ -304,6 +305,27 @@ class _SellerReturnReceiveScreenState
                           ]),
                     ),
                   ]),
+                ),
+                const SizedBox(height: 14),
+              ],
+              // Казпочта: посылканы трек бойынша табады. Қабылдау батырмасы бөгелмейді —
+              // почтадан «жетті» деген белгі келмейді, тауарды сатушы өзі көреді.
+              if (r.byPost) ...[
+                QCard(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(tr('Клиент отправит Казпочтой', 'Клиент Казпочтамен жібереді'),
+                          style: manrope(13, FontWeight.w800, color: cInk)),
+                      const SizedBox(height: 6),
+                      if (r.postTracking.isNotEmpty)
+                        PostTrackingRow(r.postTracking)
+                      else
+                        Text(tr('Трек-номер не указан', 'Трек-нөмір жазылмаған'),
+                            style: manrope(12, FontWeight.w500, color: cInk3)),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 14),
               ],

@@ -43,10 +43,12 @@ dependencies:
   geolocator: ^14.0.2
   livekit_client: ^2.13.1
   app_links: ^7.0.0
+  camera: ^0.12.0+2
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  camera_platform_interface: ^2.15.0 # test/: жалған камера
   flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.14.1
 

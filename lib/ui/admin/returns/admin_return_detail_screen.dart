@@ -7,6 +7,7 @@ import '../../../theme/qoima_design.dart';
 // Қабылдау/аяқтау экраны рөлге тәуелсіз (ReturnService арқылы жұмыс істейді) —
 // админ де, сатушы да сол бір экранды қолданады.
 import '../../seller/returns/seller_return_receive_screen.dart';
+import '../../shared/post_tracking_row.dart';
 
 import '../../../core/lang.dart';
 import '../../../core/error_text.dart';
@@ -203,7 +204,15 @@ class _DetailBodyState extends State<_DetailBody> {
                     if (r.clientPhone.isNotEmpty)
                       _InfoRow('Телефон', r.clientPhone),
                     _InfoRow(tr('Тип', 'Түрі'), r.type.label(context)),
-                    _InfoRow(tr('Способ доставки', 'Жеткізу тәсілі'), r.pickup.label(context)),
+                    // pickup.label — клиенттің сөзі («Отправлю»); дүкенге
+                    // үшінші жақпен жазамыз.
+                    _InfoRow(
+                        tr('Способ доставки', 'Жеткізу тәсілі'),
+                        r.byPost
+                            ? tr('Отправит Казпочтой', 'Казпочтамен жібереді')
+                            : r.pickup.label(context)),
+                    if (r.byPost && r.postTracking.isNotEmpty)
+                      PostTrackingRow(r.postTracking),
                     _InfoRow(tr('Способ возврата', 'Қайтару тәсілі'), r.refundMethod.label(context)),
                   ],
                 ),

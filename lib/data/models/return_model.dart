@@ -1,5 +1,6 @@
 
 import 'package:flutter/material.dart';
+import '../../core/lang.dart';
 import '../../l10n/app_localizations.dart';
 
 // ── Enums ─────────────────────────────────────────────────────────────────────
@@ -8,7 +9,7 @@ enum ReturnType { online, offline }
 
 enum ReturnReason { sizeNotFit, qualityBad, notAsDescribed, justDidntLike, other }
 
-enum ReturnPickup { selfBring, courier }
+enum ReturnPickup { selfBring, courier, post }
 
 // Айырбас (exchange) ӘДЕЙІ ЖОҚ: қайтару әдісі әрқашан төлем әдісіне тең болуы керек
 // (карта → карта, қолма-қол → қолма-қол), әйтпесе есеп (отчёт) бұзылады.
@@ -57,6 +58,7 @@ extension ReturnPickupLabels on ReturnPickup {
     switch (this) {
       case ReturnPickup.selfBring: return l.returnPickupSelf;
       case ReturnPickup.courier:   return l.returnPickupCourier;
+      case ReturnPickup.post:      return tr('Отправлю Казпочтой', 'Казпочтамен жіберемін');
     }
   }
 }
@@ -195,6 +197,8 @@ class ReturnModel {
   final String courierStatus;
   /// Клиент курьерге ТІКЕЛЕЙ төлейтін ақы. Қайтарылатын тауар сомасынан
   /// ЕШҚАШАН шегерілмейді.
+  // Клиент почтамен жібергендегі трек (0081, міндетті емес).
+  final String postTracking;
   final double courierFee;
   final bool courierFeeCollected;
   final DateTime? courierTakenAt;
@@ -242,6 +246,7 @@ class ReturnModel {
     this.courierUid = '',
     this.courierName = '',
     this.courierStatus = '',
+    this.postTracking = '',
     this.courierFee = 0,
     this.courierFeeCollected = false,
     this.courierTakenAt,
@@ -257,6 +262,7 @@ class ReturnModel {
   bool get courierPickedUp => courierStatus == 'picked_up';
   bool get courierDelivered => courierStatus == 'delivered';
   bool get byCourier => pickup == ReturnPickup.courier;
+  bool get byPost => pickup == ReturnPickup.post;
 
   // ── Firestore ────────────────────────────────────────────────────────────────
 
@@ -298,6 +304,7 @@ class ReturnModel {
         reasonNote: d['reason_note'] as String?,
         photoUrls: (d['photo_urls'] as List<dynamic>? ?? []).cast<String>(),
         pickup: _parsePickup(d['pickup'] as String? ?? ''),
+        postTracking: d['post_tracking'] as String? ?? '',
         refundMethod: _parseRefund(d['refund_method'] as String? ?? ''),
         status: _parseStatus(d['status'] as String? ?? ''),
         createdAt: _ts(d['created_at']) ?? DateTime.now(),
@@ -345,6 +352,7 @@ class ReturnModel {
         if (reasonNote != null) 'reason_note': reasonNote,
         'photo_urls': photoUrls,
         'pickup': pickup.name,
+        if (postTracking.isNotEmpty) 'post_tracking': postTracking,
         // Курьер тауарды алатын мекенжай (өзі әкелетін болса — бос).
         'pickup_address': pickupAddress,
         'refund_method': refundMethod.name,
@@ -393,6 +401,7 @@ class ReturnModel {
     String? courierUid,
     String? courierName,
     String? courierStatus,
+    String? postTracking,
     double? courierFee,
     bool? courierFeeCollected,
     DateTime? courierTakenAt,
@@ -435,6 +444,7 @@ class ReturnModel {
         courierUid: courierUid ?? this.courierUid,
         courierName: courierName ?? this.courierName,
         courierStatus: courierStatus ?? this.courierStatus,
+        postTracking: postTracking ?? this.postTracking,
         courierFee: courierFee ?? this.courierFee,
         courierFeeCollected: courierFeeCollected ?? this.courierFeeCollected,
         courierTakenAt: courierTakenAt ?? this.courierTakenAt,
@@ -461,6 +471,8 @@ class ReturnRequestInput {
   final ReturnPickup pickup;
   /// Курьермен қайтарғанда — курьер тауарды алатын мекенжай (міндетті).
   final String pickupAddress;
+  /// Почтамен жібергенде клиент енгізетін трек (міндетті емес, 0081).
+  final String postTracking;
   final RefundMethod refundMethod;
 
   const ReturnRequestInput({
@@ -475,6 +487,7 @@ class ReturnRequestInput {
     required this.photoUrls,
     required this.pickup,
     this.pickupAddress = '',
+    this.postTracking = '',
     required this.refundMethod,
   });
 }

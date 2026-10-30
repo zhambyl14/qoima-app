@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 import '../../core/feature_flags.dart';
 import '../../core/lang.dart';
 import '../../data/models/product_model.dart';
+import '../../data/models/return_policy.dart';
 import '../../data/models/store_model.dart';
 import '../../theme/qoima_design.dart';
 
 /// Тауар карточкасындағы «қайтаруға бола ма» белгісі (0073).
 /// • product.nonReturnable → қызғылт-сары/қызыл карточка: «Бұл тауар қайтарылмайды»
 ///   + тауар ескертпесі + дүкеннің жалпы қайтару ережесі.
+/// • дүкен «Без возврата» режимінде (0082) → сол карточка: сервер де тапсырыстың
+///   бәрін қайтарылмайтын деп снапшоттайды, сондықтан шарттары бірдей.
 /// • әйтпесе — ЕШТЕҢЕ көрсетпейді: «қайтаруға болады» деп жазу клиентті
 ///   қайтаруға итермелейді (иесінің шешімі).
 /// Функция суперадминнен өшірулі болса — ештеңе көрсетпейді (жаңа тапсырыс
@@ -29,10 +32,17 @@ class ReturnabilityBadge extends StatelessWidget {
         if (!FeatureFlags.instance.isOn(FeatureFlags.nonReturnable)) {
           return const SizedBox.shrink();
         }
-        return product.nonReturnable ? _blocked() : const SizedBox.shrink();
+        return product.nonReturnable || _storeNoReturns
+            ? _blocked()
+            : const SizedBox.shrink();
       },
     );
   }
+
+  // snapshot_order_non_returnable шарты: рұқсатсыз 'none' күшінде емес.
+  bool get _storeNoReturns =>
+      store.returnPolicyMode == ReturnPolicy.modeNone &&
+      store.allowNonReturnable;
 
   Widget _blocked() {
     final pNote = product.returnNote.trim();

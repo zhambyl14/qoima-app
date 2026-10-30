@@ -184,7 +184,9 @@ class _GiftSheetState extends State<_GiftSheet> {
       FeatureFlags.instance.isOn(FeatureFlags.nonReturnable) &&
       widget.product.nonReturnable;
 
-  bool get _needSize => _knowSize || _nonReturnable;
+  /// Тілек тізімінде өлшемді сыйлаушы таңдамайды (таңдау көрсетілмейді):
+  /// оны тізім иесі бекітеді не алғанда өзі таңдайды.
+  bool get _needSize => _knowSize || (_nonReturnable && !_isRegistry);
 
   /// Төленетін тауар бағасы: өлшем таңдалса — сол өлшемнің бағасы.
   double? get _price =>
@@ -511,6 +513,30 @@ class _GiftSheetState extends State<_GiftSheet> {
         const SizedBox(height: 18),
         // ── Өлшем (міндетті емес; қайтарылмайтын тауарда — міндетті) ──
         // Тілек тізімінде өлшем тізімнен бекітілген — таңдау көрсетілмейді.
+        // Бірақ сыйлаушы ауыстыруға болмайтынын бәрібір білуі керек.
+        if (_isRegistry && _nonReturnable) ...[
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: cAmberTint,
+              borderRadius: BorderRadius.circular(kR14),
+            ),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Icon(Icons.info_outline_rounded,
+                  color: cAmberInk, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  tr('Этот товар нельзя обменять.',
+                      'Бұл тауарды ауыстыруға болмайды.'),
+                  style: manrope(12.5, FontWeight.w600, color: cAmberInk),
+                ),
+              ),
+            ]),
+          ),
+          const SizedBox(height: 18),
+        ],
         if (!_isRegistry) ...[
           QSecLabel(tr('Размер', 'Өлшем')),
           const SizedBox(height: 8),
@@ -718,7 +744,9 @@ class _GiftSheetState extends State<_GiftSheet> {
             ),
           ),
           const SizedBox(width: 8),
+          // Ені міндетті: QSoftButton double.infinity алады, Row ішінде шексіз.
           SizedBox(
+            width: 120,
             height: 52,
             child: QSoftButton(
               label: tr('Применить', 'Қолдану'),
