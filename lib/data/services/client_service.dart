@@ -67,8 +67,13 @@ String _searchBuffer(ProductGroup g) {
     add(v.color);
     add(trValue(v.color));
     add(v.description);
-    add(v.season);
-    add(trValue(v.season));
+    // 0083: қазақша сипаттама да іздеуге қатысады (екі тілде де табылсын).
+    add(v.descriptionKk);
+    // Маусым көп мәнді болуы мүмкін ('Лето,Зима') — әрқайсысы жеке сөз.
+    for (final s in v.seasonList) {
+      add(s);
+      add(trValue(s));
+    }
     add(v.category);
     add(trValue(v.category));
     add(v.material);

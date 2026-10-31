@@ -212,6 +212,10 @@ begin
     new.kazpost_fee       := v_fee;
     new.delivery_fee      := 0;
     new.fitting_fee       := 0;
+    -- Казпочта тапсырысын курьер ұстамайды: клиент жазған courier_* бағандары
+    -- guard_courier_order_lock арқылы тапсырысты мәңгі жауып тастар еді.
+    new.courier_uid       := null;
+    new.courier_status    := '';
     new.post_tracking     := '';
     new.post_status       := '';
     new.post_shipped_at   := null;
@@ -246,6 +250,12 @@ begin
     -- Баға бағытқа байланған: төленген соң қала/мекенжай ауыспайды.
     if new.client_city is distinct from old.client_city
        or new.address  is distinct from old.address then
+      raise exception 'kazpost_fields_locked';
+    end if;
+    -- Аяқталған тапсырыс тек возвратпен ғана күйін ауыстырады: claim_order_transition
+    -- кез келген ауысуды жібереді, ал кері қайтса посылка жолда емес, ілініп қалады.
+    if old.status = 'completed' and new.status is distinct from old.status
+       and new.status <> 'returned' then
       raise exception 'kazpost_fields_locked';
     end if;
     if new.status is distinct from old.status and old.status <> 'completed' then
@@ -294,7 +304,8 @@ begin
   if coalesce(v_order.delivery_mode, '') <> 'kazpost' then
     raise exception 'not_kazpost_order';
   end if;
-  if v_order.status <> 'confirmed' then
+  -- 'delivered' — бір рет аяқталған: қайта «жіберілді» болса, сатылым екі рет жазылар еді.
+  if v_order.status <> 'confirmed' or v_order.post_status = 'delivered' then
     raise exception 'order_state_changed:%', v_order.status;
   end if;
   if v_track !~ '^[A-Z0-9]{8,30}$' then
@@ -331,12 +342,16 @@ grant execute on function public.kazpost_mark_shipped(uuid, text) to authenticat
 -- ── 6. Аяқтау: ортақ ішкі функция ────────────────────────────────────────────
 -- courier_complete_order (0053) үлгісімен: статус + sales_history бір транзакцияда.
 -- kazpost_fee sales_history-ге ӘДЕЙІ кірмейді (бас жағын қара).
+-- p_actor_name — delivered_by_name: посылканы табыстаған ПОЧТА, жапқан адам емес
+-- (бұл мән иесінің push-ында «Выдал(а): …» болып шығады). Жапқан адам —
+-- delivered_by_uid.
 create or replace function public._kazpost_finish(p_order uuid, p_actor_name text)
 returns public.orders
 language plpgsql security definer set search_path = public as $$
 declare
   v_order   public.orders;
   v_receipt text;
+  v_seq     bigint;
   v_total   numeric := 0;
   v_factor  numeric := 1;
 begin
@@ -345,9 +360,24 @@ begin
     raise exception 'order_not_found';
   end if;
 
-  v_receipt := case when v_order.order_number > 0
-    then '#' || lpad(v_order.order_number::text, 5, '0')
-    else '#' || lpad(public.next_counter(v_order.admin_uid, 'receipts')::text, 5, '0') end;
+  -- Күй ҚҰЛЫПТАН КЕЙІН тексеріледі: sweep id-лерді құлыпсыз таңдайды, сол арада
+  -- клиент не дүкен жауып үлгерсе, сатылым екі рет жазылмасын.
+  if coalesce(v_order.delivery_mode, '') <> 'kazpost'
+     or v_order.status <> 'confirmed'
+     or v_order.post_status <> 'shipped' then
+    return v_order;
+  end if;
+
+  if v_order.order_number > 0 then
+    v_seq := v_order.order_number;
+  else
+    -- next_counter емес: ол auth.uid() талап етеді (0065), ал cron-да uid жоқ.
+    insert into public.counters (owner_uid, name, value)
+    values (v_order.admin_uid, 'receipts', 1)
+    on conflict (owner_uid, name) do update set value = public.counters.value + 1
+    returning value into v_seq;
+  end if;
+  v_receipt := '#' || lpad(v_seq::text, 5, '0');
 
   perform set_config('qoima.kazpost_rpc', '1', true);
   update public.orders set
@@ -379,7 +409,7 @@ begin
     (it ->> 'batchId')::uuid,
     coalesce(it ->> 'productName', ''),
     now(),
-    jsonb_build_object(it ->> 'size', coalesce((it ->> 'qty')::int, 1)),
+    jsonb_build_object(coalesce(it ->> 'size', ''), coalesce((it ->> 'qty')::int, 1)),
     coalesce(it ->> 'size', ''),
     coalesce((it ->> 'qty')::int, 1),
     coalesce(nullif((it ->> 'originalPrice')::numeric, 0), (it ->> 'price')::numeric)
@@ -416,7 +446,6 @@ returns public.orders
 language plpgsql security definer set search_path = public as $$
 declare
   v_order public.orders;
-  v_name  text;
 begin
   if auth.uid() is null then
     raise exception 'not_authorized';
@@ -448,11 +477,7 @@ begin
     raise exception 'order_state_changed:%', v_order.status;
   end if;
 
-  select name into v_name from public.users where id = auth.uid();
-  if v_name is null then
-    select name into v_name from public.clients where id = auth.uid();
-  end if;
-  return public._kazpost_finish(p_order, coalesce(v_name, ''));
+  return public._kazpost_finish(p_order, 'Казпочта');
 end;
 $$;
 revoke execute on function public.kazpost_complete_order(uuid) from public;
@@ -472,7 +497,14 @@ begin
        and o.status = 'confirmed'
        and o.post_shipped_at < now() - interval '30 days'
   loop
-    perform public._kazpost_finish(v_id, 'Казпочта (авто)');
+    -- Бір тапсырыстың қатесі бүкіл жүрісті кері айналдырмасын: әйтпесе ол жол
+    -- күн сайын барлық дүкеннің авто-жабылуын тоқтатып тұрар еді.
+    begin
+      perform public._kazpost_finish(v_id, 'Казпочта (авто)');
+    exception when others then
+      raise warning 'kazpost_autocomplete_failed order=% sqlstate=% error=%',
+        v_id, sqlstate, sqlerrm;
+    end;
   end loop;
 end;
 $$;

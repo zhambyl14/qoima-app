@@ -44,7 +44,11 @@ class KzPhoneInputFormatter extends TextInputFormatter {
 /// Маскаланған/еркін енгізілген нөмірді E.164-ке (`+7XXXXXXXXXX`) түрлендіреді.
 String kzPhoneToE164(String input) {
   var d = input.replaceAll(RegExp(r'\D'), '');
-  if (d.length == 11 && (d.startsWith('7') || d.startsWith('8'))) {
+  if (input.trimLeft().startsWith('+7')) {
+    // '+7' — ел коды, ұзындығына қарамастан. Әйтпесе бір цифры жетпейтін маска
+    // ('+7 (700) 123-45-6') 10 цифр беріп, толық нөмір болып өтіп кетер еді.
+    d = d.substring(1);
+  } else if (d.length == 11 && (d.startsWith('7') || d.startsWith('8'))) {
     d = d.substring(1);
   }
   return '+7$d';

@@ -22,11 +22,15 @@ import '../../data/services/kazpost_service.dart';
 import '../../theme/qoima_design.dart';
 import '../auth/auth_widgets.dart';
 import '../auth/login_screen.dart';
+import '../shared/require_login.dart';
 import 'client_shell.dart';
+import 'gift/gift_create_sheet.dart';
 import 'payment_instructions_sheet.dart';
 
 import '../../core/lang.dart';
 import '../../core/error_text.dart';
+import '../../data/models/product_model.dart';
+import '../../data/services/gift_service.dart';
 import '../../data/services/registry_service.dart';
 
 class ClientCartScreen extends StatefulWidget {
@@ -56,6 +60,14 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
   bool _cityPickerOpen = false;
   final _noteCtrl = TextEditingController();
   final _promoCtrl = TextEditingController();
+
+  // «Сыйлық» тәсілі (0070): кәдімгі тапсырыс емес — сыйлық ТЕК таңдалған бір
+  // тауарға сервер RPC-мен жасалады (create_gift_order). Сондықтан _orderType-қа
+  // КІРМЕЙДІ: алдыңғы таңдалған тәсіл бұзылмайды, ал _planSubOrders сыйлықты
+  // білмейді. true — сыйлық ағыны (тауар таңдау / парақша) жүріп жатыр.
+  static const _giftTile = 'gift';
+  bool _giftMode = false;
+  bool _giftFlagSeen = false;
   bool _isLoading = false;
   bool _applyingPromo = false;
 
@@ -252,6 +264,7 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
     });
     _reloadTariff();
     _kazpostFlagSeen = FeatureFlags.instance.isOn(FeatureFlags.kazpostDelivery);
+    _giftFlagSeen = FeatureFlags.instance.isOn(FeatureFlags.giftLinks);
     FeatureFlags.instance.addListener(_onFlagsChanged);
   }
 
@@ -333,6 +346,11 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
   }
 
   void _onFlagsChanged() {
+    // «Сыйлық» плиткасы жалауша бойынша шығады/жасырылады.
+    final giftOn = FeatureFlags.instance.isOn(FeatureFlags.giftLinks);
+    if (giftOn != _giftFlagSeen && mounted) {
+      setState(() => _giftFlagSeen = giftOn);
+    }
     final on = FeatureFlags.instance.isOn(FeatureFlags.kazpostDelivery);
     if (on == _kazpostFlagSeen || !mounted) return;
     _kazpostFlagSeen = on;
@@ -902,6 +920,210 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
     await _showPaymentConfirmation();
   }
 
+  // ── Сыйлық (себеттен) ──────────────────────────────────────────────────────
+
+  void _giftSnack(String text) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        content: Text(text),
+        backgroundColor: cRed,
+        behavior: SnackBarBehavior.floating,
+      ));
+  }
+
+  /// «Сыйлық» плиткасы басылды. Бас тартса (немесе қате болса) алдыңғы алу
+  /// тәсілі өзгеріссіз қалады — _orderType-қа біз тиіспейміз.
+  Future<void> _startGift() async {
+    if (_giftMode) return;
+    final cart = context.read<CartProvider>();
+    final lines = _checkoutItems(cart);
+    if (lines.isEmpty) {
+      _giftSnack(tr('Выберите товар, который хотите подарить',
+          'Сыйлайтын тауарды таңдаңыз'));
+      return;
+    }
+    setState(() => _giftMode = true);
+    try {
+      await _runGift(cart, lines);
+    } catch (e) {
+      if (mounted) _giftSnack(friendlyError(e));
+    } finally {
+      if (mounted) setState(() => _giftMode = false);
+    }
+  }
+
+  Future<void> _runGift(CartProvider cart, List<CartItemModel> lines) async {
+    final ok = await requireLogin(
+      context,
+      reasonRu: 'Чтобы подарить товар, войдите в аккаунт.',
+      reasonKk: 'Тауарды сыйлау үшін аккаунтқа кіріңіз.',
+    );
+    if (!ok || !mounted) return;
+
+    // Бір жол ғана таңдалса — бірден парақша; көп болса — қайсысын сыйлайтынын сұраймыз.
+    final CartItemModel? picked =
+        lines.length == 1 ? lines.first : await _pickGiftLine(lines);
+    if (picked == null || !mounted) return;
+    if (picked.registryClaimId.isNotEmpty) {
+      // Тілек тізімінің сыйлығы өз ағынымен (create_registry_gift_order) төленеді.
+      _giftSnack(tr('Подарок из списка желаний нельзя оформить из корзины',
+          'Тілек тізімінің сыйлығын себеттен рәсімдеуге болмайды'));
+      return;
+    }
+
+    final fetched = await Future.wait([
+      _service.getProductById(picked.adminUid, picked.productId),
+      _service.getStoreByAdminUid(picked.adminUid),
+    ]);
+    if (!mounted) return;
+    final product = fetched[0] as ProductModel?;
+    final store = fetched[1] as StoreModel?;
+    // Қалғанын (өз дүкені, қойма, өлшем) RPC тексереді: қатесін парақша көрсетеді.
+    if (product == null ||
+        store == null ||
+        product.storefrontHidden ||
+        !store.isPublished ||
+        store.isBlocked) {
+      _giftSnack(GiftService.errorText('product_unavailable'));
+      return;
+    }
+    await showGiftSheet(
+      context,
+      product: product,
+      store: store,
+      initialSize: picked.size,
+      onCreated: (_) => _consumeGiftLine(cart, picked),
+    );
+  }
+
+  /// Сыйлыққа кеткен ТЕК сол жолды себеттен алады (қалғандары қалады). Сыйлық —
+  /// бір дана: жолда 2+ болса бір данасы ғана кемиді.
+  void _consumeGiftLine(CartProvider cart, CartItemModel line) {
+    final key = _itemKey(line);
+    final idx = cart.items.indexWhere((i) => _itemKey(i) == key);
+    if (idx < 0) return;
+    final cur = cart.items[idx];
+    if (cur.qty > 1) {
+      cart.decrementAt(idx);
+    } else {
+      cart.removeItems([cur]);
+    }
+    if (mounted) _checkAvailability();
+  }
+
+  /// Бірнеше жол таңдалғанда: қайсысын сыйлайтынын сұрайды. null — бас тартты.
+  Future<CartItemModel?> _pickGiftLine(List<CartItemModel> lines) {
+    return showModalBottomSheet<CartItemModel>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => Container(
+        constraints:
+            BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.8),
+        decoration: const BoxDecoration(
+          color: cBg,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const SizedBox(height: 10),
+            Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                  color: cLine, borderRadius: BorderRadius.circular(2)),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 4),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                    tr('Какой товар подарить?', 'Қай тауарды сыйлайсыз?'),
+                    style: manrope(20, FontWeight.w800)),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                    tr('Подарок оформляется на один товар. Остальные останутся в корзине.',
+                        'Сыйлық бір тауарға рәсімделеді. Қалғандары себетте қалады.'),
+                    style: manrope(12.5, FontWeight.w500, color: cInk2)),
+              ),
+            ),
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                children: [
+                  for (final l in lines) _giftLineTile(ctx, l),
+                ],
+              ),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  Widget _giftLineTile(BuildContext ctx, CartItemModel l) {
+    final registry = l.registryClaimId.isNotEmpty;
+    return Opacity(
+      opacity: registry ? 0.5 : 1,
+      child: GestureDetector(
+        onTap: registry ? null : () => Navigator.pop(ctx, l),
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: cSurface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: cLine),
+          ),
+          child: Row(children: [
+            SizedBox(
+              width: 56,
+              height: 56,
+              child: QShoeImage(
+                  imageUrl: l.imageUrl.isNotEmpty ? l.imageUrl : null,
+                  height: 56),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(l.productName,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: manrope(14, FontWeight.w700)),
+                  const SizedBox(height: 2),
+                  Text(
+                      [
+                        if (l.size.isNotEmpty)
+                          tr('Размер ${trValue(l.size)}',
+                              'Өлшемі ${trValue(l.size)}'),
+                        money(l.price),
+                      ].join(' · '),
+                      style: manrope(12.5, FontWeight.w600, color: cInk2)),
+                  if (registry)
+                    Text(
+                        tr('Из списка желаний — отсюда подарить нельзя',
+                            'Тілек тізімінен — мұнда сыйлауға болмайды'),
+                        style: manrope(11.5, FontWeight.w500, color: cInk3)),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded, color: cInk3),
+          ]),
+        ),
+      ),
+    );
+  }
+
   Future<void> _showPaymentConfirmation() async {
     final cart = context.read<CartProvider>();
     final appUser = context.read<AppUser>();
@@ -1164,7 +1386,8 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
     final cart = context.watch<CartProvider>();
     final itemCount = cart.items.length;
     final checkoutItems = _checkoutItems(cart);
-    final showPostForm = _orderType == OrderModel.typeDelivery &&
+    final showPostForm = !_giftMode &&
+        _orderType == OrderModel.typeDelivery &&
         _planSubOrders(checkoutItems).any((p) => p.isKazpost);
     // «Барлығын таңдау» — қолжетімді (unavailable емес) товарлардың бәрі
     // таңдалған ба (Wildberries/Kaspi стиліндегі шапка чекбоксы).
@@ -1282,7 +1505,7 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                     const SizedBox(height: 8),
                     QSecLabel(tr('Способ получения *', 'Алу тәсілі *')),
                     // Ештеңе таңдалмаған кезде — таңдау міндетті екенін көрсету.
-                    if (_orderType == null)
+                    if (_orderType == null && !_giftMode)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 8),
                         child: Row(children: [
@@ -1325,11 +1548,26 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                         _deliverySubtitle(checkoutItems),
                         'amber',
                       ),
+                      // Сыйлық: суперадмин жалаушасымен; қонақ басқанда кіру сұралады.
+                      if (FeatureFlags.instance.isOn(FeatureFlags.giftLinks))
+                        (
+                          _giftTile,
+                          Icons.card_giftcard_rounded,
+                          tr('Подарок', 'Сыйлық'),
+                          tr('Получатель получит ссылку и сам выберет доставку',
+                              'Алушы сілтеме алады, жеткізуді өзі таңдайды'),
+                          'purple',
+                        ),
                     ].map((t) {
                       final (type, icon, title, subtitle, tone) = t;
-                      final selected = _orderType == type;
+                      // Сыйлық пен қалған тәсілдер бір мезгілде таңдалмайды.
+                      final selected = type == _giftTile
+                          ? _giftMode
+                          : (!_giftMode && _orderType == type);
                       return GestureDetector(
-                        onTap: () => setState(() => _orderType = type),
+                        onTap: type == _giftTile
+                            ? _startGift
+                            : () => setState(() => _orderType = type),
                         child: Container(
                           margin: const EdgeInsets.only(bottom: 10),
                           padding: const EdgeInsets.all(13),
@@ -1384,7 +1622,8 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                     }),
 
                     // Pickup address info (тек алу тәсілі таңдалғанда)
-                    if (_orderType != null &&
+                    if (!_giftMode &&
+                        _orderType != null &&
                         _orderType != OrderModel.typeDelivery &&
                         _warehouseAddress(checkoutItems).isNotEmpty) ...[
                       Container(
@@ -1410,7 +1649,8 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                     ],
 
                     // Delivery address input
-                    if (_orderType == OrderModel.typeDelivery) ...[
+                    if (!_giftMode &&
+                        _orderType == OrderModel.typeDelivery) ...[
                       // ── Қала: СҰРАМАЙМЫЗ, профильден аламыз ──────────────
                       //  Клиенттің қаласы тіркелу кезінде толтырылған
                       //  (`clients.city`) әрі сеанс басталғанда AppUser-ге
@@ -1655,7 +1895,13 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                   color: cSurface,
                   border: Border(top: BorderSide(color: cLine)),
                 ),
-                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                // Сыйлық ағыны кезінде кәдімгі қорытынды көрсетілмейді: ол
+                // тапсырыс сомасы, ал сыйлық бөлек және бір тауарға төленеді.
+                child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: _giftMode
+                        ? _giftBottomBar()
+                        : [
                   if (checkoutItems.isEmpty)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8),
@@ -1836,12 +2082,45 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
     );
   }
 
+  /// Сыйлық ағыны кезіндегі төменгі панель: жалпы сома ЖОҚ (шатастырмау үшін).
+  List<Widget> _giftBottomBar() => [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          margin: const EdgeInsets.only(bottom: 11),
+          decoration: BoxDecoration(
+            color: cGreenTint,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Icon(Icons.card_giftcard_rounded,
+                color: cGreenDeep, size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                tr('Подарок оплачивается отдельно — только за выбранный товар. Остальные товары остаются в корзине.',
+                    'Сыйлық бөлек төленеді — тек таңдалған тауар үшін. Қалған тауарлар себетте қалады.'),
+                style: manrope(12.5, FontWeight.w600, color: cGreenDeep),
+              ),
+            ),
+          ]),
+        ),
+        QPrimaryButton(
+          label: tr('Оформляем подарок…', 'Сыйлық рәсімделуде…'),
+          isLoading: true,
+          onPressed: null,
+          height: 54,
+        ),
+      ];
+
   IconData _iconFor(String type) {
     switch (type) {
       case OrderModel.typeClickCollect:
         return Icons.storefront_outlined;
       case OrderModel.typeDelivery:
         return Icons.local_shipping_outlined;
+      case _giftTile:
+        return Icons.card_giftcard_rounded;
       default:
         return Icons.timer_outlined;
     }
@@ -1853,6 +2132,8 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
         return cAmber;
       case 'green':
         return cGreen;
+      case 'purple':
+        return cPurple;
       default:
         return cBlue;
     }

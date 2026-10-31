@@ -22,22 +22,33 @@ class ReturnPolicyBody extends StatelessWidget {
   /// Почта ақысы туралы жол тек Казпочта тапсырысында керек.
   final bool kazpost;
 
+  /// Мерзімнің нақты соңғы күні. Тек Казпочтада көрсетіледі (онда ол клиент алған
+  /// күннен емес, тапсырыс жабылған күннен санайды); тапсырыс әлі жабылмаса — null.
+  final DateTime? deadline;
+
   const ReturnPolicyBody(
     this.policy, {
     super.key,
     this.items = const [],
     this.kazpost = false,
+    this.deadline,
   });
 
   // Орысша «в течение» ілік септігін талап етеді: 21 дня, бірақ 14 дней.
   static String _daysGenitive(int days) =>
       days % 10 == 1 && days % 100 != 11 ? 'дня' : 'дней';
 
+  // Дүкен режимі 'accept' болса да, тапсырыстың бәрі қайтарылмайтын тауар болуы
+  // мүмкін: онда «14 күн ішінде» деп бастау жалған болар еді.
+  bool get _allBlocked =>
+      items.isNotEmpty && items.every((i) => i.nonReturnable);
+
   @override
   Widget build(BuildContext context) {
     final note = policy.note.trim();
+    final noReturns = policy.isNoReturns || _allBlocked;
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      if (policy.isNoReturns)
+      if (noReturns)
         _noReturnsBanner()
       else ...[
         _periodRow(),
@@ -48,7 +59,7 @@ class ReturnPolicyBody extends StatelessWidget {
         Text(note, style: manrope(13, FontWeight.w500, color: cInk2)),
       ],
       if (!policy.isNoReturns) ..._itemLines(),
-      if (kazpost) ...[
+      if (kazpost && !noReturns) ...[
         const SizedBox(height: 10),
         Text(
             tr('Стоимость пересылки не возвращается. Если вы отправляете товар обратно почтой, пересылку оплачиваете вы, кроме случаев, когда товар с браком.',
@@ -78,8 +89,11 @@ class ReturnPolicyBody extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-                tr('Этот магазин не принимает возврат',
-                    'Бұл дүкен қайтаруды қабылдамайды'),
+                policy.isNoReturns
+                    ? tr('Этот магазин не принимает возврат',
+                        'Бұл дүкен қайтаруды қабылдамайды')
+                    : tr('Товары этого заказа не подлежат возврату',
+                        'Бұл тапсырыстың тауарлары қайтарылмайды'),
                 style: manrope(14, FontWeight.w800, color: cRedInk)),
           ),
         ]),
@@ -87,6 +101,7 @@ class ReturnPolicyBody extends StatelessWidget {
 
   Widget _periodRow() {
     final d = policy.days;
+    final last = kazpost ? deadline?.toLocal() : null;
     return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
       const Icon(Icons.event_note_outlined, size: 20, color: cInk2),
       const SizedBox(width: 10),
@@ -97,14 +112,27 @@ class ReturnPolicyBody extends StatelessWidget {
                   'Қайтару $d күн ішінде'),
               style: manrope(14, FontWeight.w800, color: cInk)),
           const SizedBox(height: 2),
+          // Казпочтаны дүкен (7 күннен кейін) не cron жаба алады, сондықтан мерзім
+          // посылка қолға тиген күннен емес, тапсырыс жабылған күннен басталады.
           Text(
-              tr('Срок считается со дня получения',
-                  'Мерзім тауарды алған күннен басталады'),
+              kazpost
+                  ? tr('Срок считается со дня, когда заказ отмечен полученным',
+                      'Мерзім тапсырыс алынды деп белгіленген күннен басталады')
+                  : tr('Срок считается со дня получения',
+                      'Мерзім тауарды алған күннен басталады'),
               style: manrope(12, FontWeight.w500, color: cInk3)),
+          if (last != null)
+            Text(
+                tr('Последний день: ${_dateOnly(last)}',
+                    'Соңғы күні: ${_dateOnly(last)}'),
+                style: manrope(12, FontWeight.w600, color: cInk2)),
         ]),
       ),
     ]);
   }
+
+  static String _dateOnly(DateTime d) =>
+      '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
 
   List<Widget> _conditions() {
     // Белгісіз код (жаңа нұсқадан келген) бос мәтін береді — тізімге кірмейді.
@@ -141,7 +169,8 @@ class ReturnPolicyBody extends StatelessWidget {
     for (final item in items) {
       if (!seen.add(item.productId)) continue;
       final note = (policy.productNotes[item.productId] ?? '').trim();
-      if (item.nonReturnable) {
+      // Бәрі қайтарылмайтын болса, мұны баннер айтып қойды: тек ескертпе қалады.
+      if (item.nonReturnable && !_allBlocked) {
         blocked.add(_blockedLine(item.productName, note));
       } else if (note.isNotEmpty) {
         notes.add(_noteLine(item.productName, note));
@@ -263,6 +292,7 @@ class _ReturnNoticeSheetState extends State<ReturnNoticeSheet> {
                         policy,
                         items: o.items,
                         kazpost: o.isKazpost,
+                        deadline: o.completedAt == null ? null : o.returnDeadline,
                       ),
                     ),
                   ),

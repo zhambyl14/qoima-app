@@ -211,6 +211,11 @@ class _DetailBodyState extends State<_DetailBody> {
                         r.byPost
                             ? tr('Отправит Казпочтой', 'Казпочтамен жібереді')
                             : r.pickup.label(context)),
+                    if (r.byPost && r.reason == ReturnReason.qualityBad)
+                      _InfoRow(
+                          tr('Пересылка', 'Жөнелту'),
+                          tr('При браке оплачивает магазин',
+                              'Ақау болса, дүкен төлейді')),
                     if (r.byPost && r.postTracking.isNotEmpty)
                       PostTrackingRow(r.postTracking),
                     _InfoRow(tr('Способ возврата', 'Қайтару тәсілі'), r.refundMethod.label(context)),

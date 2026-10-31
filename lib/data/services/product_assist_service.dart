@@ -123,8 +123,43 @@ class ProductAssistService {
     );
   }
 
+  /// «Ұқсас сөздер» ұсынысы (ru + kk бірге, қайталанбайтын тізім).
+  /// Ескі, әлі жаңартылмаған функция бұл режимді білмейді — ProductAssistException
+  /// лақтырылады, шақырушы жергілікті ұсынысқа ауысады.
+  Future<({List<String> keywords, int? remaining})> keywords({
+    required List<AssistImage> images,
+    Map<String, String> fields = const {},
+  }) async {
+    final data = await _invoke('keywords', images, fields, 'ru');
+    List<String> list(String k) => [
+          for (final v in (data[k] as List? ?? const []))
+            if (v is String && v.trim().isNotEmpty) v.trim(),
+        ];
+    final seen = <String>{};
+    final all = [
+      for (final w in [...list('keywords_ru'), ...list('keywords_kk')])
+        if (seen.add(w.toLowerCase())) w,
+    ];
+    if (all.isEmpty) throw _mapError('ai_failed');
+    return (keywords: all, remaining: (data['remaining'] as num?)?.toInt());
+  }
+
+  /// Сипаттаманы аудару. [from]/[to] — 'ru' | 'kk'. AI ештеңе қоспайды.
+  Future<({String text, int? remaining})> translate({
+    required String text,
+    required String from,
+    required String to,
+  }) async {
+    final data = await _invoke('translate', const [], const {}, to,
+        extra: {'text': text, 'from': from, 'to': to});
+    final out = (data['text'] as String? ?? '').trim();
+    if (out.isEmpty) throw _mapError('ai_failed');
+    return (text: out, remaining: (data['remaining'] as num?)?.toInt());
+  }
+
   Future<Map<String, dynamic>> _invoke(String mode, List<AssistImage> images,
-      Map<String, String> fields, String lang) async {
+      Map<String, String> fields, String lang,
+      {Map<String, Object?> extra = const {}}) async {
     try {
       // Кодтау да try ішінде: isolate/decode/base64 қатесі қолданушыға
       // түсінікті хабарға айналады (өңделмеген async қате болмайды).
@@ -140,6 +175,7 @@ class ProductAssistService {
             if (e.value.trim().isNotEmpty) e.key: e.value.trim(),
         },
         'lang': lang == 'kk' ? 'kk' : 'ru',
+        ...extra,
       });
       final data = res.data;
       if (data is Map) return data.cast<String, dynamic>();

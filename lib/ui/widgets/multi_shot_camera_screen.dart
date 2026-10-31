@@ -200,6 +200,9 @@ class _MultiShotCameraScreenState extends State<MultiShotCameraScreen>
   bool _capturing = false;
   bool _finishRequested = false;
   bool _closed = false;
+  // «Шығасыз ба?» диалогы ашық. Сол кезде кесу бітіп _close шақырылса, pop экранды
+  // емес диалогты жабар еді (диалог та осы навигаторда): TypeError, экран тұрып қалады.
+  bool _backDialogOpen = false;
   bool _blink = false;
   FlashMode _flash = FlashMode.off;
   // Кесу кезекпен: арзан телефонда 4 isolate қатар декодтаса, жады жетпей қалады.
@@ -293,7 +296,7 @@ class _MultiShotCameraScreenState extends State<MultiShotCameraScreen>
 
   void _onUnavailable() {
     if (!mounted) return;
-    if (_shots.isEmpty) {
+    if (_shots.isEmpty && !_backDialogOpen) {
       _close(fallback: ImageSource.camera);
     } else {
       // Түсірілгендер жоғалмасын: экранда қалып, «Готово» арқылы алынады.
@@ -413,22 +416,24 @@ class _MultiShotCameraScreenState extends State<MultiShotCameraScreen>
   }
 
   void _close({ImageSource? fallback}) {
-    if (_closed || !mounted) return;
-    _closed = true;
+    if (_closed || !mounted || _backDialogOpen) return;
     Navigator.of(context).pop(_CameraOutcome([
       for (final s in _shots)
         if (s.cropped != null)
           CapturedPhoto(cropped: s.cropped!, original: s.original),
     ], fallback: fallback));
+    _closed = true;
   }
 
   Future<void> _onBack() async {
+    if (_closed || _backDialogOpen) return;
     if (_shots.isEmpty) {
       _closed = true;
       Navigator.of(context).pop();
       return;
     }
     final n = _shots.length;
+    _backDialogOpen = true;
     final leave = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -451,9 +456,15 @@ class _MultiShotCameraScreenState extends State<MultiShotCameraScreen>
         ],
       ),
     );
-    if (leave != true || !mounted || _closed) return;
-    _closed = true;
-    Navigator.of(context).pop();
+    _backDialogOpen = false;
+    if (!mounted || _closed) return;
+    if (leave == true) {
+      _closed = true;
+      Navigator.of(context).pop();
+      return;
+    }
+    // Диалог ашық тұрғанда кесу біткен болса, тоқтап қалған аяқтау осы жерде жалғасады.
+    _maybeFinish();
   }
 
   Future<void> _toggleFlash() async {

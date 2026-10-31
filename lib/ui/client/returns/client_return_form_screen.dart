@@ -382,6 +382,7 @@ class _ClientReturnFormScreenState extends State<ClientReturnFormScreen> {
                               courierAvailable: _courierAvailable,
                               options: _pickupOptions,
                               kazpost: widget.order.isKazpost,
+                              reason: _reason,
                               storeName: widget.order.storeName,
                               storePhone: widget.order.storePhone,
                               destination: _storeDestination.isNotEmpty
@@ -499,7 +500,11 @@ class _ItemsPage extends StatelessWidget {
                           style: manrope(13, FontWeight.w800, color: cInk)),
                       const SizedBox(height: 10),
                       ReturnPolicyBody(policy,
-                          items: order.items, kazpost: order.isKazpost),
+                          items: order.items,
+                          kazpost: order.isKazpost,
+                          deadline: order.completedAt == null
+                              ? null
+                              : order.returnDeadline),
                     ]),
               ),
             ],
@@ -766,6 +771,8 @@ class _DeliveryPage extends StatelessWidget {
   /// Бұл тапсырысқа ұсынылатын әдістер (почта тек Казпочта тапсырысында).
   final List<ReturnPickup> options;
   final bool kazpost;
+  /// Ақау болса, кері жөнелтуді дүкен төлейді (мәтіндер осыған қарайды).
+  final ReturnReason reason;
   final String storeName;
   final String storePhone;
   /// Почтамен қайда жіберу керек.
@@ -776,6 +783,7 @@ class _DeliveryPage extends StatelessWidget {
     required this.pickup,
     required this.refundMethod,
     required this.onPickupChanged,
+    required this.reason,
     required this.onNext,
     required this.courierFee,
     required this.addressCtrl,
@@ -837,11 +845,18 @@ class _DeliveryPage extends StatelessWidget {
                                 ? tr('${courierFee.toStringAsFixed(0)} ₸ — оплачивается курьеру',
                                     '${courierFee.toStringAsFixed(0)} ₸ — курьерге төленеді')
                                 : isPost
-                                    ? tr('Пересылку оплачиваете вы',
-                                        'Жөнелту ақысын өзіңіз төлейсіз')
+                                    ? (reason == ReturnReason.qualityBad
+                                        ? tr('При браке пересылку оплачивает магазин',
+                                            'Ақау болса, жөнелту ақысын дүкен төлейді')
+                                        : tr('Пересылку оплачиваете вы',
+                                            'Жөнелту ақысын өзіңіз төлейсіз'))
                                     : tr('Бесплатно', 'Тегін'),
                             style: manrope(12, FontWeight.w600,
-                                color: isCourier || isPost ? cAmber : cGreen),
+                                color: isCourier ||
+                                        (isPost &&
+                                            reason != ReturnReason.qualityBad)
+                                    ? cAmber
+                                    : cGreen),
                           ),
                           if (isCourier)
                             Text(
@@ -1009,8 +1024,11 @@ class _DeliveryPage extends StatelessWidget {
       ),
       const SizedBox(height: 8),
       Text(
-          tr('Обратную пересылку оплачиваете вы, кроме случаев, когда товар с браком.',
-              'Кері жөнелту ақысын өзіңіз төлейсіз, тек тауарда ақау болған жағдайда төлемейсіз.'),
+          reason == ReturnReason.qualityBad
+              ? tr('Товар с браком: магазин возмещает пересылку отдельно от суммы возврата. Сохраните квитанцию почты.',
+                  'Тауарда ақау болса, жөнелту ақысын дүкен қайтарым сомасынан бөлек өтейді. Пошта түбіртегін сақтаңыз.')
+              : tr('Обратную пересылку оплачиваете вы, кроме случаев, когда товар с браком.',
+                  'Кері жөнелту ақысын өзіңіз төлейсіз, тек тауарда ақау болған жағдайда төлемейсіз.'),
           style: manrope(11.5, FontWeight.w600, color: cInk3, height: 1.35)),
     ]);
   }
@@ -1120,10 +1138,17 @@ class _SummaryPage extends StatelessWidget {
                         isCourier
                             ? '${courierFee.toStringAsFixed(0)} ₸'
                             : isPost
-                                ? tr('За ваш счёт', 'Өз есебіңізден')
+                                ? (reason == ReturnReason.qualityBad
+                                    ? tr('При браке — за счёт магазина',
+                                        'Ақау болса — дүкен есебінен')
+                                    : tr('За ваш счёт', 'Өз есебіңізден'))
                                 : tr('Бесплатно', 'Тегін'),
                         style: manrope(13, FontWeight.w600,
-                            color: isCourier || isPost ? cAmber : cGreen),
+                            color: isCourier ||
+                                    (isPost &&
+                                        reason != ReturnReason.qualityBad)
+                                ? cAmber
+                                : cGreen),
                       ),
                     ]),
                     if (isPost && postTracking.isNotEmpty)

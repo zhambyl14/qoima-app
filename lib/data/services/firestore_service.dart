@@ -328,6 +328,9 @@ class FirestoreService {
     String colorHex = '',
     String quickCode = '',
     String keywords = '',
+    // null = description_kk-ге тимеу (0083 миграциясыз БД да жұмыс істейді);
+    // бос емес/бос жол = жазу. ProductModel.descriptionKkPatch(old, new) береді.
+    String? descriptionKk,
   }) =>
       _sb.from('products').update({
         'name': name.trim(),
@@ -338,6 +341,7 @@ class FirestoreService {
         'color': color,
         'color_hex': colorHex.trim(),
         'description': description.trim(),
+        if (descriptionKk != null) 'description_kk': descriptionKk.trim(),
         'country': country.trim(),
         'season': season,
         'quick_code': quickCode.trim(),

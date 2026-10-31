@@ -214,6 +214,11 @@ class _ReviewBodyState extends State<_ReviewBody> {
                         r.byPost
                             ? tr('Отправит Казпочтой', 'Казпочтамен жібереді')
                             : r.pickup.label(context)),
+                    if (r.byPost && r.reason == ReturnReason.qualityBad)
+                      _Row(
+                          tr('Пересылка', 'Жөнелту'),
+                          tr('При браке оплачивает магазин',
+                              'Ақау болса, дүкен төлейді')),
                     if (r.byPost && r.postTracking.isNotEmpty)
                       PostTrackingRow(r.postTracking),
                     _Row(tr('Возврат средств', 'Ақшаны қайтару'), r.refundMethod.label(context)),

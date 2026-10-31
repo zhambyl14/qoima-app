@@ -116,6 +116,58 @@ void main() {
     expect(find.text(_defectFooter), findsOneWidget);
   });
 
+  testWidgets('без возврата + Казпочта: почтамен кері жіберу туралы жол жоқ',
+      (t) async {
+    await _pump(t, const ReturnPolicy(mode: ReturnPolicy.modeNone),
+        kazpost: true);
+    expect(find.text('Этот магазин не принимает возврат'), findsOneWidget);
+    expect(find.textContaining('Стоимость пересылки'), findsNothing);
+    expect(find.text(_defectFooter), findsOneWidget);
+  });
+
+  testWidgets('accept, бірақ бәрі қайтарылмайды: мерзім емес, баннер шығады',
+      (t) async {
+    await _pump(
+      t,
+      const ReturnPolicy(
+          days: 14, conditions: ['tags'], productNotes: {'p1': 'Гигиена'}),
+      items: [_item('p1', 'Бельё', nonReturnable: true)],
+      kazpost: true,
+    );
+    expect(
+        find.text('Товары этого заказа не подлежат возврату'), findsOneWidget);
+    expect(find.textContaining('в течение'), findsNothing);
+    expect(find.text('Сохранены бирки и ярлыки'), findsNothing);
+    expect(find.textContaining('Стоимость пересылки'), findsNothing);
+    expect(find.text('«Бельё»'), findsOneWidget);
+    expect(find.text('Гигиена'), findsOneWidget);
+    expect(find.text(_defectFooter), findsOneWidget);
+  });
+
+  testWidgets('Казпочта: мерзім тапсырыс жабылған күннен, нақты күні көрінеді',
+      (t) async {
+    await _pump(t, const ReturnPolicy(), kazpost: true);
+    expect(find.text('Срок считается со дня получения'), findsNothing);
+    expect(find.text('Срок считается со дня, когда заказ отмечен полученным'),
+        findsOneWidget);
+    expect(find.textContaining('Последний день'), findsNothing);
+
+    await t.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: ReturnPolicyBody(const ReturnPolicy(),
+            kazpost: true, deadline: DateTime(2026, 11, 5, 12)),
+      ),
+    ));
+    expect(find.text('Последний день: 05.11.2026'), findsOneWidget);
+  });
+
+  test('жүйе орындай алмайтын шарт ұсынылмайды', () {
+    expect(ReturnPolicy.conditionCodes,
+        ['tags', 'unused', 'packaging', 'receipt']);
+    expect(ReturnPolicy.conditionLabel('exchange_only'), isEmpty);
+    expect(ReturnPolicy.conditionLabel('defect_only'), isEmpty);
+  });
+
   testWidgets('парақта қайтаруға шақыратын батырма жоқ, ack қатесі құлатпайды',
       (t) async {
     final order = OrderModel.fromMap(const {

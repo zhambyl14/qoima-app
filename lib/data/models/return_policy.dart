@@ -15,13 +15,14 @@ class ReturnPolicy {
   static const allowedDays = [14, 21, 30];
 
   /// Ақ тізім екі жерде: осы жер ↔ 0082 (stores_return_conditions_chk).
+  /// Тек қайтару ағыны шынымен тексере алатын шарттар: «тек ауыстыру» мен «тек
+  /// ақау болса» әдейі жоқ — оларды жүйе орындамайды, әрі бұл 'none'-дың
+  /// модератор рұқсатын айналып өтер еді.
   static const conditionCodes = [
     'tags',
     'unused',
     'packaging',
     'receipt',
-    'defect_only',
-    'exchange_only',
   ];
 
   final String mode;
@@ -71,11 +72,6 @@ class ReturnPolicy {
         return tr('Сохранена упаковка', 'Қорабы сақталған');
       case 'receipt':
         return tr('Есть чек или номер заказа', 'Чек немесе тапсырыс нөмірі бар');
-      case 'defect_only':
-        return tr('Только при браке', 'Тек ақау болса');
-      case 'exchange_only':
-        return tr('Только обмен, без возврата денег',
-            'Тек ауыстыру, ақша қайтарылмайды');
     }
     return '';
   }

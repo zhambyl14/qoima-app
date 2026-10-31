@@ -40,10 +40,11 @@ begin
       check (return_days in (14, 21, 30));
   end if;
   -- Ақ тізім екі жерде: lib/data/models/return_policy.dart ↔ осы жер.
+  -- «Тек ауыстыру» / «тек ақау болса» ӘДЕЙІ жоқ: қайтару ағыны оларды орындамайды
+  -- (айырбас жолы жоқ), әрі бұл 'none'-дың модератор рұқсатын айналып өтер еді.
   if not exists (select 1 from pg_constraint where conname = 'stores_return_conditions_chk') then
     alter table public.stores add constraint stores_return_conditions_chk
-      check (return_conditions <@ array['tags','unused','packaging','receipt',
-                                        'defect_only','exchange_only']::text[]);
+      check (return_conditions <@ array['tags','unused','packaging','receipt']::text[]);
   end if;
 end $$;
 
@@ -163,8 +164,7 @@ begin
   end if;
   if v_mode not in ('accept', 'none')
      or coalesce(p_days, 0) not in (14, 21, 30)
-     or not (v_conds <@ array['tags','unused','packaging','receipt',
-                              'defect_only','exchange_only']::text[]) then
+     or not (v_conds <@ array['tags','unused','packaging','receipt']::text[]) then
     raise exception 'invalid_policy';
   end if;
   if char_length(v_note) > 500 then
@@ -269,6 +269,11 @@ begin
   if tg_op = 'UPDATE' then
     if not public.is_superadmin() then
       new.return_policy := old.return_policy;
+      -- «Түсіндім» — клиенттің өз белгісі. RLS баған деңгейінде шектемейді:
+      -- әйтпесе дүкен өз тапсырыстарында парақшаны жасырып тастай алар еді.
+      if auth.uid() is distinct from old.client_uid then
+        new.return_notice_ack_at := old.return_notice_ack_at;
+      end if;
     end if;
     return new;
   end if;
@@ -312,8 +317,26 @@ revoke all on function public.snapshot_order_return_policy() from public, anon, 
 
 drop trigger if exists trg_snapshot_order_return_policy on public.orders;
 create trigger trg_snapshot_order_return_policy
-  before insert or update of return_policy on public.orders
+  before insert or update of return_policy, return_notice_ack_at on public.orders
   for each row execute function public.snapshot_order_return_policy();
+
+-- completed_at (0045) — қайтару мерзімі мен хабарламаның 30 күндік сүзгісі осыдан
+-- есептеледі, сондықтан тек триггердің өзі жазады. Дүкен кері жазып хабарламаны
+-- жасыра алмасын, клиент алға жазып мерзімді ұзарта алмасын.
+create or replace function public.set_order_completed_at() returns trigger
+language plpgsql set search_path = public as $$
+begin
+  if new.status = 'completed' and coalesce(old.status, '') <> 'completed' then
+    new.completed_at := now();
+  elsif new.completed_at is distinct from old.completed_at
+        and auth.uid() is not null
+        and not public.is_superadmin() then
+    new.completed_at := old.completed_at;
+  end if;
+  return new;
+end;
+$$;
+revoke all on function public.set_order_completed_at() from public, anon, authenticated;
 
 -- ── 5. Клиент «түсіндім» деді ────────────────────────────────────────────────
 create or replace function public.ack_return_notice(p_order uuid)

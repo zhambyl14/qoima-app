@@ -26,6 +26,10 @@ class AiDescriptionAssist extends StatelessWidget {
   /// AI батырмасын көрсету ме (жалауша өшік болса — тек үлгілер).
   final bool showAi;
 
+  /// «РУС | ҚАЗ» ауыстырғышы осында көрсетілсін бе. Сипаттама өрісінің өзінде
+  /// екі тілдік таб болса (BilingualDescriptionField) — false: тіл бір жерде.
+  final bool showLangToggle;
+
   const AiDescriptionAssist({
     super.key,
     required this.lang,
@@ -37,6 +41,7 @@ class AiDescriptionAssist extends StatelessWidget {
     required this.onInsert,
     this.canWrite = true,
     this.showAi = true,
+    this.showLangToggle = true,
   });
 
   @override
@@ -89,8 +94,10 @@ class AiDescriptionAssist extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: 8),
-          _LangToggle(lang: lang, onChanged: busy ? null : onLangChanged),
+          if (showLangToggle) ...[
+            const SizedBox(width: 8),
+            _LangToggle(lang: lang, onChanged: busy ? null : onLangChanged),
+          ],
         ]),
         const SizedBox(height: 4),
         Row(children: [

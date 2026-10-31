@@ -14,10 +14,11 @@ import '../../../data/models/store_model.dart';
 import '../../../data/services/ai_service.dart';
 import '../../../theme/qoima_design.dart';
 import '../../shared/require_login.dart';
+import 'try_on_eligibility.dart';
 
 enum _Step { pick, generating, result }
 
-/// Онлайн киіп көру: клиент суретін жүктейді → сервер (FASHN) киімді кигізеді.
+/// Онлайн киіп көру: клиент суретін жүктейді → сервер (FASHN / Gemini) тауарды кигізеді.
 /// Адам суреті ешқайда сақталмайды (сервер жадында ғана өтеді).
 class TryOnScreen extends StatefulWidget {
   final ProductModel product;
@@ -35,6 +36,13 @@ class _TryOnScreenState extends State<TryOnScreen> {
   final _ai = AiService();
   final _picker = ImagePicker();
   final _shareKey = GlobalKey();
+
+  // Фотоға кеңес тауар түріне байланысты (аяқ киімге аяқ, көзілдірікке бет…).
+  late final TryOnKind? _kind = tryOnKindFor(
+    categoryKey: widget.product.effectiveCategoryKey,
+    type: widget.product.type,
+    audience: widget.product.category,
+  );
 
   _Step _step = _Step.pick;
   int _garmentIndex = 0;
@@ -110,8 +118,8 @@ class _TryOnScreenState extends State<TryOnScreen> {
     if (person == null) return;
     final ok = await requireLogin(
       context,
-      reasonRu: 'Войдите, чтобы примерить одежду онлайн',
-      reasonKk: 'Киімді онлайн киіп көру үшін кіріңіз',
+      reasonRu: 'Войдите, чтобы примерить товар онлайн',
+      reasonKk: 'Тауарды онлайн киіп көру үшін кіріңіз',
     );
     if (!ok || !mounted) return;
     HapticFeedback.lightImpact();
@@ -332,8 +340,8 @@ class _TryOnScreenState extends State<TryOnScreen> {
         if (images.length > 1) ...[
           const SizedBox(height: 6),
           Text(
-            tr('Выберите фото, где одежда видна лучше всего',
-                'Киім анық көрінетін суретті таңдаңыз'),
+            tr('Выберите фото, где товар виден лучше всего',
+                'Тауар анық көрінетін суретті таңдаңыз'),
             style: manrope(12, FontWeight.w500, color: cInk3),
           ),
         ],
@@ -354,12 +362,11 @@ class _TryOnScreenState extends State<TryOnScreen> {
                     color: cGreenDeep, size: 32),
               ),
               const SizedBox(height: 12),
-              _tip(tr('Фото в полный рост, стоя прямо',
-                  'Толық бойымен, түзу тұрып түскен сурет')),
+              _tip(tryOnFramingTip(_kind)),
               _tip(tr('Хорошее освещение, лицо и руки видны',
                   'Жарық жақсы, бет пен қол көрінсін')),
-              _tip(tr('Однотонный фон, одежда не мешает',
-                  'Фоны қарапайым, артық киім болмасын')),
+              _tip(tr('Однотонный фон, лишнее не мешает',
+                  'Фоны қарапайым, артық нәрсе болмасын')),
               const SizedBox(height: 14),
               Row(children: [
                 Expanded(
@@ -424,8 +431,8 @@ class _TryOnScreenState extends State<TryOnScreen> {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                tr('Фото передаётся стороннему сервису обработки изображений (FASHN) только для создания примерки и не сохраняется в Qoima. Нажимая «Создать примерку», вы соглашаетесь на эту передачу.',
-                    'Сурет киіп көруді жасау үшін ғана үшінші тарап сурет өңдеу сервисіне (FASHN) беріледі және Qoima-да сақталмайды. «Киіп көруді бастау» батырмасын басу арқылы осы беруге келісесіз.'),
+                tr('Фото передаётся стороннему сервису обработки изображений (FASHN или Google) только для создания примерки и не сохраняется в Qoima. Нажимая «Создать примерку», вы соглашаетесь на эту передачу.',
+                    'Сурет киіп көруді жасау үшін ғана үшінші тарап сурет өңдеу сервисіне (FASHN немесе Google) беріледі және Qoima-да сақталмайды. «Киіп көруді бастау» батырмасын басу арқылы осы беруге келісесіз.'),
                 style: manrope(12.5, FontWeight.w600,
                     color: cBlueInk, height: 1.35),
               ),

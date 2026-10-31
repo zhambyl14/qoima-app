@@ -186,7 +186,7 @@ class _ProductDetailSheet extends StatelessWidget {
       (tr('Цвет', 'Түс'), trValue(product.color)),
       (tr('Артикул', 'Артикул'), product.articul),
       (tr('Страна', 'Ел'), product.country),
-      (tr('Сезон', 'Маусым'), trValue(product.season)),
+      (tr('Сезон', 'Маусым'), product.seasonLabel),
     ].where((r) => r.$2.trim().isNotEmpty).toList();
 
     return Container(
@@ -251,11 +251,11 @@ class _ProductDetailSheet extends StatelessWidget {
                     ],
                   ),
                 )),
-            if (product.description.trim().isNotEmpty) ...[
+            if (product.localizedDescription.trim().isNotEmpty) ...[
               const SizedBox(height: 4),
               QSecLabel(tr('Описание', 'Сипаттама')),
               const SizedBox(height: 6),
-              Text(product.description,
+              Text(product.localizedDescription,
                   style: manrope(13.5, FontWeight.w500, color: cInk2, height: 1.4)),
             ],
             const SizedBox(height: 8),

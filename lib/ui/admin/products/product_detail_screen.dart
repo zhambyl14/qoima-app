@@ -14,6 +14,7 @@ import '../../../data/services/cloudinary_service.dart';
 import '../../../theme/qoima_design.dart';
 import '../../shared/color_picker_sheet.dart';
 import '../../shared/prompt_text_dialog.dart';
+import '../../widgets/image_crop_screen.dart';
 import '../../widgets/multi_shot_camera_screen.dart';
 import '../../../core/color_naming.dart';
 import 'package:image_picker/image_picker.dart' show ImageSource;
@@ -1881,6 +1882,10 @@ class _PhotoManagerSheetState extends State<_PhotoManagerSheet> {
   late List<String> _imgs = List.of(widget.initial);
   bool _busy = false;
 
+  /// Осы парақшада қосылған фотолардың түпнұсқасы (URL → байттар). Бұрынғы фотолар
+  /// тек кесілген күйінде сақталған, сондықтан қайта кадрлау тек жаңаларына бар.
+  final Map<String, Uint8List> _originals = {};
+
   Future<void> _persist() async {
     await _service.updateProductImages(widget.productId, _imgs);
     widget.onChanged(List.of(_imgs));
@@ -1961,6 +1966,9 @@ class _PhotoManagerSheetState extends State<_PhotoManagerSheet> {
       if (batch.photos.isNotEmpty) {
         final urls = await _cloud
             .uploadBytesList([for (final p in batch.photos) p.cropped]);
+        for (var i = 0; i < urls.length; i++) {
+          _originals[urls[i]] = batch.photos[i].original;
+        }
         // Парақша жабылып кетсе де сурет тауарға жазылуы керек: жүктелді.
         final next = [..._imgs, ...urls];
         if (mounted) {
@@ -1975,6 +1983,42 @@ class _PhotoManagerSheetState extends State<_PhotoManagerSheet> {
       } else if (batch.failed > 0) {
         _snack(tr('Не удалось обработать фото: ${batch.failed}', 'Өңделмеген фото: ${batch.failed}'), error: true);
       }
+    } catch (e) {
+      _snack(tr('Ошибка загрузки: $e', 'Жүктеу қатесі: $e'), error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// Жаңа фотоны басқанда: кадрды қолмен түзету (түпнұсқадан), қосу шебері сияқты.
+  Future<void> _recrop(String url) async {
+    final source = _originals[url];
+    if (_busy || source == null) return;
+    final cropped = await Navigator.push<Uint8List>(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            ImageCropScreen(raw: source, outputSize: kProductPhotoSize),
+      ),
+    );
+    if (cropped == null || !mounted || _busy) return;
+    setState(() => _busy = true);
+    try {
+      final urls = await _cloud.uploadBytesList([cropped]);
+      final at = _imgs.indexOf(url);
+      if (at < 0) return;
+      _originals
+        ..remove(url)
+        ..[urls.first] = source;
+      final next = List.of(_imgs)..[at] = urls.first;
+      if (mounted) {
+        setState(() => _imgs = next);
+      } else {
+        _imgs = next;
+      }
+      await _persist();
+      // Cloudinary-ден жою — best-effort (credentials бос болса үнсіз өтеді)
+      await _cloud.deleteByUrl(url);
     } catch (e) {
       _snack(tr('Ошибка загрузки: $e', 'Жүктеу қатесі: $e'), error: true);
     } finally {
@@ -2036,18 +2080,23 @@ class _PhotoManagerSheetState extends State<_PhotoManagerSheet> {
         Wrap(spacing: 10, runSpacing: 10, children: [
           for (var i = 0; i < _imgs.length; i++)
             Stack(children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Image.network(_imgs[i],
-                    width: 84,
-                    height: 84,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
-                        width: 84,
-                        height: 84,
-                        color: cBg,
-                        child: const Icon(Icons.broken_image_outlined,
-                            color: cInk3))),
+              GestureDetector(
+                onTap: _busy || !_originals.containsKey(_imgs[i])
+                    ? null
+                    : () => _recrop(_imgs[i]),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.network(_imgs[i],
+                      width: 84,
+                      height: 84,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                          width: 84,
+                          height: 84,
+                          color: cBg,
+                          child: const Icon(Icons.broken_image_outlined,
+                              color: cInk3))),
+                ),
               ),
               Positioned(
                 top: 2,
@@ -2089,6 +2138,14 @@ class _PhotoManagerSheetState extends State<_PhotoManagerSheet> {
           child: Text(tr('Квадрат 1:1 · максимум 4 фото', '1:1 шаршы · ең көбі 4 фото'),
               style: TextStyle(fontSize: 12, color: cInk3)),
         ),
+        if (_imgs.any(_originals.containsKey))
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+                tr('Нажмите на новое фото, чтобы поправить кадр',
+                    'Кадрды түзету үшін жаңа фотоны басыңыз'),
+                style: TextStyle(fontSize: 12, color: cInk3)),
+          ),
       ]),
     );
   }

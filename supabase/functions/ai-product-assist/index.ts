@@ -10,6 +10,13 @@
 //   { mode: 'describe', images: [...], fields: {...}, lang: 'ru'|'kk' }
 //     → { description, remaining }
 //     Сурет + толтырылған өрістерден сатушы сипаттама жазады (ойдан факт жоқ).
+//   { mode: 'keywords', images: [...], fields: {...}, lang: 'ru'|'kk' }
+//     → { keywords_ru: string[], keywords_kk: string[], remaining }
+//     «Ұқсас сөздер»: клиент тауарды атауынан басқа не деп іздейтінін ұсынады
+//     (синонимдер, сленг, транслит). Атауда бар сөздер қайтарылмайды.
+//   { mode: 'translate', text: string, from: 'ru'|'kk', to: 'ru'|'kk' }
+//     → { text, remaining }
+//     Сипаттаманы екінші тілге аударады (суретсіз, ойдан ештеңе қоспай).
 //
 // images[]: https URL (Cloudinary) НЕМЕСЕ base64 JPEG ('data:image/jpeg;base64,…'
 //   не таза base64). Ең көбі 4 сурет.
@@ -382,6 +389,39 @@ Write a clear, honest, selling description a shopper can read in 15 seconds:
 - Return only the description text.`;
 }
 
+function keywordsSystem(): string {
+  return `You help a store owner in Kazakhstan fill "similar words" for a product in the Qoima marketplace.
+These words are NOT shown to buyers: they only make the product findable when a shopper searches with a different word than the product name.
+
+Return two lists:
+- keywords_ru: up to 10 Russian words or short phrases (1–3 words each): synonyms, everyday/slang names, what it is for, common Latin spellings of the brand if people type them (e.g. "кросы", "для зала", "sneakers").
+- keywords_kk: up to 10 Kazakh words or short phrases (Cyrillic) a Kazakh-speaking shopper would type, natural everyday Kazakh (e.g. "спорттық аяқ киім", "күртке").
+
+Rules:
+- Do NOT repeat words that are already in the product name, brand or given fields.
+- Do not include prices, discounts, shop names, phone numbers, claims you cannot see or know (no materials/brands not given or visible).
+- Lowercase, no punctuation, no numbering, each item under 40 characters.`;
+}
+
+const KEYWORDS_SCHEMA = {
+  type: "object",
+  properties: {
+    keywords_ru: { type: "array", items: { type: "string" } },
+    keywords_kk: { type: "array", items: { type: "string" } },
+  },
+  required: ["keywords_ru", "keywords_kk"],
+  additionalProperties: false,
+};
+
+function translateSystem(from: Lang, to: Lang): string {
+  const name = (l: Lang) => (l === "kk" ? "Kazakh (қазақ тілі, Cyrillic)" : "Russian");
+  return `You translate online-store product descriptions from ${name(from)} into ${name(to)} for shoppers in Kazakhstan.
+- Translate faithfully and naturally; do not add, remove or invent facts.
+- Keep numbers, sizes, brand names, model names and bullet points ("• ") as they are.
+- No headings, no markdown (no **, no #), no explanations.
+- Return only the translated text.`;
+}
+
 const SUGGEST_SCHEMA = {
   type: "object",
   properties: {
@@ -510,6 +550,26 @@ function sanitizeSuggestion(raw: Record<string, unknown>) {
   };
 }
 
+// Кілт сөздерін тазалау: тримдеу, қайталанбау, атаудағы сөз болмауы.
+function sanitizeKeywords(raw: unknown, name: string, max = 10): string[] {
+  if (!Array.isArray(raw)) return [];
+  const lowName = name.toLowerCase();
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const item of raw) {
+    if (typeof item !== "string") continue;
+    const w = item.replace(/[,;\n]/g, " ").replace(/\s+/g, " ").trim()
+      .toLowerCase();
+    if (w.length < 2 || w.length > 40) continue;
+    if (lowName && lowName.includes(w)) continue;
+    if (seen.has(w)) continue;
+    seen.add(w);
+    out.push(w);
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
 // ── Квота ─────────────────────────────────────────────────────────────────
 async function refund(uid: string): Promise<void> {
   try {
@@ -549,7 +609,10 @@ Deno.serve(async (req) => {
     return json({ error: "bad_request" }, 400);
   }
   const mode = body?.mode;
-  if (mode !== "suggest" && mode !== "describe") {
+  if (
+    mode !== "suggest" && mode !== "describe" && mode !== "keywords" &&
+    mode !== "translate"
+  ) {
     return json({ error: "bad_request" }, 400);
   }
   const lang: Lang = body?.lang === "kk" ? "kk" : "ru";
@@ -560,8 +623,20 @@ Deno.serve(async (req) => {
   if (mode === "suggest" && images.length === 0) {
     return json({ error: "bad_request" }, 400);
   }
-  if (mode === "describe" && images.length === 0 && !fields.name) {
+  if (
+    (mode === "describe" || mode === "keywords") && images.length === 0 &&
+    !fields.name
+  ) {
     return json({ error: "bad_request" }, 400);
+  }
+  // translate: суретсіз, тек мәтін. Бастапқы және мақсатты тіл әртүрлі болуы керек.
+  const tFrom: Lang = body?.from === "kk" ? "kk" : "ru";
+  const tTo: Lang = body?.to === "kk" ? "kk" : "ru";
+  const tText = typeof body?.text === "string" ? body.text.trim() : "";
+  if (mode === "translate") {
+    if (!tText || tText.length > 2000 || tFrom === tTo) {
+      return json({ error: "bad_request" }, 400);
+    }
   }
 
   // Кілт жоқ болса квотаны тұтынбай-ақ қайтарамыз.
@@ -618,6 +693,47 @@ Deno.serve(async (req) => {
         throw new AiError("ai_failed", 502); // refundable=false: токен жұмсалған
       }
       return json({ ...sanitizeSuggestion(parsed), remaining });
+    }
+
+    if (mode === "keywords") {
+      const text = await callClaude({
+        system: keywordsSystem(),
+        maxTokens: 2000,
+        format: { type: "json_schema", schema: KEYWORDS_SCHEMA },
+        content: [
+          ...images,
+          {
+            type: "text",
+            text: `Product data from the seller:
+${fieldsText(fields)}
+
+Suggest the similar words.`,
+          },
+        ],
+      });
+      let parsed: Record<string, unknown>;
+      try {
+        parsed = JSON.parse(text);
+      } catch (_) {
+        throw new AiError("ai_failed", 502); // refundable=false: токен жұмсалған
+      }
+      const knownText = `${fields.name ?? ""} ${fields.brand ?? ""}`;
+      return json({
+        keywords_ru: sanitizeKeywords(parsed.keywords_ru, knownText),
+        keywords_kk: sanitizeKeywords(parsed.keywords_kk, knownText),
+        remaining,
+      });
+    }
+
+    if (mode === "translate") {
+      const text = await callClaude({
+        system: translateSystem(tFrom, tTo),
+        maxTokens: 4000,
+        content: [{ type: "text", text: tText }],
+      });
+      const translated = text.replace(/\*\*/g, "").replace(/^#+\s*/gm, "")
+        .slice(0, 2000);
+      return json({ text: translated, remaining });
     }
 
     const text = await callClaude({

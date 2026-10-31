@@ -463,7 +463,8 @@ class _ClientOrderDetailScreenState extends State<ClientOrderDetailScreen> {
           ]),
           if (o.completedAt != null) ...[
             const SizedBox(height: 8),
-            Text('${tr('Получен', 'Алынды')}: ${_date(o.completedAt!)}',
+            Text(
+                '${o.isKazpost && !o.postClosedByClient ? tr('Закрыт', 'Жабылды') : tr('Получен', 'Алынды')}: ${_date(o.completedAt!)}',
                 style: manrope(11.5, FontWeight.w600, color: cInk3)),
           ],
         ]),
@@ -870,7 +871,10 @@ class _ClientOrderDetailScreenState extends State<ClientOrderDetailScreen> {
             title: Text(tr('Условия возврата', 'Қайтару шарттары'),
                 style: manrope(13, FontWeight.w800, color: cInk)),
             children: [
-              ReturnPolicyBody(policy, items: o.items, kazpost: o.isKazpost),
+              ReturnPolicyBody(policy,
+                  items: o.items,
+                  kazpost: o.isKazpost,
+                  deadline: o.completedAt == null ? null : o.returnDeadline),
             ],
           ),
         ),
@@ -956,7 +960,8 @@ class _ClientOrderDetailScreenState extends State<ClientOrderDetailScreen> {
                   icon: const Icon(Icons.loop_rounded,
                       size: 12, color: Color(0xFF92400E))),
         ));
-      } else if (o.returnPolicy?.isNoReturns == true) {
+      } else if (o.returnPolicy?.isNoReturns == true ||
+          o.allItemsNonReturnable) {
         // Мерзімге қарамастан: мұнда «срок истёк» деген дұрыс болмас еді.
         widgets.add(Center(
           child: Text(tr('Возврат не предусмотрен', 'Қайтару қарастырылмаған'),

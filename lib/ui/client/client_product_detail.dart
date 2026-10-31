@@ -679,9 +679,12 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
                             ),
 
                           // ── Описание (маркетплейс-стиль, жайылмалы) ─────
-                          if (_currentProduct.description.isNotEmpty)
+                          // Қосымша тіліне сай (kk/ru), бос болса екінші тілге түседі.
+                          // Тіл ауысқанда MaterialApp key-мен қайта құрылады, сондықтан
+                          // бетті қайта ашпай-ақ жаңа тіл көрінеді.
+                          if (_currentProduct.hasDescription)
                             _DescriptionSection(
-                                text: _currentProduct.description),
+                                text: _currentProduct.localizedDescription),
 
                           // ── Характеристики ──────────────────────────────
                           _SpecSection(product: _currentProduct),
@@ -1048,8 +1051,8 @@ class _SpecSection extends StatelessWidget {
         _SpecRow(tr('Особенность', 'Ерекшелігі'), product.variantNote.trim()),
       if (product.type.isNotEmpty)
         _SpecRow(tr('Тип', 'Түрі'), trValue(product.type)),
-      if (product.season.isNotEmpty)
-        _SpecRow(tr('Сезон', 'Маусым'), trValue(product.season)),
+      if (product.seasonList.isNotEmpty)
+        _SpecRow(tr('Сезон', 'Маусым'), product.seasonLabel),
       if (product.country.isNotEmpty)
         _SpecRow(tr('Страна', 'Өндірілген ел'), product.country),
       if (product.articul.isNotEmpty)

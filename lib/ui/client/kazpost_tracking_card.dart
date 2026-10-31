@@ -84,7 +84,7 @@ class _KazpostTrackingCardState extends State<KazpostTrackingCard> {
         title: Text(tr('Посылка у вас?', 'Сәлемдеме сізде ме?'),
             style: manrope(17, FontWeight.w700, color: cInk)),
         content: Text(
-            policy?.isNoReturns == true
+            policy?.isNoReturns == true || o.allItemsNonReturnable
                 ? tr(
                     'Подтверждайте, только когда посылка уже у вас. Возврат по этому заказу не предусмотрен.',
                     'Сәлемдеме қолыңызға тигенде ғана растаңыз. Бұл тапсырыс бойынша қайтару қарастырылмаған.')
@@ -212,8 +212,11 @@ class _KazpostTrackingCardState extends State<KazpostTrackingCard> {
         if (deliveredAt != null) ...[
           const SizedBox(height: 8),
           Text(
-              tr('Получена ${_dateOnly(deliveredAt)}',
-                  '${_dateOnly(deliveredAt)} алынды'),
+              o.postClosedByClient
+                  ? tr('Получена ${_dateOnly(deliveredAt)}',
+                      '${_dateOnly(deliveredAt)} алынды')
+                  : tr('Заказ закрыт ${_dateOnly(deliveredAt)}',
+                      'Тапсырыс ${_dateOnly(deliveredAt)} жабылды'),
               style: manrope(12, FontWeight.w700, color: cGreenDeep)),
         ],
         if (hasTrack) ...[

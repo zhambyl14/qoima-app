@@ -1,5 +1,8 @@
 import 'dart:ui' show Color;
 
+import '../../core/locale_context.dart';
+import 'season_utils.dart' as su;
+
 /// Модель товара (документ в коллекции "products")
 class ProductModel {
   final String id;
@@ -31,9 +34,15 @@ class ProductModel {
   final String keywords;
   final String status; // "В наличии" | "Продано"
   final List<String> images;
-  final String description; // описание товара (необязательно)
+  final String description; // описание товара (необязательно), по умолчанию русский
+  // Қазақша сипаттама (0083, products.description_kk). Бос = аударма жоқ →
+  // [descriptionFor] орысшаға қайтады. Дүкен иесі екі тілді де жаза алады.
+  final String descriptionKk;
   final String country; // страна производства (необязательно)
-  final String season; // Лето|Зима|Осень|Весна ('' = не указан)
+  // Лето|Зима|Осень|Весна ('' = не указан). Бірнешеу болса — канондық мәндер
+  // үтірмен: 'Лето,Зима' (season_utils.dart). Оқу/жазу үшін [seasonList],
+  // [joinSeasons], [hasSeason] қолданыңыз — жолды қолмен бөлмеңіз.
+  final String season;
   // Денормализацияланған рейтинг (product_reviews триггері жаңартады).
   // toMap-қа ӘДЕЙІ кірмейді — админ тауарды өңдегенде нөлденіп кетпеуі үшін.
   final double ratingAvg;
@@ -71,6 +80,7 @@ class ProductModel {
     required this.status,
     required this.images,
     this.description = '',
+    this.descriptionKk = '',
     this.country = '',
     this.season = '',
     this.ratingAvg = 0,
@@ -85,6 +95,69 @@ class ProductModel {
   /// мульти-категорийного каталога, не имеют `categoryKey` → это обувь.
   String get effectiveCategoryKey =>
       categoryKey.isEmpty ? 'shoes' : categoryKey;
+
+  /// Сипаттама ұзындығының шегі (DB: products_description_kk_len, 0083).
+  static const int descriptionMaxLength = 2000;
+
+  /// Берілген тілдегі сипаттама ('kk' | 'ru'). Сол тілде бос болса — екіншісіне
+  /// қайтады, ал екеуі де бос болса ''. Белгісіз тіл коды орысша болып есептеледі.
+  String descriptionFor(String lang) {
+    final primary = lang == 'kk' ? descriptionKk : description;
+    final other = lang == 'kk' ? description : descriptionKk;
+    return primary.trim().isNotEmpty ? primary : other;
+  }
+
+  /// Қосымшаның ағымдағы тіліндегі сипаттама (tr() сияқты LocaleContext-тен).
+  String get localizedDescription => descriptionFor(LocaleContext.currentLang);
+
+  /// Екі тілдің кез келгенінде мәтін бар ма.
+  bool get hasDescription =>
+      description.trim().isNotEmpty || descriptionKk.trim().isNotEmpty;
+
+  /// `description_kk` бағанының жазу бөлігі. DB-де баған (0083) болмаса да
+  /// ескі БД жұмысын жалғастыруы үшін БОС болса мүлде жіберілмейді.
+  /// ≤ [descriptionMaxLength] қиылады (DB check).
+  Map<String, dynamic> get _descriptionKkWrite {
+    final t = descriptionKk.trim();
+    if (t.isEmpty) return const {};
+    return {
+      'description_kk': t.length > descriptionMaxLength
+          ? t.substring(0, descriptionMaxLength)
+          : t
+    };
+  }
+
+  /// `description_kk` UPDATE-те қалай жазылады: null = тимеу (бос→бос, ескі БД
+  /// үшін қауіпсіз), әйтпесе жаңа мән (бос жол = қазақшаны өшіру).
+  /// [previous] — өңдеуге дейінгі мән.
+  static String? descriptionKkPatch(String previous, String next) {
+    final n = next.trim();
+    if (n.isEmpty && previous.trim().isEmpty) return null;
+    return n.length > descriptionMaxLength
+        ? n.substring(0, descriptionMaxLength)
+        : n;
+  }
+
+  // ── Маусым (көп мәнді) — толығы season_utils.dart ──────────────────────────
+  /// Канондық маусымдар тізімі (ескі бір мәнді жазба да → бір элемент).
+  List<String> get seasonList => su.parseSeasons(season);
+
+  /// Таңдалған маусымдарды `season` бағанына жазылатын жолға айналдырады.
+  static String joinSeasons(Iterable<String> seasons) =>
+      su.joinSeasons(seasons);
+
+  /// Тауар осы маусымға жарай ма (көп мәннің кез келгені).
+  bool hasSeason(String s) => su.seasonsContain(season, s);
+
+  /// Клиент сүзгісі: [selected] бос болса — бәрі өтеді; әйтпесе тауардың кез
+  /// келген маусымы таңдалғанмен сәйкессе.
+  bool matchesSeasons(Iterable<String> selected,
+          {bool includeUnspecified = false}) =>
+      su.seasonsMatchFilter(season, selected,
+          includeUnspecified: includeUnspecified);
+
+  /// Көрсетілім: ағымдағы тілде «Жаз, Қыс» (бос болса '').
+  String get seasonLabel => su.seasonsLabel(season);
 
   static const String statusInStock = 'В наличии';
   static const String statusSold = 'Продано';
@@ -161,6 +234,7 @@ class ProductModel {
       status: json['status'] as String? ?? statusInStock,
       images: List<String>.from(json['images'] as List? ?? []),
       description: json['description'] as String? ?? '',
+      descriptionKk: json['descriptionKk'] as String? ?? '',
       country: json['country'] as String? ?? '',
       season: json['season'] as String? ?? '',
       nonReturnable: json['nonReturnable'] as bool? ?? false,
@@ -186,6 +260,7 @@ class ProductModel {
         status: m['status'] as String? ?? statusInStock,
         images: (m['images'] as List?)?.map((e) => e.toString()).toList() ?? [],
         description: m['description'] as String? ?? '',
+        descriptionKk: m['description_kk'] as String? ?? '',
         country: m['country'] as String? ?? '',
         season: m['season'] as String? ?? '',
         ratingAvg: (m['rating_avg'] as num?)?.toDouble() ?? 0,
@@ -214,6 +289,8 @@ class ProductModel {
         'status': status,
         'images': images,
         'description': description,
+        // 0083: бос болса жіберілмейді — ескі БД-да да тауар сақталады.
+        ..._descriptionKkWrite,
         'country': country,
         'season': season,
         // 0073: иесінің жазуы. true тек дүкенге рұқсат болса өтеді (триггер).
@@ -240,6 +317,7 @@ class ProductModel {
         'status': status,
         'images': images,
         'description': description,
+        if (descriptionKk.isNotEmpty) 'descriptionKk': descriptionKk,
         'country': country,
         'season': season,
         if (nonReturnable) 'nonReturnable': true,
@@ -263,6 +341,7 @@ class ProductModel {
     String? status,
     List<String>? images,
     String? description,
+    String? descriptionKk,
     String? country,
     String? season,
     double? ratingAvg,
@@ -289,6 +368,7 @@ class ProductModel {
       status: status ?? this.status,
       images: images ?? this.images,
       description: description ?? this.description,
+      descriptionKk: descriptionKk ?? this.descriptionKk,
       country: country ?? this.country,
       season: season ?? this.season,
       ratingAvg: ratingAvg ?? this.ratingAvg,

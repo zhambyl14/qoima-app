@@ -286,6 +286,55 @@ void main() {
     expect(host.result!.photos, isEmpty);
   });
 
+  group('аяқтау кезінде ашық «шығасыз ба?» диалогы', () {
+    Future<_Host> openDialogWhileFinishing(WidgetTester tester) async {
+      final host = _Host();
+      await host.open(tester);
+      await tester.tap(_shutter);
+      await _settle(tester,
+          until: () => find.text('1 / 4').evaluate().isNotEmpty);
+
+      // Екінші кадр ысырмада ұсталып тұр: «Готово» басылды, бірақ аяқтау күтіп тұр.
+      camera.shutterGate = Completer<void>();
+      await tester.tap(_shutter);
+      await tester.pump();
+      await tester.tap(find.text(tr('Готово', 'Дайын')));
+      await tester.pump();
+
+      await tester.tap(find.byIcon(Icons.close_rounded).first);
+      await _settle(tester,
+          until: () => find.text(tr('Выйти', 'Шығу')).evaluate().isNotEmpty);
+
+      camera.shutterGate!.complete();
+      camera.shutterGate = null;
+      await _settle(tester, until: () => find.text('2 / 4').evaluate().isNotEmpty);
+      // Кесу біткенше күтеміз: дәл осы сәтте бұрын TypeError шығатын.
+      await _settle(tester, maxRounds: 60);
+      return host;
+    }
+
+    testWidgets('«Остаться»: диалог қалады, жабылған соң фотолар қайтады',
+        (tester) async {
+      final host = await openDialogWhileFinishing(tester);
+      expect(tester.takeException(), isNull);
+      expect(find.text(tr('Выйти', 'Шығу')), findsOneWidget);
+      expect(host.done, isFalse);
+
+      await tester.tap(find.text(tr('Остаться', 'Қалу')));
+      await _settle(tester, until: () => host.done);
+      expect(tester.takeException(), isNull);
+      expect(host.result!.photos, hasLength(2));
+    });
+
+    testWidgets('«Выйти»: экран жабылады, фотолар сақталмайды', (tester) async {
+      final host = await openDialogWhileFinishing(tester);
+      await tester.tap(find.text(tr('Выйти', 'Шығу')));
+      await _settle(tester, until: () => host.done);
+      expect(tester.takeException(), isNull);
+      expect(host.result!.photos, isEmpty);
+    });
+  });
+
   testWidgets('рұқсат жоқ: түсінікті хабар + галерея; диалог қайта ашылмайды',
       (tester) async {
     camera.initError = CameraException('CameraAccessDenied', 'no permission');

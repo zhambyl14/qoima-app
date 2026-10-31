@@ -394,6 +394,14 @@ class OrderModel {
   /// Посылка почтада, жолда.
   bool get postInTransit => isKazpost && postStatus == postShipped;
 
+  /// Посылканы клиент өзі «алдым» деп жапты ма. Дүкен (7 күннен кейін) не cron
+  /// жапса — жоқ: ол сәтте посылка әлі жолда болуы мүмкін.
+  bool get postClosedByClient => deliveredByUid == clientUid;
+
+  /// Тапсырыстың ешбір жолын қайтаруға болмайды (дүкен режимі басқа болса да).
+  bool get allItemsNonReturnable =>
+      items.isNotEmpty && items.every((i) => i.nonReturnable);
+
   /// Дүкен «тапсырылды» деп жаба ала ма (жібергеніне 7 күн өтті ме).
   bool get storeCanClosePost =>
       postInTransit &&

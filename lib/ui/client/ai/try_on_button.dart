@@ -22,8 +22,8 @@ class TryOnButton extends StatelessWidget {
     HapticFeedback.selectionClick();
     final ok = await requireLogin(
       context,
-      reasonRu: 'Войдите, чтобы примерить одежду онлайн',
-      reasonKk: 'Киімді онлайн киіп көру үшін кіріңіз',
+      reasonRu: 'Войдите, чтобы примерить товар онлайн',
+      reasonKk: 'Тауарды онлайн киіп көру үшін кіріңіз',
     );
     if (!ok || !context.mounted) return;
     Navigator.push(

@@ -39,32 +39,40 @@ import 'gift_share_screen.dart';
 /// Тілек тізімінен сыйлағанда ([registryClaimId] берілген): тауар, өлшем және
 /// алушы (тізім иесі) бекітілген, тапсырыс `create_registry_gift_order` арқылы
 /// жасалады және төленген сыйлық тізім иесінің «Подарки» бөліміне түседі.
-Future<void> showGiftSheet(
+///
+/// Себеттен ашқанда: [initialSize] — жолдағы өлшем алдын ала таңдалады
+/// («Өлшемін білемін»), [onCreated] — тапсырыс жасалған ЗАМАТ шақырылады
+/// (төлем парағы мен сілтеме беті жабылғанша күтпейді: себеттегі жол сол
+/// сәтте өшуі керек, әйтпесе қосымша жабылса жол қайта сыйлануы мүмкін).
+/// Қайтарады: сыйлық тапсырысы жасалды ма.
+Future<bool> showGiftSheet(
   BuildContext context, {
   required ProductModel product,
   required StoreModel store,
   String? registryClaimId,
   String? fixedSize,
   String? recipientName,
+  String? initialSize,
+  void Function(OrderModel order)? onCreated,
 }) async {
   if (!FeatureFlags.instance.isOn(FeatureFlags.giftLinks)) {
     _snack(context, tr('Функция временно отключена', 'Функция уақытша өшірулі'),
         error: true);
-    return;
+    return false;
   }
   final ok = await requireLogin(
     context,
     reasonRu: 'Чтобы подарить товар, войдите в аккаунт.',
     reasonKk: 'Тауарды сыйлау үшін аккаунтқа кіріңіз.',
   );
-  if (!ok || !context.mounted) return;
+  if (!ok || !context.mounted) return false;
   if (!context.read<AppUser>().isClient) {
     _snack(
         context,
         tr('Подарки доступны только покупателям',
             'Сыйлық тек сатып алушыларға қолжетімді'),
         error: true);
-    return;
+    return false;
   }
 
   final order = await showModalBottomSheet<OrderModel>(
@@ -77,9 +85,12 @@ Future<void> showGiftSheet(
       registryClaimId: registryClaimId,
       fixedSize: fixedSize,
       recipientName: recipientName,
+      initialSize: initialSize,
     ),
   );
-  if (order == null || !context.mounted) return;
+  if (order == null) return false;
+  onCreated?.call(order);
+  if (!context.mounted) return true;
 
   // Төлем нұсқаулығы: карта/QR + чек тіркеу. Жабылса да тапсырыс сақталады.
   final attached = await showPaymentInstructionsSheet(
@@ -87,7 +98,7 @@ Future<void> showGiftSheet(
     amount: order.depositAmount,
     orders: [order],
   );
-  if (!context.mounted) return;
+  if (!context.mounted) return true;
   if (registryClaimId != null) {
     // Алушы — тізім иесі: сілтеме жіберу керек емес, оған өзі хабарланады.
     await showDialog<void>(
@@ -114,12 +125,13 @@ Future<void> showGiftSheet(
         ],
       ),
     );
-    return;
+    return true;
   }
   await Navigator.of(context).push(MaterialPageRoute(
     builder: (_) =>
         GiftShareScreen(order: order, receiptPending: attached != true),
   ));
+  return true;
 }
 
 void _snack(BuildContext context, String text, {bool error = false}) {
@@ -138,12 +150,14 @@ class _GiftSheet extends StatefulWidget {
   final String? registryClaimId;
   final String? fixedSize;
   final String? recipientName;
+  final String? initialSize;
   const _GiftSheet({
     required this.product,
     required this.store,
     this.registryClaimId,
     this.fixedSize,
     this.recipientName,
+    this.initialSize,
   });
 
   @override
@@ -221,6 +235,14 @@ class _GiftSheetState extends State<_GiftSheet> {
       if (fs.isNotEmpty) {
         _knowSize = true;
         _size = fs;
+      }
+    } else {
+      // Себеттен: сатып алушы өлшемді таңдап қойған — қайта сұрамаймыз.
+      // Өлшем таусылып қалса _load оны тастап, таңдауды қайта ашады.
+      final initSize = (widget.initialSize ?? '').trim();
+      if (initSize.isNotEmpty) {
+        _knowSize = true;
+        _size = initSize;
       }
     }
     _load();

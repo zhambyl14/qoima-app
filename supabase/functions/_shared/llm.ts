@@ -13,6 +13,7 @@
 //          GEMINI_API_KEY, GEMINI_MODEL (әдепкі gemini-3.1-flash-lite).
 // Кілттер ЕШҚАШАН кодта/клиентте емес — тек Supabase Secrets-те.
 import Anthropic from "npm:@anthropic-ai/sdk@1.3.0";
+import { GeminiStreamAssembler, SseParser } from "./gemini_stream.ts";
 
 const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY") ?? "";
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") ?? "";
@@ -234,7 +235,8 @@ function mapFinish(candidate: Any, blocked: boolean, hasTool: boolean): string {
   }
 }
 
-async function geminiCreate(body: Any, timeoutMs: number, retries: number): Promise<Any> {
+/// Anthropic-пішімді body → Gemini payload (generateContent пен stream үшін ортақ).
+async function geminiPayload(body: Any): Promise<Any> {
   const model = GEMINI_MODEL;
   const payload: Any = {
     contents: await toGeminiContents(body.messages ?? []),
@@ -267,7 +269,12 @@ async function geminiCreate(body: Any, timeoutMs: number, retries: number): Prom
       })),
     }];
   }
+  return payload;
+}
 
+async function geminiCreate(body: Any, timeoutMs: number, retries: number): Promise<Any> {
+  const model = GEMINI_MODEL;
+  const payload = await geminiPayload(body);
   const url =
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
   let lastErr: LlmHttpError | null = null;
@@ -372,6 +379,121 @@ export function makeLlmClient(
 }
 
 let claudeDownUntil = 0;
+
+// ── Ағынды (streaming) шақыру ─────────────────────────────────────────────
+// Тек ai-assistant қолданады: мәтін келген сайын [onText] шақырылады, соңында
+// create()-пен БІРДЕЙ пішімді толық жауап қайтады (content, stop_reason, usage).
+// Қолданыстағы makeLlmClient/create жолдарына ТИІСПЕЙДІ.
+
+async function geminiStream(
+  body: Any,
+  timeoutMs: number,
+  retries: number,
+  onText: (t: string) => void,
+): Promise<Any> {
+  const payload = await geminiPayload(body);
+  const url =
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:streamGenerateContent?alt=sse`;
+  let lastErr: LlmHttpError | null = null;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), timeoutMs);
+    let emitted = false;
+    try {
+      const r = await fetch(url, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-goog-api-key": GEMINI_API_KEY },
+        body: JSON.stringify(payload),
+        signal: ctl.signal,
+      });
+      if (!r.ok || !r.body) {
+        const txt = (await r.text()).slice(0, 300);
+        lastErr = new LlmHttpError(r.status === 503 ? 529 : r.status, txt);
+        if ((r.status === 429 || r.status >= 500) && attempt < retries) {
+          await new Promise((res) => setTimeout(res, 1200));
+          continue;
+        }
+        throw lastErr;
+      }
+      const parser = new SseParser();
+      const asm = new GeminiStreamAssembler();
+      const dec = new TextDecoder();
+      const handle = (frames: { data: string }[]) => {
+        for (const f of frames) {
+          let chunk: Any;
+          try {
+            chunk = JSON.parse(f.data);
+          } catch (_) {
+            continue; // бүлінген кадр — елемейміз
+          }
+          const delta = asm.push(chunk);
+          if (delta) {
+            emitted = true;
+            onText(delta);
+          }
+        }
+      };
+      const reader = r.body.getReader();
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        handle(parser.feed(dec.decode(value, { stream: true })));
+      }
+      handle(parser.feed(dec.decode()));
+      handle(parser.flush());
+      const sm = asm.summary();
+      const hasTool = sm.content.some((b: Any) => b.type === "tool_use");
+      return {
+        content: sm.content,
+        stop_reason: mapFinish({ finishReason: sm.finishReason }, sm.blocked, hasTool),
+        usage: { input_tokens: sm.inputTokens, output_tokens: sm.outputTokens },
+      };
+    } catch (e) {
+      if (e instanceof LlmHttpError) throw e;
+      const st = (e as { status?: number })?.status;
+      lastErr = new LlmHttpError(
+        st === 503 ? 529 : (st ?? 504),
+        (e as Error)?.message ?? "network",
+      );
+      // Мәтін бір рет жіберілген соң қайталауға болмайды (қайталанып шығады).
+      if (emitted || attempt >= retries) throw lastErr;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  throw lastErr ?? new LlmHttpError(502, "gemini_failed");
+}
+
+/// Ағынды жауап. [body] — Anthropic пішімі (makeLlmClient create-пен бірдей);
+/// betas болса Anthropic beta endpoint қолданылады. Claude жарамсыз болса және
+/// Gemini кілті бар болса — makeLlmClient сияқты Gemini-ге ауысады.
+export async function streamMessage(
+  body: Any,
+  onText: (t: string) => void,
+  opts: { timeout?: number; maxRetries?: number } = {},
+): Promise<Any> {
+  const timeout = opts.timeout ?? 30_000;
+  const retries = opts.maxRetries ?? 1;
+  if (aiProvider() === "gemini" || Date.now() < claudeDownUntil) {
+    return await geminiStream(body, timeout, retries, onText);
+  }
+  const anth = new Anthropic({ apiKey: ANTHROPIC_API_KEY, timeout, maxRetries: retries });
+  try {
+    const ns: Any = body.betas ? (anth as Any).beta : anth;
+    const stream = ns.messages.stream(body);
+    stream.on("text", (t: string) => {
+      if (t) onText(t);
+    });
+    return await stream.finalMessage();
+  } catch (e) {
+    const st = (e as { status?: number })?.status;
+    const dead = st === 400 || st === 401 || st === 403 || st === 404;
+    if (!dead || !GEMINI_API_KEY) throw e;
+    console.error("claude_unavailable_fallback_to_gemini", st);
+    claudeDownUntil = Date.now() + 10 * 60_000;
+    return await geminiStream(body, timeout, retries, onText);
+  }
+}
 
 // ── Gemini сурет генерациясы (уақытша «киіп көру») ─────────────────────────
 const GEMINI_IMAGE_MODEL = Deno.env.get("GEMINI_IMAGE_MODEL") || "gemini-2.5-flash-image";

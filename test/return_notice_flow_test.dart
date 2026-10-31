@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -200,6 +201,41 @@ void main() {
       _lifecycleResume(t);
       await _settle(t);
       expect(find.text('Понятно'), findsNothing);
+      await _endRealtime(t);
+    });
+
+    testWidgets('үстінде басқа бет ашық: парақ күтеді, бет жабылғанда шығады',
+        (t) async {
+      _backend.flags = {FeatureFlags.returnNotice: true};
+      await t.runAsync(FeatureFlags.instance.refresh);
+      _backend.orders = [];
+
+      await t.pumpWidget(_app(const ReturnNoticeGate(child: SizedBox())));
+      await _settle(t);
+
+      final navigator = t.state<NavigatorState>(find.byType(Navigator));
+      unawaited(navigator.push(MaterialPageRoute<void>(
+          builder: (_) => const Scaffold(body: Text('Форма')))));
+      await _settle(t);
+      await t.pump(const Duration(milliseconds: 400));
+
+      // Форма ашық тұрғанда келген тапсырыс оның үстіне шықпайды.
+      _backend.orders = [_order('a')];
+      _lifecycleResume(t);
+      await _settle(t);
+      expect(find.text('Форма'), findsOneWidget);
+      expect(find.text('Понятно'), findsNothing);
+      expect(_backend.acks, isEmpty);
+
+      navigator.pop();
+      await _settle(t);
+      await t.pump(const Duration(milliseconds: 400));
+      expect(find.text('Форма'), findsNothing);
+      expect(find.text('Понятно'), findsOneWidget);
+
+      await t.tap(find.text('Понятно'));
+      await _settle(t);
+      expect(_backend.acks, ['a']);
       await _endRealtime(t);
     });
 
@@ -408,6 +444,37 @@ void main() {
       expect(row['post_tracking'], 'RR123456789KZ');
       expect(row['pickup_address'], '');
       expect(row['total_amount'], 20000); // kazpost_fee кірмейді
+      await _endRealtime(t);
+    });
+
+    testWidgets('Казпочта + брак: пересылка клиент есебінен деп жазылмайды',
+        (t) async {
+      _backend.flags = {FeatureFlags.returnNotice: true};
+      _backend.store = {'city': 'Тараз', 'address': 'Абай 1'};
+      t.view.physicalSize = const Size(1800, 6000);
+      t.view.devicePixelRatio = 3;
+      addTearDown(t.view.reset);
+      await t.pumpWidget(
+          _app(ClientReturnFormScreen(order: order(kazpost: true))));
+      await _settle(t);
+
+      await t.tap(find.text('Далее'));
+      await _settle(t);
+      final l10n =
+          AppLocalizations.of(t.element(find.byType(ClientReturnFormScreen)))!;
+      await t.tap(find.text(l10n.returnReasonQualityBad));
+      await _settle(t);
+      await t.tap(find.text('Далее'));
+      await _settle(t);
+
+      expect(find.text('Пересылку оплачиваете вы'), findsNothing);
+      expect(find.text('При браке пересылку оплачивает магазин'),
+          findsOneWidget);
+
+      await t.tap(find.text('Далее'));
+      await _settle(t);
+      expect(find.text('За ваш счёт'), findsNothing);
+      expect(find.text('При браке — за счёт магазина'), findsOneWidget);
       await _endRealtime(t);
     });
 

@@ -36,6 +36,23 @@ class _ReturnNoticeGateState extends State<ReturnNoticeGate>
   bool _busy = false;
   bool _again = false;
 
+  /// Shell үстінде басқа бет не парақ тұрған кезде парақ ашылмады. Үстіңгі бет
+  /// жабылғанда [didChangeDependencies] қайта тексереді.
+  bool _deferred = false;
+
+  // `Navigator.pop(context)` ең үстіңгі бетті жабады: хабарламаны фондық жүктеудің
+  // астынан ашсақ, сол жүктеу біткенде өз бетінің орнына хабарламаны жабар еді.
+  bool get _onTop => ModalRoute.of(context)?.isCurrent ?? true;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_onTop && _deferred) {
+      _deferred = false;
+      _check();
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -151,7 +168,12 @@ class _ReturnNoticeGateState extends State<ReturnNoticeGate>
         var showedAny = false;
         for (final order in orders) {
           if (!mounted || !_flagOn) return;
-          if (!_shown.add(order.id)) continue;
+          if (_shown.contains(order.id)) continue;
+          if (!_onTop) {
+            _deferred = true;
+            return;
+          }
+          _shown.add(order.id);
           showedAny = true;
           await showReturnNoticeSheet(context, order);
         }

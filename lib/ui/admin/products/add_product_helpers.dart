@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import '../../../data/models/category_data.dart';
+import '../../../data/models/season_utils.dart';
 
 /// Баға өрісінің мәні. "." сияқты сан емес мәтін, бос өріс — null.
 double? parsePriceInput(String raw) {
@@ -123,4 +124,52 @@ class AddProductMemory {
           : null,
     );
   }
+}
+
+/// Маусым чипін басу: таңдалмаған болса қосылады, таңдалған болса алынады.
+/// Бірнешеуін (төртеуін де) таңдауға болады. Нәтиже — DB пішімі
+/// (`Лето,Зима`, канондық ретпен); белгісіз/ескі мәндер сақталады.
+String toggleSeasonValue(String raw, String season) {
+  final current = parseSeasons(raw);
+  final next = current.contains(season)
+      ? [for (final s in current) if (s != season) s]
+      : [...current, season];
+  return joinSeasons(next);
+}
+
+/// «Тағы осындайды қосу»: сәтті сақтаудан кейін ашылатын ЖАҢА форманың
+/// алдын ала толтырылатын өрістері. Түстер, размерлер, фото және жылдам код
+/// КІРМЕЙДІ — олар әр тауарға бөлек. Ешқашан бар тауарға қосылмайды: бұл
+/// әрдайым жаңа тауар (екі табаны әртүрлі ақ аяқ киім сияқты жағдайда иесі
+/// атауын өзгертеді, мыс. «қара табан» қосады).
+class AddProductTemplate {
+  final String categoryKey;
+  final String type;
+  final String audience;
+  final String name;
+  final String brand;
+  final String season;
+  final String material;
+  final String country;
+  final String keywords;
+  final String description;
+  final String descriptionKk;
+  final String purchase;
+  final String selling;
+
+  const AddProductTemplate({
+    required this.categoryKey,
+    this.type = '',
+    this.audience = '',
+    this.name = '',
+    this.brand = '',
+    this.season = '',
+    this.material = '',
+    this.country = '',
+    this.keywords = '',
+    this.description = '',
+    this.descriptionKk = '',
+    this.purchase = '',
+    this.selling = '',
+  });
 }

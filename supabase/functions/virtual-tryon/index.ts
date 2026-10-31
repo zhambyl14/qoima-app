@@ -17,7 +17,10 @@
 //   • Адам суреті ЕШҚАШАН сақталмайды (ДБ-ға да, Storage-қа да) — жадта ғана
 //     жүріп FASHN-ға кетеді. Киім суреті сервер жағында ДБ-дан алынады
 //     (клиент жіберген URL-ге сенбейміз → SSRF/ойдан сурет жоқ).
-//   • Қолжетімділік ережесі lib/ui/client/ai/try_on_eligibility.dart-пен БІРДЕЙ.
+//   • Қолжетімділік ережесі (TRYON_RULES) lib/ui/client/ai/try_on_eligibility.dart-тағы
+//     kTryOnRules-пен БІРДЕЙ. Киімнен басқа түрлер (аяқ киім, бас киім,
+//     көзілдірік, сөмке, әшекей, сағат) FASHN-да жоқ — тек Gemini; Gemini кілті
+//     жоқ болса олар not_configured (квота жұмсалмайды).
 //   • Квота consume_ai_quota('tryon') — тек провайдерді шақыру алдында;
 //     refund_ai_quota (тек service_role) — тек провайдер ақауында (5xx, output
 //     жоқ, кіріске қатысты емес қате). Кіріс қатесі мен таймаутта қайтарылмайды.
@@ -85,34 +88,65 @@ function json(body: unknown, status = 200): Response {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-// ── Қолжетімділік (Dart: isTryOnEligible-пен СИНХРОНДЫ) ──────────────────
-// Қайтарады: FASHN киім категориясы немесе null (жарамсыз).
-function garmentCategory(
-  key: string,
-  type: string,
-  audience: string,
-): "tops" | "bottoms" | "one-pieces" | "auto" | null {
+// ── Қолжетімділік (Dart: lib/ui/client/ai/try_on_eligibility.dart `kTryOnRules`) ──
+// Кесте Dart-тағымен ДӘЛ бірдей — БІР коммитте өзгерту керек (test/
+// try_on_eligibility_test.dart осы блокты оқып, салыстырады, сондықтан әр
+// категория бір жолда, форматы өзгермейді: `key: { all: kind|null, types: {…} },`).
+// `all` — барлық түрге әдепкі (null = жарамайды, «Свой вариант» та осыған түседі),
+// `types` — нақты түрге ерекшелік. Негіздемесі Dart файлындағы түсініктемелерде.
+type TryOnKind =
+  | "tops" | "bottoms" | "one-pieces" | "auto" // FASHN да, Gemini де біледі
+  | "footwear" | "headwear" | "eyewear" | "bag" | "jewelry" | "watch" | "accessory"; // тек Gemini
+type TryOnRule = { all: TryOnKind | null; types?: Record<string, TryOnKind | null> };
+
+// deno-fmt-ignore
+const TRYON_RULES: Record<string, TryOnRule> = {
+  // TRYON_RULES_BEGIN
+  shoes: { all: "footwear" },
+  tshirt: { all: "tops" },
+  outer: { all: "tops" },
+  pants: { all: "bottoms" },
+  dress: { all: "auto", types: { "Юбка": "bottoms", "Платье": "one-pieces", "Сарафан": "one-pieces", "Костюм": "one-pieces" } },
+  caps: { all: "headwear" },
+  underwear: { all: null },
+  acc: { all: "accessory", types: { "Сумка": "bag", "Рюкзак": "bag", "Очки": "eyewear", "Кошелек": null } },
+  jewelry: { all: "jewelry", types: { "Часы": "watch" } },
+  sport: { all: null, types: { "Спортивный костюм": "one-pieces", "Топ": "tops", "Леггинсы": "bottoms", "Шорты": "bottoms" } },
+  kids: { all: null },
+  toys: { all: null },
+  beauty: { all: null },
+  pharmacy: { all: null },
+  electronics: { all: null },
+  phones: { all: null, types: { "Смарт-часы": "watch" } },
+  computers: { all: null },
+  appliances: { all: null },
+  furniture: { all: null },
+  textile: { all: null },
+  dishes: { all: null },
+  home: { all: null },
+  garden: { all: null },
+  tools: { all: null },
+  auto: { all: null },
+  pets: { all: null },
+  books: { all: null },
+  stationery: { all: null },
+  grocery: { all: null },
+  // TRYON_RULES_END
+};
+
+// FASHN tryon-v1.6 тек киімді біледі; қалған түрлер Gemini-ге бағытталады.
+const FASHN_KINDS = new Set<TryOnKind>(["tops", "bottoms", "one-pieces", "auto"]);
+
+// Қайтарады: киіп көру түрі немесе null (жарамсыз).
+function tryOnKindFor(key: string, type: string, audience: string): TryOnKind | null {
   if (audience.startsWith("Детские")) return null; // кәмелетке толмағандар
-  switch (key) {
-    case "tshirt":
-    case "outer":
-      return "tops";
-    case "pants":
-      return "bottoms";
-    case "dress":
-      if (type === "Юбка") return "bottoms";
-      if (type === "Платье" || type === "Сарафан" || type === "Костюм") {
-        return "one-pieces";
-      }
-      return "auto"; // «Свой вариант» түрі
-    case "sport":
-      if (type === "Спортивный костюм") return "one-pieces";
-      if (type === "Топ") return "tops";
-      if (type === "Леггинсы" || type === "Шорты") return "bottoms";
-      return null; // жабдық
-    default:
-      return null; // underwear, kids, shoes, acc, caps, jewelry, киім емес
+  const rule = TRYON_RULES[key || "shoes"];
+  if (!rule) return null;
+  const t = type.trim();
+  if (rule.types && Object.prototype.hasOwnProperty.call(rule.types, t)) {
+    return rule.types[t];
   }
+  return rule.all;
 }
 
 // Base64 → ({data URI}) немесе null. JPEG (/9j/) пен PNG (iVBOR) қабылданады.
@@ -183,7 +217,7 @@ Deno.serve(async (req) => {
     return json({ error: "tryon_failed" }, 502);
   }
   if (!p || p.storefront_hidden === true) return json({ error: "not_found" }, 404);
-  const category = garmentCategory(
+  const category = tryOnKindFor(
     (p.category_key as string) || "shoes",
     String(p.type ?? ""),
     String(p.category ?? ""),
@@ -203,14 +237,17 @@ Deno.serve(async (req) => {
 
   // Қозғалтқыш: суперадмин таңдауы → FASHN → Gemini. Кілт жоқ — квота жұмсалмайды.
   await refreshProviderSetting();
-  const engine: "gemini" | "fashn" | null =
-    providerSetting() === "gemini" && hasGeminiKey()
-      ? "gemini"
-      : FASHN_API_KEY
-      ? "fashn"
-      : hasGeminiKey()
-      ? "gemini"
-      : null;
+  // Киімнен басқа түрлерді (аяқ киім, аксессуар…) FASHN жасай алмайды —
+  // олар үшін тек Gemini; кілті жоқ болса квота жұмсалмай not_configured.
+  const engine: "gemini" | "fashn" | null = !FASHN_KINDS.has(category)
+    ? (hasGeminiKey() ? "gemini" : null)
+    : providerSetting() === "gemini" && hasGeminiKey()
+    ? "gemini"
+    : FASHN_API_KEY
+    ? "fashn"
+    : hasGeminiKey()
+    ? "gemini"
+    : null;
   if (!engine) return json({ error: "not_configured" }, 503);
 
   // ── Квота: провайдерді шақыру алдында ──
@@ -316,18 +353,27 @@ Deno.serve(async (req) => {
 });
 
 // ── Gemini арқылы киіп көру ────────────────────────────────────────────────
-const CATEGORY_TEXT: Record<string, string> = {
-  "tops": "the upper-body garment (top / jacket)",
-  "bottoms": "the lower-body garment (pants / skirt / shorts)",
-  "one-pieces": "the full outfit (dress / suit / jumpsuit)",
-  "auto": "the clothing item",
+// Түр → (не, қалай). `what` — өнімнің сипаттамасы, `verb` — адамға қалай
+// «қосылады», `area` — сол бөлік көрінбесе-ақ ойдан қоспау үшін ескерту.
+const KIND_TEXT: Record<TryOnKind, { what: string; verb: string; area: string }> = {
+  "tops": { what: "the upper-body garment (top / jacket)", verb: "wearing", area: "the upper body" },
+  "bottoms": { what: "the lower-body garment (pants / skirt / shorts)", verb: "wearing", area: "the lower body" },
+  "one-pieces": { what: "the full outfit (dress / suit / jumpsuit)", verb: "wearing", area: "the whole outfit" },
+  "auto": { what: "the clothing item", verb: "wearing", area: "that area" },
+  "footwear": { what: "the pair of shoes", verb: "wearing", area: "the feet" },
+  "headwear": { what: "the hat / headwear", verb: "wearing", area: "the head" },
+  "eyewear": { what: "the glasses", verb: "wearing", area: "the eyes and nose" },
+  "bag": { what: "the bag", verb: "carrying", area: "the shoulder or hand" },
+  "jewelry": { what: "the jewelry piece", verb: "wearing", area: "the matching place (ear, neck, finger or wrist)" },
+  "watch": { what: "the wrist watch", verb: "wearing", area: "the wrist" },
+  "accessory": { what: "the fashion accessory", verb: "wearing or holding", area: "the matching place" },
 };
 
 async function geminiTryOn(a: {
   uid: string;
   person: string; // data URI
   garment: string; // https URL (ДБ-дан)
-  category: string;
+  category: TryOnKind;
   remaining: unknown;
   refund: () => Promise<void>;
 }): Promise<Response> {
@@ -344,15 +390,16 @@ async function geminiTryOn(a: {
     return json({ error: "tryon_failed" }, 502);
   }
 
-  const what = CATEGORY_TEXT[a.category] ?? CATEGORY_TEXT.auto;
+  const t = KIND_TEXT[a.category as TryOnKind] ?? KIND_TEXT.auto;
   const prompt =
     "Virtual try-on. Image 1 is a photo of a person. Image 2 is a product photo of " +
-    `${what}. Generate ONE photorealistic image of the SAME person from image 1 ` +
-    `wearing ${what} from image 2, replacing what they currently wear in that area. ` +
+    `${t.what}. Generate ONE photorealistic image of the SAME person from image 1 ` +
+    `${t.verb} ${t.what} from image 2 on ${t.area}, replacing what they currently have there. ` +
     "Keep the person's face, identity, skin tone, hair, body shape, pose, framing and " +
-    "background exactly as in image 1. Reproduce the garment's color, fabric, pattern, " +
-    "logos and details exactly as in image 2, with a natural fit and realistic folds and " +
-    "lighting. Do not add text, watermarks or extra people. Output only the image.";
+    "background exactly as in image 1. Reproduce the product's color, material, pattern, " +
+    "logos and details exactly as in image 2, with a natural fit, correct scale and realistic " +
+    "folds, reflections and lighting. Do not add text, watermarks or extra people. " +
+    "Output only the image.";
 
   const res = await geminiGenerateImage(prompt, [person, garment]);
   if (!res.ok) {
