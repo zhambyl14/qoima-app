@@ -12,6 +12,7 @@ class CloudinaryService {
   static const String _receiptsFolder = 'qoima_receipts';
   static const String _bannersFolder = 'qoima_banners';
   static const String _returnsFolder = 'qoima_returns';
+  static const String _storiesFolder = 'qoima_stories';
 
   // Суретті ЖОЮ Supabase Edge Function `cloudinary-cleanup` арқылы жасалады —
   // api_secret серверде (Edge Function → Secrets), клиент аппта ЕШҚАШАН болмайды.
@@ -49,6 +50,13 @@ class CloudinaryService {
         bytes, 'return_${DateTime.now().microsecondsSinceEpoch}.jpg',
         folder: _returnsFolder)));
   }
+
+  /// Дүкен сторисі (0084) — тек `qoima_stories` қалтасына: story_create тек
+  /// осы қалтаның URL-ін қабылдайды (сторис өшкенде сурет те жойылады,
+  /// сондықтан тауар суретін сторис ретінде қолдануға болмайды).
+  Future<String> uploadStory(Uint8List bytes) => _upload(
+      bytes, 'story_${DateTime.now().microsecondsSinceEpoch}.jpg',
+      folder: _storiesFolder);
 
   /// Баннер суретін жүктеу (XFile) — бөлек қалтаға (`qoima_banners`)
   Future<String> uploadBanner(XFile xFile) async {

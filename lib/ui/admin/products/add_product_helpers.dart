@@ -132,7 +132,10 @@ class AddProductMemory {
 String toggleSeasonValue(String raw, String season) {
   final current = parseSeasons(raw);
   final next = current.contains(season)
-      ? [for (final s in current) if (s != season) s]
+      ? [
+          for (final s in current)
+            if (s != season) s
+        ]
       : [...current, season];
   return joinSeasons(next);
 }
@@ -172,4 +175,14 @@ class AddProductTemplate {
     this.purchase = '',
     this.selling = '',
   });
+}
+
+/// Түс аты бойынша таңдалған нұсқа кілті (жоқ болса null). Түс — қарапайым
+/// таңдау/шешу: бір түс бір-ақ рет, сондықтан сәйкестік жалғыз.
+String? colorKeyFor(
+    Iterable<String> selectedKeys, Map<String, String> colorOf, String name) {
+  for (final k in selectedKeys) {
+    if ((colorOf[k] ?? k) == name) return k;
+  }
+  return null;
 }

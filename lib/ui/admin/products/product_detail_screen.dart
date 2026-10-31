@@ -8,6 +8,7 @@ import '../../../core/locale_context.dart';
 import '../../../core/supabase_config.dart';
 import '../../../data/models/description_templates.dart';
 import '../../../data/models/models.dart';
+import '../../../data/models/season_utils.dart';
 import '../../../data/services/product_assist_service.dart';
 import '../../../data/services/firestore_service.dart';
 import '../../../data/services/cloudinary_service.dart';
@@ -18,7 +19,9 @@ import '../../widgets/image_crop_screen.dart';
 import '../../widgets/multi_shot_camera_screen.dart';
 import '../../../core/color_naming.dart';
 import 'package:image_picker/image_picker.dart' show ImageSource;
+import 'add_product_helpers.dart';
 import 'ai/ai_description_assist.dart';
+import 'bilingual_description.dart';
 import 'ai/non_returnable_fields.dart';
 
 import '../../../core/lang.dart';
@@ -237,6 +240,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     final nameCtrl = TextEditingController(text: p.name);
     final brandCtrl = TextEditingController(text: p.brand);
     final descCtrl = TextEditingController(text: p.description);
+    // Қазақша сипаттама (0083); «РУС | ҚАЗ» ауыстырғышы екеуін де сақтайды.
+    final descKkCtrl = TextEditingController(text: p.descriptionKk);
     final countryCtrl = TextEditingController(text: p.country);
     // Жылдам код (0062) — дүкен ішіндегі қысқа сан, клиентке көрсетілмейді.
     final quickCtrl = TextEditingController(text: p.quickCode);
@@ -262,7 +267,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     ];
 
     // AI сипаттама көмегі + «қайтарылмайтын тауар» (Returns pack).
-    String descLang = LocaleContext.currentLang == 'kk' ? 'kk' : 'ru';
+    String descLang = defaultDescriptionLang();
+    TextEditingController activeDesc() =>
+        descLang == 'kk' ? descKkCtrl : descCtrl;
     bool descBusy = false;
     final aiRemaining = ValueNotifier<int?>(null);
     _assist.remainingToday().then((v) => aiRemaining.value = v);
@@ -550,13 +557,14 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       }),
                     ],
                   ),
-                  label(tr('Сезон (необязательно)', 'Сезон (міндетті емес)')),
+                  label(tr('Сезон (необязательно, можно несколько)',
+                      'Сезон (міндетті емес, бірнешеуін таңдауға болады)')),
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
                     children: kSeasons
-                        .map((s) => chip(trValue(s), season == s,
-                            () => setS(() => season = season == s ? '' : s)))
+                        .map((s) => chip(trValue(s), parseSeasons(season).contains(s),
+                            () => setS(() => season = toggleSeasonValue(season, s))))
                         .toList(),
                   ),
                   // ── Тек дүкен ішіне арналған екі өріс (0062) ───────────
@@ -588,13 +596,16 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       textCapitalization: TextCapitalization.sentences,
                       decoration: deco(tr('Страна производства (необязательно)', 'Өндірілген ел (міндетті емес)'))),
                   const SizedBox(height: 12),
-                  TextField(
-                      controller: descCtrl,
-                      maxLines: 4,
-                      minLines: 3,
-                      textCapitalization: TextCapitalization.sentences,
-                      decoration: deco(tr('Описание (необязательно)', 'Сипаттама (міндетті емес)'))
-                          .copyWith(alignLabelWithHint: true)),
+                  BilingualDescriptionField(
+                    ruCtrl: descCtrl,
+                    kkCtrl: descKkCtrl,
+                    lang: descLang,
+                    onLangChanged: (l) => setS(() => descLang = l),
+                    decoration: deco('').copyWith(
+                        labelText: null,
+                        hintText: tr('Описание товара', 'Тауар сипаттамасы'),
+                        alignLabelWithHint: true),
+                  ),
                   const SizedBox(height: 10),
                   // «Сипаттаманы AI жазсын» + дайын үлгілер (қосу формасымен
                   // бірдей). AI тауардың САҚТАЛҒАН суреттерін (Cloudinary URL)
@@ -606,6 +617,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       builder: (_, __) => AiDescriptionAssist(
                         lang: descLang,
                         onLangChanged: (l) => setS(() => descLang = l),
+                        showLangToggle: false,
                         busy: descBusy,
                         remaining: remaining,
                         showAi: FeatureFlags.instance
@@ -614,12 +626,13 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                             nameCtrl.text.trim().isNotEmpty,
                         templates: descriptionTemplatesFor(catKey),
                         onInsert: (t) {
-                          final cur = descCtrl.text.trimRight();
+                          final ctrl = activeDesc();
+                          final cur = ctrl.text.trimRight();
                           final add = t.textFor(descLang);
                           final next = cur.isEmpty ? add : '$cur\n\n$add';
                           setS(() {
-                            descCtrl.text = next;
-                            descCtrl.selection =
+                            ctrl.text = next;
+                            ctrl.selection =
                                 TextSelection.collapsed(offset: next.length);
                           });
                         },
@@ -672,17 +685,18 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                             if (res.remaining != null) {
                               aiRemaining.value = res.remaining;
                             }
+                            final active = activeDesc();
                             final choice = await showAiDescriptionPreview(ctx,
                                 text: res.description,
-                                hasExisting: descCtrl.text.trim().isNotEmpty,
+                                hasExisting: active.text.trim().isNotEmpty,
                                 remaining: aiRemaining.value);
                             if (!ctx.mounted) return;
                             switch (choice) {
                               case AiDescriptionChoice.replace:
-                                setS(() => descCtrl.text = res.description);
+                                setS(() => active.text = res.description);
                               case AiDescriptionChoice.append:
-                                setS(() => descCtrl.text =
-                                    '${descCtrl.text.trimRight()}\n\n${res.description}');
+                                setS(() => active.text =
+                                    '${active.text.trimRight()}\n\n${res.description}');
                               case AiDescriptionChoice.retry:
                                 again = true;
                               case null:
@@ -724,7 +738,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                           return;
                         }
                         if (!await confirmUnfilledPlaceholders(
-                            ctx, descCtrl.text)) {
+                            ctx, '${descCtrl.text}\n${descKkCtrl.text}')) {
                           return;
                         }
                         if (!ctx.mounted) return;
@@ -791,6 +805,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         color: color,
         colorHex: colorHex,
         description: descCtrl.text.trim(),
+        descriptionKk:
+            ProductModel.descriptionKkPatch(p.descriptionKk, descKkCtrl.text),
         country: countryCtrl.text.trim(),
         season: season,
         quickCode: newQuick,
@@ -834,6 +850,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             color: color,
             customColorHex: colorHex,
             description: descCtrl.text.trim(),
+            descriptionKk: ProductModel.descriptionKkPatch(
+                    p.descriptionKk, descKkCtrl.text) ??
+                p.descriptionKk,
             country: countryCtrl.text.trim(),
             season: season,
             quickCode: newQuick,
@@ -1337,7 +1356,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                     if (p.material.isNotEmpty)
                       _Tag(label: trValue(p.material), icon: Icons.texture_outlined),
                     if (p.season.isNotEmpty)
-                      _Tag(label: trValue(p.season), icon: Icons.wb_sunny_outlined),
+                      _Tag(label: p.seasonLabel, icon: Icons.wb_sunny_outlined),
                     if (p.country.isNotEmpty)
                       _Tag(label: p.country, icon: Icons.public_outlined),
                   ]),
@@ -1348,7 +1367,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   if (isAdmin && _storePublished) _buildStorefrontToggle(),
 
                   // Описание
-                  if (p.description.isNotEmpty) ...[
+                  if (p.hasDescription) ...[
                     _SecTitle(tr('Описание', 'Сипаттама')),
                     const SizedBox(height: 8),
                     Container(
@@ -1359,7 +1378,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(color: cLine),
                       ),
-                      child: Text(p.description,
+                      child: Text(p.localizedDescription,
                           style: const TextStyle(
                               fontSize: 13.5, color: cInk2, height: 1.45)),
                     ),

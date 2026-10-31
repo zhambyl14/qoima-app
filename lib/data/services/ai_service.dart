@@ -8,6 +8,9 @@ import '../../core/error_text.dart';
 import '../../core/lang.dart';
 import '../../core/locale_context.dart';
 import '../models/catalog_hit.dart';
+import 'ai_stream.dart';
+
+export 'ai_stream.dart';
 
 /// AI функциялары қатесі: [message] — қолданушыға көрсетуге дайын (tr()),
 /// [code] — сервер коды ('ai_quota_exceeded', 'feature_disabled', ...).
@@ -28,13 +31,6 @@ class AiChatMessage {
   final String role; // 'user' | 'assistant'
   final String text;
   const AiChatMessage(this.role, this.text);
-}
-
-class AssistantReply {
-  final String reply;
-  final List<CatalogHit> products;
-  final int? remaining;
-  const AssistantReply(this.reply, this.products, this.remaining);
 }
 
 class LookResult {
@@ -76,38 +72,103 @@ class AiService {
     }
   }
 
-  /// Көмекшімен чат. [history] — соңғы хабарламалар (соңғысы user).
+  Map<String, dynamic> _assistantBody(
+      List<AiChatMessage> history, String city) {
+    final msgs =
+        history.length > 20 ? history.sublist(history.length - 20) : history;
+    return {
+      'messages': [
+        for (final m in msgs)
+          {
+            'role': m.role,
+            'content': m.text.length > 2000 ? m.text.substring(0, 2000) : m.text,
+          }
+      ],
+      if (city.isNotEmpty) 'city': city,
+      'lang': _lang,
+    };
+  }
+
+  /// Көмекшімен чат (ағынсыз). [history] — соңғы хабарламалар (соңғысы user).
   Future<AssistantReply> assistantChat(
     List<AiChatMessage> history, {
     String city = '',
   }) async {
-    final msgs =
-        history.length > 20 ? history.sublist(history.length - 20) : history;
-    final data = await _invoke(
-        'ai-assistant',
-        {
-          'messages': [
-            for (final m in msgs)
-              {
-                'role': m.role,
-                'content':
-                    m.text.length > 2000 ? m.text.substring(0, 2000) : m.text,
-              }
-          ],
-          if (city.isNotEmpty) 'city': city,
-          'lang': _lang,
-        },
+    final data = await _invoke('ai-assistant', _assistantBody(history, city),
         timeout: const Duration(seconds: 100));
-    final products = (data['products'] as List? ?? const [])
-        .whereType<Map>()
-        .map((e) => CatalogHit.fromMap(Map<String, dynamic>.from(e)))
-        .where((h) => h.productId.isNotEmpty)
-        .toList();
-    return AssistantReply(
-      (data['reply'] as String?)?.trim() ?? '',
-      products,
-      (data['remaining'] as num?)?.toInt(),
-    );
+    return AssistantReply.fromMap(data);
+  }
+
+  /// Көмекшімен чат, SSE ағынымен: статус, табылған тауарлар және мәтін келген
+  /// сайын оқиға беріледі; соңғысы [AssistantDone]. Қате — [AiException].
+  /// Сервер әлі ескі нұсқада болса (қарапайым JSON қайтарса) немесе ағын ештеңе
+  /// бермей үзілсе — бір ақырғы оқиға / ағынсыз сұрау (fallback).
+  Stream<AssistantEvent> assistantChatStream(
+    List<AiChatMessage> history, {
+    String city = '',
+    Duration idleTimeout = const Duration(seconds: 45),
+  }) async* {
+    final body = _assistantBody(history, city);
+    Object? data;
+    try {
+      final res = await _sb.functions.invoke(
+        'ai-assistant',
+        body: body,
+        headers: const {'Accept': 'text/event-stream'},
+      ).timeout(const Duration(seconds: 60));
+      data = res.data;
+    } on FunctionException catch (e) {
+      final detail = e.details is Map ? (e.details as Map)['error'] : null;
+      final code = detail?.toString() ?? 'ai_failed';
+      throw AiException(code, _msg(code));
+    } on TimeoutException {
+      throw AiException('timeout', _msg('timeout'));
+    } catch (e) {
+      if (isNetworkError(e)) throw AiException('network', friendlyError(e));
+      throw AiException('ai_failed', _msg('ai_failed'));
+    }
+
+    // Ескі функция: ағынсыз JSON.
+    if (data is Map) {
+      if (data['error'] != null) {
+        final code = data['error'].toString();
+        throw AiException(code, _msg(code));
+      }
+      yield AssistantDone(AssistantReply.fromMap(Map<String, dynamic>.from(data)));
+      return;
+    }
+    if (data is! Stream<List<int>>) {
+      throw AiException('ai_failed', _msg('ai_failed'));
+    }
+
+    var any = false;
+    var finished = false;
+    try {
+      // Үнсіз қалған ағынды күтпейміз: сервердің жалпы мерзімі 55 с.
+      await for (final e in assistantEvents(data).timeout(idleTimeout)) {
+        if (e is AssistantErrorEvent) {
+          throw AiException(e.code, _msg(e.code));
+        }
+        any = true;
+        yield e;
+        if (e is AssistantDone) {
+          finished = true;
+          return;
+        }
+      }
+    } on AiException {
+      rethrow;
+    } on TimeoutException {
+      throw AiException('timeout', _msg('timeout'));
+    } catch (e) {
+      if (isNetworkError(e)) throw AiException('network', friendlyError(e));
+      throw AiException('ai_failed', _msg('ai_failed'));
+    }
+    if (finished) return;
+    // Ештеңе келмей үзілді (мысалы, прокси ағынды буферлеп тастады): ағынсыз жол.
+    // Бірдеңе келіп үзілсе — қайта жібермейміз (квота екі рет кетпесін).
+    if (any) throw AiException('ai_failed', _msg('ai_failed'));
+    yield AssistantDone(await assistantChat(history, city: city));
   }
 
   /// «Образ құрастыру».

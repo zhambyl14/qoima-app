@@ -25,6 +25,9 @@ class FeatureFlags extends ChangeNotifier {
   static const nonReturnable = 'non_returnable';
   static const kazpostDelivery = 'kazpost_delivery';
   static const returnNotice = 'return_notice';
+  // 0084: дүкенге жазылу (+ жеңілдік/эфир push-ы) және 24 сағаттық сторис.
+  static const storeFollow = 'store_follow';
+  static const stories = 'stories';
 
   /// Суперадмин бетіндегі реттілік.
   static const all = [
@@ -39,6 +42,8 @@ class FeatureFlags extends ChangeNotifier {
     nonReturnable,
     kazpostDelivery,
     returnNotice,
+    storeFollow,
+    stories,
   ];
 
   static const _ttl = Duration(minutes: 5);

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -28,14 +29,16 @@ class _Msg {
 /// Әңгіме құрылғыда сақталады (қолданушы бойынша, 7 күн, соңғы 40 хабар):
 /// экраннан шығып қайта кіргенде тарих жалғасады. «Жаңа чат» — тазалайды.
 class AiAssistantScreen extends StatefulWidget {
-  const AiAssistantScreen({super.key});
+  /// Тест үшін алмастыруға болады.
+  final AiService? service;
+  const AiAssistantScreen({super.key, this.service});
 
   @override
   State<AiAssistantScreen> createState() => _AiAssistantScreenState();
 }
 
 class _AiAssistantScreenState extends State<AiAssistantScreen> {
-  final _ai = AiService();
+  late final AiService _ai = widget.service ?? AiService();
   final _ctrl = TextEditingController();
   final _scroll = ScrollController();
   final _focus = FocusNode();
@@ -43,6 +46,14 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
   final List<_Msg> _msgs = [];
   bool _sending = false;
   int? _remaining;
+
+  // Ағынды жауаптың уақытша күйі: прогресс, келіп жатқан мәтін, табылған
+  // тауарлар. Ақырғы `done` келгенде осының орнына толық хабарлама қосылады
+  // (карточкалар қайталанбайды: шындық көзі — done).
+  String _stage = 'thinking';
+  String _liveText = '';
+  List<CatalogHit> _livePreview = const [];
+  bool _disposed = false;
 
   @override
   void initState() {
@@ -130,6 +141,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
 
   @override
   void dispose() {
+    _disposed = true; // await for тоқтайды -> HTTP байланысы жабылады
     _ctrl.dispose();
     _scroll.dispose();
     _focus.dispose();
@@ -140,6 +152,24 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     final r = await _ai.quotaRemaining('assistant');
     if (!mounted) return;
     setState(() => _remaining = r);
+  }
+
+  // Мәтін келіп жатқанда төменге жабыстырамыз, бірақ қолданушы жоғары
+  // сырғытып қойса тартпаймыз.
+  void _stickBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scroll.hasClients) return;
+      final p = _scroll.position;
+      if (p.maxScrollExtent - p.pixels < 160) {
+        _scroll.jumpTo(p.maxScrollExtent);
+      }
+    });
+  }
+
+  void _resetLive() {
+    _stage = 'thinking';
+    _liveText = '';
+    _livePreview = const [];
   }
 
   void _toBottom() {
@@ -169,6 +199,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     setState(() {
       _msgs.add(userMsg);
       _sending = true;
+      _resetLive();
     });
     _ctrl.clear();
     _toBottom();
@@ -177,12 +208,34 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
         for (final m in _msgs)
           if (!m.isWelcome) AiChatMessage(m.role, m.text)
       ];
-      final r = await _ai.assistantChat(history, city: city);
+      AssistantReply? r;
+      await for (final e in _ai.assistantChatStream(history, city: city)) {
+        if (!mounted || _disposed) return;
+        switch (e) {
+          case AssistantStatus():
+            setState(() => _stage = e.stage);
+          case AssistantPreview():
+            setState(() => _livePreview = e.products);
+            _stickBottom();
+          case AssistantDelta():
+            setState(() => _liveText += e.text);
+            _stickBottom();
+          case AssistantReset():
+            setState(() => _liveText = '');
+          case AssistantDone():
+            r = e.reply;
+          case AssistantErrorEvent():
+            break; // сервис оны AiException етіп лақтырады
+        }
+      }
+      if (r == null) throw const FormatException('no done event');
       if (!mounted) return;
+      final done = r;
       setState(() {
-        _msgs.add(_Msg('assistant', r.reply, products: r.products));
-        _remaining = r.remaining ?? _remaining;
+        _msgs.add(_Msg('assistant', done.reply, products: done.products));
+        _remaining = done.remaining ?? _remaining;
         _sending = false;
+        _resetLive();
       });
       _toBottom();
       _persist();
@@ -192,6 +245,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
       setState(() {
         _msgs.remove(userMsg);
         _sending = false;
+        _resetLive();
         if (e.isQuota) _remaining = 0;
       });
       _ctrl.text = text;
@@ -201,6 +255,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
       setState(() {
         _msgs.remove(userMsg);
         _sending = false;
+        _resetLive();
       });
       _ctrl.text = text;
       aiSnack(
@@ -303,16 +358,49 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
       itemBuilder: (_, i) {
         if (i < _msgs.length) return _bubble(_msgs[i]);
         if (onlyWelcome && i == _msgs.length) return _suggestions();
-        return const Align(
-          alignment: Alignment.centerLeft,
-          child: Padding(
-            padding: EdgeInsets.only(bottom: 10),
-            child: _TypingBubble(),
-          ),
-        );
+        return _liveBubble();
       },
     );
   }
+
+  // Жауап келіп жатқанда: мәтін әлі жоқ -> нақты прогресс; мәтін бар ->
+  // ағынды көпіршік; табылған тауарлар мәтінді күтпей көрсетіледі.
+  Widget _liveBubble() {
+    if (_liveText.isEmpty && _livePreview.isEmpty) {
+      return Align(
+        alignment: Alignment.centerLeft,
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: _TypingBubble(
+            label: _stage == 'searching'
+                ? tr('Ищу в каталоге…', 'Іздеп жатырмын…')
+                : tr('Готовлю ответ…', 'Жауап дайындап жатырмын…'),
+          ),
+        ),
+      );
+    }
+    if (_liveText.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _TypingBubble(
+                  label: tr('Нашлось, подбираю ответ…',
+                      'Табылды, жауап дайындап жатырмын…')),
+            ),
+            _productRow(_livePreview, label: _foundLabel),
+          ],
+        ),
+      );
+    }
+    return _bubble(_Msg('assistant', _liveText, products: _livePreview),
+        productsLabel: _foundLabel);
+  }
+
+  String get _foundLabel => tr('Найденные товары', 'Табылған тауарлар');
 
   Widget _suggestions() {
     final items = [
@@ -341,7 +429,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     );
   }
 
-  Widget _bubble(_Msg m) {
+  Widget _bubble(_Msg m, {String? productsLabel}) {
     final isUser = m.role == 'user';
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -371,23 +459,38 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
           ),
           if (m.products.isNotEmpty) ...[
             const SizedBox(height: 8),
-            SizedBox(
-              // Шрифт масштабы үлкен болса карточка биіктігі де өседі.
-              height: 290 +
-                  ((MediaQuery.textScalerOf(context).scale(14) / 14) - 1)
-                          .clamp(0.0, 1.0) *
-                      110,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                clipBehavior: Clip.none,
-                itemCount: m.products.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 10),
-                itemBuilder: (_, i) => _productCard(m.products[i]),
-              ),
-            ),
+            _productRow(m.products, label: productsLabel),
           ],
         ],
       ),
+    );
+  }
+
+  Widget _productRow(List<CatalogHit> products, {String? label}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (label != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6, left: 2),
+            child:
+                Text(label, style: manrope(12, FontWeight.w700, color: cInk3)),
+          ),
+        SizedBox(
+          // Шрифт масштабы үлкен болса карточка биіктігі де өседі.
+          height: 290 +
+              ((MediaQuery.textScalerOf(context).scale(14) / 14) - 1)
+                      .clamp(0.0, 1.0) *
+                  110,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            clipBehavior: Clip.none,
+            itemCount: products.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 10),
+            itemBuilder: (_, i) => _productCard(products[i]),
+          ),
+        ),
+      ],
     );
   }
 
@@ -642,7 +745,8 @@ class _SizeSheetState extends State<_SizeSheet> {
 
 // ── «Жазып жатыр…» индикаторы ───────────────────────────────────────────────
 class _TypingBubble extends StatefulWidget {
-  const _TypingBubble();
+  final String? label;
+  const _TypingBubble({this.label});
 
   @override
   State<_TypingBubble> createState() => _TypingBubbleState();
@@ -691,6 +795,13 @@ class _TypingBubbleState extends State<_TypingBubble>
                 ),
               ),
             ),
+          if (widget.label != null) ...[
+            const SizedBox(width: 10),
+            Flexible(
+              child: Text(widget.label!,
+                  style: manrope(12.5, FontWeight.w600, color: cInk3)),
+            ),
+          ],
         ]),
       ),
     );
