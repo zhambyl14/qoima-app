@@ -526,7 +526,8 @@
     push("Для кого", product.category);
     push("Цвет", product.color);
     push("Материал", product.material);
-    push("Сезон", product.season);
+    // 0083-тен бері бірнеше маусым «Лето,Зима» түрінде сақталады — оқуға ыңғайлы етіп.
+    push("Сезон", String(product.season ?? "").split(",").map((s) => s.trim()).filter(Boolean).join(", "));
     push("Страна", product.country);
 
     const sizesHtml = availSizes

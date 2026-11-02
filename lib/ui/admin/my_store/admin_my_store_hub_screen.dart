@@ -10,6 +10,7 @@ import '../../../data/repositories/admin_questions_repository.dart';
 import '../../../data/repositories/admin_reviews_repository.dart';
 import '../../../data/repositories/my_store_repository.dart';
 import '../../../data/services/firestore_service.dart';
+import '../../../data/services/follow_service.dart';
 import '../../../data/services/kazpost_service.dart';
 import '../../../theme/qoima_design.dart';
 import '../../live/live_host_entry.dart';
@@ -25,6 +26,8 @@ import 'store_broadcast_screen.dart';
 import 'ms_widgets.dart';
 import 'storefront_manage_screen.dart';
 import 'store_data_screen.dart';
+import 'stories_manage_screen.dart';
+import '../../client/follow/store_follow_button.dart' show followersLabel;
 
 import '../../../core/lang.dart';
 
@@ -175,6 +178,9 @@ class AdminMyStoreHubScreen extends StatelessWidget {
                               lbl: 'Витрина',
                               tone: 'blue'),
                         ]),
+                        // 0084: жазылушылар саны (жалауша қосулы болса)
+                        if (store != null && store.adminUid.isNotEmpty)
+                          HubFollowerCountLine(storeUid: store.adminUid),
                         const SizedBox(height: 20),
 
                         QSecLabel(tr('Акции', 'Акциялар')),
@@ -236,6 +242,29 @@ class AdminMyStoreHubScreen extends StatelessWidget {
                                     subtitle: tr('Продавайте в прямом эфире',
                                         'Тікелей эфирде сатыңыз'),
                                     onTap: () => openLiveHost(ctx),
+                                  ),
+                                ),
+                        ),
+                        // Сторис — суперадмин қосқанда ғана көрінеді
+                        ListenableBuilder(
+                          listenable: FeatureFlags.instance,
+                          builder: (ctx, _) => !FeatureFlags.instance
+                                  .isOn(FeatureFlags.stories)
+                              ? const SizedBox.shrink()
+                              : Padding(
+                                  padding: const EdgeInsets.only(bottom: 10),
+                                  child: QMenuItem(
+                                    icon: Icons.auto_stories_outlined,
+                                    tone: 'purple',
+                                    title: tr('Сторис', 'Сторис'),
+                                    subtitle: tr(
+                                        'Фото на 24 часа для подписчиков',
+                                        'Жазылушыларға 24 сағаттық фото'),
+                                    onTap: () => Navigator.push(
+                                        ctx,
+                                        MaterialPageRoute(
+                                            builder: (_) =>
+                                                const StoriesManageScreen())),
                                   ),
                                 ),
                         ),
@@ -413,6 +442,69 @@ class AdminMyStoreHubScreen extends StatelessWidget {
 }
 
 // ── _HubStat ───────────────────────────────────────────────────────────────────
+/// «12 подписчиков» жолы: жалауша `store_follow` қосулы болса ғана, бір рет оқиды.
+class HubFollowerCountLine extends StatefulWidget {
+  final String storeUid;
+  const HubFollowerCountLine({super.key, required this.storeUid});
+
+  @override
+  State<HubFollowerCountLine> createState() => _HubFollowerCountLineState();
+}
+
+class _HubFollowerCountLineState extends State<HubFollowerCountLine> {
+  int? _count;
+  bool _requested = false;
+
+  @override
+  void initState() {
+    super.initState();
+    FeatureFlags.instance.addListener(_load);
+    _load();
+  }
+
+  @override
+  void dispose() {
+    FeatureFlags.instance.removeListener(_load);
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    if (_requested || !FeatureFlags.instance.isOn(FeatureFlags.storeFollow)) {
+      return;
+    }
+    _requested = true;
+    try {
+      final n = await FollowService.instance.followerCount(widget.storeUid);
+      if (mounted) setState(() => _count = n);
+    } catch (_) {
+      _requested = false; // желі қатесі — келесі жалауша өзгерісінде қайталанады
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: FeatureFlags.instance,
+      builder: (_, __) {
+        final n = _count;
+        if (n == null || !FeatureFlags.instance.isOn(FeatureFlags.storeFollow)) {
+          return const SizedBox.shrink();
+        }
+        return Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: Row(children: [
+            const Icon(Icons.people_alt_outlined, size: 16, color: cInk3),
+            const SizedBox(width: 6),
+            Text(followersLabel(n),
+                key: const ValueKey('hub-followers'),
+                style: manrope(12.5, FontWeight.w600, color: cInk2)),
+          ]),
+        );
+      },
+    );
+  }
+}
+
 class _HubStat extends StatelessWidget {
   final IconData icon;
   final String val, lbl, tone;

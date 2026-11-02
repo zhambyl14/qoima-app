@@ -28,7 +28,11 @@ Future<void> ensureLiveFlagLoaded() async {
 ///
 /// Көру үшін LiveKit токені керек → алдымен кіруді талап етеміз. Эфир
 /// табылмаса не аяқталған болса — snackbar, экран ашылмайды.
-Future<void> openLiveSession(BuildContext context, String sessionId) async {
+///
+/// [onUnavailable] — эфир табылмаса/аяқталса snackbar-дан кейін шақырылады
+/// (push: «Барлық эфирлер» тізімін ашу үшін).
+Future<void> openLiveSession(BuildContext context, String sessionId,
+    {VoidCallback? onUnavailable}) async {
   if (sessionId.isEmpty) return;
   // Суперадмин өшірсе — push/deep link арқылы келсе де ашылмайды.
   await ensureLiveFlagLoaded();
@@ -68,6 +72,7 @@ Future<void> openLiveSession(BuildContext context, String sessionId) async {
           : tr('Эфир завершён', 'Эфир аяқталды')),
       behavior: SnackBarBehavior.floating,
     ));
+    onUnavailable?.call();
     return;
   }
   await Navigator.of(context).push(MaterialPageRoute(

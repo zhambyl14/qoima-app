@@ -15,6 +15,7 @@ import '../ui/client/client_orders_screen.dart';
 import '../ui/client/gift/my_gifts_screen.dart';
 import '../ui/client/client_product_detail.dart';
 import '../ui/client/store_public_screen.dart';
+import '../ui/live/live_all_screen.dart';
 import '../ui/live/live_navigation.dart';
 import '../ui/seller/sales/sale_detail_screen.dart';
 import '../ui/seller/seller_online_screen.dart';
@@ -137,15 +138,25 @@ Future<void> handlePushOpen(Map<String, dynamic> data) async {
         // Сыйлық енді «Подарки → Маған келген» бөліміне түседі (алу осы жерде).
         _openGifts(nav, user, tab: 1);
         break;
-      // Тікелей эфир басталды: data {sessionId}.
+      // Тікелей эфир басталды: data {sessionId}. 'live' — жазылған дүкеннің
+      // эфирі (0084 бұрын 'live_started' + source:'follow' жібереді, екеуі де
+      // бірдей ашылады).
+      case 'live':
       case 'live_started':
         final sid = data['sessionId'] as String? ?? '';
         // nav.context — Navigator-дың ӨЗ контексті (одан Navigator.of
         // табылмайды); overlay контексті Navigator-дың ішінде тұр.
         final liveCtx = nav.overlay?.context;
         if (sid.isNotEmpty && liveCtx != null && liveCtx.mounted) {
-          await openLiveSession(liveCtx, sid);
+          // Эфир тез бітіп қалуы мүмкін — snackbar-дан кейін барлық эфир тізімі.
+          await openLiveSession(liveCtx, sid,
+              onUnavailable: () => rootNavigatorKey.currentState?.push(
+                  MaterialPageRoute(builder: (_) => const LiveAllScreen())));
         }
+        break;
+      // Жазылған дүкен жеңілдік қойды (0084): дүкен бетін ашамыз.
+      case 'store_discount':
+        await _openStoreBroadcast(nav, user, data);
         break;
       // Қолдау чаты (0072): суперадминге жаңа хабарлама / пайдаланушыға жауап.
       case 'support_message':

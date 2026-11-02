@@ -52,8 +52,9 @@ class _Backend extends http.BaseClient {
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
     _current = request;
     final path = request.url.path;
-    if (path.endsWith('/rpc/feature_flags'))
+    if (path.endsWith('/rpc/feature_flags')) {
       return _json({'ai_assistant': true});
+    }
     if (path.endsWith('/rpc/ai_quota_remaining')) return _json(10);
     if (path.endsWith('/functions/v1/ai-assistant')) {
       calls++;
@@ -95,6 +96,27 @@ Widget _app() => ChangeNotifierProvider<AppUser>.value(
         home: const AiAssistantScreen(),
       ),
     );
+
+/// Офлайн тестте Inter қаріпі жүктелмейді: google_fonts бұл қатені асинхронды
+/// лақтырады (тест зонасынан тыс ұсталмайды). Тестті ішкі зонада жүргізіп,
+/// тек осы белгілі қатені жұтамыз; қалған қате тестті құлатады.
+void _widgetTest(String name, Future<void> Function(WidgetTester t) body) {
+  testWidgets(name, (t) async {
+    final done = Completer<void>();
+    runZonedGuarded(() async {
+      try {
+        await body(t);
+        done.complete();
+      } catch (e, s) {
+        if (!done.isCompleted) done.completeError(e, s);
+      }
+    }, (e, s) {
+      if (e.toString().contains('allowRuntimeFetching')) return;
+      if (!done.isCompleted) done.completeError(e, s);
+    });
+    await done.future;
+  });
+}
 
 Future<void> _settle(WidgetTester t) async {
   // functions_client JSON-ды изолятта кодтайды: нақты асинхрон күту керек.
@@ -216,7 +238,7 @@ void main() {
       await _settle(t);
     }
 
-    testWidgets(
+    _widgetTest(
         'прогресс -> табылған тауарлар -> мәтін -> done, карточка қайталанбайды',
         (t) async {
       await openScreen(t);
@@ -265,7 +287,7 @@ void main() {
       await t.pumpWidget(const SizedBox.shrink());
     });
 
-    testWidgets('сервер error оқиғасы: хабар қайтарылады, мәтін өріске оралады',
+    _widgetTest('сервер error оқиғасы: хабар қайтарылады, мәтін өріске оралады',
         (t) async {
       await openScreen(t);
       await _sendText(t, 'платье');
@@ -279,7 +301,7 @@ void main() {
       await t.pump(const Duration(seconds: 5));
     });
 
-    testWidgets('ескі функция (JSON) — бір ақырғы жауап, қосымша сұраусыз',
+    _widgetTest('ескі функция (JSON) — бір ақырғы жауап, қосымша сұраусыз',
         (t) async {
       _backend.mode = 'json';
       await openScreen(t);
@@ -290,7 +312,7 @@ void main() {
       await t.pumpWidget(const SizedBox.shrink());
     });
 
-    testWidgets('ағын ештеңе бермей үзілсе — ағынсыз fallback', (t) async {
+    _widgetTest('ағын ештеңе бермей үзілсе — ағынсыз fallback', (t) async {
       _backend.mode = 'empty';
       await openScreen(t);
       await _sendText(t, 'куртка');

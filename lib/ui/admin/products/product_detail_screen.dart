@@ -4,8 +4,8 @@ import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../core/app_user.dart';
 import '../../../core/feature_flags.dart';
-import '../../../core/locale_context.dart';
 import '../../../core/supabase_config.dart';
+import '../../../data/models/category_attributes.dart';
 import '../../../data/models/description_templates.dart';
 import '../../../data/models/models.dart';
 import '../../../data/models/season_utils.dart';
@@ -22,6 +22,11 @@ import 'package:image_picker/image_picker.dart' show ImageSource;
 import 'add_product_helpers.dart';
 import 'ai/ai_description_assist.dart';
 import 'bilingual_description.dart';
+import 'category_attributes_editor.dart';
+import 'country_chips.dart' show CountryPicker, countryLabel;
+import 'keyword_suggestions.dart'
+    show mergeKeywords, parseKeywordList, suggestKeywords;
+import 'store_usage.dart';
 import 'ai/non_returnable_fields.dart';
 
 import '../../../core/lang.dart';
@@ -243,6 +248,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     // Қазақша сипаттама (0083); «РУС | ҚАЗ» ауыстырғышы екеуін де сақтайды.
     final descKkCtrl = TextEditingController(text: p.descriptionKk);
     final countryCtrl = TextEditingController(text: p.country);
+    // Дүкеннің бұрынғы елдері (ел чиптері үшін); қатеде бос — парақ күтпейді.
+    final usageF = StoreUsage.load();
     // Жылдам код (0062) — дүкен ішіндегі қысқа сан, клиентке көрсетілмейді.
     final quickCtrl = TextEditingController(text: p.quickCode);
     // «Ұқсас сөздер» — клиент іздеуіне ғана қатысады.
@@ -271,6 +278,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     TextEditingController activeDesc() =>
         descLang == 'kk' ? descKkCtrl : descCtrl;
     bool descBusy = false;
+    bool translateBusy = false;
     final aiRemaining = ValueNotifier<int?>(null);
     _assist.remainingToday().then((v) => aiRemaining.value = v);
     FeatureFlags.instance.refresh();
@@ -284,6 +292,15 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     String colorHex = p.customColorHex; // HSV-мен таңдалған ерекше түс HEX-і
     String material = p.material;
     String season = p.season;
+    // Категория сипаттамалары (0085) және форма ережесі. Ескі тауарда жасырын
+    // өрістің мәні бар болса (мыс. кітапта түс) — өріс көрінеді, жойылмайды.
+    Map<String, dynamic> attrs = Map<String, dynamic>.of(p.attributes);
+    bool attrAttempted = false;
+    final vis = visibilityFor(catKey);
+    final showColor = vis.needsColor || p.color.isNotEmpty;
+    final showMaterial =
+        (vis.needsMaterial || p.material.isNotEmpty) && materials.isNotEmpty;
+    final showSeason = vis.needsSeason || p.season.isNotEmpty;
     // Дропдаун ішкі state-і «Свой вариант…» пунктінде қалып қоймауы үшін
     // key арқылы қайта құрылады.
     int typeNonce = 0;
@@ -427,7 +444,20 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                           .toList(),
                     ),
                   ],
-                  label(tr('Цвет', 'Түсі')),
+                  if (attributesFor(catKey).isNotEmpty) ...[
+                    label(tr('Характеристики', 'Сипаттамалары')),
+                    CategoryAttributesEditor(
+                      categoryKey: catKey,
+                      values: attrs,
+                      framed: false,
+                      showErrors: attrAttempted,
+                      onChanged: (v) => setS(() => attrs = v),
+                    ),
+                  ],
+                  if (showColor) ...[
+                  label(vis.needsColor
+                      ? tr('Цвет', 'Түсі')
+                      : tr('Цвет (необязательно)', 'Түсі (міндетті емес)')),
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
@@ -440,7 +470,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                         final isLight = c.computeLuminance() > 0.7;
                         return GestureDetector(
                           onTap: () => setS(() {
-                            color = name;
+                            // Түссіз категорияда қайта басу = түсті алып тастау
+                            // (ескі тауардың артық түсі тазаланады).
+                            color = !vis.needsColor && sel ? '' : name;
                             colorHex = ''; // ерекше түсті тазалаймыз
                           }),
                           child: Container(
@@ -531,6 +563,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       }),
                     ],
                   ),
+                  ],
+                  if (showMaterial) ...[
                   label(tr('Материал (необязательно)', 'Материал (міндетті емес)')),
                   Wrap(
                     spacing: 8,
@@ -557,6 +591,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       }),
                     ],
                   ),
+                  ],
+                  if (showSeason) ...[
                   label(tr('Сезон (необязательно, можно несколько)',
                       'Сезон (міндетті емес, бірнешеуін таңдауға болады)')),
                   Wrap(
@@ -567,6 +603,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                             () => setS(() => season = toggleSeasonValue(season, s))))
                         .toList(),
                   ),
+                  ],
                   // ── Тек дүкен ішіне арналған екі өріс (0062) ───────────
                   label(tr('Быстрое число (для поиска)',
                       'Жылдам код (іздеу үшін)')),
@@ -585,26 +622,156 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       textCapitalization: TextCapitalization.none,
                       decoration: deco(tr('Похожие слова (необязательно)',
                           'Ұқсас сөздер (міндетті емес)'))),
+                  // Қосу формасындағыдай дайын сөздер (жергілікті сөздік,
+                  // желісіз): басса — өріске «a, b, c» форматымен қосылады.
+                  ListenableBuilder(
+                    listenable: Listenable.merge(
+                        [nameCtrl, brandCtrl, keywordsCtrl]),
+                    builder: (_, __) {
+                      final existing = parseKeywordList(keywordsCtrl.text);
+                      final words = suggestKeywords(
+                        name: nameCtrl.text,
+                        brand: brandCtrl.text,
+                        categoryKey: catKey,
+                        type: type.isEmpty ? null : type,
+                        audience: group.isEmpty ? null : group,
+                        colors: [if (color.isNotEmpty) color],
+                        seasons: parseSeasons(season),
+                        existing: existing,
+                        alsoKnown: [
+                          if (type.isNotEmpty) type,
+                          if (color.isNotEmpty) color
+                        ],
+                        max: 8,
+                      );
+                      if (words.isEmpty) return const SizedBox.shrink();
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Wrap(spacing: 6, runSpacing: 6, children: [
+                          for (final w in words)
+                            GestureDetector(
+                              onTap: () => keywordsCtrl.text =
+                                  mergeKeywords(keywordsCtrl.text, [w]),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 10, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: cGreenTint,
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.add_rounded,
+                                          size: 14, color: cGreenDeep),
+                                      const SizedBox(width: 3),
+                                      Text(w,
+                                          style: manrope(12, FontWeight.w700,
+                                              color: cGreenDeep)),
+                                    ]),
+                              ),
+                            ),
+                        ]),
+                      );
+                    },
+                  ),
                   const SizedBox(height: 6),
                   Text(
                       tr('Напр: сникерс, беговые, для зала — клиент найдёт товар по этим словам.',
                           'Мыс: сникерс, жүгіруге, залға — клиент осы сөздермен табады.'),
                       style: manrope(11, FontWeight.w500, color: cInk3)),
                   const SizedBox(height: 14),
-                  TextField(
+                  // Қосу формасымен бірдей: дүкеннің өз елдері алдымен, сосын
+                  // негізгілері, «Басқа» — мәтін өрісі. Жүктелгенше негізгілері.
+                  FutureBuilder<StoreUsage>(
+                    future: usageF,
+                    builder: (_, snap) => CountryPicker(
                       controller: countryCtrl,
-                      textCapitalization: TextCapitalization.sentences,
-                      decoration: deco(tr('Страна производства (необязательно)', 'Өндірілген ел (міндетті емес)'))),
+                      used: snap.data?.countries ?? const [],
+                      fieldBuilder: () => TextField(
+                          controller: countryCtrl,
+                          textCapitalization: TextCapitalization.sentences,
+                          decoration: deco(tr('Напр: Вьетнам, Китай, Турция',
+                              'Мыс: Вьетнам, Қытай, Түркия'))),
+                    ),
+                  ),
                   const SizedBox(height: 12),
-                  BilingualDescriptionField(
-                    ruCtrl: descCtrl,
-                    kkCtrl: descKkCtrl,
-                    lang: descLang,
-                    onLangChanged: (l) => setS(() => descLang = l),
-                    decoration: deco('').copyWith(
-                        labelText: null,
-                        hintText: tr('Описание товара', 'Тауар сипаттамасы'),
-                        alignLabelWithHint: true),
+                  ListenableBuilder(
+                    listenable: FeatureFlags.instance,
+                    builder: (_, __) => BilingualDescriptionField(
+                      ruCtrl: descCtrl,
+                      kkCtrl: descKkCtrl,
+                      lang: descLang,
+                      onLangChanged: (l) => setS(() => descLang = l),
+                      translateBusy: translateBusy,
+                      // «Аудару»: қарсы тілдегі мәтін → белсенді таб. Жалауша
+                      // өшік не қате болса — достық хабар, мәтін өзгермейді.
+                      onTranslate: FeatureFlags.instance
+                              .isOn(FeatureFlags.aiProductAssist)
+                          ? () async {
+                              if (translateBusy) return;
+                              final from = otherDescriptionLang(descLang);
+                              final to = descLang;
+                              final src =
+                                  (from == 'kk' ? descKkCtrl : descCtrl)
+                                      .text
+                                      .trim();
+                              void say(String m) {
+                                if (!ctx.mounted) return;
+                                ScaffoldMessenger.of(ctx).showSnackBar(
+                                    SnackBar(
+                                  content: Text(m),
+                                  backgroundColor: cRed,
+                                  behavior: SnackBarBehavior.floating,
+                                ));
+                              }
+
+                              if (src.isEmpty) {
+                                say(from == 'kk'
+                                    ? tr('Сначала напишите текст на казахском',
+                                        'Алдымен қазақша мәтін жазыңыз')
+                                    : tr('Сначала напишите текст на русском',
+                                        'Алдымен орысша мәтін жазыңыз'));
+                                return;
+                              }
+                              setS(() => translateBusy = true);
+                              try {
+                                final r = await _assist.translate(
+                                    text: src, from: from, to: to);
+                                if (!ctx.mounted) return;
+                                // Аударма кезінде таб ауысса — басқа тілге жазбаймыз.
+                                if (descLang == to) {
+                                  setS(() =>
+                                      (to == 'kk' ? descKkCtrl : descCtrl)
+                                          .text = r.text);
+                                }
+                                if (r.remaining != null) {
+                                  aiRemaining.value = r.remaining;
+                                }
+                              } on ProductAssistException catch (e) {
+                                if (e.code == 'feature_disabled') {
+                                  FeatureFlags.instance.refresh();
+                                }
+                                if (e.code == 'ai_quota_exceeded') {
+                                  aiRemaining.value = 0;
+                                }
+                                say(optionalAiMessage(e));
+                              } catch (_) {
+                                say(tr(
+                                    'Не удалось перевести. Попробуйте позже.',
+                                    'Аудару мүмкін болмады. Кейінірек қайталаңыз.'));
+                              } finally {
+                                if (ctx.mounted) {
+                                  setS(() => translateBusy = false);
+                                }
+                              }
+                            }
+                          : null,
+                      decoration: deco('').copyWith(
+                          labelText: null,
+                          hintText: tr('Описание товара', 'Тауар сипаттамасы'),
+                          alignLabelWithHint: true),
+                    ),
                   ),
                   const SizedBox(height: 10),
                   // «Сипаттаманы AI жазсын» + дайын үлгілер (қосу формасымен
@@ -659,6 +826,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                   'material': material,
                                   'season': season,
                                   'country': countryCtrl.text,
+                                  if (attrs.isNotEmpty)
+                                    'attributes':
+                                        attributesSummaryRu(catKey, attrs),
                                 },
                                 lang: descLang,
                               );
@@ -737,6 +907,23 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                           ));
                           return;
                         }
+                        // Міндетті сипаттаманы тек ӨШІРУГЕ болмайды. Ескі
+                        // (0085-ке дейінгі) тауарда ол бос болса — сақтау
+                        // бөгелмейді, иесі кейін толтырады.
+                        final removed = missingRequiredAttributes(catKey, attrs)
+                            .where((d) => hasAttrValue(p.attributes[d.key]))
+                            .toList();
+                        if (removed.isNotEmpty) {
+                          setS(() => attrAttempted = true);
+                          ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+                            content: Text(tr(
+                                'Укажите «${removed.first.label}» в характеристиках',
+                                'Сипаттамада «${removed.first.label}» көрсетіңіз')),
+                            backgroundColor: cRed,
+                            behavior: SnackBarBehavior.floating,
+                          ));
+                          return;
+                        }
                         if (!await confirmUnfilledPlaceholders(
                             ctx, '${descCtrl.text}\n${descKkCtrl.text}')) {
                           return;
@@ -772,6 +959,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     final newBrand = brandCtrl.text.trim();
     final newQuick = quickCtrl.text.trim();
     final newKeywords = keywordsCtrl.text.trim();
+    final newAttrs = sanitizeAttributes(catKey, attrs);
 
     // Жылдам кодты басқа тауар иеленіп тұрса — DB unique индексі құлатады,
     // бірақ қате мәтіні админге түк айтпайды. Алдын ала атымен айтамыз.
@@ -811,6 +999,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         season: season,
         quickCode: newQuick,
         keywords: newKeywords,
+        attributes: ProductModel.attributesPatch(p.attributes, newAttrs),
       );
       // Қайтарылмайтын белгі — тек дүкенге рұқсат болғанда және өзгергенде.
       var savedNR = p.nonReturnable;
@@ -857,6 +1046,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             season: season,
             quickCode: newQuick,
             keywords: newKeywords,
+            attributes: newAttrs,
           ));
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(returnMarkError == null
@@ -1349,8 +1539,12 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   const SizedBox(height: 8),
                   // Теги
                   Wrap(spacing: 8, runSpacing: 8, children: [
-                    _Tag(label: trValue(p.type), icon: Icons.category_outlined),
-                    _Tag(label: trValue(p.category), icon: Icons.people_outline),
+                    if (p.type.isNotEmpty)
+                      _Tag(label: trValue(p.type), icon: Icons.category_outlined),
+                    // Кімге — тек киім категорияларында; түссіз/«кімсіз»
+                    // тауарда бос тег шықпасын.
+                    if (p.category.isNotEmpty)
+                      _Tag(label: trValue(p.category), icon: Icons.people_outline),
                     if (p.color.isNotEmpty)
                       _Tag(label: trValue(p.color), icon: Icons.palette_outlined),
                     if (p.material.isNotEmpty)
@@ -1358,9 +1552,51 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                     if (p.season.isNotEmpty)
                       _Tag(label: p.seasonLabel, icon: Icons.wb_sunny_outlined),
                     if (p.country.isNotEmpty)
-                      _Tag(label: p.country, icon: Icons.public_outlined),
+                      _Tag(
+                          label: countryLabel(p.country),
+                          icon: Icons.public_outlined),
                   ]),
                   const SizedBox(height: 12),
+                  // Категория сипаттамалары (0085) — схема ретімен, толтырылғандары.
+                  if (displayAttributes(p.effectiveCategoryKey, p.attributes)
+                      .isNotEmpty) ...[
+                    _SecTitle(tr('Характеристики', 'Сипаттамалары')),
+                    const SizedBox(height: 8),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: cLine),
+                      ),
+                      child: Column(children: [
+                        for (final a in displayAttributes(
+                            p.effectiveCategoryKey, p.attributes))
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 5),
+                            child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    child: Text(a.label,
+                                        style: manrope(12.5, FontWeight.w500,
+                                            color: cInk2)),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Flexible(
+                                    child: Text(a.value,
+                                        textAlign: TextAlign.end,
+                                        style: manrope(12.5, FontWeight.w700,
+                                            color: cInk)),
+                                  ),
+                                ]),
+                          ),
+                      ]),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
 
                   // Онлайн-витрина: тауарды жасыру/көрсету — тек админ ЖӘНЕ
                   // онлайн-магазины (жарияланған дүкені) бар болса.

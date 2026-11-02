@@ -1,44 +1,60 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../core/app_user.dart';
 import '../../core/feature_flags.dart';
 import '../../core/lang.dart';
 import '../../data/models/live_models.dart';
 import '../../data/models/store_model.dart';
 import '../../data/services/client_service.dart';
+import '../../data/services/follow_service.dart';
 import '../../data/services/live_service.dart';
 import '../../theme/qoima_design.dart';
-import 'live_navigation.dart';
+import 'live_all_screen.dart';
+import 'live_stream_card.dart';
 import 'live_widgets.dart';
 
 /// Басты беттегі «Қазір эфирде» көлденең қатары.
 /// Тірі эфир жоқ болса (не гость — RLS бермейді) ештеңе көрсетпейді.
+///
+/// 0084: жалауша `store_follow` қосулы болса — басты бетте ТЕК жазылған
+/// дүкендердің эфирі («Жазылған дүкендердің эфирі»); қалғаны бөлек «Барлық
+/// эфирлер» бетінде. Жалауша өшік болса — бұрынғы мінез (барлық эфир) өзгеріссіз.
 class LiveNowRow extends StatefulWidget {
-  const LiveNowRow({super.key});
+  /// Тек тест үшін.
+  final FollowService? follow;
+  final LiveService? live;
+  const LiveNowRow({super.key, this.follow, this.live});
 
   @override
   State<LiveNowRow> createState() => _LiveNowRowState();
 }
 
 class _LiveNowRowState extends State<LiveNowRow> {
-  final _live = LiveService();
+  late final LiveService _live = widget.live ?? LiveService();
+  FollowService get _follow => widget.follow ?? FollowService.instance;
   final _client = ClientService();
   Timer? _pollTimer;
   bool _polling = false;
   List<LiveSession> _all = const [];
   Map<String, StoreModel> _stores = const {};
+  List<HomeLiveSession> _home = const [];
+  bool _lastFollowMode = false;
   Set<String> _hidden = const {};
 
   bool get _flagOn => FeatureFlags.instance.isOn(FeatureFlags.liveShopping);
+  bool get _followMode => FeatureFlags.instance.isOn(FeatureFlags.storeFollow);
 
   @override
   void initState() {
     super.initState();
     // Гостьқа RLS ештеңе қайтармайды — сұраныс жасамаймыз да.
-    if (Supabase.instance.client.auth.currentUser == null) return;
+    if (Supabase.instance.client.auth.currentUser == null &&
+        AppUser.current.uid.isEmpty) {
+      return;
+    }
     // Функция өшік болса ешқандай сұраныс жоқ; қосылғанда (flag өзгергенде) басталады.
     FeatureFlags.instance.addListener(_syncPolling);
     ClientService.hiddenStoresVersion.addListener(_loadHidden);
@@ -49,6 +65,9 @@ class _LiveNowRowState extends State<LiveNowRow> {
   void _syncPolling() {
     if (!mounted) return;
     if (_flagOn) {
+      // Жазылу жалаушасы ауысса дереккөз де ауысады — бірден қайта оқимыз.
+      if (_followMode != _lastFollowMode && _pollTimer != null) _poll();
+      _lastFollowMode = _followMode;
       if (_pollTimer == null) {
         _loadHidden();
         _poll();
@@ -72,10 +91,17 @@ class _LiveNowRowState extends State<LiveNowRow> {
     if (_polling) return;
     _polling = true;
     try {
-      final list = await _live.getLiveSessions();
-      if (!mounted) return;
-      setState(() => _all = list);
-      await _loadStores(list);
+      if (_followMode) {
+        // followed белгісі эфирдің өзімен келеді — жазылу тізімі бөлек керек емес.
+        final list = await _follow.liveSessionsForHome();
+        if (!mounted) return;
+        setState(() => _home = list);
+      } else {
+        final list = await _live.getLiveSessions();
+        if (!mounted) return;
+        setState(() => _all = list);
+        await _loadStores(list);
+      }
     } catch (_) {
       // Желі қатесі — келесі тактіде қайталаймыз.
     } finally {
@@ -112,11 +138,50 @@ class _LiveNowRowState extends State<LiveNowRow> {
       );
 
   Widget _buildRow() {
+    if (_followMode) return _buildFollowedRow();
     final visible = _all
         .where((s) =>
             !_hidden.contains(s.adminUid) && _stores.containsKey(s.adminUid))
         .toList();
     if (visible.isEmpty) return const SizedBox.shrink();
+    return _section(
+      title: tr('Сейчас в эфире', 'Қазір эфирде'),
+      cards: [
+        for (final s in visible)
+          LiveStreamCard(
+            session: s,
+            storeName: _stores[s.adminUid]!.storeName,
+            fallbackImage: _stores[s.adminUid]!.logoUrl,
+          ),
+      ],
+    );
+  }
+
+  /// Тек жазылған дүкендер (сервер оларды алдымен береді). Жазылған жоқ болса
+  /// бөлім мүлде жоқ — «Барлық эфирлер» кіру нүктесі басты бет тақырыбында.
+  Widget _buildFollowedRow() {
+    final visible = _home
+        .where((h) => h.followed && !_hidden.contains(h.session.adminUid))
+        .toList();
+    if (visible.isEmpty) return const SizedBox.shrink();
+    return _section(
+      title: tr('Эфиры ваших магазинов', 'Жазылған дүкендердің эфирі'),
+      showAll: true,
+      cards: [
+        for (final h in visible)
+          LiveStreamCard(
+            session: h.session,
+            storeName: h.storeName,
+            fallbackImage: h.storeLogoUrl,
+          ),
+      ],
+    );
+  }
+
+  Widget _section(
+      {required String title,
+      required List<Widget> cards,
+      bool showAll = false}) {
     return Padding(
       padding: const EdgeInsets.only(top: 14),
       child: Column(
@@ -127,116 +192,44 @@ class _LiveNowRowState extends State<LiveNowRow> {
             child: Row(children: [
               const LiveBadge(compact: true),
               const SizedBox(width: 8),
-              Text(tr('Сейчас в эфире', 'Қазір эфирде'),
-                  style: manrope(16, FontWeight.w800, color: cInk)),
+              Expanded(
+                child: Text(title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: manrope(16, FontWeight.w800, color: cInk)),
+              ),
+              if (showAll)
+                GestureDetector(
+                  key: const ValueKey('live-all-link'),
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => LiveAllScreen(follow: widget.follow))),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Text(tr('Все эфиры', 'Барлық эфирлер'),
+                          style:
+                              manrope(12.5, FontWeight.w700, color: cGreen)),
+                      const Icon(Icons.chevron_right_rounded,
+                          size: 18, color: cGreen),
+                    ]),
+                  ),
+                ),
             ]),
           ),
           const SizedBox(height: 10),
           SizedBox(
             height: 186,
             child: ListView.separated(
+              key: const ValueKey('live-row'),
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: visible.length,
+              itemCount: cards.length,
               separatorBuilder: (_, __) => const SizedBox(width: 10),
-              itemBuilder: (_, i) {
-                final s = visible[i];
-                return _LiveCard(session: s, store: _stores[s.adminUid]!);
-              },
+              itemBuilder: (_, i) => cards[i],
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _LiveCard extends StatelessWidget {
-  final LiveSession session;
-  final StoreModel store;
-  const _LiveCard({required this.session, required this.store});
-
-  @override
-  Widget build(BuildContext context) {
-    final img = session.coverUrl.isNotEmpty ? session.coverUrl : store.logoUrl;
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.selectionClick();
-        openLiveSession(context, session.id);
-      },
-      child: Container(
-        width: 132,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(kR16),
-          gradient: kGrad,
-          boxShadow: kShadowSm,
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Stack(fit: StackFit.expand, children: [
-          if (img.isNotEmpty)
-            Image.network(
-              img,
-              fit: BoxFit.cover,
-              cacheWidth: 300,
-              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-            ),
-          // Мәтін оқылсын деп астына қараңғы градиент.
-          const DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Color(0x33000000),
-                  Color(0x00000000),
-                  Color(0xB3000000)
-                ],
-                stops: [0, 0.4, 1],
-              ),
-            ),
-          ),
-          Positioned(
-            top: 8,
-            left: 8,
-            right: 8,
-            child: Row(children: [
-              const LiveBadge(compact: true),
-              const Spacer(),
-              Row(mainAxisSize: MainAxisSize.min, children: [
-                const Icon(Icons.visibility_rounded,
-                    size: 12, color: Colors.white),
-                const SizedBox(width: 3),
-                Text('${session.viewerCount}',
-                    style: manrope(11, FontWeight.w700, color: Colors.white)),
-              ]),
-            ]),
-          ),
-          Positioned(
-            left: 9,
-            right: 9,
-            bottom: 9,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  session.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: manrope(12.5, FontWeight.w800,
-                      color: Colors.white, height: 1.2),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  store.storeName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: manrope(11, FontWeight.w600,
-                      color: Colors.white.withValues(alpha: 0.85)),
-                ),
-              ],
-            ),
-          ),
-        ]),
       ),
     );
   }

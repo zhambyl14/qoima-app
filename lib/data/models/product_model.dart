@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:ui' show Color;
 
 import '../../core/locale_context.dart';
@@ -62,6 +63,11 @@ class ProductModel {
   // Тауарға қатысты қайтару түсіндірмесі (≤300), мыс. «Гигиеналық себеппен
   // қайтарылмайды». Клиент карточкада көреді.
   final String returnNote;
+  // ── Категория сипаттамалары (0085, products.attributes jsonb) ──────────────
+  // {кілт: мән} — кілттер мен опциялар category_attributes.dart схемасында
+  // (телефонда жады/жағдайы, кітапта автор/тілі т.б.). Бос = жоқ: toMap-та
+  // мүлде жіберілмейді, 0085-сіз ескі БД-да да тауар сақталады.
+  final Map<String, dynamic> attributes;
 
   const ProductModel({
     required this.id,
@@ -89,6 +95,7 @@ class ProductModel {
     this.storefrontHidden = false,
     this.nonReturnable = false,
     this.returnNote = '',
+    this.attributes = const {},
   });
 
   /// Ключ категории с учётом обратной совместимости: товары, заведённые до
@@ -158,6 +165,34 @@ class ProductModel {
 
   /// Көрсетілім: ағымдағы тілде «Жаз, Қыс» (бос болса '').
   String get seasonLabel => su.seasonsLabel(season);
+
+  /// DB/JSON-дан келген attributes мәнін Map-қа келтіреді (жол болса JSON
+  /// ретінде оқиды; бүлінген/объект емес → бос).
+  static Map<String, dynamic> parseAttributes(Object? raw) {
+    Object? v = raw;
+    if (v is String && v.trim().isNotEmpty) {
+      try {
+        v = jsonDecode(v);
+      } catch (_) {
+        return {};
+      }
+    }
+    if (v is Map) {
+      return {
+        for (final e in v.entries)
+          if (e.key is String && e.value != null) e.key as String: e.value
+      };
+    }
+    return {};
+  }
+
+  /// `attributes` UPDATE-те қалай жазылады: null = тимеу (бос→бос, 0085-сіз
+  /// ескі БД үшін қауіпсіз), әйтпесе жаңа объект (бос = бәрін өшіру).
+  static Map<String, dynamic>? attributesPatch(
+      Map<String, dynamic> previous, Map<String, dynamic> next) {
+    if (next.isEmpty && previous.isEmpty) return null;
+    return next;
+  }
 
   static const String statusInStock = 'В наличии';
   static const String statusSold = 'Продано';
@@ -239,6 +274,7 @@ class ProductModel {
       season: json['season'] as String? ?? '',
       nonReturnable: json['nonReturnable'] as bool? ?? false,
       returnNote: json['returnNote'] as String? ?? '',
+      attributes: parseAttributes(json['attributes']),
     );
   }
 
@@ -269,6 +305,7 @@ class ProductModel {
         storefrontHidden: m['storefront_hidden'] as bool? ?? false,
         nonReturnable: m['non_returnable'] as bool? ?? false,
         returnNote: m['return_note'] as String? ?? '',
+        attributes: parseAttributes(m['attributes']),
       );
 
   /// Supabase жазу үшін (snake_case; id/owner_uid сервисте қосылады;
@@ -298,6 +335,8 @@ class ProductModel {
         // «белгісіз баған» қатесін береді — миграция апптан БҰРЫН қолданылады.
         'non_returnable': nonReturnable,
         'return_note': returnNote.trim(),
+        // 0085: бос болса жіберілмейді — миграциясыз БД-да да тауар сақталады.
+        if (attributes.isNotEmpty) 'attributes': attributes,
       };
 
   Map<String, dynamic> toJson() => {
@@ -322,6 +361,7 @@ class ProductModel {
         'season': season,
         if (nonReturnable) 'nonReturnable': true,
         if (returnNote.isNotEmpty) 'returnNote': returnNote,
+        if (attributes.isNotEmpty) 'attributes': attributes,
       };
 
   ProductModel copyWith({
@@ -350,6 +390,7 @@ class ProductModel {
     bool? storefrontHidden,
     bool? nonReturnable,
     String? returnNote,
+    Map<String, dynamic>? attributes,
   }) {
     return ProductModel(
       id: id ?? this.id,
@@ -377,6 +418,7 @@ class ProductModel {
       storefrontHidden: storefrontHidden ?? this.storefrontHidden,
       nonReturnable: nonReturnable ?? this.nonReturnable,
       returnNote: returnNote ?? this.returnNote,
+      attributes: attributes ?? this.attributes,
     );
   }
 

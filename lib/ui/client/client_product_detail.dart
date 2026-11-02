@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import '../../data/models/category_attributes.dart';
 import '../../data/models/product_model.dart';
 import '../../data/models/store_model.dart';
 import '../../data/models/batch_model.dart';
@@ -9,6 +10,7 @@ import '../../data/models/cart_item_model.dart';
 import '../../core/feature_flags.dart';
 import '../../data/services/client_service.dart';
 import '../../theme/qoima_design.dart';
+import '../admin/products/country_chips.dart' show countryLabel;
 import '../shared/favorite_fly_animation.dart';
 import '../shared/photo_gallery_viewer.dart';
 import 'ai/complete_look_section.dart';
@@ -546,7 +548,8 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
                           // ── Нұсқалар (түс + айырмашылық белгісі) ─────────
                           if (_variants.length > 1) ...[
                             QSecLabel(
-                                _variants.any((v) => v.variantNote.isNotEmpty)
+                                _variants.any((v) => v.variantNote.isNotEmpty) ||
+                                        _variants.every((v) => v.color.isEmpty)
                                     ? tr('Варианты', 'Нұсқалары')
                                     : tr('Цвет', 'Түсі')),
                             Wrap(
@@ -573,19 +576,22 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
                                     child: Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          Container(
-                                            width: 16,
-                                            height: 16,
-                                            decoration: BoxDecoration(
-                                              color: dot,
-                                              shape: BoxShape.circle,
-                                              border: Border.all(
-                                                  color:
-                                                      const Color(0xFFE0E0E0),
-                                                  width: 1),
+                                          // Түссіз нұсқада боз нүкте мағынасыз.
+                                          if (v.color.isNotEmpty) ...[
+                                            Container(
+                                              width: 16,
+                                              height: 16,
+                                              decoration: BoxDecoration(
+                                                color: dot,
+                                                shape: BoxShape.circle,
+                                                border: Border.all(
+                                                    color:
+                                                        const Color(0xFFE0E0E0),
+                                                    width: 1),
+                                              ),
                                             ),
-                                          ),
-                                          const SizedBox(width: 7),
+                                            const SizedBox(width: 7),
+                                          ],
                                           Text(_variantChipLabel(v, i),
                                               style: manrope(
                                                   13, FontWeight.w700,
@@ -687,7 +693,7 @@ class _ClientProductDetailState extends State<ClientProductDetail> {
                                 text: _currentProduct.localizedDescription),
 
                           // ── Характеристики ──────────────────────────────
-                          _SpecSection(product: _currentProduct),
+                          ProductSpecSection(product: _currentProduct),
 
                           const SizedBox(height: 16),
 
@@ -1033,9 +1039,12 @@ class _DescriptionSectionState extends State<_DescriptionSection> {
 }
 
 // ── Характеристики секциясы ───────────────────────────────────────────────────
-class _SpecSection extends StatelessWidget {
+/// Тауардың сипаттамалар блогы (клиент беті). Ортақ жолдардан кейін
+/// категория сипаттамалары (0085) схема ретімен келеді; олар жоқ ескі
+/// тауарда ештеңе қосылмайды.
+class ProductSpecSection extends StatelessWidget {
   final ProductModel product;
-  const _SpecSection({required this.product});
+  const ProductSpecSection({super.key, required this.product});
 
   @override
   Widget build(BuildContext context) {
@@ -1054,7 +1063,13 @@ class _SpecSection extends StatelessWidget {
       if (product.seasonList.isNotEmpty)
         _SpecRow(tr('Сезон', 'Маусым'), product.seasonLabel),
       if (product.country.isNotEmpty)
-        _SpecRow(tr('Страна', 'Өндірілген ел'), product.country),
+        // Ел орысша сақталады — негізгі елдер ағымдағы тілде көрінеді.
+        _SpecRow(tr('Страна', 'Өндірілген ел'), countryLabel(product.country)),
+      // Категория сипаттамалары: тек толтырылғандары, схема ретімен.
+      // Артикул (ID) әрқашан ең соңында қалады.
+      for (final a in displayAttributes(
+          product.effectiveCategoryKey, product.attributes))
+        _SpecRow(a.label, a.value),
       if (product.articul.isNotEmpty)
         _SpecRow('Артикул', product.articul, copyable: true),
     ];
@@ -1072,7 +1087,7 @@ class _SpecSection extends StatelessWidget {
               for (int i = 0; i < rows.length; i++) ...[
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 11),
-                  child: Row(children: [
+                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     SizedBox(
                       width: 96,
                       child: Text(rows[i].label,

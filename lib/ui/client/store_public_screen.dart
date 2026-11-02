@@ -2,19 +2,26 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/app_user.dart';
+import '../../core/feature_flags.dart';
 import '../../core/lang.dart';
 import '../../data/models/batch_model.dart';
 import '../../data/models/product_model.dart';
 import '../../data/models/store_model.dart';
+import '../../data/models/story_model.dart';
 import '../../data/services/client_service.dart';
+import '../../data/services/follow_service.dart';
+import '../../data/services/stories_service.dart';
 import '../../theme/qoima_design.dart';
 import '../live/live_store_banner.dart';
 import '../shared/skeletons.dart';
 import '../auth/login_screen.dart';
 import 'client_product_card.dart';
 import 'client_product_detail.dart';
+import 'follow/store_follow_button.dart';
 import 'referral_screen.dart';
 import 'report_sheet.dart';
+import 'stories/story_ring.dart';
+import 'stories/story_viewer_screen.dart';
 
 /// Дүкеннің публичті парақшасы: ақпарат + ТЕК осы дүкеннің тауарлары.
 ///
@@ -27,8 +34,16 @@ import 'report_sheet.dart';
 class StorePublicScreen extends StatefulWidget {
   final StoreModel store;
   final bool previewMode;
+
+  /// Тек тест үшін (әдепкі — қосымшаның ортақ сервистері).
+  final FollowService? followService;
+  final StoriesService? storiesService;
   const StorePublicScreen(
-      {super.key, required this.store, this.previewMode = false});
+      {super.key,
+      required this.store,
+      this.previewMode = false,
+      this.followService,
+      this.storiesService});
 
   @override
   State<StorePublicScreen> createState() => _StorePublicScreenState();
@@ -51,18 +66,92 @@ class _StorePublicScreenState extends State<StorePublicScreen> {
   List<String> _favoriteIds = [];
   StreamSubscription<List<String>>? _favSub;
 
+  // 0084: жазылушылар саны + дүкеннің белсенді стористері (логотип шеңбері).
+  int? _followers;
+  List<StoryModel> _stories = const [];
+  DateTime? _storySeen;
+  bool _followersLoaded = false;
+  bool _storiesLoaded = false;
+
   StoreModel get store => widget.store;
+  FollowService get _follow => widget.followService ?? FollowService.instance;
+  StoriesService get _storiesSvc => widget.storiesService ?? StoriesService();
 
   @override
   void initState() {
     super.initState();
     _load();
+    // Жалаушалар кейінірек жүктелуі мүмкін — сонда бір рет оқимыз.
+    FeatureFlags.instance.addListener(_loadSocial);
+    _loadSocial();
     if (!widget.previewMode) {
       _favSub = _service.watchFavoriteIds().listen((ids) {
         if (mounted) setState(() => _favoriteIds = ids);
       });
       if (store.referralEnabled) _loadCanInvite();
     }
+  }
+
+  /// Жазылушылар саны мен сторис — тек сәйкес жалауша қосулы болса, бір реттен.
+  Future<void> _loadSocial() async {
+    final flags = FeatureFlags.instance;
+    if (!_followersLoaded &&
+        !widget.previewMode &&
+        flags.isOn(FeatureFlags.storeFollow)) {
+      _followersLoaded = true;
+      try {
+        final n = await _follow.followerCount(store.adminUid);
+        if (mounted) setState(() => _followers = n);
+      } catch (_) {
+        _followersLoaded = false; // келесі жалауша өзгерісінде қайталанады
+      }
+    }
+    if (!_storiesLoaded && flags.isOn(FeatureFlags.stories)) {
+      _storiesLoaded = true;
+      try {
+        final list = await _storiesSvc.storiesForStore(store.adminUid);
+        final seen = await _storiesSvc.seenUntil(store.adminUid);
+        if (mounted) {
+          setState(() {
+            _stories = list;
+            _storySeen = seen;
+          });
+        }
+      } catch (_) {
+        _storiesLoaded = false;
+      }
+    }
+  }
+
+  void _onFollowChanged(bool following) {
+    final n = _followers;
+    if (n == null || !mounted) return;
+    setState(() => _followers = following ? n + 1 : (n > 0 ? n - 1 : 0));
+  }
+
+  Future<void> _openStories() async {
+    await openStoriesOf(
+      context,
+      storeUid: store.adminUid,
+      storeName: store.storeName,
+      logoUrl: store.logoUrl,
+      stories: _stories,
+      service: widget.storiesService,
+    );
+    if (!mounted) return;
+    final seen = await _storiesSvc.seenUntil(store.adminUid);
+    if (mounted) setState(() => _storySeen = seen);
+  }
+
+  /// Көрсетілетін (мерзімі өтпеген) стористер бар ма.
+  bool get _hasStories =>
+      !_hidden &&
+      FeatureFlags.instance.isOn(FeatureFlags.stories) &&
+      _stories.any((st) => !st.isExpired);
+
+  bool get _storiesUnseen {
+    final seen = _storySeen;
+    return seen == null || _stories.any((st) => st.createdAt.isAfter(seen));
   }
 
   Future<void> _loadCanInvite() async {
@@ -74,6 +163,7 @@ class _StorePublicScreenState extends State<StorePublicScreen> {
 
   @override
   void dispose() {
+    FeatureFlags.instance.removeListener(_loadSocial);
     _favSub?.cancel();
     _searchCtrl.dispose();
     super.dispose();
@@ -441,6 +531,37 @@ class _StorePublicScreenState extends State<StorePublicScreen> {
                       ],
                     ),
                 ]),
+                // Жазылу + жазылушылар саны (жалауша өшік не preview — жоқ)
+                if (!widget.previewMode)
+                  ListenableBuilder(
+                    listenable: FeatureFlags.instance,
+                    builder: (_, __) =>
+                        !FeatureFlags.instance.isOn(FeatureFlags.storeFollow)
+                            ? const SizedBox.shrink()
+                            : Padding(
+                                padding:
+                                    const EdgeInsets.only(top: 12, left: 48),
+                                child: Row(children: [
+                                  StoreFollowButton(
+                                    storeUid: store.adminUid,
+                                    onDark: true,
+                                    service: widget.followService,
+                                    onChanged: _onFollowChanged,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  if (_followers != null)
+                                    Flexible(
+                                      child: Text(followersLabel(_followers!),
+                                          key: const ValueKey('follower-count'),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: manrope(12.5, FontWeight.w700,
+                                              color: Colors.white
+                                                  .withValues(alpha: 0.9))),
+                                    ),
+                                ]),
+                              ),
+                  ),
               ]),
             ),
           ),
@@ -561,25 +682,37 @@ class _StorePublicScreenState extends State<StorePublicScreen> {
         padding: const EdgeInsets.all(16),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            // Логотип
-            Container(
-              width: 54,
-              height: 54,
-              decoration: BoxDecoration(
-                color: cGreenTint,
-                borderRadius: BorderRadius.circular(15),
+            // Логотип (сторис бар болса — шеңбер, басқанда сторис ашылады)
+            if (_hasStories)
+              GestureDetector(
+                key: const ValueKey('store-logo-stories'),
+                onTap: _openStories,
+                child: StoryRing(
+                  size: 54,
+                  radius: 15,
+                  unseen: _storiesUnseen,
+                  logoUrl: store.logoUrl,
+                ),
+              )
+            else
+              Container(
+                width: 54,
+                height: 54,
+                decoration: BoxDecoration(
+                  color: cGreenTint,
+                  borderRadius: BorderRadius.circular(15),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: store.logoUrl.isNotEmpty
+                    ? Image.network(store.logoUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const Icon(
+                            Icons.storefront_rounded,
+                            color: cGreenDeep,
+                            size: 26))
+                    : const Icon(Icons.storefront_rounded,
+                        color: cGreenDeep, size: 26),
               ),
-              clipBehavior: Clip.antiAlias,
-              child: store.logoUrl.isNotEmpty
-                  ? Image.network(store.logoUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const Icon(
-                          Icons.storefront_rounded,
-                          color: cGreenDeep,
-                          size: 26))
-                  : const Icon(Icons.storefront_rounded,
-                      color: cGreenDeep, size: 26),
-            ),
             const SizedBox(width: 13),
             Expanded(
               child: Column(

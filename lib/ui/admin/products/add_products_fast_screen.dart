@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/color_naming.dart';
 import '../../../core/lang.dart';
 import '../../../core/warehouse_context.dart';
+import '../../../data/models/category_attributes.dart';
 import '../../../data/models/models.dart';
 import '../../../data/services/firestore_service.dart';
 import '../../../theme/qoima_design.dart';
@@ -14,6 +15,7 @@ import '../../shared/color_picker_sheet.dart';
 import '../../shared/h_scroll_chips.dart';
 import '../../shared/mandatory_warehouse_picker.dart';
 import '../../shared/prompt_text_dialog.dart';
+import 'category_attributes_editor.dart';
 import 'restock_screen.dart';
 
 /// Жылдам товар қосу — бір экранда бірнеше тауарды жол-жолмен қосу.
@@ -27,18 +29,17 @@ class AddProductsFastScreen extends StatefulWidget {
   State<AddProductsFastScreen> createState() => _AddProductsFastScreenState();
 }
 
-/// Жолдағы бір түс-нұсқа (түс + айырмашылық белгісі). Бірдей түсті екі рет
-/// таңдауға болады — әрқайсысына белгі жазылады (мыс. «қара табан» / «қызыл табан»).
+/// Жолдағы бір түс-нұсқа. Түс — қарапайым таңдау/шешу: бір түс бір-ақ рет
+/// (дубль жоқ). Екі ақ тауар (табаны әртүрлі) = екі бөлек жол/тауар, атауы
+/// әртүрлі. Ескі `variant_note` деректері өзгермейді, тек енді енгізілмейді.
 class _ColorPick {
   final String color;
   final String hex; // ерекше түстің HEX коды ('' = стандарт палитра)
-  final noteCtrl = TextEditingController();
   // Жылдам код (0062) — сатушының өз саны, офлайн іздеуге. Әр нұсқа жеке
   // тауар болғандықтан коды да жеке.
   final quickCtrl = TextEditingController();
   _ColorPick(this.color, {this.hex = ''});
   void dispose() {
-    noteCtrl.dispose();
     quickCtrl.dispose();
   }
 }
@@ -51,6 +52,11 @@ class _FastRow {
   final sellingCtrl = TextEditingController();
   String? type; // вид
   final List<_ColorPick> colors = [];
+  // Түссіз категорияда (кітап, азық-түлік…) түс жоқ — жол бір тауар, жылдам
+  // коды осында.
+  final quickCtrl = TextEditingController();
+  // Категория сипаттамалары (0085) — жолдың барлық түс нұсқаларына ортақ.
+  Map<String, dynamic> attrs = {};
   final Map<String, TextEditingController> sizeCtrls = {}; // размер → сан
   bool saved = false;
 
@@ -85,6 +91,7 @@ class _FastRow {
     brandCtrl.dispose();
     purchaseCtrl.dispose();
     sellingCtrl.dispose();
+    quickCtrl.dispose();
     for (final c in colors) {
       c.dispose();
     }
@@ -132,6 +139,8 @@ class _AddProductsFastScreenState extends State<AddProductsFastScreen> {
   bool get _isShoes => _categoryKey == 'shoes';
   bool get _needsAudience =>
       _categoryKey != null && categoryByKey(_categoryKey).hasAudience;
+  // Түс тек түсіне қарап таңдалатын категорияда (category_attributes.dart).
+  bool get _needsColor => visibilityFor(_categoryKey).needsColor;
 
   @override
   void initState() {
@@ -248,8 +257,15 @@ class _AddProductsFastScreenState extends State<AddProductsFastScreen> {
   Future<void> _addCustomColorToRow(_FastRow r) async {
     final color = await showCustomColorPicker(context);
     if (color == null || !mounted) return;
-    setState(() => r.colors
-        .add(_ColorPick(describeColorName(color), hex: colorToHex(color))));
+    final name = describeColorName(color);
+    // Дәл сол түс әлдеқашан таңдалған болса — қайта қоспаймыз.
+    if (r.colors.any((c) => c.color == name)) {
+      _err(tr('Цвет «${trValue(name)}» уже выбран',
+          '«${trValue(name)}» түсі әлдеқашан таңдалған'));
+      return;
+    }
+    setState(() =>
+        r.colors.add(_ColorPick(name, hex: colorToHex(color))));
   }
 
   /// «Өз размері» — барлық жолға қосылады.
@@ -299,6 +315,8 @@ class _AddProductsFastScreenState extends State<AddProductsFastScreen> {
       (r.nameCtrl.text.trim().isNotEmpty ||
           r.brandCtrl.text.trim().isNotEmpty ||
           r.colors.isNotEmpty ||
+          r.attrs.isNotEmpty ||
+          r.quickCtrl.text.trim().isNotEmpty ||
           r.total > 0));
 
   Future<bool> _confirmDiscard() async {
@@ -505,11 +523,18 @@ class _AddProductsFastScreenState extends State<AddProductsFastScreen> {
         ]),
       );
 
+  /// Жолдың жылдам кодтары: түсті категорияда әр түстікі, түссізде — біреу.
+  List<String> _rowCodes(_FastRow r) => [
+        if (_needsColor)
+          for (final cp in r.colors) cp.quickCtrl.text.trim()
+        else
+          r.quickCtrl.text.trim(),
+      ];
+
   /// Енгізілген жылдам кодтарды дүкендегі басқа тауар иеленіп тұрған жоқ па.
   Future<bool> _quickCodesFree(List<_FastRow> rows) async {
     for (final r in rows) {
-      for (final cp in r.colors) {
-        final code = cp.quickCtrl.text.trim();
+      for (final code in _rowCodes(r)) {
         if (code.isEmpty) continue;
         try {
           final taken = await _firestoreService.productWithQuickCode(code);
@@ -551,8 +576,14 @@ class _AddProductsFastScreenState extends State<AddProductsFastScreen> {
         _err(tr('Строка $n: бренд', '$n-жол: бренд'));
         return;
       }
-      if (r.colors.isEmpty) {
+      if (_needsColor && r.colors.isEmpty) {
         _err(tr('Строка $n: выберите цвет', '$n-жол: түс таңдаңыз'));
+        return;
+      }
+      final missingAttr = missingRequiredAttributes(_categoryKey, r.attrs);
+      if (missingAttr.isNotEmpty) {
+        _err(tr('Строка $n: укажите «${missingAttr.first.label}»',
+            '$n-жол: «${missingAttr.first.label}» көрсетіңіз'));
         return;
       }
       if ((double.tryParse(r.purchaseCtrl.text) ?? 0) <= 0) {
@@ -572,8 +603,7 @@ class _AddProductsFastScreenState extends State<AddProductsFastScreen> {
     // Жылдам кодтар форманың ІШІНДЕ қайталанбауы керек.
     final seenCodes = <String>{};
     for (final r in toSave) {
-      for (final cp in r.colors) {
-        final code = cp.quickCtrl.text.trim();
+      for (final code in _rowCodes(r)) {
         if (code.isEmpty) continue;
         if (!seenCodes.add(code)) {
           _err(tr('Быстрое число «$code» повторяется — у каждого товара своё',
@@ -600,7 +630,9 @@ class _AddProductsFastScreenState extends State<AddProductsFastScreen> {
     var savedProducts = 0;
     try {
       for (final r in _rows) {
-        if (r.saved || r.nameCtrl.text.trim().isEmpty || r.colors.isEmpty) {
+        if (r.saved ||
+            r.nameCtrl.text.trim().isEmpty ||
+            (_needsColor && r.colors.isEmpty)) {
           continue;
         }
         setState(() => _savingIndex = savedProducts + 1);
@@ -609,8 +641,16 @@ class _AddProductsFastScreenState extends State<AddProductsFastScreen> {
             if ((int.tryParse(e.value.text) ?? 0) > 0)
               e.key: int.parse(e.value.text),
         };
-        // Жолдың әр түсі — жеке товар (ортақ размер/баға).
-        for (final cp in r.colors) {
+        final attributes = sanitizeAttributes(_categoryKey, r.attrs);
+        // Жолдың әр түсі — жеке товар (ортақ размер/баға). Түссіз категорияда
+        // жол = бір тауар, түсі '' (жасырын нұсқа, қосу формасымен бірдей).
+        final variants = _needsColor
+            ? [
+                for (final cp in r.colors)
+                  (color: cp.color, hex: cp.hex, quick: cp.quickCtrl.text.trim())
+              ]
+            : [(color: '', hex: '', quick: r.quickCtrl.text.trim())];
+        for (final cp in variants) {
           final batch = BatchModel(
             id: '',
             dateArrived: _dateArrived,
@@ -630,12 +670,12 @@ class _AddProductsFastScreenState extends State<AddProductsFastScreen> {
             category: _targetGroup ?? '',
             categoryKey: _categoryKey ?? '',
             color: cp.color,
-            variantNote: cp.noteCtrl.text.trim(),
             customColorHex: cp.hex,
             articul: '',
-            quickCode: cp.quickCtrl.text.trim(),
+            quickCode: cp.quick,
             status: ProductModel.statusInStock,
             images: const [],
+            attributes: attributes,
           );
           await _firestoreService.addNewProduct(
             product: product,
@@ -833,6 +873,15 @@ class _AddProductsFastScreenState extends State<AddProductsFastScreen> {
                   _targetGroup = null;
                   for (final r in _rows) {
                     r.type = null;
+                    // Сипаттама кілттері категорияға тиесілі.
+                    r.attrs = {};
+                    // Түссіз категорияда таңдалған түстер мағынасыз.
+                    if (!_needsColor) {
+                      for (final cp in r.colors) {
+                        cp.dispose();
+                      }
+                      r.colors.clear();
+                    }
                   }
                   _recomputeSizes();
                 });
@@ -934,6 +983,94 @@ class _AddProductsFastScreenState extends State<AddProductsFastScreen> {
     );
   }
 
+  /// «Характеристики · 2/4» батырмасы. Міндетті өріс бос болса — қызғылт сары.
+  Widget _buildAttrsButton(_FastRow r) {
+    final defs = attributesFor(_categoryKey);
+    final filled =
+        defs.where((d) => normalizeAttrValue(d, r.attrs[d.key]) != null).length;
+    final missing = missingRequiredAttributes(_categoryKey, r.attrs).isNotEmpty;
+    return GestureDetector(
+      onTap: () => _editRowAttrs(r),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: missing ? cAmberTint : cBg,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+              color: missing ? cAmber.withValues(alpha: 0.5) : cLine),
+        ),
+        child: Row(children: [
+          Icon(Icons.fact_check_outlined,
+              size: 16, color: missing ? cAmberInk : cGreen),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+                missing
+                    ? tr('Характеристики · есть обязательные',
+                        'Сипаттамалары · міндеттісі бар')
+                    : tr('Характеристики', 'Сипаттамалары'),
+                style: manrope(12.5, FontWeight.w700,
+                    color: missing ? cAmberInk : cInk)),
+          ),
+          Text('$filled/${defs.length}',
+              style: manrope(12, FontWeight.w700, color: cInk3)),
+          const Icon(Icons.chevron_right_rounded, size: 18, color: cInk3),
+        ]),
+      ),
+    );
+  }
+
+  /// Сипаттамалар парақшасы (ортақ редактор). Әр өзгеріс жолға бірден жазылады.
+  Future<void> _editRowAttrs(_FastRow r) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: cSurface,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) => Padding(
+          padding: EdgeInsets.fromLTRB(
+              18, 14, 18, MediaQuery.of(ctx).viewInsets.bottom + 24),
+          child: SingleChildScrollView(
+            child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                        width: 36,
+                        height: 4,
+                        decoration: BoxDecoration(
+                            color: cLine,
+                            borderRadius: BorderRadius.circular(2))),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(tr('Характеристики', 'Сипаттамалары'),
+                      style: manrope(16, FontWeight.w800, color: cInk)),
+                  const SizedBox(height: 12),
+                  CategoryAttributesEditor(
+                    categoryKey: _categoryKey,
+                    values: r.attrs,
+                    framed: false,
+                    showErrors: true,
+                    onChanged: (v) {
+                      setS(() => r.attrs = v);
+                      setState(() {});
+                    },
+                  ),
+                  const SizedBox(height: 18),
+                  QPrimaryButton(
+                    label: tr('Готово', 'Дайын'),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ]),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildRow(int index, _FastRow r) {
     final sizes = _allSizesList();
     return Container(
@@ -957,7 +1094,10 @@ class _AddProductsFastScreenState extends State<AddProductsFastScreen> {
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: Text('${r.total} ${tr('шт', 'дана')} · ${r.colors.length} ${tr('цв', 'түс')}',
+            child: Text(
+                _needsColor
+                    ? '${r.total} ${tr('шт', 'дана')} · ${r.colors.length} ${tr('цв', 'түс')}'
+                    : '${r.total} ${tr('шт', 'дана')}',
                 style: manrope(12.5, FontWeight.w700, color: cInk3)),
           ),
           if (_rows.length > 1)
@@ -1023,7 +1163,32 @@ class _AddProductsFastScreenState extends State<AddProductsFastScreen> {
             onTap: () => _promptCustomType(r),
           ),
         ),
-        // ── Түстер (міндетті; бірдей түсті екі рет таңдауға болады) ──────
+        // ── Сипаттамалар: ықшам батырма → парақша (экран ұзармасын) ─────
+        if (attributesFor(_categoryKey).isNotEmpty) ...[
+          const SizedBox(height: 10),
+          _buildAttrsButton(r),
+        ],
+        // ── Түссіз категория: тек жылдам код ──────────────────────────
+        if (!_needsColor) ...[
+          const SizedBox(height: 10),
+          Row(children: [
+            Expanded(
+              child: Text(tr('Быстрый номер (необязательно)',
+                  'Жылдам нөмір (міндетті емес)'),
+                  style: manrope(11.5, FontWeight.w700, color: cInk2)),
+            ),
+            SizedBox(
+              width: 110,
+              child: _MiniTextField(
+                controller: r.quickCtrl,
+                hint: '№ 103',
+                keyboardType: TextInputType.number,
+              ),
+            ),
+          ]),
+        ],
+        // ── Түстер (міндетті; басу = таңдау, қайта басу = алып тастау) ────
+        if (_needsColor) ...[
         const SizedBox(height: 10),
         Text(tr('Цвет(а) *', 'Түс(тер) *'),
             style: manrope(11.5, FontWeight.w700, color: cInk2)),
@@ -1031,11 +1196,18 @@ class _AddProductsFastScreenState extends State<AddProductsFastScreen> {
         HScrollChips(
           chips: ProductModel.colorOptions.map((opt) {
             final name = opt['name'] as String;
-            final cnt = r.colors.where((c) => c.color == name).length;
+            final idx = r.colors.indexWhere((c) => c.color == name);
             return HChip(
-              label: cnt > 0 ? '${trValue(name)} ×$cnt' : trValue(name),
-              selected: cnt > 0,
-              onTap: () => setState(() => r.colors.add(_ColorPick(name))),
+              label: trValue(name),
+              selected: idx >= 0,
+              onTap: () => setState(() {
+                if (idx >= 0) {
+                  r.colors[idx].dispose();
+                  r.colors.removeAt(idx);
+                } else {
+                  r.colors.add(_ColorPick(name));
+                }
+              }),
             );
           }).toList(),
           trailing: HActionChip(
@@ -1069,17 +1241,10 @@ class _AddProductsFastScreenState extends State<AddProductsFastScreen> {
                         style: manrope(12.5, FontWeight.w700, color: cInk),
                         overflow: TextOverflow.ellipsis)),
                 const SizedBox(width: 6),
-                Expanded(
-                  child: _MiniTextField(
-                    controller: cp.noteCtrl,
-                    hint: tr('Отличие (напр. чёрная подошва)',
-                        'Айырмашылық (мыс. қара табан)'),
-                  ),
-                ),
-                const SizedBox(width: 6),
+                const Spacer(),
                 // Жылдам код — сатушының өз саны (офлайн сату/іздеу үшін).
                 SizedBox(
-                  width: 70,
+                  width: 90,
                   child: _MiniTextField(
                     controller: cp.quickCtrl,
                     hint: '№ 103',
@@ -1099,6 +1264,7 @@ class _AddProductsFastScreenState extends State<AddProductsFastScreen> {
               ]),
             );
           }),
+        ],
         ],
         const SizedBox(height: 8),
         Row(children: [

@@ -215,6 +215,17 @@ declare
 begin
   if p_store is null or not public.feature_enabled('store_follow') then return 0; end if;
 
+  -- Арзан алдын ала тексеріс: шектегіш әлі жабық болса — 5000 жолдық алушы
+  -- сұранысын мүлде жасамаймыз. Әйтпесе жаппай жеңілдік (setDiscountBulk,
+  -- N партия) әр жол үшін бүкіл жазылушылар тізімін қайта жинап, иесінің
+  -- сұранысын statement_timeout-қа жеткізетін. Шешімді бәрібір төмендегі
+  -- атомды upsert қабылдайды — бұл тек оңтайландыру.
+  if exists (select 1 from public.store_push_throttle t
+             where t.store_uid = p_store and t.kind = p_kind
+               and t.last_at > now() - p_min_gap) then
+    return 0;
+  end if;
+
   -- Алушылар: хабарламасы қосулы, дүкенді жасырмаған, блокта емес.
   -- Шек 5000 — push синхронды жазылады, дүкен иесінің сұранысы ұзармасын.
   select array_agg(t.client_uid order by t.created_at) into v_uids from (
@@ -260,9 +271,12 @@ revoke execute on function public.notify_followers(uuid, text, interval, text, t
 --  effectivePrice + discountBadgePercent-тің дәл көшірмесі: мерзімдер
 --  _discount_ts арқылы (зонасыз жол = Алматы уақыты, Dart сияқты), баға
 --  бүтінге дөңгелектенеді, пайыз сол дөңгелек бағадан есептеледі.
-create or replace function public._batch_discount_pct(
+--  _batch_effective_price — сатып алушы ҚАЗІР төлейтін баға (белсенді жеңілдік
+--  болмаса — selling_price өзі). Триггер «бағаны көтеріп, жеңілдік қосу»
+--  (тиімді баға өзгермейді) жалған жеңілдігін осымен ажыратады.
+create or replace function public._batch_effective_price(
   p_price double precision, p_discount jsonb, p_at timestamptz default now())
-returns integer
+returns double precision
 language plpgsql stable set search_path = public as $$
 declare
   v_start timestamptz;
@@ -270,22 +284,42 @@ declare
   v_val   double precision;
   v_eff   double precision;
 begin
-  if p_price is null or p_price <= 0 or p_discount is null
+  if p_price is null then return null; end if;
+  if p_price <= 0 or p_discount is null
      or jsonb_typeof(p_discount) <> 'object'
      or coalesce(p_discount ->> 'active', 'false') <> 'true' then
-    return 0;
+    return p_price;
   end if;
   v_start := public._discount_ts(p_discount ->> 'starts_at');
   v_end   := public._discount_ts(p_discount ->> 'ends_at');
-  if v_start is not null and p_at < v_start then return 0; end if;
-  if v_end is not null and p_at > v_end then return 0; end if;
+  if v_start is not null and p_at < v_start then return p_price; end if;
+  if v_end is not null and p_at > v_end then return p_price; end if;
   begin v_val := coalesce((p_discount ->> 'value')::double precision, 0);
   exception when others then v_val := 0; end;
   v_eff := case when coalesce(p_discount ->> 'type', 'percent') = 'percent'
                 then p_price * (1 - v_val / 100)
                 else p_price - v_val end;
-  v_eff := greatest(0, round(v_eff::numeric)::double precision);
-  if v_eff >= p_price then return 0; end if;
+  begin
+    v_eff := greatest(0, round(v_eff::numeric)::double precision);
+  exception when others then
+    return p_price; -- NaN/Infinity сияқты бүлінген мән — жеңілдік жоқ деп
+  end;
+  return least(v_eff, p_price);
+end;
+$$;
+revoke execute on function public._batch_effective_price(double precision, jsonb, timestamptz)
+  from public, anon, authenticated;
+
+create or replace function public._batch_discount_pct(
+  p_price double precision, p_discount jsonb, p_at timestamptz default now())
+returns integer
+language plpgsql stable set search_path = public as $$
+declare
+  v_eff double precision;
+begin
+  if p_price is null or p_price <= 0 then return 0; end if;
+  v_eff := public._batch_effective_price(p_price, p_discount, p_at);
+  if v_eff is null or v_eff >= p_price then return 0; end if;
   return round(((1 - v_eff / p_price) * 100)::numeric)::integer;
 end;
 $$;
@@ -337,7 +371,8 @@ revoke execute on function public._discount_follow_push(uuid, uuid, uuid, intege
   from public, anon, authenticated;
 
 --  Триггер: жеңілдік ҚАЗІР белсенді әрі (бұрын болмаған не пайызы өскен)
---  кезде ғана. INSERT (повторный завоз ескі жеңілдікті көшірсе) — сол тауардың
+--  әрі тиімді баға шын төмендеген кезде ғана (бағаны көтеріп «−50%» қою —
+--  хабар жоқ). INSERT (повторный завоз ескі жеңілдікті көшірсе) — сол тауардың
 --  басқа партиясында одан үлкен/тең жеңілдік бұрыннан бар болса үнсіз.
 --  Push қатесі иесінің жеңілдікті сақтауын ЕШҚАШАН бұзбайды.
 create or replace function public.on_batch_discount_follow_push()
@@ -346,21 +381,39 @@ language plpgsql security definer set search_path = public as $$
 declare
   v_new   integer;
   v_old   integer := 0;
+  v_new_eff double precision;
+  v_old_eff double precision;
   v_owner uuid;
 begin
   if not public.feature_enabled('store_follow') then return null; end if;
   begin
     v_new := public._batch_discount_pct(new.selling_price, new.discount);
     if v_new <= 0 then return null; end if;
+    v_new_eff := public._batch_effective_price(new.selling_price, new.discount);
     if tg_op = 'UPDATE' then
       v_old := public._batch_discount_pct(old.selling_price, old.discount);
+      v_old_eff := public._batch_effective_price(old.selling_price, old.discount);
     else
-      select coalesce(max(public._batch_discount_pct(b.selling_price, b.discount)), 0)
-        into v_old
+      select coalesce(max(public._batch_discount_pct(b.selling_price, b.discount)), 0),
+             min(public._batch_effective_price(b.selling_price, b.discount))
+        into v_old, v_old_eff
         from public.batches b
         where b.product_id = new.product_id and b.id <> new.id;
     end if;
-    if v_new <= v_old then return null; end if;
+    -- Жалған жеңілдік: бағаны көтеріп, бір мезетте жеңілдік қосу — пайыз өсті,
+    -- бірақ сатып алушы бұрынғыдан арзан алмайды. Тиімді баға ТӨМЕНДЕМЕСЕ
+    -- (INSERT: сол тауардың ең арзан басқа партиясынан) — хабар жоқ.
+    if v_new <= v_old
+       or (v_old_eff is not null and v_new_eff is not null and v_new_eff >= v_old_eff) then
+      -- Сақтау сәтінде бұрыннан белсенді жеңілдік «өңделді» деп белгіленеді:
+      -- әйтпесе starts_at өткен уақытта тұрса (повторный завоз көшірмесі,
+      -- пайызды төмендету) cron оны «басталды» деп қайта push жіберер еді.
+      insert into public.discount_push_log(batch_id, starts_at, notified_at)
+        values (new.id, public._discount_ts(new.discount ->> 'starts_at'), now())
+        on conflict (batch_id) do update
+          set starts_at = excluded.starts_at, notified_at = excluded.notified_at;
+      return null;
+    end if;
     v_owner := coalesce(new.owner_uid,
                         (select owner_uid from public.products where id = new.product_id));
     perform public._discount_follow_push(
@@ -561,6 +614,21 @@ create index if not exists store_stories_expires_idx
 -- екіншісі «бос» қалмасын.
 create unique index if not exists store_stories_image_uniq
   on public.store_stories(image_url);
+-- URL бойынша бірегейлік ЖЕТКІЛІКСІЗ: Cloudinary бір суретті версиясыз
+-- (…/upload/qoima_stories/x.jpg), басқа версиямен (v1/…) не басқа кеңейтіммен
+-- (.png) де береді, ал cloudinary-cleanup өшіргенде тек public_id-ді алады
+-- (publicIdFromUrl: v123/ және кеңейтім алынады). Сондықтан бөтен дүкен сол
+-- суреттің «синонимін» сторис етіп, өшіріп, біреудің сторисін жойып жібере
+-- алатын. Бірегейлік public_id бойынша — publicIdFromUrl-дың дәл көшірмесі.
+alter table public.store_stories
+  add column if not exists public_id text generated always as (
+    regexp_replace(
+      regexp_replace(image_url,
+        '^https://res\.cloudinary\.com/divynstru/image/upload/(v[0-9]+/)?', ''),
+      '\.[^./]*$', '')
+  ) stored;
+create unique index if not exists store_stories_public_id_uniq
+  on public.store_stories(public_id);
 
 alter table public.store_stories enable row level security;
 revoke insert, update, delete, truncate on public.store_stories from anon, authenticated;
@@ -646,7 +714,14 @@ begin
   select count(*) into v_cnt from public.store_stories
     where store_uid = v_owner and expires_at > now();
   if v_cnt >= 10 then raise exception 'stories_limit'; end if;
-  if exists (select 1 from public.store_stories where image_url = v_url) then
+  -- Сол Cloudinary суреті (public_id — версия/кеңейтімсіз) бұрыннан стористе
+  -- тұрса — бас тарту (бағандағы бірегей индекс те ұстайды; мұнда — түсінікті қате).
+  if exists (select 1 from public.store_stories
+             where image_url = v_url
+                or public_id = regexp_replace(
+                     regexp_replace(v_url,
+                       '^https://res\.cloudinary\.com/divynstru/image/upload/(v[0-9]+/)?', ''),
+                     '\.[^./]*$', '')) then
     raise exception 'invalid_image_url';
   end if;
 

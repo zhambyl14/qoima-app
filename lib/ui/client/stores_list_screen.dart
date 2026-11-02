@@ -9,6 +9,7 @@ import '../../data/services/client_service.dart';
 import '../../theme/qoima_design.dart';
 import '../auth/login_screen.dart';
 import 'addresses_screen.dart';
+import 'follow/store_follow_button.dart';
 import 'store_public_screen.dart';
 import 'stores_map_screen.dart';
 import '../shared/error_view.dart';
@@ -589,6 +590,12 @@ class _StoreCard extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis),
                   ],
+                  // 0084: жазылу (жалауша өшік не өз дүкені болса — жоқ)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: StoreFollowButton(
+                        storeUid: store.adminUid, compact: true),
+                  ),
                 ]),
           ),
           const SizedBox(width: 4),

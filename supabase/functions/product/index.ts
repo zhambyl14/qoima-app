@@ -95,6 +95,214 @@ async function rest(path: string): Promise<any[] | null> {
   }
 }
 
+// ── Категория сипаттамалары (0085, products.attributes) ──────────────────────
+// lib/data/models/category_attributes.dart схемасының көшірмесі: [кілт, орысша
+// белгі, бірлік]. Тәртіп — схема тәртібі. Мәндер DB-де орысша канондық, сондықтан
+// бет (орысша) аударусыз көрсетеді. Схемада жоқ кілт ЕШҚАШАН шықпайды.
+// ⚠️ Dart схемасы өзгерсе, осыны да жаңартыңыз (test/product_share_attributes_test.dart
+// екі жақтың сәйкестігін тексереді).
+const ATTR_SCHEMA: Record<string, [string, string, string][]> = {
+  "shoes": [
+    ["heel_height", "Каблук", ""],
+    ["closure", "Застёжка", ""],
+    ["sole", "Подошва", ""],
+    ["insulation", "Утепление", ""],
+  ],
+  "tshirt": [
+    ["fit", "Посадка", ""],
+    ["sleeve", "Рукав", ""],
+    ["neckline", "Вырез / воротник", ""],
+  ],
+  "outer": [
+    ["insulation", "Утеплитель", ""],
+    ["temp_rating", "Для температуры", ""],
+    ["length", "Длина", ""],
+    ["hood", "Капюшон", ""],
+    ["closure", "Застёжка", ""],
+  ],
+  "pants": [
+    ["fit", "Крой", ""],
+    ["rise", "Посадка", ""],
+    ["length", "Длина", ""],
+  ],
+  "dress": [
+    ["length", "Длина", ""],
+    ["silhouette", "Силуэт", ""],
+    ["sleeve", "Рукав", ""],
+    ["occasion", "Повод", ""],
+  ],
+  "caps": [
+    ["insulation", "Утепление", ""],
+    ["adjustable", "Регулировка размера", ""],
+  ],
+  "underwear": [
+    ["pack_qty", "В упаковке", "шт."],
+    ["cup", "Чашка", ""],
+    ["density_den", "Плотность", "ден"],
+  ],
+  "acc": [
+    ["bag_volume_l", "Объём", "л"],
+    ["strap_length_cm", "Длина ремня / ручки", "см"],
+    ["lens", "Линзы", ""],
+  ],
+  "jewelry": [
+    ["metal", "Металл", ""],
+    ["fineness", "Проба", ""],
+    ["stone", "Камень", ""],
+    ["weight_g", "Вес", "г"],
+  ],
+  "sport": [
+    ["sport_kind", "Вид спорта", ""],
+    ["level", "Уровень", ""],
+    ["max_load_kg", "Макс. нагрузка", "кг"],
+  ],
+  "kids": [
+    ["for_whom", "Для кого", ""],
+    ["height_cm", "Рост", ""],
+    ["max_weight_kg", "Вес ребёнка до", "кг"],
+  ],
+  "toys": [
+    ["age_group", "Возраст", ""],
+    ["battery", "Питание", ""],
+    ["pieces", "Деталей", "шт."],
+  ],
+  "beauty": [
+    ["volume_ml", "Объём", "мл"],
+    ["skin_type", "Тип кожи / волос", ""],
+    ["shade", "Оттенок / аромат", ""],
+    ["best_before", "Годен до", ""],
+  ],
+  "pharmacy": [
+    ["dosage_form", "Форма выпуска", ""],
+    ["pack_qty", "В упаковке", "шт."],
+    ["prescription", "Отпуск", ""],
+    ["best_before", "Годен до", ""],
+  ],
+  "electronics": [
+    ["model", "Модель", ""],
+    ["condition", "Состояние", ""],
+    ["warranty_months", "Гарантия", "мес."],
+    ["screen_inch", "Диагональ", "″"],
+    ["connection", "Подключение", ""],
+    ["power_w", "Мощность", "Вт"],
+  ],
+  "phones": [
+    ["condition", "Состояние", ""],
+    ["ram_gb", "Оперативная память", ""],
+    ["sim", "SIM-карты", ""],
+    ["warranty_months", "Гарантия", "мес."],
+    ["compatibility", "Совместимость", ""],
+  ],
+  "computers": [
+    ["processor", "Процессор", ""],
+    ["ram_gb", "Оперативная память", ""],
+    ["storage", "Накопитель", ""],
+    ["screen_inch", "Диагональ", "″"],
+    ["condition", "Состояние", ""],
+    ["warranty_months", "Гарантия", "мес."],
+  ],
+  "appliances": [
+    ["power_w", "Мощность", "Вт"],
+    ["energy_class", "Класс энергопотребления", ""],
+    ["volume_l", "Объём", "л"],
+    ["dimensions", "Размеры (Ш×В×Г)", ""],
+    ["warranty_months", "Гарантия", "мес."],
+  ],
+  "furniture": [
+    ["dimensions", "Размеры (Ш×В×Г)", ""],
+    ["assembly", "Сборка", ""],
+    ["room", "Комната", ""],
+    ["max_load_kg", "Макс. нагрузка", "кг"],
+  ],
+  "textile": [
+    ["dimensions", "Размеры", ""],
+    ["composition", "Состав", ""],
+    ["pillowcase", "Наволочки", ""],
+    ["density_gsm", "Плотность", "г/м²"],
+  ],
+  "dishes": [
+    ["set_size", "Предметов в наборе", "шт."],
+    ["volume_l", "Объём", "л"],
+    ["stove", "Для плит", ""],
+    ["dishwasher", "Посудомойка", ""],
+  ],
+  "home": [
+    ["dimensions", "Размеры (Ш×В×Г)", ""],
+    ["power_source", "Питание", ""],
+    ["set_size", "Предметов в наборе", "шт."],
+  ],
+  "garden": [
+    ["power_source", "Питание", ""],
+    ["dimensions", "Размеры (Ш×В×Г)", ""],
+    ["pack_weight_g", "Вес упаковки", "г"],
+  ],
+  "tools": [
+    ["power_source", "Питание", ""],
+    ["power_w", "Мощность", "Вт"],
+    ["battery_v", "Напряжение аккумулятора", "В"],
+    ["warranty_months", "Гарантия", "мес."],
+  ],
+  "auto": [
+    ["compatibility", "Подходит для авто", ""],
+    ["condition", "Состояние", ""],
+    ["tire_size", "Размер шин / дисков", ""],
+    ["tire_season", "Сезонность шин", ""],
+    ["volume_l", "Объём", "л"],
+  ],
+  "pets": [
+    ["pet_kind", "Для кого", ""],
+    ["pet_age", "Возраст питомца", ""],
+    ["pet_size", "Размер породы", ""],
+    ["net_weight_kg", "Вес", "кг"],
+  ],
+  "books": [
+    ["author", "Автор", ""],
+    ["language", "Язык", ""],
+    ["cover", "Переплёт", ""],
+    ["pages", "Страниц", "стр."],
+    ["publisher", "Издательство", ""],
+    ["year", "Год издания", ""],
+  ],
+  "stationery": [
+    ["pack_qty", "В упаковке", "шт."],
+    ["sheets", "Листов", "л."],
+    ["ruling", "Линовка", ""],
+    ["paper_format", "Формат", ""],
+  ],
+  "grocery": [
+    ["net_weight", "Вес / объём", ""],
+    ["best_before", "Годен до", ""],
+    ["storage", "Хранение", ""],
+    ["halal", "Халал", ""],
+  ],
+};
+
+function attrText(raw: unknown, unit: string): string {
+  let v = "";
+  if (Array.isArray(raw)) {
+    v = raw.map((e) => String(e ?? "").trim()).filter(Boolean).join(", ");
+  } else if (typeof raw === "number") {
+    if (!Number.isFinite(raw)) return "";
+    v = Number.isInteger(raw) ? String(raw) : String(Math.round(raw * 100) / 100);
+    if (unit) v += ` ${unit}`;
+  } else if (typeof raw === "string") {
+    v = raw.trim();
+  }
+  return v.length > 200 ? v.slice(0, 200) : v;
+}
+
+// Толтырылған сипаттамалар схема тәртібімен: [белгі, мән][].
+function attributeSpecs(categoryKey: unknown, attrs: unknown): [string, string][] {
+  if (!attrs || typeof attrs !== "object" || Array.isArray(attrs)) return [];
+  const defs = ATTR_SCHEMA[String(categoryKey || "shoes")] ?? [];
+  const out: [string, string][] = [];
+  for (const [key, label, unit] of defs) {
+    const text = attrText((attrs as Record<string, unknown>)[key], unit);
+    if (text) out.push([label, text]);
+  }
+  return out;
+}
+
 // ── Қателік/404 беті ──────────────────────────────────────────────────────────
 function notFound(): Response {
   const html = `<!doctype html><html xmlns="http://www.w3.org/1999/xhtml" lang="ru"><head>
@@ -219,8 +427,17 @@ Deno.serve(async (req) => {
   push("Для кого", product.category);
   push("Цвет", product.color);
   push("Материал", product.material);
-  push("Сезон", product.season);
+  // 0083-тен бері бірнеше маусым «Лето,Зима» түрінде сақталады — оқуға ыңғайлы етіп.
+  push("Сезон", String(product.season ?? "").split(",").map((s) => s.trim()).filter(Boolean).join(", "));
   push("Страна", product.country);
+  // 0085 бағаны жоқ ескі БД-да бөлек сұраныс жай null қайтарады — бет сынбайды.
+  const attrRows = await rest(`products?id=eq.${id}&limit=1&select=attributes`);
+  for (const [label, text] of attributeSpecs(
+    product.category_key,
+    attrRows?.[0]?.attributes,
+  )) {
+    specs.push([label, text]);
+  }
 
   const sizesHtml = availSizes
     .map((s) => `<span class="size">${esc(s)}</span>`)

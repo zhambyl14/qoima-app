@@ -53,12 +53,13 @@ class StoreUsage {
 
   /// Желі/RLS қатесінде бос қайтады: форма әдепкі тізіммен жұмыс істей береді.
   static Future<StoreUsage> load({SupabaseClient? client}) async {
-    final sb = client ?? Supabase.instance.client;
-    final owner = AppUser.current.ownerUid.isNotEmpty
-        ? AppUser.current.ownerUid
-        : (sb.auth.currentUser?.id ?? '');
-    if (owner.isEmpty) return const StoreUsage();
     try {
+      final sb = client ?? Supabase.instance.client;
+      // AppUser әлі құрылмаған болса (late) — бос нәтиже, форма құламайды.
+      final owner = AppUser.current.ownerUid.isNotEmpty
+          ? AppUser.current.ownerUid
+          : (sb.auth.currentUser?.id ?? '');
+      if (owner.isEmpty) return const StoreUsage();
       final results = await Future.wait<Object?>([
         sb.from('products').select('category_key, country').eq('owner_uid', owner),
         sb

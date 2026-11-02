@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/error_text.dart';
 import '../../../core/feature_flags.dart';
 import '../../../core/warehouse_context.dart';
+import '../../../data/models/category_attributes.dart';
 import '../../../data/models/description_templates.dart';
 import '../../../data/services/product_assist_service.dart';
 import '../../../data/models/models.dart';
@@ -27,6 +28,7 @@ import 'ai/ai_description_assist.dart';
 import 'ai/ai_fill_card.dart';
 import 'ai/non_returnable_fields.dart';
 import 'bilingual_description.dart';
+import 'category_attributes_editor.dart';
 import 'category_groups.dart';
 import 'category_picker.dart';
 import 'country_chips.dart';
@@ -138,6 +140,14 @@ class _AddProductScreenState extends State<AddProductScreen> {
   // DB-ге ProductModel.joinSeasons арқылы 'Лето,Зима' болып жазылады.
   final Set<String> _seasons = {};
   DateTime _dateArrived = DateTime.now();
+
+  // Категория сипаттамалары (0085): {кілт: мән}, схемасы category_attributes.dart.
+  // Түр/кімге ауысқанда сақталады, КАТЕГОРИЯ ауысқанда тазарады (кілттері
+  // басқа категорияға жатпайды).
+  Map<String, dynamic> _attrs = {};
+
+  // Категория бойынша қай ортақ өріс керек (түс/маусым/материал).
+  CategoryVisibility get _vis => visibilityFor(_categoryKey);
 
   bool get _isShoes => _categoryKey == 'shoes';
 
@@ -262,6 +272,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
     _purchaseCtrl.text = t.purchase;
     _sellingCtrl.text = t.selling;
     _descHadText = t.description.isNotEmpty || t.descriptionKk.isNotEmpty;
+    _attrs = sanitizeAttributes(t.categoryKey, t.attributes);
+    if (!_vis.needsSeason) _seasons.clear();
+    _syncVariantsWithCategory();
     _recomputeSizes();
   }
 
@@ -523,28 +536,50 @@ class _AddProductScreenState extends State<AddProductScreen> {
 
   /// Түсті қосу (бірегей нұсқа кілтімен). [hex] берілсе — ерекше (custom) түс.
   /// Қолмен шақырылмайды: UI тек [_toggleColor] арқылы, сондықтан дубль болмайды.
-  void _addColorVariant(String colorName, {String hex = ''}) {
-    setState(() {
-      final key = '$colorName#${++_variantKeySeq}';
-      _selectedColors.add(key);
-      _variantColorOf[key] = colorName;
-      if (hex.isNotEmpty) _variantHexOf[key] = hex;
-      _variantQuickOf[key] = TextEditingController();
-      _variantSizes[key] = {
-        for (final s in _sizesForSelection()) s: 0,
-        for (final s in _customSizes) s: 0,
-      };
-      // Түс таңдалғанға дейін «AI көмегі» карточкасына түсірілген фото
-      // бірінші нұсқаға көшеді (қайта түсірудің қажеті жоқ).
-      if (_selectedColors.length == 1) {
-        _variantImages[key] = List<Uint8List>.of(_aiPending);
-        _aiPending.clear();
-      } else {
-        _variantImages[key] = [];
-      }
-      _activeColor ??= key;
-    });
+  void _addColorVariant(String colorName, {String hex = ''}) =>
+      setState(() => _addVariantRaw(colorName, hex: hex));
+
+  /// setState-сіз нұсқа қосу (категория ауысуы бір setState ішінде істейді).
+  /// [colorName] бос = түссіз категорияның жасырын нұсқасы.
+  void _addVariantRaw(String colorName, {String hex = ''}) {
+    final key = '$colorName#${++_variantKeySeq}';
+    _selectedColors.add(key);
+    _variantColorOf[key] = colorName;
+    if (hex.isNotEmpty) _variantHexOf[key] = hex;
+    _variantQuickOf[key] = TextEditingController();
+    _variantSizes[key] = {
+      for (final s in _sizesForSelection()) s: 0,
+      for (final s in _customSizes) s: 0,
+    };
+    // Түс таңдалғанға дейін «AI көмегі» карточкасына түсірілген фото
+    // бірінші нұсқаға көшеді (қайта түсірудің қажеті жоқ).
+    if (_selectedColors.length == 1) {
+      _variantImages[key] = List<Uint8List>.of(_aiPending);
+      _aiPending.clear();
+    } else {
+      _variantImages[key] = [];
+    }
+    _activeColor ??= key;
   }
+
+  /// Түс нұсқаларын категорияға сәйкестендіру (setState-сіз; шақырушы орайды).
+  /// Түссіз категория → дәл бір жасырын нұсқа; түсті категория → жасырын нұсқа
+  /// алынады. Алынған нұсқалардың ішінен тек БІРІНШІСІНІҢ фотосы сақталады
+  /// (_removeVariantRaw оны AI карточкасына қайтарады).
+  void _syncVariantsWithCategory() {
+    final plan = planVariantsFor(
+        needsColor: _vis.needsColor,
+        colors: [for (final k in _selectedColors) _baseColor(k)]);
+    if (plan == VariantPlan.keep) return;
+    for (final k in List<String>.of(_selectedColors.reversed)) {
+      _removeVariantRaw(k);
+    }
+    if (plan == VariantPlan.makeImplicit) _addVariantRaw(kNoColor);
+  }
+
+  /// Түссіз категорияның жасырын нұсқасы ма.
+  bool get _isColorless =>
+      _selectedColors.length == 1 && _baseColor(_selectedColors.first).isEmpty;
 
   /// Түс аты бойынша таңдалған нұсқа кілті (жоқ болса null).
   String? _keyOfColor(String name) =>
@@ -619,28 +654,31 @@ class _AddProductScreenState extends State<AddProductScreen> {
   }
 
   /// Нұсқаны (кілт бойынша) алып тастау.
-  void _removeVariant(String key) {
-    setState(() {
-      final imgs = _variantImages[key];
-      _selectedColors.remove(key);
-      // Соңғы нұсқа кетсе, фото AI карточкасында қалады.
-      if (_selectedColors.isEmpty && imgs != null) {
-        _aiPending.addAll(imgs);
-      } else {
-        imgs?.forEach(_photoOriginals.remove);
-      }
-      if (_aiColorKey == key) _aiColorKey = null;
-      _variantColorOf.remove(key);
-      _variantHexOf.remove(key);
-      _variantQuickOf.remove(key)?.dispose();
-      _variantSizes.remove(key);
-      _variantImages.remove(key);
-      _savedColors.remove(key);
-      if (_activeColor == key) {
-        _activeColor =
-            _selectedColors.isNotEmpty ? _selectedColors.first : null;
-      }
-    });
+  void _removeVariant(String key) => setState(() => _removeVariantRaw(key));
+
+  void _removeVariantRaw(String key) {
+    final imgs = _variantImages[key];
+    _selectedColors.remove(key);
+    // Соңғы нұсқа кетсе, фото AI карточкасында қалады.
+    if (_selectedColors.isEmpty && imgs != null) {
+      _aiPending.addAll(imgs);
+    } else {
+      imgs?.forEach(_photoOriginals.remove);
+    }
+    if (_aiColorKey == key) _aiColorKey = null;
+    _variantColorOf.remove(key);
+    _variantHexOf.remove(key);
+    // Өріс әлі экранда болуы мүмкін — контроллерді кадр соңында жабамыз.
+    final quick = _variantQuickOf.remove(key);
+    if (quick != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => quick.dispose());
+    }
+    _variantSizes.remove(key);
+    _variantImages.remove(key);
+    _savedColors.remove(key);
+    if (_activeColor == key) {
+      _activeColor = _selectedColors.isNotEmpty ? _selectedColors.first : null;
+    }
   }
 
   List<String> get _currentMaterials =>
@@ -651,13 +689,62 @@ class _AddProductScreenState extends State<AddProductScreen> {
 
   void _onCategoryKeyChanged(String key) {
     setState(() {
+      // Сипаттама кілттері категорияға тиесілі — тек БАСҚА категорияда тазарады.
+      if (_categoryKey != key) _attrs = {};
       _categoryKey = key;
       _type = null; // тип зависит от категории
       _targetGroup = null;
       _material = null;
+      // Маусым тек киім/спорт/балаларға: жасырын өрісте мән қалмасын.
+      if (!_vis.needsSeason) _seasons.clear();
+      _syncVariantsWithCategory();
       _recomputeSizes();
     });
     _loadBrands(); // осы виддің брендтері
+  }
+
+  /// Иесі категорияны басқанда: толтырылған сипаттамалар не түс деректері
+  /// жоғалатын болса — алдымен сұраймыз.
+  Future<void> _pickCategory(String key) async {
+    if (key != _categoryKey) {
+      final next = visibilityFor(key);
+      final plan = planVariantsFor(
+          needsColor: next.needsColor,
+          colors: [for (final k in _selectedColors) _baseColor(k)]);
+      // Бірінші нұсқаның фотосы сақталады, қалғанының деректері жоғалады.
+      final losesVariants = plan != VariantPlan.keep &&
+          _selectedColors.skip(1).any(_variantHasData);
+      final losesQuick = plan != VariantPlan.keep &&
+          _selectedColors.any(
+              (k) => _variantQuickOf[k]?.text.trim().isNotEmpty ?? false);
+      if (_attrs.isNotEmpty || losesVariants || losesQuick) {
+        final ok = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: Text(tr('Сменить категорию?', 'Категорияны ауыстыру керек пе?')),
+            content: Text(
+                tr('Характеристики и данные цветов этой категории будут сброшены.',
+                    'Осы категорияның сипаттамалары мен түс деректері тазаланады.'),
+                style: manrope(13.5, FontWeight.w500, color: cInk2)),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: Text(tr('Отмена', 'Болдырмау'))),
+              ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: cGreen, foregroundColor: Colors.white),
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: Text(tr('Сменить', 'Ауыстыру'))),
+            ],
+          ),
+        );
+        if (ok != true || !mounted) return;
+      }
+    }
+    _memValues.clear();
+    _onCategoryKeyChanged(key);
   }
 
   void _onTargetGroupChanged(String group) {
@@ -841,8 +928,26 @@ class _AddProductScreenState extends State<AddProductScreen> {
             'Тауар кімге арналғанын таңдаңыз'));
         return false;
       }
-      if (_selectedColors.isEmpty) {
+      // Түссіз категорияда жасырын нұсқа әрқашан бар; жоқ болса (қандай да бір
+      // жарыс салдарынан) — қалпына келтіреміз, иесіне қате көрсетпейміз.
+      if (!_vis.needsColor &&
+          !colorsSatisfied(
+              needsColor: false,
+              colors: [for (final k in _selectedColors) _baseColor(k)])) {
+        setState(_syncVariantsWithCategory);
+      }
+      if (_vis.needsColor &&
+          !colorsSatisfied(
+              needsColor: true,
+              colors: [for (final k in _selectedColors) _baseColor(k)])) {
         _err(tr('Выберите хотя бы один цвет', 'Кемінде бір түс таңдаңыз'));
+        return false;
+      }
+      final missingAttr = missingRequiredAttributes(_categoryKey, _attrs);
+      if (missingAttr.isNotEmpty) {
+        final d = missingAttr.first;
+        _err(tr('Укажите «${d.label}» в характеристиках',
+            'Сипаттамада «${d.label}» көрсетіңіз'));
         return false;
       }
       // Жылдам кодтар бір-бірін қайталамауы керек (форманың ІШІНДЕ). Дүкен
@@ -881,8 +986,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
       for (final color in _selectedColors) {
         if (_variantTotal(color) == 0) {
           setState(() => _activeColor = color);
-          _err(tr('Укажите количество для «${trValue(_baseColor(color))}»',
-              '«${trValue(_baseColor(color))}» нұсқасына сан енгізіңіз'));
+          _err(_baseColor(color).isEmpty
+              ? tr('Укажите количество товара', 'Тауар санын енгізіңіз')
+              : tr('Укажите количество для «${trValue(_baseColor(color))}»',
+                  '«${trValue(_baseColor(color))}» нұсқасына сан енгізіңіз'));
           return false;
         }
       }
@@ -941,6 +1048,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
     if (!mounted) return;
     final warehouseId = context.read<WarehouseContext>().current?.id ?? '';
     final totalN = _selectedColors.length;
+    // Сипаттамалар барлық түс нұсқаларына ортақ (модельге тиесілі).
+    final attributes = sanitizeAttributes(_categoryKey, _attrs);
+    final season = _vis.needsSeason ? ProductModel.joinSeasons(_seasons) : '';
+    final material = _vis.needsMaterial ? (_material ?? '') : '';
     String currentColor = '';
     try {
       for (final color in _selectedColors) {
@@ -972,9 +1083,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
           name: _nameCtrl.text.trim(),
           brand: _brandCtrl.text.trim(),
           type: _type ?? '',
-          material: _material ?? '',
+          material: material,
           category: _targetGroup ?? '',
           categoryKey: _categoryKey ?? '',
+          // Түссіз категорияда '' — карточкалар түсті тек бос емес болса көрсетеді.
           color: colorName,
           customColorHex: _variantHexOf[color] ?? '',
           articul: '',
@@ -985,11 +1097,12 @@ class _AddProductScreenState extends State<AddProductScreen> {
           description: _descCtrl.text.trim(),
           descriptionKk: _descKkCtrl.text.trim(),
           country: _countryCtrl.text.trim(),
-          season: ProductModel.joinSeasons(_seasons),
+          season: season,
           nonReturnable: _returnFieldsActive && _nonReturnable,
           returnNote: _returnFieldsActive && _nonReturnable
               ? _returnNoteCtrl.text.trim()
               : '',
+          attributes: attributes,
         );
         await _firestoreService.addNewProduct(
           product: product,
@@ -1031,9 +1144,16 @@ class _AddProductScreenState extends State<AddProductScreen> {
       }
     } catch (e) {
       final saved = _savedColors.length;
-      _err(tr(
-          'Ошибка при сохранении «${trValue(_baseColor(currentColor))}»: $e\nСохранено $saved из $totalN. Нажмите «Сохранить» ещё раз — готовые не продублируются.',
-          '«${trValue(_baseColor(currentColor))}» сақтау қатесі: $e\n$totalN ішінен $saved сақталды. «Сақтау» қайта басыңыз — дайындар қайталанбайды.'));
+      final colorName = _baseColor(currentColor);
+      if (colorName.isEmpty) {
+        // Түссіз (жалғыз) тауар: «0 из 1» деген жазу артық, тек себебі.
+        _err(tr('Не удалось сохранить товар: ${friendlyError(e)}',
+            'Тауарды сақтау мүмкін болмады: ${friendlyError(e)}'));
+      } else {
+        _err(tr(
+            'Ошибка при сохранении «${trValue(colorName)}»: $e\nСохранено $saved из $totalN. Нажмите «Сохранить» ещё раз — готовые не продублируются.',
+            '«${trValue(colorName)}» сақтау қатесі: $e\n$totalN ішінен $saved сақталды. «Сақтау» қайта басыңыз — дайындар қайталанбайды.'));
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -1046,14 +1166,15 @@ class _AddProductScreenState extends State<AddProductScreen> {
         audience: _targetGroup ?? '',
         name: _nameCtrl.text.trim(),
         brand: _brandCtrl.text.trim(),
-        season: ProductModel.joinSeasons(_seasons),
-        material: _material ?? '',
+        season: _vis.needsSeason ? ProductModel.joinSeasons(_seasons) : '',
+        material: _vis.needsMaterial ? (_material ?? '') : '',
         country: _countryCtrl.text.trim(),
         keywords: _keywordsCtrl.text.trim(),
         description: _descCtrl.text.trim(),
         descriptionKk: _descKkCtrl.text.trim(),
         purchase: _purchaseCtrl.text.trim(),
         selling: _sellingCtrl.text.trim(),
+        attributes: sanitizeAttributes(_categoryKey, _attrs),
       );
 
   void _err(String msg) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -1125,12 +1246,17 @@ class _AddProductScreenState extends State<AddProductScreen> {
       'category_key': own('category', _categoryKey),
       'type': own('type', _type),
       'category': own('audience', _targetGroup),
+      // Түссіз категорияда жасырын нұсқаның түсі '' — AI-ға жіберілмейді.
       'color':
           _selectedColors.isEmpty ? '' : _baseColor(_selectedColors.first),
-      'material': _material ?? '',
-      'season': ProductModel.joinSeasons(_seasons),
+      'material': _vis.needsMaterial ? (_material ?? '') : '',
+      'season': _vis.needsSeason ? ProductModel.joinSeasons(_seasons) : '',
       'sizes': sizes.join(', '),
       'country': _countryCtrl.text,
+      // Сипаттамалар (орысша қысқа жол). Сервер бұл кілтті әзірге елемейді —
+      // ai-product-assist FIELD_KEYS-ке қосылғанда сипаттама дәлірек болады.
+      if (_attrs.isNotEmpty)
+        'attributes': attributesSummaryRu(_categoryKey, _attrs),
     };
   }
 
@@ -1273,6 +1399,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
         mark('audience', s.category);
       }
       if (_material == null &&
+          _vis.needsMaterial &&
           s.material.isNotEmpty &&
           _currentMaterials.contains(s.material)) {
         setState(() {
@@ -1282,14 +1409,17 @@ class _AddProductScreenState extends State<AddProductScreen> {
         mark('material', s.material);
       }
     }
-    if (_seasons.isEmpty && kSeasons.contains(s.season)) {
+    // Маусым мен түс — тек категорияда сол өріс бар болса (кітапқа түс,
+    // тоңазытқышқа маусым қойылмайды; жасырын өріске мән түсіп қалмасын).
+    if (_vis.needsSeason && _seasons.isEmpty && kSeasons.contains(s.season)) {
       setState(() {
         _seasons.add(s.season);
         _moreUserClosed = false;
       });
       mark('season', s.season);
     }
-    if (_selectedColors.isEmpty &&
+    if (_vis.needsColor &&
+        _selectedColors.isEmpty &&
         ProductModel.colorOptions.any((o) => o['name'] == s.color)) {
       _addColorVariant(s.color);
       _aiColorKey = _selectedColors.first;
@@ -1489,7 +1619,11 @@ class _AddProductScreenState extends State<AddProductScreen> {
           _descCtrl.text.trim().isNotEmpty ||
           _descKkCtrl.text.trim().isNotEmpty ||
           _brandCtrl.text.trim().isNotEmpty ||
-          _selectedColors.isNotEmpty ||
+          // Түссіз категорияның жасырын нұсқасы өзі «дерек» емес — тек
+          // ішінде сан/фото/код болса.
+          _selectedColors.any(
+              (k) => _baseColor(k).isNotEmpty || _variantHasData(k)) ||
+          _attrs.isNotEmpty ||
           _purchaseCtrl.text.trim().isNotEmpty ||
           _sellingCtrl.text.trim().isNotEmpty);
 
@@ -1948,10 +2082,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
             storeCategory: _usage.storeCategory,
             selected: _categoryKey,
           ),
-          onSelected: (k) {
-            _memValues.clear();
-            _onCategoryKeyChanged(k);
-          },
+          onSelected: _pickCategory,
         ),
         _needHint(_categoryKey == null,
             tr('Выберите категорию', 'Категорияны таңдаңыз')),
@@ -1970,6 +2101,17 @@ class _AddProductScreenState extends State<AddProductScreen> {
           _buildTargetGroupPicker(),
           _needHint(_targetGroup == null,
               tr('Выберите, кому предназначен товар', 'Кімге арналғанын таңдаңыз')),
+        ],
+        // Әр категорияның ӨЗ сипаттамалары (телефонда жады, кітапта тілі т.б.).
+        // Түр/кімге ауысса мәндер сақталады; категория ауысса — тазарады.
+        if (_categoryKey != null && attributesFor(_categoryKey).isNotEmpty) ...[
+          const SizedBox(height: 16),
+          CategoryAttributesEditor(
+            categoryKey: _categoryKey,
+            values: _attrs,
+            showErrors: _attempted0,
+            onChanged: (v) => setState(() => _attrs = v),
+          ),
         ],
         // Категория таңдалмайынша қалған өрістердің мәні жоқ — ұсыныстар
         // қате категориядан келеді. Сондықтан оларды әдейі кейін көрсетеміз.
@@ -2033,16 +2175,20 @@ class _AddProductScreenState extends State<AddProductScreen> {
             _buildSimilarWarning(),
           ],
         ],
-        const SizedBox(height: 16),
-        Row(children: [
-          _Label(tr('Цвет *', 'Түсі *')),
-          if (_aiColorKey != null && _selectedColors.contains(_aiColorKey))
-            const AiMark(),
-        ]),
-        const SizedBox(height: 10),
-        _buildColorPicker(),
-        _needHint(_selectedColors.isEmpty,
-            tr('Выберите хотя бы один цвет', 'Кемінде бір түс таңдаңыз')),
+        // Түс — тек сатып алушы түсіне қарап таңдайтын категорияда. Кітап,
+        // азық-түлік, дәрі т.б. түссіз: тауар бір жасырын нұсқа болып сақталады.
+        if (_vis.needsColor) ...[
+          const SizedBox(height: 16),
+          Row(children: [
+            _Label(tr('Цвет *', 'Түсі *')),
+            if (_aiColorKey != null && _selectedColors.contains(_aiColorKey))
+              const AiMark(),
+          ]),
+          const SizedBox(height: 10),
+          _buildColorPicker(),
+          _needHint(_selectedColors.isEmpty,
+              tr('Выберите хотя бы один цвет', 'Кемінде бір түс таңдаңыз')),
+        ],
         const SizedBox(height: 16),
         _buildMoreSection(),
         // «Қайтарылмайтын тауар» — тек суперадмин дүкенге рұқсат бергенде.
@@ -2134,7 +2280,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
         ),
       ),
       if (open) ...[
-        if (_categoryKey != null && _currentMaterials.isNotEmpty) ...[
+        if (_categoryKey != null &&
+            _vis.needsMaterial &&
+            _currentMaterials.isNotEmpty) ...[
           const SizedBox(height: 16),
           _aiLabel(tr('Материал (необязательно)', 'Материал (міндетті емес)'),
               'material', _material),
@@ -2158,25 +2306,27 @@ class _AddProductScreenState extends State<AddProductScreen> {
                 onTap: _promptCustomMaterial),
           ]),
         ],
-        const SizedBox(height: 16),
-        _aiLabel(tr('Сезон (необязательно)', 'Сезон (міндетті емес)'), 'season',
-            ProductModel.joinSeasons(_seasons)),
-        const SizedBox(height: 4),
-        Text(
-            tr('Можно выбрать несколько', 'Бірнешеуін таңдауға болады'),
-            style: manrope(11, FontWeight.w500, color: cInk3)),
-        const SizedBox(height: 8),
-        Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: kSeasons
-                .map((s) => _SelectChip(
-                    label: '${_seasonIcons[s] ?? ''} ${trValue(s)}',
-                    selected: _seasons.contains(s),
-                    onTap: () => setState(() {
-                          if (!_seasons.remove(s)) _seasons.add(s);
-                        })))
-                .toList()),
+        // Маусым тек киім/аяқ киім/аксессуар, спорт және балалар тауарларында.
+        if (_vis.needsSeason) ...[
+          const SizedBox(height: 16),
+          _aiLabel(tr('Сезон (необязательно)', 'Сезон (міндетті емес)'),
+              'season', ProductModel.joinSeasons(_seasons)),
+          const SizedBox(height: 4),
+          Text(tr('Можно выбрать несколько', 'Бірнешеуін таңдауға болады'),
+              style: manrope(11, FontWeight.w500, color: cInk3)),
+          const SizedBox(height: 8),
+          Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: kSeasons
+                  .map((s) => _SelectChip(
+                      label: '${_seasonIcons[s] ?? ''} ${trValue(s)}',
+                      selected: _seasons.contains(s),
+                      onTap: () => setState(() {
+                            if (!_seasons.remove(s)) _seasons.add(s);
+                          })))
+                  .toList()),
+        ],
         const SizedBox(height: 16),
         CountryPicker(
           controller: _countryCtrl,
@@ -2279,7 +2429,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
         builder: (context, _) {
           final existing = parseKeywordList(_keywordsCtrl.text);
           final have = {for (final w in existing) w.toLowerCase()};
-          final colors = [for (final k in _selectedColors) _baseColor(k)];
+          final colors = [
+            for (final k in _selectedColors)
+              if (_baseColor(k).isNotEmpty) _baseColor(k)
+          ];
           final local = suggestKeywords(
             name: _nameCtrl.text,
             brand: _brandCtrl.text,
@@ -2404,20 +2557,25 @@ class _AddProductScreenState extends State<AddProductScreen> {
   /// Жылдам код — сатушының өз саны («103»): офлайн сатуда/қоймадан іздеуде осы
   /// санмен табылады; клиент оны ешқашан көрмейді.
   Widget _buildQuickCodeRow(String key) {
+    // Түссіз тауарда түс дөңгелегі мен аты жоқ — жай «Осы тауар».
+    final colorless = _baseColor(key).isEmpty;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(children: [
-        Container(
-          width: 18,
-          height: 18,
-          decoration: BoxDecoration(
-              color: _variantColor(key),
-              shape: BoxShape.circle,
-              border: Border.all(color: cLine)),
-        ),
-        const SizedBox(width: 8),
+        if (!colorless) ...[
+          Container(
+            width: 18,
+            height: 18,
+            decoration: BoxDecoration(
+                color: _variantColor(key),
+                shape: BoxShape.circle,
+                border: Border.all(color: cLine)),
+          ),
+          const SizedBox(width: 8),
+        ],
         Expanded(
-          child: Text(_variantLabel(key),
+          child: Text(
+              colorless ? tr('Этот товар', 'Осы тауар') : _variantLabel(key),
               style: manrope(12.5, FontWeight.w700, color: cInk),
               overflow: TextOverflow.ellipsis),
         ),
@@ -3652,13 +3810,17 @@ class _AddProductScreenState extends State<AddProductScreen> {
                 _SummaryRow(
                     label: tr('Кому', 'Кімге'),
                     value: _targetGroup == null ? '—' : trValue(_targetGroup!)),
-              _SummaryRow(
-                  label: _selectedColors.length > 1
-                      ? tr('Цвета', 'Түстері')
-                      : tr('Цвет', 'Түсі'),
-                  value: _selectedColors.isEmpty
-                      ? '—'
-                      : _selectedColors.map(_variantLabel).join(', ')),
+              // Түссіз тауарда «Цвет» жолы мүлде жоқ.
+              if (!_isColorless)
+                _SummaryRow(
+                    label: _selectedColors.length > 1
+                        ? tr('Цвета', 'Түстері')
+                        : tr('Цвет', 'Түсі'),
+                    value: _selectedColors.isEmpty
+                        ? '—'
+                        : _selectedColors.map(_variantLabel).join(', ')),
+              for (final a in displayAttributes(_categoryKey, _attrs))
+                _SummaryRow(label: a.label, value: a.value),
               _SummaryRow(
                   label: tr('Дата поставки', 'Жеткізілім күні'),
                   value:
@@ -3830,9 +3992,15 @@ class _SummaryRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(children: [
         Text(label, style: const TextStyle(fontSize: 13, color: cInk2)),
-        const Spacer(),
-        Text(value,
-            style: const TextStyle(
-                fontSize: 13, fontWeight: FontWeight.w600, color: cInk)),
+        const SizedBox(width: 12),
+        // Ұзын мән (автор, үйлесімділік) жолды сындырмасын.
+        Expanded(
+          child: Text(value,
+              textAlign: TextAlign.end,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                  fontSize: 13, fontWeight: FontWeight.w600, color: cInk)),
+        ),
       ]));
 }

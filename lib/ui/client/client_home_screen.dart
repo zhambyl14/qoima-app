@@ -14,13 +14,16 @@ import '../../data/models/banner_model.dart';
 import '../../data/services/client_service.dart';
 import '../../data/repositories/banner_repository.dart';
 import '../../theme/qoima_design.dart';
+import '../live/live_all_screen.dart';
 import '../live/live_now_row.dart';
+import '../shared/require_login.dart';
 import '../shared/skeletons.dart';
 import 'ai/ai_assistant_screen.dart';
 import 'client_product_card.dart';
 import 'client_product_detail.dart';
 import 'client_shell.dart';
 import 'home_filters_sheet.dart';
+import 'stories/stories_strip.dart';
 import 'store_public_screen.dart';
 import 'stores_list_screen.dart';
 
@@ -768,6 +771,41 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                         ]),
                       ),
                     ),
+                    // Барлық эфирлер — басты бетте тек жазылғандар қалғандықтан
+                    // қалғаны осында. Екі жалауша қосулы болғанда ғана.
+                    ListenableBuilder(
+                      listenable: FeatureFlags.instance,
+                      builder: (context, _) => !(FeatureFlags.instance
+                                  .isOn(FeatureFlags.liveShopping) &&
+                              FeatureFlags.instance
+                                  .isOn(FeatureFlags.storeFollow))
+                          ? const SizedBox.shrink()
+                          : Padding(
+                              padding: const EdgeInsets.only(left: 8),
+                              child: Tooltip(
+                                message: tr('Все эфиры', 'Барлық эфирлер'),
+                                child: GestureDetector(
+                                  key: const ValueKey('home-all-live'),
+                                  onTap: _openAllLive,
+                                  child: Container(
+                                    width: 36,
+                                    height: 36,
+                                    decoration: BoxDecoration(
+                                      color:
+                                          Colors.white.withValues(alpha: 0.16),
+                                      borderRadius:
+                                          BorderRadius.circular(kRPill),
+                                      border: Border.all(
+                                          color: Colors.white
+                                              .withValues(alpha: 0.22)),
+                                    ),
+                                    child: const Icon(Icons.sensors_rounded,
+                                        color: Colors.white, size: 18),
+                                  ),
+                                ),
+                              ),
+                            ),
+                    ),
                     // AI-көмекші — тар экранда сыю үшін тек белгіше;
                     // суперадмин өшірсе жасырылады.
                     ListenableBuilder(
@@ -826,10 +864,24 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                             : CustomScrollView(
                                 controller: _scrollCtrl,
                                 slivers: [
-                                  const SliverToBoxAdapter(
-                                      child: BannerCarousel()),
-                                  // Қазір эфирдегі дүкендер (жоқ болса — бос)
-                                  const SliverToBoxAdapter(child: LiveNowRow()),
+                                  // Жазылу қосулы болса: жазылған дүкендердің эфирі
+                                  // мен сторисі ең үстінде, баннер соның астында.
+                                  // Өшік болса — бұрынғыдай: баннер, содан соң эфир.
+                                  SliverToBoxAdapter(
+                                    child: ListenableBuilder(
+                                      listenable: FeatureFlags.instance,
+                                      builder: (_, __) {
+                                        final follow = FeatureFlags.instance
+                                            .isOn(FeatureFlags.storeFollow);
+                                        return Column(children: [
+                                          if (follow) const LiveNowRow(),
+                                          const StoriesStrip(),
+                                          const BannerCarousel(),
+                                          if (!follow) const LiveNowRow(),
+                                        ]);
+                                      },
+                                    ),
+                                  ),
                                   SliverToBoxAdapter(
                                     child: Padding(
                                       padding: const EdgeInsets.fromLTRB(
@@ -924,6 +976,19 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
         ]),
       ),
     );
+  }
+
+  /// Барлық тірі эфирлер беті (кіру керек: эфир тізімін RLS тек кірген
+  /// қолданушыға береді).
+  Future<void> _openAllLive() async {
+    final ok = await requireLogin(
+      context,
+      reasonRu: 'Войдите, чтобы смотреть прямые эфиры.',
+      reasonKk: 'Тікелей эфирлерді көру үшін кіріңіз.',
+    );
+    if (!ok || !mounted) return;
+    Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => const LiveAllScreen()));
   }
 
   /// Қала таңдау: Барлық қалалар / өз қалаңыз / дүкені бар қалалар.

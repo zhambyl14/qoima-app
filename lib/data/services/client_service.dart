@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart' show ValueNotifier, debugPrint;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/store_model.dart';
 import '../models/product_model.dart';
+import '../models/category_attributes.dart';
 import '../models/batch_model.dart';
 import '../models/order_model.dart';
 import '../models/review_model.dart';
@@ -13,6 +14,7 @@ import '../models/promo_model.dart';
 import '../../core/search_helper.dart';
 
 import '../../core/lang.dart';
+import '../../core/locale_context.dart';
 /// Группа товаров-вариантов: одно и то же имя+бренд+тип, разные цвета.
 class ProductGroup {
   final List<ProductModel> variants;
@@ -48,6 +50,34 @@ List<({ProductGroup group, int index})> expandVariantCards(
   return out;
 }
 
+/// Категория сипаттамаларының іздеу мәтіні (0085): әр мән ЕКІ тілде де
+/// («128 ГБ», «Қазақ тілі» / «Казахский»); мәтін/сан өрістері үшін белгісі де
+/// («Автор Абай») — chips мәні өзі жеткілікті. Ағымдағы тілді уақытша
+/// ауыстырады (tr/trValue синхронды) да, finally-де қайтарады.
+String attributeSearchText(String? categoryKey, Map<String, dynamic> attrs) {
+  if (attrs.isEmpty) return '';
+  final defs = attributesFor(categoryKey);
+  if (defs.isEmpty) return '';
+  final saved = LocaleContext.currentLang;
+  final out = StringBuffer();
+  try {
+    for (final lang in const ['ru', 'kk']) {
+      LocaleContext.currentLang = lang;
+      for (final d in defs) {
+        final v = d.valueLabel(attrs[d.key]);
+        if (v.isEmpty) continue;
+        if (d.kind == AttrKind.text || d.kind == AttrKind.number) {
+          out.write(' ${d.label}');
+        }
+        out.write(' $v');
+      }
+    }
+  } finally {
+    LocaleContext.currentLang = saved;
+  }
+  return out.toString();
+}
+
 // Топтың БАРЛЫҚ нұсқаларының барлық өрісі бір мәтінге жиналады: атауы, бренд,
 // түр, түс, сипаттама, маусым, «кімге», айырмашылық белгісі. Канондық мәндер
 // ru + ағымдағы тіл (trValue) түрінде де қосылады — «жасыл кеды» да, «зелёные
@@ -79,6 +109,8 @@ String _searchBuffer(ProductGroup g) {
     add(v.material);
     add(trValue(v.material));
     add(v.variantNote);
+    // Категория сипаттамалары (өлшем, автор, кепілдік…) — екі тілде.
+    add(attributeSearchText(v.effectiveCategoryKey, v.attributes));
     // «Ұқсас сөздер» (0062): дүкен өзі жазған синонимдер — «сникерс»,
     // «беговые», «спорттық». Тек ІЗДЕУГЕ қатысады, карточкада көрінбейді.
     add(v.keywords);

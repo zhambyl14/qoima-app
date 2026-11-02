@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import '../../data/models/category_attributes.dart';
 import '../../data/models/product_model.dart';
 import '../../data/repositories/store_moderation_repository.dart';
+import '../admin/products/country_chips.dart' show countryLabel;
 import '../../theme/qoima_design.dart';
 
 import '../../core/lang.dart';
@@ -185,8 +187,12 @@ class _ProductDetailSheet extends StatelessWidget {
       (tr('Материал', 'Материал'), product.material),
       (tr('Цвет', 'Түс'), trValue(product.color)),
       (tr('Артикул', 'Артикул'), product.articul),
-      (tr('Страна', 'Ел'), product.country),
+      (tr('Страна', 'Ел'), countryLabel(product.country)),
       (tr('Сезон', 'Маусым'), product.seasonLabel),
+      // Категория сипаттамалары (0085) — тек толтырылғандары, схема ретімен.
+      for (final a in displayAttributes(
+          product.effectiveCategoryKey, product.attributes))
+        (a.label, a.value),
     ].where((r) => r.$2.trim().isNotEmpty).toList();
 
     return Container(

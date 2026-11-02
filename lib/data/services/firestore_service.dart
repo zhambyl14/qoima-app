@@ -199,6 +199,26 @@ class FirestoreService {
     final q = name.trim();
     if (q.length < 3) return [];
     final all = cachedProducts ?? await getAllProducts();
+    return rankSimilarProducts(all,
+        name: q, brand: brand, color: color, categoryKey: categoryKey, limit: limit);
+  }
+
+  /// [findSimilarProducts]-тің таза бөлігі (желісіз, тесттеледі).
+  ///
+  /// Түс ТЕК ҚОСЫМША ұпай: екі жақта да түс бар әрі бірдей болса +20. Түссіз
+  /// тауар (кітап, азық-түлік — color = '') түс арқылы ешқашан сәйкеспейді де,
+  /// жазаланбайды да: бос == бос «бірдей түс» деп саналса, түссіз категорияның
+  /// кез келген тауары жоғары шығып кетер еді. Ұқсастықты атау шешеді.
+  static List<ProductModel> rankSimilarProducts(
+    Iterable<ProductModel> all, {
+    required String name,
+    String brand = '',
+    String color = '',
+    String categoryKey = '',
+    int limit = 4,
+  }) {
+    final q = name.trim();
+    if (q.length < 3) return [];
     final scored = <({ProductModel product, int score})>[];
     for (final p in all) {
       if (categoryKey.isNotEmpty && p.effectiveCategoryKey != categoryKey) {
@@ -212,7 +232,7 @@ class FirestoreService {
           p.brand.toLowerCase() == brand.trim().toLowerCase()) {
         s += 30;
       }
-      if (color.isNotEmpty && p.color == color) s += 20;
+      if (color.isNotEmpty && p.color.isNotEmpty && p.color == color) s += 20;
       scored.add((product: p, score: s));
     }
     scored.sort((a, b) => b.score.compareTo(a.score));
@@ -331,8 +351,12 @@ class FirestoreService {
     // null = description_kk-ге тимеу (0083 миграциясыз БД да жұмыс істейді);
     // бос емес/бос жол = жазу. ProductModel.descriptionKkPatch(old, new) береді.
     String? descriptionKk,
+    // null = attributes-ке тимеу (0085-сіз БД да жұмыс істейді);
+    // ProductModel.attributesPatch(old, new) береді.
+    Map<String, dynamic>? attributes,
   }) =>
       _sb.from('products').update({
+        if (attributes != null) 'attributes': attributes,
         'name': name.trim(),
         'brand': brand.trim(),
         'type': type,

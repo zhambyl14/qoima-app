@@ -27,8 +27,9 @@ class _LiveStoreBannerState extends State<LiveStoreBanner>
   Timer? _pollTimer;
   bool _polling = false;
   LiveSession? _session;
-  late final AnimationController _pulse = AnimationController(
-      vsync: this, duration: const Duration(milliseconds: 1200));
+  // initState-те жасалады: lazy болса, гост/өшік жағдайда dispose() ішінде
+  // (деактивацияланған элементте) тикер жасалып, debug-та қате шығатын.
+  late final AnimationController _pulse;
 
   bool get _flagOn => FeatureFlags.instance.isOn(FeatureFlags.liveShopping);
 
@@ -45,6 +46,8 @@ class _LiveStoreBannerState extends State<LiveStoreBanner>
   @override
   void initState() {
     super.initState();
+    _pulse = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 1200));
     if (widget.adminUid.isEmpty ||
         Supabase.instance.client.auth.currentUser == null) {
       return;

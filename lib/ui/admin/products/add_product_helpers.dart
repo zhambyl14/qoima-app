@@ -160,6 +160,10 @@ class AddProductTemplate {
   final String purchase;
   final String selling;
 
+  /// Категория сипаттамалары (0085) — модельге ортақ (автор, жады, өлшемі),
+  /// сондықтан «ұқсас» тауарға да көшеді; иесі қажетінше өзгертеді.
+  final Map<String, dynamic> attributes;
+
   const AddProductTemplate({
     required this.categoryKey,
     this.type = '',
@@ -174,8 +178,55 @@ class AddProductTemplate {
     this.descriptionKk = '',
     this.purchase = '',
     this.selling = '',
+    this.attributes = const {},
   });
 }
+
+// ── Түссіз категориялар (0085) ──────────────────────────────────────────────
+//  Кітап, азық-түлік, дәрі сияқты категорияларда түс таңдалмайды: тауар ЖАЛҒЫЗ
+//  «жасырын» нұсқа болып сақталады, түс аты бос (color = ''). Размер, фото,
+//  жылдам код, сақтау циклі — бәрі сол бір нұсқамен бұрынғыдай жұмыс істейді.
+
+/// Жасырын (түссіз) нұсқаның түс аты.
+const String kNoColor = '';
+
+/// Категория ауысқанда түс нұсқаларына не істеу керек.
+enum VariantPlan {
+  /// Ештеңе өзгермейді.
+  keep,
+
+  /// Түссіз категория: бар түстер алынып, бір жасырын нұсқа қосылады
+  /// (бірінші нұсқаның фотосы сақталады).
+  makeImplicit,
+
+  /// Түсті категория: жасырын нұсқа алынады — иесі түс таңдайды (фотосы
+  /// бірінші таңдалған түске көшеді).
+  dropImplicit,
+}
+
+/// [colors] — таңдалған нұсқалардың түс аттары (ретімен).
+VariantPlan planVariantsFor({
+  required bool needsColor,
+  required List<String> colors,
+}) {
+  final hasImplicit = colors.contains(kNoColor);
+  if (!needsColor) {
+    return colors.length == 1 && hasImplicit
+        ? VariantPlan.keep
+        : VariantPlan.makeImplicit;
+  }
+  return hasImplicit ? VariantPlan.dropImplicit : VariantPlan.keep;
+}
+
+/// Түс талабы орындалды ма: түсті категорияда кемінде бір НАҚТЫ түс, түссізде —
+/// дәл бір жасырын нұсқа.
+bool colorsSatisfied({
+  required bool needsColor,
+  required List<String> colors,
+}) =>
+    needsColor
+        ? colors.isNotEmpty && colors.every((c) => c != kNoColor)
+        : colors.length == 1 && colors.first == kNoColor;
 
 /// Түс аты бойынша таңдалған нұсқа кілті (жоқ болса null). Түс — қарапайым
 /// таңдау/шешу: бір түс бір-ақ рет, сондықтан сәйкестік жалғыз.

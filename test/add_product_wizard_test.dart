@@ -163,6 +163,10 @@ void main() {
 
     await tester.tap(find.text(tr('Дополнительно', 'Қосымша')));
     await tester.pump();
+    // Ел — чиптер; мәтін өрісі «Басқа» басылғанда ғана ашылады.
+    expect(country, findsNothing);
+    await tester.tap(find.text(tr('Другая', 'Басқа')));
+    await tester.pump();
     expect(country, findsOneWidget);
 
     await tester.enterText(country, 'Вьетнам');

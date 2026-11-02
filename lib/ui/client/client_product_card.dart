@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:provider/provider.dart';
+import '../../data/models/category_attributes.dart';
 import '../../data/models/product_model.dart';
 import '../../data/models/batch_model.dart';
 import '../../data/models/store_model.dart';
@@ -193,6 +194,11 @@ class _ProductGroupCardState extends State<ProductGroupCard> {
   @override
   Widget build(BuildContext context) {
     final variantCount = _variants.length;
+    // Түссіз тауарда (кітап, азық-түлік…) «N түс» бейджі мен боз нүктелер
+    // мағынасыз — тек кем дегенде бір нұсқаның түсі болса көрсетеміз.
+    final showColors = _variants.any((v) => v.color.trim().isNotEmpty);
+    final attrLine = cardAttributeLabel(
+        _product.effectiveCategoryKey, _product.attributes);
     return GestureDetector(
       onTap: () => widget.onTap(_product, _variants),
       child: Container(
@@ -286,7 +292,7 @@ class _ProductGroupCardState extends State<ProductGroupCard> {
                   ),
                 ),
                 // 3+ нұсқа болса — «{n} түс» бейджі (суреттің астыңғы оң бұрышы)
-                if (variantCount >= 3)
+                if (showColors && variantCount >= 3)
                   Positioned(
                     bottom: 7,
                     right: 7,
@@ -316,6 +322,13 @@ class _ProductGroupCardState extends State<ProductGroupCard> {
                   style: manrope(11, FontWeight.w700, color: cGreen),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis),
+            // Категорияның бір басты сипаттамасы (showOnCard): «Автор: Абай»
+            // емес, тек мәні — бір қысқа жол, ұзын болса қиылады.
+            if (attrLine != null)
+              Text(attrLine,
+                  style: manrope(11, FontWeight.w600, color: cInk3),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis),
             // Рейтинг (денормализацияланған — N+1 сұраныссыз)
             if (_product.ratingCount > 0) ...[
               const SizedBox(height: 3),
@@ -330,7 +343,7 @@ class _ProductGroupCardState extends State<ProductGroupCard> {
               ]),
             ],
             // Color variant dots (only when >1 variant)
-            if (variantCount > 1) ...[
+            if (showColors && variantCount > 1) ...[
               const SizedBox(height: 9),
               Wrap(
                 spacing: 11,
