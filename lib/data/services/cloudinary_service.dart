@@ -185,12 +185,33 @@ class CloudinaryService {
   /// алынып тасталады, тек Cloudinary-де жетім қалуы мүмкін).
   Future<void> deleteByUrl(String url) => deleteMany([url]);
 
-  /// Бірнеше суретті бір шақыруда жояды (Edge Function `cloudinary-cleanup`).
+  /// Edge Function бір шақыруда қабылдайтын ең көп URL саны
+  /// (supabase/functions/cloudinary-cleanup/guard.ts → MAX_URLS).
+  static const int _maxUrlsPerCall = 30;
+
+  /// Бізге тиесілі Cloudinary URL-і ме (сервер мен кезек саясаты (0089)
+  /// басқасын бәрібір қабылдамайды — бекер желі шақыруы болмасын).
+  static bool isOwnCloudinaryUrl(String url) =>
+      url.length <= 500 &&
+      url.startsWith('https://res.cloudinary.com/$_cloudName/image/upload/');
+
+  /// Бірнеше суретті жояды (Edge Function `cloudinary-cleanup`, 30-дан бөліп).
+  /// Функция кірген пайдаланушының JWT-ін талап етеді (functions.invoke оны
+  /// өзі жібереді) және тек шақырушыға тиесілі не ешқайда сілтелмеген
+  /// суретті өшіреді — бөтен сурет үнсіз өткізіледі (серверде тексеріледі).
   /// Сәтсіз болса (секрет қойылмаған/желі) — URL-дер `cloudinary_delete_queue`
-  /// кезегіне түседі: келесі drain (админ қосымша ашқанда) оларды өшіреді.
+  /// кезегіне түседі: келесі drain (админ қосымша ашқанда) оларды қайта
+  /// тексеріп өшіреді. Кірмеген күйде шақыру — үнсіз ештеңе болмайды.
   Future<void> deleteMany(Iterable<String> urls) async {
-    final list = urls.where((u) => u.isNotEmpty).toList();
+    final list = urls.where(isOwnCloudinaryUrl).toSet().toList();
     if (list.isEmpty) return;
+    for (var i = 0; i < list.length; i += _maxUrlsPerCall) {
+      final end = i + _maxUrlsPerCall;
+      await _deleteChunk(list.sublist(i, end < list.length ? end : list.length));
+    }
+  }
+
+  Future<void> _deleteChunk(List<String> list) async {
     var ok = false;
     try {
       final res = await Supabase.instance.client.functions.invoke(

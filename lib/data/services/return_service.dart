@@ -545,7 +545,7 @@ String policyErrorText(Object? e) {
   final raw = e is PostgrestException ? e.message : (e?.toString() ?? '');
   final m = raw.toLowerCase();
   if (m.contains('feature_disabled')) {
-    return tr('Функция временно отключена', 'Функция уақытша өшірулі');
+    return comingSoonText();
   }
   if (m.contains('item_non_returnable')) {
     return tr('Этот товар возврату не подлежит — вы согласились с этим при покупке.',

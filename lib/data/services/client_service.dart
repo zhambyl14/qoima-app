@@ -592,7 +592,7 @@ class ClientService {
     if (row == null) return PromoResult.fail(tr('Промокод не найден', 'Промокод табылмады'));
     final promo = PromoModel.fromRow(row);
 
-    if (!promo.active) return PromoResult.fail(tr('Промокод отключён', 'Промокод өшірілген'));
+    if (!promo.active) return PromoResult.fail(tr('Промокод больше не действует', 'Промокод енді жарамсыз'));
     if (!promo.isStarted) {
       return PromoResult.fail(tr('Промокод ещё не активен', 'Промокод әлі белсенді емес'));
     }

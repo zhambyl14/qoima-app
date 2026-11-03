@@ -13,6 +13,7 @@ import '../../../data/models/product_model.dart';
 import '../../../data/models/store_model.dart';
 import '../../../data/services/ai_service.dart';
 import '../../../theme/qoima_design.dart';
+import '../../shared/coming_soon_view.dart';
 import '../../shared/require_login.dart';
 import 'try_on_eligibility.dart';
 
@@ -52,6 +53,10 @@ class _TryOnScreenState extends State<TryOnScreen> {
   bool _sharing = false;
   int? _remaining;
   String? _error;
+
+  /// Сервер «функция қосылмаған/жарамсыз» деп жауап берсе (жалауша, баптау):
+  /// қате емес, жұмсақ «Скоро будет доступно» күйі көрсетіледі.
+  bool _comingSoon = false;
 
   Timer? _ticker;
   int _elapsed = 0;
@@ -149,7 +154,8 @@ class _TryOnScreenState extends State<TryOnScreen> {
       _ticker?.cancel();
       setState(() {
         _step = _Step.pick;
-        _error = e.message;
+        _error = e.isComingSoon ? null : e.message;
+        if (e.isComingSoon) _comingSoon = true;
       });
       if (e.isQuota) _remaining = 0;
     } catch (e) {
@@ -220,7 +226,8 @@ class _TryOnScreenState extends State<TryOnScreen> {
     return ListenableBuilder(
       listenable: FeatureFlags.instance,
       builder: (context, _) {
-        final on = FeatureFlags.instance.isOn(FeatureFlags.aiTryOn);
+        final on =
+            FeatureFlags.instance.isOn(FeatureFlags.aiTryOn) && !_comingSoon;
         // Генерация кезінде кері шығуға тыйым: сұраныс жалғасады, квота
         // жұмсалады, ал нәтиже көрінбей қалады.
         return PopScope(
@@ -241,17 +248,7 @@ class _TryOnScreenState extends State<TryOnScreen> {
                 ),
                 Expanded(
                   child: !on
-                      ? Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(32),
-                            child: Text(
-                              tr('Функция временно отключена',
-                                  'Функция уақытша өшірулі'),
-                              textAlign: TextAlign.center,
-                              style: manrope(15, FontWeight.w600, color: cInk2),
-                            ),
-                          ),
-                        )
+                      ? const ComingSoonView()
                       : switch (_step) {
                           _Step.pick => _buildPick(),
                           _Step.generating => _buildGenerating(),

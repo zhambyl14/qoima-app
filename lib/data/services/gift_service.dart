@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../core/error_text.dart';
 import '../../core/lang.dart';
 import '../models/order_model.dart';
 
@@ -593,8 +594,10 @@ class GiftService {
   static String _message(String raw, {bool creating = false}) {
     final m = raw.toLowerCase();
     bool has(String k) => m.contains(k);
-    if (has('feature_disabled')) {
-      return tr('Функция временно отключена', 'Функция уақытша өшірулі');
+    if (has('feature_disabled') ||
+        has('not_configured') ||
+        has('not_eligible')) {
+      return comingSoonText();
     }
     if (has('not_authenticated')) {
       return tr('Войдите в аккаунт, чтобы продолжить',
@@ -665,8 +668,8 @@ class GiftService {
           'Тауар немесе дүкен қазір қолжетімсіз');
     }
     if (has('courier_unavailable')) {
-      return tr('В городе магазина нет курьерской доставки',
-          'Дүкен қаласында курьерлік жеткізу жоқ');
+      return tr('Курьерская доставка в этом городе пока недоступна — выберите получение в магазине',
+          'Бұл қалада курьерлік жеткізу әзірге қолжетімсіз — дүкеннен алуды таңдаңыз');
     }
     if (has('gift_size_unavailable')) {
       return tr('Этот размер уже закончился — выберите другой',
@@ -689,7 +692,7 @@ class GiftService {
       return tr('Промокод не найден', 'Промокод табылмады');
     }
     if (has('promo_inactive')) {
-      return tr('Промокод отключён', 'Промокод өшірілген');
+      return tr('Промокод больше не действует', 'Промокод енді жарамсыз');
     }
     if (has('promo_not_started')) {
       return tr('Промокод ещё не активен', 'Промокод әлі белсенді емес');
@@ -764,7 +767,6 @@ class GiftService {
     if (has('gift_not_found')) {
       return tr('Подарок не найден', 'Сыйлық табылмады');
     }
-    return tr('Не удалось выполнить действие. Попробуйте ещё раз.',
-        'Әрекетті орындау мүмкін болмады. Қайталап көріңіз.');
+    return genericErrorText();
   }
 }

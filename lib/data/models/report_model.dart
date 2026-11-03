@@ -2,17 +2,20 @@ import '../../core/lang.dart';
 
 /// Контент шағымы (content_reports кестесі).
 ///
-/// Кез келген авторизацияланған қолданушы тауарға / дүкенге / пікірге
-/// шағымдана алады (App Store Guideline 1.2 — report mechanism).
+/// Кез келген авторизацияланған қолданушы тауарға / дүкенге / пікірге /
+/// сұраққа / дүкен сторисіне шағымдана алады (App Store Guideline 1.2 — report mechanism).
 /// Қарайтын — superadmin (модератор).
 class ReportModel {
   final String id;
   final String reporterUid;
   final String reporterName;
   final String reporterPhone;
-  final String targetType; // product|store|review
+  final String targetType; // product|store|review|question|story
   final String targetId;
   final String targetName;
+
+  /// Нысан суретінің снапшоты (0086; әзірге тек 'story' үшін сервер толтырады).
+  final String targetImage;
   final String adminUid;
   final String storeName;
   final String reason; // канондық кілт (reportReasonLabel аударады)
@@ -26,6 +29,7 @@ class ReportModel {
   bool get isNew => status == 'new';
   bool get isResolved => status == 'resolved';
   bool get isDismissed => status == 'dismissed';
+  bool get isStory => targetType == 'story';
 
   const ReportModel({
     required this.id,
@@ -35,6 +39,7 @@ class ReportModel {
     required this.targetType,
     required this.targetId,
     required this.targetName,
+    this.targetImage = '',
     required this.adminUid,
     required this.storeName,
     required this.reason,
@@ -59,6 +64,7 @@ class ReportModel {
       targetType: m['target_type'] as String? ?? 'product',
       targetId: m['target_id'] as String? ?? '',
       targetName: m['target_name'] as String? ?? '',
+      targetImage: m['target_image'] as String? ?? '',
       adminUid: m['admin_uid'] as String? ?? '',
       storeName: m['store_name'] as String? ?? '',
       reason: m['reason'] as String? ?? 'other',
@@ -109,6 +115,8 @@ String reportTargetLabel(String type) {
       return tr('Отзыв', 'Пікір');
     case 'question':
       return tr('Вопрос', 'Сұрақ');
+    case 'story':
+      return tr('Сторис', 'Сторис');
     default:
       return tr('Товар', 'Тауар');
   }

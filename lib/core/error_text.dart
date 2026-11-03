@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io' show SocketException, HandshakeException, HttpException;
 
-import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
 import 'package:http/http.dart' show ClientException;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -57,6 +57,17 @@ String networkErrorText() => tr(
       'Интернет байланысы жоқ. Wi-Fi немесе мобильді интернетті тексеріп, қайталап көріңіз.',
     );
 
+/// «Скоро будет доступно» — оператор әлі қоспаған (жалауша өшік, провайдер/кілт
+/// бапталмаған, т.б.) функцияларға арналған бірыңғай жұмсақ мәтін. Себебін
+/// сатып алушыға түсіндірмейміз: ол оператордың ішкі жұмысы.
+String comingSoonText() => tr(
+      'Скоро будет доступно',
+      'Жақында қолжетімді болады',
+    );
+
+/// Күтпеген ақау үшін бірыңғай мәтін (техникалық мәліметсіз).
+String genericErrorText() => _genericText();
+
 /// Кез келген қатені пайдаланушыға көрсетуге жарамды мәтінге айналдырады.
 ///
 /// [fallback] — түрі белгісіз қате үшін арнайы мәтін (берілмесе — жалпы мәтін).
@@ -69,9 +80,11 @@ String friendlyError(Object? e, {String? fallback}) {
 
   // Қосымшаның өз бизнес-қателері (мәтіні әлдеқашан адамша жазылған).
   final raw = e.toString();
-  if (raw.startsWith('Exception: ')) return raw.substring('Exception: '.length);
+  if (raw.startsWith('Exception: ')) {
+    return _humanOrGeneric(raw.substring('Exception: '.length), fallback);
+  }
   if (raw.startsWith('SaleException: ')) {
-    return raw.substring('SaleException: '.length);
+    return _humanOrGeneric(raw.substring('SaleException: '.length), fallback);
   }
 
   if (e is PostgrestException) return _postgrestText(e);
@@ -85,9 +98,57 @@ String friendlyError(Object? e, {String? fallback}) {
 }
 
 String _genericText() => tr(
-      'Что-то пошло не так. Попробуйте ещё раз.',
-      'Бірдеңе дұрыс болмады. Қайталап көріңіз.',
+      'Что-то пошло не так. Попробуйте ещё раз немного позже',
+      'Бірдеңе дұрыс болмады. Сәл кейінірек қайталап көріңіз',
     );
+
+/// `Exception('...')` мәтіні адамша жазылған бизнес-хабар ма, әлде техникалық
+/// қалдық па (код-кілт, HTTP коды, тип атауы)? Техникалық болса экранға
+/// шығармаймыз — жалпы мәтін көрсетіледі (шикі мәтін жоғарыда логқа кетті).
+@visibleForTesting
+bool looksTechnical(String s) {
+  final t = s.trim();
+  if (t.isEmpty) return true;
+  // Бос орынсыз кілт: «gift_size_unavailable», «noDoneEvent», «ai_failed».
+  if (!t.contains(' ') && RegExp(r'^[A-Za-z0-9_.:\-]+$').hasMatch(t)) {
+    return true;
+  }
+  final l = t.toLowerCase();
+  const markers = [
+    'exception',
+    'statuscode',
+    'status code',
+    'instance of',
+    'typeerror',
+    'not a subtype',
+    'null check',
+    'postgrest',
+    'edge function',
+    'pgrst',
+    'sqlstate',
+    'violates',
+    'jwt',
+    'secret',
+    'not configured',
+    'not_configured',
+    'unauthorized',
+    'forbidden',
+    'internal server',
+  ];
+  if (markers.any(l.contains)) return true;
+  // Кілт атауы кириллица мәтін ішінде де техникалық: «Ошибка: invalid api_key».
+  if (RegExp(r'api[_\s-]?key', caseSensitive: false).hasMatch(t)) return true;
+  // Жақшадағы HTTP коды кириллица мәтінде де: «Ошибка [400]: …».
+  if (RegExp(r'\[[1-5]\d\d\]').hasMatch(t)) return true;
+  // Қосымшаның өз хабарлары тек орысша/қазақша (tr) — кириллицасыз мәтін
+  // (ағылшынша кітапхана/сервер қалдығы: «Database error saving new user»,
+  // «download 404») сатып алушыға шықпайды.
+  if (!RegExp(r'[А-Яа-яЁёӘәҒғҚқҢңӨөҰұҮүҺһІі]').hasMatch(t)) return true;
+  return false;
+}
+
+String _humanOrGeneric(String text, String? fallback) =>
+    looksTechnical(text) ? (fallback ?? _genericText()) : text;
 
 /// Дерекқор (PostgREST) қатесі: техникалық мәтіннің орнына мәні бойынша
 /// түсінікті хабар. Кодтары: https://postgrest.org/en/stable/errors.html
@@ -100,18 +161,20 @@ String _postgrestText(PostgrestException e) {
     return tr('Запись используется в другом месте — удалить нельзя.',
         'Жазба басқа жерде қолданылып тұр — өшіру мүмкін емес.');
   }
-  if (code == '42501' || code.startsWith('PGRST3')) {
-    return tr('Недостаточно прав для этого действия.',
-        'Бұл әрекетке құқығыңыз жеткіліксіз.');
-  }
+  // PGRST301 (JWT мерзімі өтті/жарамсыз) PGRST3* тобына кіреді — сондықтан
+  // «прав жеткіліксіз» тексерісінен БҰРЫН тұруы керек, әйтпесе сессиясы
+  // біткен клиент «қайта кіріңіз» орнына «құқық жоқ» көреді.
   if (code == 'PGRST301' || code == '401') {
     return tr('Сессия истекла. Войдите заново.',
         'Сессия мерзімі бітті. Қайта кіріңіз.');
   }
+  if (code == '42501' || code.startsWith('PGRST3')) {
+    return tr('Недостаточно прав для этого действия.',
+        'Бұл әрекетке құқығыңыз жеткіліксіз.');
+  }
   final domain = _domainText(e.message);
   if (domain != null) return domain;
-  return tr('Ошибка сервера. Попробуйте позже.',
-      'Сервер қатесі. Кейінірек қайталап көріңіз.');
+  return _genericText();
 }
 
 /// RPC-лер `raise exception 'кілт'` түрінде лақтыратын бизнес-қателер.
@@ -123,14 +186,17 @@ String? _domainText(String raw) {
   final m = raw.toLowerCase();
   bool has(String k) => m.contains(k);
 
-  if (has('feature_disabled')) {
-    return tr('Функция временно отключена.', 'Функция уақытша өшірулі.');
+  // Оператор әлі қоспаған функция: себебін айтпай, «жақында» дейміз.
+  if (has('feature_disabled') || has('not_configured') || has('not_eligible')) {
+    return comingSoonText();
   }
-  if (has('kazpost_disabled') ||
-      has('kazpost_store_disabled') ||
-      has('kazpost_route_unavailable')) {
-    return tr('Доставка Казпочтой по этому направлению сейчас недоступна.',
-        'Бұл бағытта Казпочтамен жеткізу қазір қолжетімсіз.');
+  if (has('kazpost_disabled')) {
+    return tr('Доставка Казпочтой скоро будет доступна.',
+        'Казпочтамен жеткізу жақында қолжетімді болады.');
+  }
+  if (has('kazpost_store_disabled') || has('kazpost_route_unavailable')) {
+    return tr('Доставка Казпочтой по этому направлению пока недоступна.',
+        'Бұл бағытта Казпочтамен жеткізу әзірге қолжетімсіз.');
   }
   if (has('kazpost_fee_changed')) {
     return tr('Тариф Казпочты изменился. Проверьте новую сумму и оформите заказ ещё раз.',
@@ -203,6 +269,11 @@ String? _domainText(String raw) {
   }
   if (has('other_city')) {
     return tr('Заказ из другого города.', 'Тапсырыс басқа қаладан.');
+  }
+  // 0088: басқа қаладағы дүкенге Бронь/Самовывоз жоқ.
+  if (has('pickup_city_mismatch')) {
+    return tr('Магазин в другом городе — доступна только доставка с полной оплатой.',
+        'Дүкен басқа қалада — тек толық төлеммен жеткізу қолжетімді.');
   }
   if (has('store_delivers_itself')) {
     return tr('Этот заказ магазин доставляет сам.',

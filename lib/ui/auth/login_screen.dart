@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../core/error_text.dart';
 import '../../core/lang.dart';
 import '../../core/phone_input.dart';
 import '../../data/services/auth_service.dart';
@@ -62,10 +63,9 @@ class _LoginScreenState extends State<LoginScreen> {
       if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
     } on AuthFailure catch (e) {
       setState(() => _errorMessage = e.message);
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
-        setState(
-            () => _errorMessage = tr('Неизвестная ошибка', 'Белгісіз қате'));
+        setState(() => _errorMessage = friendlyError(e));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);

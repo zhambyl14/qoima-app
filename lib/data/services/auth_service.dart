@@ -1,9 +1,11 @@
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/user_model.dart';
 import '../models/client_model.dart';
 import '../../core/app_user.dart';
 import 'push_service.dart';
 
+import '../../core/error_text.dart' show genericErrorText;
 import '../../core/lang.dart';
 /// Аутентификация қателерін UI-ге жеткізетін типтелген қате.
 /// [code] — UI тармақтауы үшін.
@@ -410,10 +412,12 @@ class AuthService {
       return AuthFailure(tr('Проверьте интернет-соединение', 'Интернет байланысын тексеріңіз'),
           code: 'network-request-failed');
     }
-    return AuthFailure(tr('Ошибка: ${e.message}', 'Қате: ${e.message}'), code: 'unknown');
+    // Шикі gotrue мәтіні экранға шықпайды — тек логқа.
+    debugPrint('AuthService: unmapped AuthException: ${e.message}');
+    return AuthFailure(genericErrorText(), code: 'unknown');
   }
 
   /// Ескі экрандар үшін үйлесімділік: қатені қазақша хабарға аударады.
   static String parseError(Object e) =>
-      e is AuthFailure ? e.message : tr('Неизвестная ошибка', 'Белгісіз қате');
+      e is AuthFailure ? e.message : genericErrorText();
 }

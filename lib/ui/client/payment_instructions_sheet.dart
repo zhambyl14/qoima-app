@@ -463,8 +463,8 @@ class _PaymentInstructionsSheetState extends State<_PaymentInstructionsSheet> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      tr('Реквизиты для оплаты временно недоступны. Попробуйте позже.',
-                          'Төлем реквизиттері уақытша қолжетімсіз. Кейінірек көріңіз.'),
+                      tr('Реквизиты для оплаты скоро появятся — загляните чуть позже.',
+                          'Төлем реквизиттері жақында пайда болады — сәл кейінірек кіріңіз.'),
                       style: manrope(13, FontWeight.w600,
                           color: const Color(0xFF92400E)),
                     ),

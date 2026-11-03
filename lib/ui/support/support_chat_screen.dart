@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/app_user.dart';
 import '../../core/feature_flags.dart';
+import '../../core/error_text.dart';
 import '../../core/lang.dart';
 import '../../data/models/support_models.dart';
 import '../../data/services/support_service.dart';
@@ -37,7 +38,7 @@ Future<void> openSupportChat(BuildContext context) async {
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(
         content:
-            Text(tr('Функция временно отключена', 'Функция уақытша өшірулі')),
+            Text(comingSoonText()),
         backgroundColor: cInk,
         behavior: SnackBarBehavior.floating,
       ));
@@ -213,8 +214,8 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
                     enabled:
                         FeatureFlags.instance.isOn(FeatureFlags.supportChat),
                     disabledHint: tr(
-                        'Чат поддержки временно отключён. Старые сообщения сохранены.',
-                        'Қолдау чаты уақытша өшірулі. Бұрынғы хабарламалар сақталған.'),
+                        'Чат поддержки скоро снова будет доступен. Прежние сообщения сохранены.',
+                        'Қолдау чаты жақында қайта қолжетімді болады. Бұрынғы хабарламалар сақталған.'),
                   ),
                 ),
         ),

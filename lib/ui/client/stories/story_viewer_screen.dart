@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/app_user.dart';
 import '../../../core/error_text.dart';
 import '../../../core/lang.dart';
 import '../../../data/models/story_model.dart';
 import '../../../data/services/stories_service.dart';
 import '../../../theme/qoima_design.dart';
+import '../report_sheet.dart';
 import 'story_ring.dart';
 
 /// Бір сторис 5 секунд көрсетіледі.
@@ -19,6 +21,45 @@ String storyAgo(DateTime createdAt, DateTime now) {
   }
   return tr('${d.inHours} ч назад', '${d.inHours} сағ бұрын');
 }
+
+/// Сторисқа шағым батырмасы кімге көрінеді (UGC: App Store 1.2).
+///
+/// Дүкеннің ӨЗ қызметкеріне (иесі не осы дүкеннің сатушысы) — жоқ: өз
+/// сторисіне шағым мағынасыз, сервер де бас тартады (0086 cannot_report_own).
+/// Қалғанына — бар; гость басса парақ алдымен кіруді сұрайды.
+bool canReportStory({
+  required String storeUid,
+  required String viewerUid,
+  required String viewerOwnerUid,
+  required String viewerRole,
+}) {
+  if (storeUid.isEmpty) return false;
+  if (viewerUid.isNotEmpty && viewerUid == storeUid) return false;
+  final staffRole = viewerRole == 'admin' || viewerRole == 'seller';
+  if (staffRole && viewerOwnerUid.isNotEmpty && viewerOwnerUid == storeUid) {
+    return false;
+  }
+  return true;
+}
+
+/// Сторисқа шағым әрекеті (тест өз нұсқасын береді).
+typedef StoryReportAction = Future<void> Function(
+    BuildContext context, StoryModel story, StoryViewerGroup group);
+
+Future<void> _defaultReport(
+        BuildContext context, StoryModel story, StoryViewerGroup group) =>
+    showReportSheet(
+      context,
+      targetType: 'story',
+      targetId: story.id,
+      // Модератор көретін атау/дүкен/суретті сервер өзі қояды; бұл — парақтың
+      // тақырыбы ғана.
+      targetName: story.caption.trim().isNotEmpty
+          ? story.caption.trim()
+          : group.storeName,
+      adminUid: group.storeUid,
+      storeName: group.storeName,
+    );
 
 /// Суретті салу: [onReady] — сурет көрінген (не қате болған) сәтте шақырылады,
 /// таймер сонда басталады. Тест желісіз өз нұсқасын береді.
@@ -56,6 +97,7 @@ class StoryViewerScreen extends StatefulWidget {
   final DateTime Function()? now;
   final Duration storyDuration;
   final StoryImageBuilder? imageBuilder;
+  final StoryReportAction? onReport;
 
   const StoryViewerScreen({
     super.key,
@@ -66,6 +108,7 @@ class StoryViewerScreen extends StatefulWidget {
     this.now,
     this.storyDuration = kStoryDuration,
     this.imageBuilder,
+    this.onReport,
   });
 
   @override
@@ -140,7 +183,8 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
     });
     try {
       final g = widget.groups[gi];
-      final raw = g.stories ?? await _svc.storiesForStore(g.storeUid);
+      // Жүктелетін топ — клиент жасырған дүкен болса бос (келесіге өтеді).
+      final raw = g.stories ?? await _svc.storiesForViewer(g.storeUid);
       if (!mounted || token != _openToken) return;
       final now = _now();
       final list = raw.where((s) => !s.isExpiredAt(now)).toList();
@@ -245,6 +289,38 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
       return;
     }
     if (_readyId == s.id) _ctrl.forward();
+  }
+
+  /// Ағымдағы қолданушы (тестте AppUser құрылмауы мүмкін → гость).
+  static AppUser? _viewer() {
+    try {
+      return AppUser.current;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  bool _canReport(StoryViewerGroup g) {
+    final me = _viewer();
+    return canReportStory(
+      storeUid: g.storeUid,
+      viewerUid: me?.uid ?? '',
+      viewerOwnerUid: me?.ownerUid ?? '',
+      viewerRole: me?.role ?? '',
+    );
+  }
+
+  /// Шағым: сторис кідіреді, парақ жабылған соң жалғасады.
+  Future<void> _report() async {
+    final story = _story;
+    if (story == null || _closing) return;
+    final wasPaused = _paused;
+    _pause();
+    try {
+      await (widget.onReport ?? _defaultReport)(context, story, _group);
+    } finally {
+      if (mounted && !wasPaused) _resume();
+    }
   }
 
   void _onTapUp(TapUpDetails d, double width) {
@@ -366,6 +442,15 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
                     ],
                   ),
                 ),
+                if (_canReport(g))
+                  IconButton(
+                    key: const ValueKey('story-report'),
+                    tooltip: tr('Пожаловаться', 'Шағымдану'),
+                    onPressed: _report,
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(Icons.outlined_flag_rounded,
+                        color: Colors.white, size: 22),
+                  ),
               ]),
             ]),
           ),

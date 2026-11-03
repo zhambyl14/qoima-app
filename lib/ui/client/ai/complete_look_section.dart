@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:shimmer/shimmer.dart';
 
+import '../../../core/error_text.dart';
 import '../../../core/feature_flags.dart';
 import '../../../core/lang.dart';
 import '../../../data/models/cart_item_model.dart';
@@ -82,15 +83,15 @@ class _CompleteLookSectionState extends State<CompleteLookSection> {
       setState(() {
         _loading = false;
         _error = e.message;
-        _errorIsSoft =
-            e.code == 'not_enough_items' || e.code == 'not_supported';
+        _errorIsSoft = e.code == 'not_enough_items' ||
+            e.code == 'not_supported' ||
+            e.isComingSoon;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _error = tr('Что-то пошло не так, попробуйте ещё раз',
-            'Бірдеңе дұрыс болмады, қайталап көріңіз');
+        _error = genericErrorText();
       });
     }
   }

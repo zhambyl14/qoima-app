@@ -268,10 +268,8 @@ String liveErrorText(Object? e) {
   if (e is PostgrestException) code = e.message;
   switch (code) {
     case 'feature_disabled':
-      return tr('Функция временно отключена', 'Функция уақытша өшірулі');
     case 'not_configured':
-      return tr('Эфиры пока не настроены. Попробуйте позже.',
-          'Эфирлер әлі бапталмаған. Кейінірек қайталаңыз.');
+      return comingSoonText();
     case 'live_not_found':
       return tr('Эфир не найден.', 'Эфир табылмады.');
     case 'live_ended':
@@ -310,8 +308,8 @@ String liveErrorText(Object? e) {
     case 'no_auth':
       return tr('Недостаточно прав.', 'Құқығыңыз жеткіліксіз.');
     case 'internal':
-      return tr(
-          'Не удалось подключиться к эфиру.', 'Эфирге қосылу мүмкін болмады.');
+      return tr('Не удалось войти в эфир. Попробуйте ещё раз.',
+          'Эфирге кіру мүмкін болмады. Қайталап көріңіз.');
   }
   return friendlyError(e);
 }

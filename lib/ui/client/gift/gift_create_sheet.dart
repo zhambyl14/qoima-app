@@ -56,8 +56,7 @@ Future<bool> showGiftSheet(
   void Function(OrderModel order)? onCreated,
 }) async {
   if (!FeatureFlags.instance.isOn(FeatureFlags.giftLinks)) {
-    _snack(context, tr('Функция временно отключена', 'Функция уақытша өшірулі'),
-        error: true);
+    _snack(context, comingSoonText());
     return false;
   }
   final ok = await requireLogin(

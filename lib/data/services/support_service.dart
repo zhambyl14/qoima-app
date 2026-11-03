@@ -1,6 +1,7 @@
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../core/error_text.dart';
 import '../../core/lang.dart';
 import '../../core/stream_retry.dart';
 import '../models/support_models.dart';
@@ -157,7 +158,7 @@ class SupportService {
     final m = e.message.toLowerCase();
     if (m.contains('feature_disabled')) {
       return SupportException(
-          tr('Функция временно отключена', 'Функция уақытша өшірулі'),
+          comingSoonText(),
           code: 'feature_disabled');
     }
     if (m.contains('rate_limited')) {

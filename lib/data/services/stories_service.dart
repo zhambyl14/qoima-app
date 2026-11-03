@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/lang.dart';
 import '../models/story_model.dart';
+import 'client_service.dart';
 import 'cloudinary_service.dart';
 
 /// Дүкен сторисі (0084) сервисі.
@@ -13,12 +14,20 @@ import 'cloudinary_service.dart';
 /// кестеге тікелей insert/delete құқығы жоқ. Оқу гостьқа да ашық.
 /// Жалауша: FeatureFlags.stories (сервер өзі де тексереді).
 class StoriesService {
-  StoriesService({SupabaseClient? client, CloudinaryService? cloudinary})
-      : _client = client,
-        _cloudinary = cloudinary ?? CloudinaryService();
+  StoriesService({
+    SupabaseClient? client,
+    CloudinaryService? cloudinary,
+    Future<Set<String>> Function()? hiddenStoreIds,
+  })  : _client = client,
+        _cloudinary = cloudinary ?? CloudinaryService(),
+        _hiddenStoreIds = hiddenStoreIds;
 
   final SupabaseClient? _client;
   final CloudinaryService _cloudinary;
+
+  /// Клиент жасырған дүкендер (тест өз тізімін береді). Әдепкі —
+  /// ClientService.getHiddenStoreIds (гостьқа бос, қатеде бос).
+  final Future<Set<String>> Function()? _hiddenStoreIds;
 
   SupabaseClient get _sb => _client ?? Supabase.instance.client;
 
@@ -31,6 +40,29 @@ class StoriesService {
     final rows =
         await _sb.rpc('stories_for_store', params: {'p_store': storeUid});
     return _list(rows).map(StoryModel.fromMap).toList();
+  }
+
+  /// Клиент көрермені үшін: [storiesForStore] сияқты, бірақ клиент ЖАСЫРҒАН
+  /// дүкеннің сторисі бос қайтады. Сервердегі `stories_for_store` жасыру
+  /// тізімін ескермейді (дүкен иесінің басқару экраны да соны қолданады),
+  /// сондықтан басты беттегі жолақ сияқты сүзу клиент жағында.
+  /// Екі сұраныс қатар жүреді — көрермен ашылуы баяуламайды.
+  Future<List<StoryModel>> storiesForViewer(String storeUid) async {
+    if (storeUid.isEmpty) return const [];
+    // Future.wait екеуіне де бірден тыңдаушы қояды (бөлек await-та сторис
+    // қатесі «ұсталмаған» болып кетер еді).
+    final res =
+        await Future.wait<Object>([_loadHidden(), storiesForStore(storeUid)]);
+    final hidden = res[0] as Set<String>;
+    return hidden.contains(storeUid) ? const [] : res[1] as List<StoryModel>;
+  }
+
+  Future<Set<String>> _loadHidden() async {
+    try {
+      return await (_hiddenStoreIds ?? ClientService().getHiddenStoreIds)();
+    } catch (_) {
+      return const {};
+    }
   }
 
   /// Басты беттегі жолақ: жазылған дүкендердің сторисі (гостьқа — бос).

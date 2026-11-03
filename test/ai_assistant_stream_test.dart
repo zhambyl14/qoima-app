@@ -294,9 +294,24 @@ void main() {
       _backend.push(_frame('error', {'error': 'ai_busy'}));
       await _backend.sse!.close();
       await _settle(t);
-      expect(find.textContaining('AI сейчас перегружен'), findsOneWidget);
+      expect(find.textContaining('Сейчас много запросов'), findsOneWidget);
       final field = t.widget<TextField>(find.byType(TextField));
       expect(field.controller!.text, 'платье');
+      await t.pumpWidget(const SizedBox.shrink());
+      await t.pump(const Duration(seconds: 5));
+    });
+
+    _widgetTest(
+        'сервер not_configured: техникалық мәтінсіз, жұмсақ «Скоро будет доступно»',
+        (t) async {
+      await openScreen(t);
+      await _sendText(t, 'платье');
+      _backend.push(_frame('error', {'error': 'not_configured'}));
+      await _backend.sse!.close();
+      await _settle(t);
+      expect(find.text('Скоро будет доступно'), findsOneWidget);
+      expect(find.textContaining('настро'), findsNothing);
+      expect(find.byType(TextField), findsNothing); // чат орнына жұмсақ күй
       await t.pumpWidget(const SizedBox.shrink());
       await t.pump(const Duration(seconds: 5));
     });

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
 import '../../core/app_user.dart';
 import '../../core/lang.dart';
 import '../../data/models/report_model.dart';
@@ -7,10 +8,33 @@ import '../../data/services/client_service.dart';
 import '../../theme/qoima_design.dart';
 import '../auth/login_screen.dart';
 
+/// Шағым жіберу қатесінің ҚЫСҚА түсінікті мәтіні (сервер 0086 кілттері):
+/// бұрын шағымданған / сторис енді жоқ / өз дүкені. Белгісіз қате → null
+/// (жалпы «жіберілмеді» көрсетіледі). Ішкі себептер клиентке ашылмайды.
+String? reportErrorText(Object e) {
+  final code = e is PostgrestException ? (e.code ?? '') : '';
+  final m = e.toString().toLowerCase();
+  if (m.contains('already_reported') ||
+      code == '23505' ||
+      m.contains('content_reports_story_once')) {
+    return tr('Вы уже отправили жалобу. Мы её рассмотрим.',
+        'Шағымыңыз бұрын жіберілген. Біз оны қараймыз.');
+  }
+  if (m.contains('story_unavailable')) {
+    return tr('Эта сторис уже недоступна.', 'Бұл сторис енді қолжетімсіз.');
+  }
+  if (m.contains('cannot_report_own')) {
+    return tr('Нельзя пожаловаться на свой магазин.',
+        'Өз дүкеніңізге шағымдануға болмайды.');
+  }
+  return null;
+}
+
 /// Контентке шағымдану sheet-і (App Store Guideline 1.2 — report mechanism).
 ///
 /// Кез келген АВТОРИЗАЦИЯЛАНҒАН қолданушы шақыра алады; guest — логинге
-/// бағытталады. [targetType]: 'product' | 'store' | 'review'.
+/// бағытталады. [targetType]: 'product' | 'store' | 'review' | 'question' |
+/// 'story' (стористе атау/дүкен/суретті сервер өзі толтырады — 0086).
 Future<void> showReportSheet(
   BuildContext context, {
   required String targetType,
@@ -98,6 +122,14 @@ class _ReportSheetState extends State<_ReportSheet> {
     super.dispose();
   }
 
+  /// Парақты жабу — тек ол әлі ашық тұрса. Жіберу кезінде қолданушы парақты
+  /// свайппен/фонды басып жауып қойса, кеш келген жауаптағы `pop()` АСТЫНДАҒЫ
+  /// экранды (мыс. сторис көрермені) жауып тастайтын.
+  void _popIfStillOpen(NavigatorState navigator) {
+    if (!mounted) return;
+    if (ModalRoute.of(context)?.isCurrent ?? false) navigator.pop();
+  }
+
   Future<void> _send() async {
     if (_reason == null || _sending) return;
     setState(() => _sending = true);
@@ -115,18 +147,26 @@ class _ReportSheetState extends State<_ReportSheet> {
         reporterName: widget.reporterName,
         reporterPhone: widget.reporterPhone,
       );
-      navigator.pop();
+      _popIfStillOpen(navigator);
       messenger.showSnackBar(SnackBar(
-        content: Text(tr('Жалоба отправлена. Мы рассмотрим её в ближайшее время.',
+        content: Text(tr(
+            'Жалоба отправлена. Мы рассмотрим её в ближайшее время.',
             'Шағым жіберілді. Жақын арада қараймыз.')),
         backgroundColor: cGreen,
         behavior: SnackBarBehavior.floating,
       ));
     } catch (e) {
-      if (mounted) setState(() => _sending = false);
+      final known = reportErrorText(e);
+      // Бұрын шағымданған не нысан енді жоқ — парақ жабылады, қайталаудың мәні жоқ.
+      if (known != null) {
+        _popIfStillOpen(navigator);
+      } else if (mounted) {
+        setState(() => _sending = false);
+      }
       messenger.showSnackBar(SnackBar(
-        content: Text(tr('Не удалось отправить жалобу', 'Шағым жіберілмеді')),
-        backgroundColor: cRed,
+        content: Text(
+            known ?? tr('Не удалось отправить жалобу', 'Шағым жіберілмеді')),
+        backgroundColor: known != null ? cInk2 : cRed,
         behavior: SnackBarBehavior.floating,
       ));
     }
@@ -190,8 +230,8 @@ class _ReportSheetState extends State<_ReportSheet> {
                 decoration: BoxDecoration(
                   color: selected ? cGreenTint : cBg,
                   borderRadius: BorderRadius.circular(13),
-                  border: Border.all(
-                      color: selected ? cGreen : cLine, width: 1.5),
+                  border:
+                      Border.all(color: selected ? cGreen : cLine, width: 1.5),
                 ),
                 child: Row(children: [
                   Icon(

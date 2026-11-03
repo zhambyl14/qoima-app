@@ -8,10 +8,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/app_user.dart';
 import '../../../core/feature_flags.dart';
+import '../../../core/error_text.dart';
 import '../../../core/lang.dart';
 import '../../../data/models/catalog_hit.dart';
 import '../../../data/services/ai_service.dart';
 import '../../../theme/qoima_design.dart';
+import '../../shared/coming_soon_view.dart';
 import '../../shared/require_login.dart';
 import '../client_shell.dart';
 import 'ai_navigation.dart';
@@ -45,6 +47,9 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
 
   final List<_Msg> _msgs = [];
   bool _sending = false;
+
+  /// Сервер «функция қосылмаған» деп жауап берсе — жұмсақ «жақында» күйі.
+  bool _comingSoon = false;
   int? _remaining;
 
   // Ағынды жауаптың уақытша күйі: прогресс, келіп жатқан мәтін, табылған
@@ -247,9 +252,10 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
         _sending = false;
         _resetLive();
         if (e.isQuota) _remaining = 0;
+        if (e.isComingSoon) _comingSoon = true;
       });
       _ctrl.text = text;
-      aiSnack(context, e.message, error: true);
+      if (!e.isComingSoon) aiSnack(context, e.message, error: true);
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -258,11 +264,8 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
         _resetLive();
       });
       _ctrl.text = text;
-      aiSnack(
-          context,
-          tr('Что-то пошло не так, попробуйте ещё раз',
-              'Бірдеңе дұрыс болмады, қайталап көріңіз'),
-          error: true);
+      debugPrint('AiAssistant: unexpected error: $e');
+      aiSnack(context, genericErrorText(), error: true);
     }
   }
 
@@ -308,7 +311,8 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     return ListenableBuilder(
       listenable: FeatureFlags.instance,
       builder: (context, _) {
-        final on = FeatureFlags.instance.isOn(FeatureFlags.aiAssistant);
+        final on =
+            FeatureFlags.instance.isOn(FeatureFlags.aiAssistant) && !_comingSoon;
         return Scaffold(
           backgroundColor: cBg,
           body: Column(children: [
@@ -328,17 +332,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
             ),
             Expanded(
               child: !on
-                  ? Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(32),
-                        child: Text(
-                          tr('Функция временно отключена',
-                              'Функция уақытша өшірулі'),
-                          textAlign: TextAlign.center,
-                          style: manrope(15, FontWeight.w600, color: cInk2),
-                        ),
-                      ),
-                    )
+                  ? const ComingSoonView()
                   : _buildChat(),
             ),
             if (on) _buildInput(),

@@ -228,7 +228,7 @@ String registryErrorText(Object e) {
       e is PostgrestException ? '${e.message} ${e.details ?? ''}' : '$e';
   bool has(String code) => raw.contains(code);
   if (has('feature_disabled')) {
-    return tr('Функция временно отключена', 'Функция уақытша өшірулі');
+    return comingSoonText();
   }
   if (has('registry_item_taken')) {
     return tr('Этот подарок уже выбрал другой гость',

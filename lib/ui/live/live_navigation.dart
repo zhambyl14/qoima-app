@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/feature_flags.dart';
+import '../../core/error_text.dart';
 import '../../core/lang.dart';
 import '../../core/push_navigation.dart';
 import '../../data/models/live_models.dart';
@@ -40,7 +41,7 @@ Future<void> openLiveSession(BuildContext context, String sessionId,
   if (!FeatureFlags.instance.isOn(FeatureFlags.liveShopping)) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content:
-          Text(tr('Функция временно отключена', 'Функция уақытша өшірулі')),
+          Text(comingSoonText()),
       behavior: SnackBarBehavior.floating,
     ));
     return;

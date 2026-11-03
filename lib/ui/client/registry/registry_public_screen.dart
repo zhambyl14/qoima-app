@@ -305,8 +305,8 @@ class _RegistryPublicScreenState extends State<RegistryPublicScreen> {
                 SliverToBoxAdapter(
                   child: _Banner(
                     icon: Icons.info_outline_rounded,
-                    text: tr('Выбор подарков временно отключён',
-                        'Сыйлық таңдау уақытша өшірулі'),
+                    text: tr('Выбор подарков скоро будет доступен',
+                        'Сыйлық таңдау жақында қолжетімді болады'),
                     tone: 'amber',
                   ),
                 ),

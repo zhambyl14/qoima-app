@@ -9,11 +9,11 @@ import '../../theme/qoima_design.dart';
 import 'reject_reason_sheet.dart';
 import '../../core/error_text.dart';
 
-/// Superadmin — контент шағымдары (тауар/дүкен/пікір).
+/// Superadmin — контент шағымдары (тауар/дүкен/пікір/сұрақ/сторис).
 ///
 /// App Store Guideline 1.2: шағымдарға уақтылы жауап беру механизмі.
 /// Әрекеттер: шағымды жабу (шешілді/қабылданбады), пікірді өшіру,
-/// дүкенді онлайн-блоктау.
+/// стористі өшіру, дүкенді онлайн-блоктау.
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
 
@@ -117,6 +117,42 @@ class _ReportsScreenState extends State<ReportsScreen> {
     }
   }
 
+  /// Стористі модерациялап өшіру (шағым авто-жабылмайды — модератор өзі жабады).
+  Future<void> _deleteStory(ReportModel r) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: cSurface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Text(tr('Удалить сторис?', 'Стористі өшіру керек пе?'),
+            style: manrope(16, FontWeight.w800, color: cInk)),
+        content: Text(
+            // «Фото удалится» деп жазылмайды: шағымдағы сурет снапшоты
+            // (target_image) 0089 бойынша Cloudinary-ден өшірілмейді.
+            tr('Сторис исчезнет у всех покупателей.',
+                'Сторис барлық сатып алушыдан жойылады.'),
+            style: manrope(13.5, FontWeight.w500, color: cInk2)),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(tr('Отмена', 'Болдырмау'),
+                  style: manrope(14, FontWeight.w600, color: cInk2))),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(tr('Удалить', 'Өшіру'),
+                  style: manrope(14, FontWeight.w700, color: cRed))),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await _repo.deleteStory(r.targetId);
+      _snack(tr('Сторис удалена', 'Сторис өшірілді'), cGreen);
+    } catch (e) {
+      _snack(friendlyError(e), cRed);
+    }
+  }
+
   /// Дүкенді онлайн-блоктау (маркетплейстен жасырылады).
   Future<void> _blockStore(ReportModel r) async {
     final reason = await showRejectReasonSheet(
@@ -167,8 +203,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
                           active: _tab == 0,
                           onTap: () => setState(() => _tab = 0)),
                       _TabChip(
-                          label: tr('Все (${all.length})',
-                              'Барлығы (${all.length})'),
+                          label: tr(
+                              'Все (${all.length})', 'Барлығы (${all.length})'),
                           active: _tab == 1,
                           onTap: () => setState(() => _tab = 1)),
                       _TabChip(
@@ -192,11 +228,12 @@ class _ReportsScreenState extends State<ReportsScreen> {
                           itemCount: list.length,
                           separatorBuilder: (_, __) =>
                               const SizedBox(height: 10),
-                          itemBuilder: (_, i) => _ReportCard(
+                          itemBuilder: (_, i) => ReportCard(
                             report: list[i],
                             onResolve: () => _close(list[i], 'resolved'),
                             onDismiss: () => _close(list[i], 'dismissed'),
                             onDeleteReview: () => _deleteReview(list[i]),
+                            onDeleteStory: () => _deleteStory(list[i]),
                             onBlockStore: () => _blockStore(list[i]),
                           ),
                         ),
@@ -214,10 +251,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
             Container(
               width: 72,
               height: 72,
-              decoration:
-                  const BoxDecoration(color: cGreenTint, shape: BoxShape.circle),
-              child:
-                  const Icon(Icons.flag_outlined, color: cGreen, size: 34),
+              decoration: const BoxDecoration(
+                  color: cGreenTint, shape: BoxShape.circle),
+              child: const Icon(Icons.flag_outlined, color: cGreen, size: 34),
             ),
             const SizedBox(height: 14),
             Text(tr('Жалоб нет', 'Шағым жоқ'),
@@ -231,17 +267,21 @@ class _ReportsScreenState extends State<ReportsScreen> {
 }
 
 // ── Шағым карточкасы ──────────────────────────────────────────────────────────
-class _ReportCard extends StatelessWidget {
+/// Бір шағым карточкасы (тест үшін ашық).
+class ReportCard extends StatelessWidget {
   final ReportModel report;
   final VoidCallback onResolve;
   final VoidCallback onDismiss;
   final VoidCallback onDeleteReview;
+  final VoidCallback onDeleteStory;
   final VoidCallback onBlockStore;
-  const _ReportCard({
+  const ReportCard({
+    super.key,
     required this.report,
     required this.onResolve,
     required this.onDismiss,
     required this.onDeleteReview,
+    required this.onDeleteStory,
     required this.onBlockStore,
   });
 
@@ -253,10 +293,22 @@ class _ReportCard extends StatelessWidget {
         return Icons.rate_review_outlined;
       case 'question':
         return Icons.help_outline_rounded;
+      case 'story':
+        return Icons.amp_stories_outlined;
       default:
         return Icons.inventory_2_outlined;
     }
   }
+
+  Widget _iconBox() => Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: cRed.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(_icon, color: cRed, size: 20),
+      );
 
   Color get _statusColor {
     if (report.isResolved) return cGreen;
@@ -279,15 +331,10 @@ class _ReportCard extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: cRed.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(_icon, color: cRed, size: 20),
-          ),
+          if (report.targetImage.isNotEmpty)
+            _Thumb(url: report.targetImage, fallback: _icon)
+          else
+            _iconBox(),
           const SizedBox(width: 11),
           Expanded(
             child: Column(
@@ -318,8 +365,13 @@ class _ReportCard extends StatelessWidget {
           Row(children: [
             const Icon(Icons.storefront_outlined, size: 14, color: cInk3),
             const SizedBox(width: 5),
-            Text(report.storeName,
-                style: manrope(12, FontWeight.w600, color: cInk3)),
+            // Flexible: ұзын дүкен атауы тар экранда (320px) Row-дан шықпасын.
+            Flexible(
+              child: Text(report.storeName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: manrope(12, FontWeight.w600, color: cInk3)),
+            ),
           ]),
         ],
         if (report.comment.trim().isNotEmpty) ...[
@@ -356,6 +408,14 @@ class _ReportCard extends StatelessWidget {
               color: cInk2,
               onTap: onDismiss,
             ),
+            if (report.isStory)
+              _ActionBtn(
+                key: const ValueKey('report-delete-story'),
+                label: tr('Удалить сторис', 'Стористі өшіру'),
+                icon: Icons.delete_outline_rounded,
+                color: cRed,
+                onTap: onDeleteStory,
+              ),
             if (report.targetType == 'review')
               _ActionBtn(
                 label: tr('Удалить отзыв', 'Пікірді өшіру'),
@@ -387,7 +447,8 @@ class _ActionBtn extends StatelessWidget {
   final Color color;
   final VoidCallback onTap;
   const _ActionBtn(
-      {required this.label,
+      {super.key,
+      required this.label,
       required this.icon,
       required this.color,
       required this.onTap});
@@ -427,9 +488,7 @@ class _TabChip extends StatelessWidget {
         margin: const EdgeInsets.only(right: 8),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         decoration: BoxDecoration(
-          color: active
-              ? Colors.white
-              : Colors.white.withValues(alpha: 0.14),
+          color: active ? Colors.white : Colors.white.withValues(alpha: 0.14),
           borderRadius: BorderRadius.circular(10),
         ),
         child: Center(
@@ -440,4 +499,64 @@ class _TabChip extends StatelessWidget {
       ),
     );
   }
+}
+
+// ── Нысан суретінің кішкентай нұсқасы (сторис 9:16) — басса толық көрінеді ──
+class _Thumb extends StatelessWidget {
+  final String url;
+  final IconData fallback;
+  const _Thumb({required this.url, required this.fallback});
+
+  Widget _broken() => Container(
+        color: cRed.withValues(alpha: 0.08),
+        alignment: Alignment.center,
+        child: Icon(fallback, color: cRed, size: 20),
+      );
+
+  void _preview(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      barrierColor: Colors.black87,
+      builder: (ctx) => GestureDetector(
+        onTap: () => Navigator.pop(ctx),
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Image.network(
+                url,
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(tr('Фото уже удалено', 'Сурет өшіріліп қойған'),
+                      style:
+                          manrope(14, FontWeight.w600, color: Colors.white70)),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        key: const ValueKey('report-thumb'),
+        onTap: () => _preview(context),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: SizedBox(
+            width: 44,
+            height: 66,
+            child: Image.network(
+              url,
+              fit: BoxFit.cover,
+              cacheWidth: 132,
+              errorBuilder: (_, __, ___) => _broken(),
+            ),
+          ),
+        ),
+      );
 }

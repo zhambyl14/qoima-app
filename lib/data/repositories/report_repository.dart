@@ -30,4 +30,10 @@ class ReportRepository {
   /// products.rating триггер арқылы автоматты қайта есептеледі).
   Future<void> deleteReview(String reviewId) =>
       _sb.from('product_reviews').delete().eq('id', reviewId);
+
+  /// Дүкен сторисін модерациялап өшіру — 0084 `story_delete` RPC (superadmin-ге
+  /// рұқсат; сурет серверде Cloudinary кезегіне өзі түседі). Сторис бұрыннан
+  /// жоқ болса (мерзімі өтіп кеткен) — үнсіз. Шағым авто-жабылмайды.
+  Future<void> deleteStory(String storyId) =>
+      _sb.rpc('story_delete', params: {'p_id': storyId});
 }

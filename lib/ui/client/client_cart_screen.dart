@@ -17,12 +17,14 @@ import '../../data/models/promo_model.dart';
 import '../../data/models/return_policy.dart';
 import '../../data/models/store_model.dart';
 import '../../data/services/app_settings_service.dart';
+import '../../data/services/auth_service.dart';
 import '../../data/services/client_service.dart';
 import '../../data/services/kazpost_service.dart';
 import '../../theme/qoima_design.dart';
 import '../auth/auth_widgets.dart';
 import '../auth/login_screen.dart';
 import '../shared/require_login.dart';
+import 'cart_receiving_rules.dart';
 import 'client_shell.dart';
 import 'gift/gift_create_sheet.dart';
 import 'payment_instructions_sheet.dart';
@@ -49,6 +51,12 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
   // (бұрын «Бронь» алдын ала таңдаулы тұрып, көбі байқамай бронь жасайтын).
   String? _orderType;
   final _addressCtrl = TextEditingController();
+
+  // ── Басқа қаладағы дүкен → тек «Жеткізу» (cart_receiving_rules.dart, 0088) ──
+  //  Таңдалған Бронь/Самовывоз себет/қала өзгергенде жарамсыз болып қалса,
+  //  тәсіл алынады да, клиентке «жеткізуді таңдаңыз» деген белгі шығады.
+  bool _pickupResetNotice = false;
+  bool _pickupResetScheduled = false;
 
   /// Жеткізу қаласы — ПРОФИЛЬДЕН алынады (`clients.city`, тіркелуде
   /// толтырылады). Курьер қызметінің бар-жоғы да, сатушының «қай қалаға
@@ -838,6 +846,59 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
     return true;
   }
 
+  /// Бронь/Самовывоз рұқсат па. Клиенттің қаласы — ПРОФИЛЬДЕГІ (clients.city),
+  /// жеткізу қаласы емес: сервердегі 0088 триггері де дәл соны салыстырады.
+  PickupAvailability _pickupFor(List<CartItemModel> items) => pickupAvailability(
+        clientCity: context.read<AppUser>().city,
+        items: items,
+        storeCityByAdmin: _storeCityByAdmin,
+      );
+
+  /// Таңдалған тәсіл жарамсыз болса — келесі кадрда алып тастаймыз (build
+  /// ішінде setState жасауға болмайды). Бір кадрда бір-ақ рет жоспарланады.
+  void _schedulePickupReset() {
+    if (_pickupResetScheduled) return;
+    _pickupResetScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _pickupResetScheduled = false;
+      if (!mounted) return;
+      final items = _checkoutItems(context.read<CartProvider>());
+      if (_pickupFor(items).permits(_orderType)) return;
+      _resetPickupChoice();
+    });
+  }
+
+  void _resetPickupChoice() {
+    setState(() {
+      _orderType = null;
+      _pickupResetNotice = true;
+    });
+  }
+
+  /// Сервер `pickup_city_mismatch` қайтарды, ал қосымша Броньді рұқсат деп
+  /// санады — профильдегі қала ескі (мыс. басқа құрылғыда ауыстырылған).
+  /// clients.city-ді қайта оқимыз: AppUser жаңарса, себет өзі қайта шешеді
+  /// (Бронь/Самовывоз жасырылады) — клиент бір қатені қайта-қайта көрмейді.
+  Future<void> _refreshProfileCity() async {
+    final appUser = context.read<AppUser>();
+    try {
+      final doc = await AuthService().getClientDoc(appUser.uid);
+      if (!mounted || doc == null) return;
+      appUser.updateCity(doc.city);
+    } catch (_) {}
+  }
+
+  /// «Жеткізу» плиткасының мәтіні. Басқа қаладағы дүкен болса (жалғыз тәсіл
+  /// осы) — соманың бәрі ҚАЗІР төленетіні міндетті түрде айтылады.
+  String _deliveryTileSubtitle(
+      List<CartItemModel> items, PickupAvailability pickup) {
+    final base = _deliverySubtitle(items);
+    if (pickup.allowed || !_deliveryInfoReady || base.contains('100%')) {
+      return base;
+    }
+    return '$base · ${tr('100% оплата сразу', '100% төлем бірден')}';
+  }
+
   String _deliverySubtitle(List<CartItemModel> items) {
     // Жауап әлі белгісіз — БОЛЖАМ АЙТПАЙМЫЗ. «Дүкен өзі жеткізеді» деп жазып
     // тұрып кейін «курьер 690 ₸» деп ауысу — клиентті шатастырады.
@@ -1130,6 +1191,16 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
     final checkoutItems = _checkoutItems(cart);
     if (checkoutItems.isEmpty) return;
     if (_orderType == null) return; // алу тәсілі таңдалмаған
+    // Тәсіл ОСЫ сәтте бекітіледі: растау парағы ашық тұрғанда/қайта тексеру
+    // кезінде себет кадр сайын ережені қайта шешеді де, Бронь жарамсыз болса
+    // _orderType-ты null қылады (_schedulePickupReset). Әрі қарай тек осы
+    // көшірме қолданылады, ал жазудан бұрын екеуінің теңдігі тексеріледі.
+    final orderType = _orderType!;
+    // Басқа қаладағы дүкенге Бронь/Самовывоз жоқ (сервер 0088 те бөгейді).
+    if (!_pickupFor(checkoutItems).permits(orderType)) {
+      _resetPickupChoice();
+      return;
+    }
 
     // 0073: қайтарылмайтын тауар бар болса — ашық келісім міндетті.
     if (!_nrConsent && checkoutItems.any(_lineNeedsConsent)) {
@@ -1143,7 +1214,7 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
       return;
     }
 
-    if (_orderType == OrderModel.typeDelivery && _deliveryCity.trim().isEmpty) {
+    if (orderType == OrderModel.typeDelivery && _deliveryCity.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content:
             Text(tr('Выберите город доставки', 'Жеткізу қаласын таңдаңыз')),
@@ -1151,7 +1222,7 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
       ));
       return;
     }
-    if (_orderType == OrderModel.typeDelivery &&
+    if (orderType == OrderModel.typeDelivery &&
         _addressCtrl.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content:
@@ -1182,12 +1253,12 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _PaymentSheet(
-        orderType: _orderType!,
+        orderType: orderType,
         plans: plans,
         promoCode: _appliedPromo?.code ?? '',
         // Курьер де, Казпочта да жоқ қойма (басқа қала немесе қалада қызмет
         // қосылмаған) → дүкен өзі жеткізеді, шартын клиентпен өзі келіседі.
-        storeDelivers: _orderType == OrderModel.typeDelivery &&
+        storeDelivers: orderType == OrderModel.typeDelivery &&
             plans.any((p) => !p.courierDelivery && !p.isKazpost),
         warehouseAddress: _warehouseAddress(checkoutItems),
         deliveryAddress: hasKazpost
@@ -1209,6 +1280,16 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
       // аралықта қолжетімсіз болып қалуы мүмкін (тек ТАҢДАЛҒАНДАРЫ бөгейді,
       // себеттегі басқа/таңдалмаған товар кедергі жасамайды).
       final stillGood = _checkoutItems(cart);
+      // Дүкен қалалары қайта оқылды: осы аралықта дүкен қаласын ауыстырса,
+      // растаған тәсіл жарамсыз болуы мүмкін — тапсырыс жасамай тоқтаймыз.
+      //  _orderType != orderType: себет осы аралықта тәсілді өзі алып тастады
+      //  (қайта тексеру кезіндегі кадрда) — тапсырыс жасамаймыз.
+      final pickupOk = _pickupFor(stillGood).permits(orderType);
+      if (!pickupOk || _orderType != orderType) {
+        if (!pickupOk) _resetPickupChoice();
+        setState(() => _isLoading = false);
+        return;
+      }
       // 0073: қайта тексеру белгілерді жаңартты — иесі осы аралықта тауарды
       // «қайтарылмайды» деп белгілеген болуы мүмкін: келісім қайта тексеріледі.
       if (!_nrConsent && stillGood.any(_lineNeedsConsent)) {
@@ -1242,7 +1323,7 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
 
       // Қойма қозғалмай тұрып: Казпочта бағасы клиент растағанмен бірдей ме.
       // Сервер де kazpost_fee_changed деп қайтарады, бірақ оған дейін тоқтаған дұрыс.
-      if (_orderType == OrderModel.typeDelivery &&
+      if (orderType == OrderModel.typeDelivery &&
           await _kazpostQuoteChanged(stillGood)) {
         return;
       }
@@ -1274,12 +1355,12 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
               ? List.from(plan.items)
               : plan.items.map((i) => i.copyWith(altSize: '')).toList(),
           status: OrderModel.statusPending,
-          orderType: _orderType!,
+          orderType: orderType,
           createdAt: DateTime.now(),
           address: _addressCtrl.text.trim(),
           // Дүкен «қай қалаға жіберемін» дегенді осыдан біледі.
           clientCity:
-              _orderType == OrderModel.typeDelivery ? _deliveryCity.trim() : '',
+              orderType == OrderModel.typeDelivery ? _deliveryCity.trim() : '',
           note: _noteCtrl.text.trim(),
           // ДҮКЕНГЕ: тауар/депозит + «өлшеп көру» + (бар болса) Казпочта.
           depositAmount: plan.transferAmount,
@@ -1290,7 +1371,7 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
           // Қалада курьер қызметі жоқ болса — дүкен өзі жеткізеді (0055).
           deliveryMode: plan.isKazpost
               ? OrderModel.deliveryByKazpost
-              : _orderType == OrderModel.typeDelivery && !plan.courierDelivery
+              : orderType == OrderModel.typeDelivery && !plan.courierDelivery
                   ? OrderModel.deliveryByStore
                   : OrderModel.deliveryByCourier,
           postRecipientName: plan.isKazpost ? _postNameCtrl.text.trim() : '',
@@ -1340,10 +1421,18 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
         context,
         amount: payNow,
         orders: placedOrders,
-        isDeposit: _orderType == OrderModel.typeSmartReservation,
+        isDeposit: orderType == OrderModel.typeSmartReservation,
       );
 
       if (!mounted) return;
+      // Аралас себет: бір дүкен өтті, екіншісін сервер басқа қала деп бөгеді —
+      // қалған тауарларға Бронь/Самовывоз таңдауы қалмауы керек. (Төлем
+      // парағынан КЕЙІН: isDeposit өткен тапсырыстың түрімен көрсетілуі тиіс.)
+      if (partialError != null &&
+          partialError.toString().contains('pickup_city_mismatch')) {
+        _resetPickupChoice();
+        unawaited(_refreshProfileCity());
+      }
       final shell = context.findAncestorStateOfType<ClientShellState>();
       if (widget.onOrderSuccess != null) {
         widget.onOrderSuccess!();
@@ -1370,6 +1459,12 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
         if (e.toString().contains('kazpost_')) {
           unawaited(_reloadKazpostQuotes());
         }
+        // 0088: сервер профильдегі қаланы басқаша көрді (мыс. басқа құрылғыда
+        // ауыстырылған) — Бронь/Самовывоз таңдауын алып тастаймыз.
+        if (e.toString().contains('pickup_city_mismatch')) {
+          _resetPickupChoice();
+          unawaited(_refreshProfileCity());
+        }
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(friendlyError(e)),
           backgroundColor: cRed,
@@ -1386,6 +1481,10 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
     final cart = context.watch<CartProvider>();
     final itemCount = cart.items.length;
     final checkoutItems = _checkoutItems(cart);
+    // Профильдегі қала ауысса (басқа экранда) — себет бірден қайта шешеді.
+    context.select<AppUser, String>((u) => u.city);
+    final pickup = _pickupFor(checkoutItems);
+    if (!pickup.permits(_orderType)) _schedulePickupReset();
     final showPostForm = !_giftMode &&
         _orderType == OrderModel.typeDelivery &&
         _planSubOrders(checkoutItems).any((p) => p.isKazpost);
@@ -1514,8 +1613,11 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                           const SizedBox(width: 6),
                           Expanded(
                             child: Text(
-                              tr('Выберите способ получения',
-                                  'Алу тәсілін таңдаңыз'),
+                              _pickupResetNotice && !pickup.allowed
+                                  ? tr('Выбранный способ не подходит для этого заказа — выберите доставку',
+                                      'Таңдалған тәсіл бұл тапсырысқа келмейді — жеткізуді таңдаңыз')
+                                  : tr('Выберите способ получения',
+                                      'Алу тәсілін таңдаңыз'),
                               style:
                                   manrope(12, FontWeight.w600, color: cAmber),
                             ),
@@ -1523,29 +1625,36 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                         ]),
                       ),
 
+                    // Басқа қаладағы дүкен: Бронь/Самовывоз ЖАСЫРЫЛАДЫ, орнына
+                    // бір жол түсіндірме (клиент неге екенін бірден көреді).
+                    if (!pickup.allowed && !_giftMode)
+                      _PickupBlockedNote(text: pickupBlockedText(pickup)),
+
                     // Алу тәсілдері — халыққа түсінікті атаулар.
                     ...[
-                      (
-                        OrderModel.typeSmartReservation,
-                        Icons.timer_outlined,
-                        tr('Бронь', 'Бронь'),
-                        tr('Платите 10% — товар ждёт вас 1 час, остальное в магазине',
-                            '10% төлейсіз — тауар 1 сағат күтеді, қалғанын дүкенде'),
-                        'blue',
-                      ),
-                      (
-                        OrderModel.typeClickCollect,
-                        Icons.storefront_outlined,
-                        tr('Самовывоз', 'Өзім барып аламын'),
-                        tr('Полная оплата онлайн, заберёте в магазине',
-                            'Толық онлайн төлем, дүкеннен өзіңіз аласыз'),
-                        'green',
-                      ),
+                      if (pickup.allowed)
+                        (
+                          OrderModel.typeSmartReservation,
+                          Icons.timer_outlined,
+                          tr('Бронь', 'Бронь'),
+                          tr('Платите 10% — товар ждёт вас 1 час, остальное в магазине',
+                              '10% төлейсіз — тауар 1 сағат күтеді, қалғанын дүкенде'),
+                          'blue',
+                        ),
+                      if (pickup.allowed)
+                        (
+                          OrderModel.typeClickCollect,
+                          Icons.storefront_outlined,
+                          tr('Самовывоз', 'Өзім барып аламын'),
+                          tr('Полная оплата онлайн, заберёте в магазине',
+                              'Толық онлайн төлем, дүкеннен өзіңіз аласыз'),
+                          'green',
+                        ),
                       (
                         OrderModel.typeDelivery,
                         Icons.local_shipping_outlined,
                         tr('Доставка', 'Жеткізу'),
-                        _deliverySubtitle(checkoutItems),
+                        _deliveryTileSubtitle(checkoutItems, pickup),
                         'amber',
                       ),
                       // Сыйлық: суперадмин жалаушасымен; қонақ басқанда кіру сұралады.
@@ -1567,7 +1676,10 @@ class _ClientCartScreenState extends State<ClientCartScreen> {
                       return GestureDetector(
                         onTap: type == _giftTile
                             ? _startGift
-                            : () => setState(() => _orderType = type),
+                            : () => setState(() {
+                                  _orderType = type;
+                                  _pickupResetNotice = false;
+                                }),
                         child: Container(
                           margin: const EdgeInsets.only(bottom: 10),
                           padding: const EdgeInsets.all(13),
@@ -2970,6 +3082,37 @@ class _SummaryLine extends StatelessWidget {
                     color: color)),
           ],
         ),
+      );
+}
+
+// ── Басқа қаладағы дүкен: тек жеткізу ───────────────────────────────────────────
+//  Ақпараттық (қате емес) — көк реңк, алу мекенжайы жолағымен бір пішінде.
+class _PickupBlockedNote extends StatelessWidget {
+  final String text;
+  const _PickupBlockedNote({required this.text});
+
+  @override
+  Widget build(BuildContext context) => Container(
+        key: const ValueKey('pickup-blocked-note'),
+        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
+        decoration: BoxDecoration(
+          color: cBlueTint,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Padding(
+            padding: EdgeInsets.only(top: 1),
+            child: Icon(Icons.location_city_rounded, color: cBlueInk, size: 16),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(text,
+                style: manrope(12.5, FontWeight.w600,
+                    color: cBlueInk, height: 1.35)),
+          ),
+        ]),
       );
 }
 

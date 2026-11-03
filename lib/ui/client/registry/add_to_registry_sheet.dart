@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../../core/app_user.dart';
 import '../../../core/feature_flags.dart';
+import '../../../core/error_text.dart';
 import '../../../core/lang.dart';
 import '../../../data/models/batch_model.dart';
 import '../../../data/models/product_model.dart';
@@ -39,8 +40,7 @@ Future<void> showAddToRegistrySheet(
 
   // Сервер де тексереді (feature_disabled); мұнда тек қолданушыға түсінікті жауап.
   if (!FeatureFlags.instance.isOn(FeatureFlags.giftRegistry)) {
-    toast(tr('Функция временно отключена', 'Функция уақытша өшірулі'),
-        error: true);
+    toast(comingSoonText());
     return;
   }
   final ok = await requireLogin(

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/error_text.dart';
@@ -21,6 +22,13 @@ class AiException implements Exception {
 
   bool get isQuota => code == 'ai_quota_exceeded';
   bool get isDisabled => code == 'feature_disabled';
+
+  /// Оператор қоспаған функция (жалауша/баптау/жарамдылық): UI қате емес,
+  /// жұмсақ «жақында» күйін көрсетеді.
+  bool get isComingSoon =>
+      code == 'feature_disabled' ||
+      code == 'not_configured' ||
+      code == 'not_eligible';
 
   @override
   String toString() => message;
@@ -120,11 +128,13 @@ class AiService {
     } on FunctionException catch (e) {
       final detail = e.details is Map ? (e.details as Map)['error'] : null;
       final code = detail?.toString() ?? 'ai_failed';
+      debugPrint('AiService: FunctionException status=${e.status} code=$code');
       throw AiException(code, _msg(code));
     } on TimeoutException {
       throw AiException('timeout', _msg('timeout'));
     } catch (e) {
       if (isNetworkError(e)) throw AiException('network', friendlyError(e));
+      debugPrint('AiService: unexpected error: $e');
       throw AiException('ai_failed', _msg('ai_failed'));
     }
 
@@ -162,6 +172,7 @@ class AiService {
       throw AiException('timeout', _msg('timeout'));
     } catch (e) {
       if (isNetworkError(e)) throw AiException('network', friendlyError(e));
+      debugPrint('AiService: unexpected error: $e');
       throw AiException('ai_failed', _msg('ai_failed'));
     }
     if (finished) return;
@@ -249,6 +260,7 @@ class AiService {
     } on FunctionException catch (e) {
       final detail = e.details is Map ? (e.details as Map)['error'] : null;
       final code = detail?.toString() ?? 'ai_failed';
+      debugPrint('AiService: FunctionException status=${e.status} code=$code');
       throw AiException(code, _msg(code));
     } on TimeoutException {
       throw AiException('timeout', _msg('timeout'));
@@ -256,26 +268,32 @@ class AiService {
       if (isNetworkError(e)) {
         throw AiException('network', friendlyError(e));
       }
+      debugPrint('AiService: unexpected error: $e');
       throw AiException('ai_failed', _msg('ai_failed'));
     }
   }
 
+  /// Сервер кодын сатып алушыға арналған мәтінге айналдырады (тест үшін ашық).
+  ///
+  /// Ереже: оператор қоспаған/баптамаған нәрсе (жалауша, кілт, провайдер,
+  /// жарамдылық тізімі) — тек «жақында қолжетімді»; ішкі себеп экранға шықпайды.
+  static String messageFor(String code) => _msg(code);
+
   static String _msg(String code) {
     switch (code) {
       case 'ai_quota_exceeded':
-        return tr('Дневной лимит исчерпан, попробуйте завтра',
-            'Бүгінгі лимит бітті, ертең қайталаңыз');
+        return tr('На сегодня запросы закончились — возвращайтесь завтра',
+            'Бүгінге сұраныстар бітті — ертең қайта келіңіз');
       case 'feature_disabled':
-        return tr('Функция временно отключена', 'Функция уақытша өшірулі');
+      case 'not_configured':
+      case 'not_eligible':
+        return comingSoonText();
       case 'not_enough_items':
         return tr('Пока не нашлось подходящих товаров для образа',
             'Образ үшін әзірге сәйкес тауар табылмады');
       case 'not_supported':
         return tr('Для этого товара образ собрать нельзя',
             'Бұл тауарға образ құрастыру мүмкін емес');
-      case 'not_eligible':
-        return tr('Этот товар нельзя примерить онлайн',
-            'Бұл тауарды онлайн киіп көру мүмкін емес');
       case 'not_found':
         return tr('Товар недоступен', 'Тауар қолжетімсіз');
       case 'tryon_failed':
@@ -286,15 +304,12 @@ class AiService {
       case 'timeout':
         return tr('Слишком долго. Попробуйте ещё раз',
             'Тым ұзаққа созылды. Қайталап көріңіз');
-      case 'not_configured':
-        return tr('Функция ещё не настроена, попробуйте позже',
-            'Функция әлі бапталмаған, кейінірек қайталаңыз');
       case 'refused':
         return tr('Не получилось обработать этот запрос',
             'Бұл сұрауды өңдеу мүмкін болмады');
       case 'ai_busy':
-        return tr('AI сейчас перегружен, повторите через минуту',
-            'AI қазір бос емес, бір минуттан кейін қайталаңыз');
+        return tr('Сейчас много запросов, повторите через минуту',
+            'Қазір сұраныс көп, бір минуттан кейін қайталаңыз');
       case 'no_auth':
       case 'invalid_session':
         return tr('Войдите в аккаунт, чтобы продолжить',
@@ -303,8 +318,7 @@ class AiService {
         return tr('Не удалось отправить запрос. Проверьте фото и повторите',
             'Сұрау жіберілмеді. Суретті тексеріп, қайталаңыз');
       default:
-        return tr('Что-то пошло не так, попробуйте ещё раз',
-            'Бірдеңе дұрыс болмады, қайталап көріңіз');
+        return genericErrorText();
     }
   }
 }

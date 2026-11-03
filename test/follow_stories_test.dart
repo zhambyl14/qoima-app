@@ -420,7 +420,7 @@ void main() {
         friendlyError(PostgrestException(message: code, code: 'P0001'));
 
     test('0084 кодтары аударылады (жалпы «сервер қатесі» емес)', () {
-      const generic = 'Ошибка сервера. Попробуйте позже.';
+      final generic = genericErrorText();
       for (final c in [
         'follow_limit',
         'cannot_follow_own_store',

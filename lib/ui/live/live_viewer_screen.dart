@@ -56,6 +56,7 @@ class _LiveViewerScreenState extends State<LiveViewerScreen> {
   EventsListener<RoomEvent>? _roomListener;
   bool _connecting = true;
   String? _connectError;
+  bool _connectSoon = false; // _connectError = «Скоро будет доступно»
   bool _ended = false;
   bool _releasing = false;
 
@@ -133,6 +134,7 @@ class _LiveViewerScreenState extends State<LiveViewerScreen> {
       setState(() {
         _connecting = true;
         _connectError = null;
+        _connectSoon = false;
       });
     }
     Room? room;
@@ -181,6 +183,10 @@ class _LiveViewerScreenState extends State<LiveViewerScreen> {
       setState(() {
         _connecting = false;
         _connectError = liveErrorText(e);
+        // Эфир қосылмаған (жалауша/баптау) — «Повторить» мағынасыз: жұмсақ
+        // «Скоро будет доступно» ғана қалады.
+        _connectSoon = e is LiveException &&
+            (e.code == 'feature_disabled' || e.code == 'not_configured');
       });
     }
   }
@@ -196,6 +202,7 @@ class _LiveViewerScreenState extends State<LiveViewerScreen> {
     setState(() {
       _connecting = false;
       _connectError = liveErrorText('internal');
+      _connectSoon = false;
     });
   }
 
@@ -763,11 +770,13 @@ class _LiveViewerScreenState extends State<LiveViewerScreen> {
           Text(_connectError!,
               textAlign: TextAlign.center,
               style: manrope(13, FontWeight.w600, color: Colors.white)),
-          const SizedBox(height: 10),
-          QSoftButton(
-              label: tr('Повторить', 'Қайталау'),
-              onPressed: _retry,
-              height: 40),
+          if (!_connectSoon) ...[
+            const SizedBox(height: 10),
+            QSoftButton(
+                label: tr('Повторить', 'Қайталау'),
+                onPressed: _retry,
+                height: 40),
+          ],
         ]),
       );
 

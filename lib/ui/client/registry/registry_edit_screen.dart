@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../../core/app_user.dart';
 import '../../../core/feature_flags.dart';
+import '../../../core/error_text.dart';
 import '../../../core/lang.dart';
 import '../../../data/models/registry_model.dart';
 import '../../../data/services/registry_service.dart';
@@ -313,10 +314,9 @@ class _RegistryEditScreenState extends State<RegistryEditScreen> {
                   // өзгерту/бөлісу жұмыс істей береді.
                   if (!on && r == null) {
                     return Text(
-                        tr('Функция временно отключена',
-                            'Функция уақытша өшірулі'),
+                        comingSoonText(),
                         textAlign: TextAlign.center,
-                        style: manrope(13, FontWeight.w600, color: cRed));
+                        style: manrope(13, FontWeight.w600, color: cInk2));
                   }
                   return QPrimaryButton(
                     label: r == null

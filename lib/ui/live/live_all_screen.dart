@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/app_user.dart';
 import '../../core/feature_flags.dart';
+import '../../core/error_text.dart';
 import '../../core/lang.dart';
 import '../../data/services/follow_service.dart';
 import '../../theme/qoima_design.dart';
@@ -96,7 +97,7 @@ class _LiveAllScreenState extends State<LiveAllScreen> {
     if (!_flagOn) {
       return ClientEmptyState(
           icon: Icons.sensors_off_rounded,
-          message: tr('Функция временно отключена', 'Функция уақытша өшірулі'));
+          message: comingSoonText());
     }
     if (AppUser.current.uid.isEmpty) {
       return ClientEmptyState(
