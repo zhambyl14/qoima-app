@@ -135,7 +135,7 @@ function sRun(ctx, u) {
     if (u > 0.3 && u < 2.2) bubble(c, 470, 720, '42 бар ма?', { scale: E.outBack(seg(u, 0.3, 0.6)), tail: -60 });
   });
   // foreground blurred rack passing
-  blurLayer(ctx, cam, 1.4, c => { rack(c, 900, 1350, 520, 19, u * 2); plant(c, 1650, 1620, 1.8); }, 14);
+  blurLayer(ctx, cam, 1.4, c => { rack(c, 900, 1420, 520, 19, u * 2); plant(c, 2350, 1760, 1.3); }, 14);
   headline(ctx, u, 0.35, 5.5, ['Клиент *күтеді*.', 'Сатушы *жүгіреді*.'], { hcolor: C.red });
 }
 
@@ -264,8 +264,8 @@ function sCrowd(ctx, u) {
     person(c, 'seller3', { x: 1440, y: FLOOR, s: 0.84, dir: 1, face: 'worried', hold: 'phone', phoneColor: '#9aa', armR: u > 5.6 ? 0.2 : 0.1, armL: u > 5.8 ? -2.4 + Math.sin(u * 3) * 0.1 : -0.15, headTilt: u > 5.8 ? 0.12 : 0 });
     if (u > 5.8) {
       const p = E.outBack(seg(u, 5.85, 6.25));
-      c.save(); c.translate(960, 760); c.scale(p, p);
-      circle(c, 330, 130, 14, '#fff'); circle(c, 300, 88, 20, '#fff');
+      c.save(); c.translate(1180, 760); c.scale(p, p);
+      circle(c, 230, 125, 14, '#fff'); circle(c, 200, 92, 20, '#fff');
       shadowOn(c, 20, 6, 0.15); fillRR(c, -60, -110, 360, 170, 85, '#fff'); shadowOff(c);
       text(c, 'Не саттым?..', 120, -25, font(800, 42), C.ink); c.restore();
     }
