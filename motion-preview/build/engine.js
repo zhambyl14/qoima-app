@@ -72,6 +72,7 @@ function circle(ctx, x, y, r, fill, stroke, lw = 3) {
 function shadowOn(ctx, blur = 30, y = 12, a = 0.18) { ctx.shadowColor = `rgba(11,21,18,${a})`; ctx.shadowBlur = blur; ctx.shadowOffsetY = y; ctx.shadowOffsetX = 0; }
 function shadowOff(ctx) { ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0; }
 function text(ctx, s, x, y, f, color, align = 'center', base = 'middle') {
+  if (typeof s === 'string') s = L(s);
   ctx.font = f; ctx.fillStyle = color; ctx.textAlign = align; ctx.textBaseline = base; ctx.fillText(s, x, y);
 }
 function withT(ctx, fn) { ctx.save(); fn(); ctx.restore(); }
@@ -374,6 +375,7 @@ function cross(ctx, x, y, r, p = 1) {
   if (b > 0) { ctx.beginPath(); ctx.moveTo(x + d, y - d); ctx.lineTo(x + d - 2 * d * b, y - d + 2 * d * b); ctx.stroke(); }
 }
 function bubble(ctx, x, y, s, opt = {}) {
+  s = L(s);
   const f = font(opt.w || 800, opt.size || 40);
   ctx.font = f; const tw = ctx.measureText(s).width;
   const pw = tw + (opt.pad || 34) * 2, ph = (opt.size || 40) * 1.9;
@@ -433,6 +435,7 @@ function notif(ctx, x, y, w, title, body, opt = {}) {
   ctx.restore();
 }
 function pill(ctx, x, y, s, opt = {}) {
+  s = L(s);
   const f = font(opt.w || 800, opt.size || 34);
   ctx.font = f; const tw = ctx.measureText(s).width; const pw = tw + (opt.pad || 30) * 2, ph = (opt.size || 34) * 1.7;
   ctx.save(); ctx.translate(x, y); if (opt.scale !== undefined) ctx.scale(opt.scale, opt.scale);
@@ -447,6 +450,7 @@ function pill(ctx, x, y, s, opt = {}) {
 // headline: lines of words; words wrapped in * are highlighted. t0 start, t1 exit
 function headline(ctx, t, t0, t1, lines, opt = {}) {
   if (t < t0 - 0.01 || t > t1 + 0.6) return;
+  lines = lines.map(L);
   let size = opt.size || 92;
   { // auto-fit widest line into maxW
     ctx.font = font(opt.weight || 900, size);
@@ -463,10 +467,11 @@ function headline(ctx, t, t0, t1, lines, opt = {}) {
     ctx.font = font(opt.weight || 900, size);
     const ws = words.map(w => ctx.measureText(w.replace(/\*/g, '')).width);
     const gap = size * 0.28;
-    const total = ws.reduce((a, b) => a + b, 0) + gap * (words.length - 1) + words.filter(w => w.startsWith('*')).length * size * 0.36;
+    let _o = false; const hls = words.map(w => { if (w.startsWith('*')) _o = true; const h = _o; if (w.endsWith('*') && w.length > 1) _o = false; return h; });
+    const total = ws.reduce((a, b) => a + b, 0) + gap * (words.length - 1) + hls.filter(Boolean).length * size * 0.36;
     let x = cx - total / 2;
     words.forEach((w, i) => {
-      const hl = w.startsWith('*');
+      const hl = hls[i];
       const word = w.replace(/\*/g, '');
       const pad = hl ? size * 0.18 : 0;
       const d = t - (t0 + wi * (opt.stagger || 0.075));

@@ -310,7 +310,7 @@ def load_vo(key):
 def main(video):
     meta = json.load(open(os.path.join(HERE, f'{video}_meta.json')))
     n = int((DUR + 1) * SR)
-    mus = music(video) * 0.35
+    mus = music(video[:2]) * 0.35
     fx = np.zeros((2, n))
     vo = np.zeros((2, n))
     for c in meta['cues']:

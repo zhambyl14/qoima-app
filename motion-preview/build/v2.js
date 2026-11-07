@@ -1,6 +1,6 @@
 // ВИДЕО 2 — «Дүкеніңіз телефонда»
 'use strict';
-const VO2 = [
+const VO2_KK = [
   ['intro', 0.6, 4.75, 'Дүкеніңіз телефонда ашылса, не өзгереді? Көрейік.'],
   ['pickup', 6.25, 7.87, 'Клиент қосымшадан тапсырыс береді, дүкенге келіп, QR кодын көрсетеді де, тауарын алып кетеді. Өте қарапайым.'],
   ['promo', 15.3, 3.96, 'Промокод пен акция жасаңыз — сатылым бірден өседі.'],
@@ -10,6 +10,7 @@ const VO2 = [
   ['growth', 45.5, 2.86, 'Сауда өседі, жұмыс жеңілдейді.'],
   ['end', 53.0, 2.9, 'Qoima-ны тегін қолданып көріңіз!'],
 ];
+const VO2 = LANG === 'ru' ? VO2_KK.map(([k, s]) => [k, s, RUVO['v2_' + k].dur, RUVO['v2_' + k].text]) : VO2_KK;
 const CAPS2 = VO2.flatMap(([k, s, d, c]) => chunkVO(c, s, d));
 const CUES2 = [];
 const cue2 = (t, s, g = 1) => CUES2.push({ t: +t.toFixed(3), s, g });
@@ -404,7 +405,7 @@ const TL2 = [[0, 6, sIntro2], [6, 15, sPickup], [15, 20.5, sPromo], [20.5, 31, s
 cue2(52.5, 'impact', 0.7); cue2(52.8, 'pop', 0.9); cue2(53.35, 'chime', 0.9);
 const SCENE = {
   dur: 60, sub: 4,
-  cues: CUES2, vo: VO2.map(v => ({ key: 'v2_' + v[0], t: v[1] })),
+  cues: CUES2, vo: VO2.map(v => ({ key: VOPFX + 'v2_' + v[0], t: v[1] })),
   draw(ctx, t) {
     ctx.save();
     for (const [a, b, fn] of TL2) { if (t >= a && t < b) { fn(ctx, t - a); break; } }

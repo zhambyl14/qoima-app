@@ -1,6 +1,6 @@
 // ВИДЕО 1 — «Qoima қосылса, дүкенде не өзгереді?»
 'use strict';
-const VO1 = [ // [key, start, dur, caption]
+const VO1_KK = [ // [key, start, dur, caption]
   ['intro', 0.6, 4.66, 'Qoima қосылса, дүкеніңізде не өзгереді? Көрейік.'],
   ['run', 6.25, 5.16, 'Клиент күтіп тұр, ал сатушы керекті размерді іздеп, қоймаға жүгіреді.'],
   ['pocket', 12.25, 7.42, 'Кейбір сатушы сатқанын дәптерге жазбай, ақшаны қалтасына салады. Ревизияда тауар жетпейді.'],
@@ -12,12 +12,17 @@ const VO1 = [ // [key, start, dur, caption]
   ['analytics', 49.3, 4.34, 'Сатушылар, қоймалар, аналитика — бәрі бір телефонда.'],
   ['end', 55.6, 2.9, 'Qoima-ны тегін қолданып көріңіз!'],
 ];
+const VO1 = LANG === 'ru' ? VO1_KK.map(([k, s]) => [k, s, RUVO['v1_' + k].dur, RUVO['v1_' + k].text]) : VO1_KK;
 const CAPS1 = VO1.flatMap(([k, s, d, c]) => chunkVO(c, s, d));
 const CUES1 = [];
 const cue = (t, s, g = 1) => CUES1.push({ t: +t.toFixed(3), s, g });
 
 // ── 0 · INTRO (0–6) ───────────────────────────────────────────────────────
-const INTRO_WORDS = [
+const INTRO_WORDS = LANG === 'ru' ? [
+  { w: 'Что', rail: 0, x: -215 }, { w: 'изменится', rail: 0, x: 200 },
+  { w: 'в магазине', rail: 1, x: -20 },
+  { w: 'с Qoima?', rail: 2, x: 0, hl: true },
+] : [
   { w: 'Qoima', rail: 0, x: -255 }, { w: 'қосылса', rail: 0, x: 215 },
   { w: 'дүкенде', rail: 1, x: -110 }, { w: 'не', rail: 1, x: 300 },
   { w: 'өзгереді?', rail: 2, x: 0, hl: true },
@@ -509,7 +514,7 @@ const TL1 = [[0, 6, sIntro], [6, 12, sRun], [12, 20, sPocket], [20, 28.5, sCrowd
 cue(55.0, 'impact', 0.7); cue(55.3, 'pop', 0.9); cue(55.85, 'chime', 0.9);
 const SCENE = {
   dur: 60, sub: 4,
-  cues: CUES1, vo: VO1.map(v => ({ key: 'v1_' + v[0], t: v[1] })),
+  cues: CUES1, vo: VO1.map(v => ({ key: VOPFX + 'v1_' + v[0], t: v[1] })),
   draw(ctx, t) {
     ctx.save();
     for (const [a, b, fn] of TL1) { if (t >= a && t < b) { fn(ctx, t - a); break; } }
