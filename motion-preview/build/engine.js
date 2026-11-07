@@ -485,7 +485,7 @@ function headline(ctx, t, t0, t1, lines, opt = {}) {
       if (hl) {
         const hp = E.outC(seg(d, 0.12, 0.5));
         ctx.save(); ctx.rotate(-0.025);
-        fillRR(ctx, -ws[i] / 2 - pad, -size * 0.62, (ws[i] + pad * 2) * hp, size * 1.2, size * 0.22, hcol);
+        fillRR(ctx, -ws[i] / 2 - pad, -size * 0.62, (ws[i] + pad * 2 + (hls[i + 1] ? gap : 0)) * hp, size * 1.2, size * 0.22, hcol);
         ctx.restore();
       }
       if (opt.outline) { ctx.lineWidth = 14; ctx.strokeStyle = opt.outline; ctx.lineJoin = 'round'; ctx.font = font(opt.weight || 900, size); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.strokeText(word, 0, 4); }

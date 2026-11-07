@@ -264,6 +264,7 @@ function sReferral(ctx, u) {
         c.restore();
       });
     });
+    { const g = ctx.createLinearGradient(0, 0, 0, 660); g.addColorStop(0, 'rgba(244,241,250,1)'); g.addColorStop(0.72, 'rgba(244,241,250,0.96)'); g.addColorStop(1, 'rgba(244,241,250,0)'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, 660); }
     // counters
     const cnt = Math.round(lerp(1, 40, E.ioQ(seg(v, 0.8, 5.0))));
     ctx.save(); const cp = E.outBack(seg(v, 0.6, 1.0)); ctx.translate(540, 570); ctx.scale(cp, cp);
