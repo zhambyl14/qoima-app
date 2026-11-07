@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" font-family="Arial, sans-serif">
+<rect width="1600" height="900" fill="#F4F7F6"/>
+<text x="800" y="60" text-anchor="middle" font-size="38" font-weight="700" fill="#0B1512">Qoima · кейіпкерлер (эскиз)</text>
+<defs><style>.n{font-size:30px;font-weight:700;fill:#0B1512;text-anchor:middle}.r{font-size:20px;fill:#4a5a55;text-anchor:middle}</style></defs>
+<!-- card bg -->
+<g fill="#fff" stroke="#E9EFEC" stroke-width="3">
+<rect x="40" y="100" width="360" height="760" rx="28"/><rect x="430" y="100" width="360" height="760" rx="28"/>
+<rect x="820" y="100" width="360" height="760" rx="28"/><rect x="1210" y="100" width="350" height="760" rx="28"/></g>
+
+<!-- 1 Aigul: owner, green blazer, phone -->
+<g transform="translate(220,0)">
+<ellipse cx="0" cy="780" rx="110" ry="14" fill="#0B1512" opacity=".08"/>
+<rect x="-45" y="640" width="36" height="130" rx="12" fill="#0B1512"/><rect x="9" y="640" width="36" height="130" rx="12" fill="#0B1512"/>
+<rect x="-60" y="750" width="52" height="20" rx="10" fill="#fff" stroke="#0B1512" stroke-width="3"/><rect x="8" y="750" width="52" height="20" rx="10" fill="#fff" stroke="#0B1512" stroke-width="3"/>
+<path d="M-85 400 Q-85 360 -40 355 L40 355 Q85 360 85 400 L95 650 L-95 650Z" fill="#00A862"/>
+<path d="M-20 355 L0 470 L20 355Z" fill="#fff"/>
+<rect x="-125" y="390" width="38" height="170" rx="19" fill="#00A862"/>
+<rect x="87" y="390" width="38" height="170" rx="19" fill="#00A862" transform="rotate(-25 106 400)"/>
+<circle cx="-106" cy="570" r="20" fill="#E8B48F"/>
+<rect x="115" y="360" width="42" height="74" rx="8" fill="#0B1512" transform="rotate(-25 106 400)"/><rect x="120" y="366" width="32" height="60" rx="5" fill="#00A862" transform="rotate(-25 106 400)"/>
+<rect x="-14" y="320" width="28" height="45" fill="#E8B48F"/>
+<circle cx="0" cy="270" r="68" fill="#F1C4A0"/>
+<path d="M-72 270 Q-80 170 0 168 Q80 170 72 270 Q70 215 0 205 Q-70 215 -72 270Z" fill="#2a1a14"/>
+<path d="M-72 270 Q-90 360 -62 380 L-55 290Z" fill="#2a1a14"/><path d="M72 270 Q90 360 62 380 L55 290Z" fill="#2a1a14"/>
+<circle cx="-24" cy="272" r="7" fill="#0B1512"/><circle cx="24" cy="272" r="7" fill="#0B1512"/>
+<path d="M-22 302 Q0 322 22 302" stroke="#C0392B" stroke-width="5" fill="none" stroke-linecap="round"/>
+</g>
+<text x="220" y="835" class="n">Айгүл</text><text x="220" y="858" class="r" style="display:none"></text>
+<text x="220" y="125" class="r" font-size="22">дүкен иесі</text>
+
+<!-- 2 Yeraly: honest seller, green apron, shoebox -->
+<g transform="translate(610,0)">
+<ellipse cx="0" cy="780" rx="110" ry="14" fill="#0B1512" opacity=".08"/>
+<rect x="-45" y="640" width="36" height="130" rx="12" fill="#3b4a56"/><rect x="9" y="640" width="36" height="130" rx="12" fill="#3b4a56"/>
+<rect x="-60" y="750" width="52" height="20" rx="10" fill="#fff" stroke="#0B1512" stroke-width="3"/><rect x="8" y="750" width="52" height="20" rx="10" fill="#fff" stroke="#0B1512" stroke-width="3"/>
+<path d="M-90 400 Q-90 360 -40 355 L40 355 Q90 360 90 400 L95 650 L-95 650Z" fill="#fff" stroke="#E9EFEC" stroke-width="3"/>
+<path d="M-60 420 L60 420 L70 650 L-70 650Z" fill="#00A862"/><text x="0" y="520" text-anchor="middle" font-size="26" font-weight="800" fill="#fff">Q</text>
+<rect x="-128" y="390" width="38" height="150" rx="19" fill="#fff" stroke="#E9EFEC" stroke-width="3"/><rect x="90" y="390" width="38" height="150" rx="19" fill="#fff" stroke="#E9EFEC" stroke-width="3"/>
+<rect x="-70" y="500" width="140" height="80" rx="8" fill="#FFA51F"/><rect x="-70" y="500" width="140" height="18" fill="#c7810f"/>
+<circle cx="-110" cy="545" r="20" fill="#D9A47F"/><circle cx="110" cy="545" r="20" fill="#D9A47F"/>
+<rect x="-14" y="320" width="28" height="45" fill="#D9A47F"/>
+<circle cx="0" cy="270" r="68" fill="#E3B08A"/>
+<path d="M-70 255 Q-65 185 0 185 Q65 185 70 255 Q40 225 0 228 Q-40 225 -70 255Z" fill="#0B1512"/>
+<circle cx="-24" cy="272" r="7" fill="#0B1512"/><circle cx="24" cy="272" r="7" fill="#0B1512"/>
+<path d="M-20 300 Q0 318 20 300" stroke="#0B1512" stroke-width="5" fill="none" stroke-linecap="round"/>
+</g>
+<text x="610" y="835" class="n">Ералы</text><text x="610" y="125" class="r" font-size="22">адал сатушы</text>
+
+<!-- 3 Daniyar: sneaky seller, notebook, pocket cash -->
+<g transform="translate(1000,0)">
+<ellipse cx="0" cy="780" rx="110" ry="14" fill="#0B1512" opacity=".08"/>
+<rect x="-45" y="640" width="36" height="130" rx="12" fill="#2b2f3a"/><rect x="9" y="640" width="36" height="130" rx="12" fill="#2b2f3a"/>
+<rect x="-60" y="750" width="52" height="20" rx="10" fill="#555"/><rect x="8" y="750" width="52" height="20" rx="10" fill="#555"/>
+<path d="M-85 400 Q-85 360 -40 355 L40 355 Q85 360 85 400 L95 650 L-95 650Z" fill="#7a7f8c"/>
+<rect x="-125" y="390" width="38" height="150" rx="19" fill="#7a7f8c"/><rect x="87" y="390" width="38" height="150" rx="19" fill="#7a7f8c"/>
+<circle cx="-106" cy="548" r="20" fill="#E3B08A"/><circle cx="106" cy="548" r="20" fill="#E3B08A"/>
+<rect x="55" y="520" width="80" height="60" rx="5" fill="#fff" stroke="#999" stroke-width="3" transform="rotate(-10 95 550)"/>
+<g stroke="#999" stroke-width="3"><line x1="68" y1="535" x2="118" y2="528"/><line x1="70" y1="548" x2="120" y2="541"/></g>
+<rect x="30" y="540" width="46" height="26" rx="4" fill="#00A862" transform="rotate(8 53 553)"/><text x="53" y="560" font-size="14" fill="#fff" text-anchor="middle" font-weight="700">₸</text>
+<rect x="-14" y="320" width="28" height="45" fill="#E3B08A"/>
+<circle cx="0" cy="270" r="68" fill="#EDBE98"/>
+<path d="M-70 250 Q-60 190 0 188 Q60 190 70 250 Q30 215 -70 250Z" fill="#4b3320"/>
+<path d="M-40 255 L-12 262" stroke="#0B1512" stroke-width="5" stroke-linecap="round"/><path d="M40 255 L12 262" stroke="#0B1512" stroke-width="5" stroke-linecap="round"/>
+<circle cx="-24" cy="276" r="6" fill="#0B1512"/><circle cx="24" cy="276" r="6" fill="#0B1512"/>
+<path d="M-18 306 Q6 296 22 308" stroke="#0B1512" stroke-width="5" fill="none" stroke-linecap="round"/>
+</g>
+<text x="1000" y="835" class="n">Данияр</text><text x="1000" y="125" class="r" font-size="22">«дәптерге жазбайтын» сатушы</text>
+
+<!-- 4 Madina: client, yellow jacket, phone -->
+<g transform="translate(1385,0)">
+<ellipse cx="0" cy="780" rx="110" ry="14" fill="#0B1512" opacity=".08"/>
+<rect x="-45" y="640" width="36" height="130" rx="12" fill="#2F7DF6"/><rect x="9" y="640" width="36" height="130" rx="12" fill="#2F7DF6"/>
+<rect x="-60" y="750" width="52" height="20" rx="10" fill="#fff" stroke="#0B1512" stroke-width="3"/><rect x="8" y="750" width="52" height="20" rx="10" fill="#fff" stroke="#0B1512" stroke-width="3"/>
+<path d="M-85 400 Q-85 360 -40 355 L40 355 Q85 360 85 400 L95 650 L-95 650Z" fill="#FFA51F"/>
+<rect x="-125" y="390" width="38" height="170" rx="19" fill="#FFA51F"/><rect x="87" y="390" width="38" height="170" rx="19" fill="#FFA51F" transform="rotate(-30 106 400)"/>
+<circle cx="-106" cy="570" r="20" fill="#F1C4A0"/>
+<rect x="118" y="350" width="42" height="74" rx="8" fill="#0B1512" transform="rotate(-30 106 400)"/><rect x="123" y="356" width="32" height="60" rx="5" fill="#fff" transform="rotate(-30 106 400)"/>
+<rect x="-14" y="320" width="28" height="45" fill="#F1C4A0"/>
+<circle cx="0" cy="270" r="68" fill="#F7D0B0"/>
+<path d="M-72 270 Q-75 175 0 172 Q75 175 72 270 Q60 215 0 210 Q-60 215 -72 270Z" fill="#8a4b2a"/>
+<circle cx="-72" cy="195" r="26" fill="#8a4b2a"/><circle cx="72" cy="195" r="26" fill="#8a4b2a"/>
+<circle cx="-24" cy="272" r="7" fill="#0B1512"/><circle cx="24" cy="272" r="7" fill="#0B1512"/>
+<path d="M-24 300 Q0 326 24 300Z" fill="#C0392B"/>
+</g>
+<text x="1385" y="835" class="n">Мадина</text><text x="1385" y="125" class="r" font-size="22">клиент</text>
+</svg>
