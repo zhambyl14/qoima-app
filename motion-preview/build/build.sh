@@ -2,7 +2,10 @@
 # build.sh v  -> ../out/qoima_v.mp4
 set -e; cd "$(dirname "$0")"; v=$1; NW=${2:-4}
 export NODE_PATH=$(npm root -g)
-for i in $(seq 0 $((NW-1))); do node render.js $v $i $NW & done; wait
+for i in $(seq 0 $((NW-1))); do
+  d=$(ffprobe -v error -show_entries format=duration -of csv=p=0 seg_${v}_$i.mp4 2>/dev/null | head -1)
+  if [ "${d%%.*}" = "$((60/NW))" ] && [ -z "${d##*.0*}" ]; then echo "segment $i ok, reuse"; else node render.js $v $i $NW & fi
+done; wait
 rm -f list_$v.txt; for i in $(seq 0 $((NW-1))); do echo "file 'seg_${v}_$i.mp4'" >> list_$v.txt; done
 ffmpeg -y -v error -f concat -safe 0 -i list_$v.txt -c copy video_$v.mp4
 # two-pass loudnorm to -14 LUFS
