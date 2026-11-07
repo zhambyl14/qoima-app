@@ -1,0 +1,9 @@
+build/seg_*.mp4
+build/video_*.mp4
+build/list_*.txt
+build/*_mix_raw.wav
+build/*.npy
+build/*.log
+build/rev_*/
+build/__pycache__/
+shots/

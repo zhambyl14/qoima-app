@@ -7,25 +7,32 @@
 <rect x="40" y="100" width="360" height="760" rx="28"/><rect x="430" y="100" width="360" height="760" rx="28"/>
 <rect x="820" y="100" width="360" height="760" rx="28"/><rect x="1210" y="100" width="350" height="760" rx="28"/></g>
 
-<!-- 1 Aigul: owner, green blazer, phone -->
+<!-- 1 Askhat: big strong businessman -->
 <g transform="translate(220,0)">
-<ellipse cx="0" cy="780" rx="110" ry="14" fill="#0B1512" opacity=".08"/>
-<rect x="-45" y="640" width="36" height="130" rx="12" fill="#0B1512"/><rect x="9" y="640" width="36" height="130" rx="12" fill="#0B1512"/>
-<rect x="-60" y="750" width="52" height="20" rx="10" fill="#fff" stroke="#0B1512" stroke-width="3"/><rect x="8" y="750" width="52" height="20" rx="10" fill="#fff" stroke="#0B1512" stroke-width="3"/>
-<path d="M-85 400 Q-85 360 -40 355 L40 355 Q85 360 85 400 L95 650 L-95 650Z" fill="#00A862"/>
-<path d="M-20 355 L0 470 L20 355Z" fill="#fff"/>
-<rect x="-125" y="390" width="38" height="170" rx="19" fill="#00A862"/>
-<rect x="87" y="390" width="38" height="170" rx="19" fill="#00A862" transform="rotate(-25 106 400)"/>
-<circle cx="-106" cy="570" r="20" fill="#E8B48F"/>
-<rect x="115" y="360" width="42" height="74" rx="8" fill="#0B1512" transform="rotate(-25 106 400)"/><rect x="120" y="366" width="32" height="60" rx="5" fill="#00A862" transform="rotate(-25 106 400)"/>
-<rect x="-14" y="320" width="28" height="45" fill="#E8B48F"/>
-<circle cx="0" cy="270" r="68" fill="#F1C4A0"/>
-<path d="M-72 270 Q-80 170 0 168 Q80 170 72 270 Q70 215 0 205 Q-70 215 -72 270Z" fill="#2a1a14"/>
-<path d="M-72 270 Q-90 360 -62 380 L-55 290Z" fill="#2a1a14"/><path d="M72 270 Q90 360 62 380 L55 290Z" fill="#2a1a14"/>
-<circle cx="-24" cy="272" r="7" fill="#0B1512"/><circle cx="24" cy="272" r="7" fill="#0B1512"/>
-<path d="M-22 302 Q0 322 22 302" stroke="#C0392B" stroke-width="5" fill="none" stroke-linecap="round"/>
+<ellipse cx="0" cy="780" rx="130" ry="14" fill="#0B1512" opacity=".08"/>
+<rect x="-62" y="630" width="52" height="140" rx="14" fill="#16202c"/><rect x="10" y="630" width="52" height="140" rx="14" fill="#16202c"/>
+<rect x="-78" y="750" width="70" height="22" rx="11" fill="#0B1512"/><rect x="8" y="750" width="70" height="22" rx="11" fill="#0B1512"/>
+<path d="M-125 410 Q-125 350 -55 345 L55 345 Q125 350 125 410 L120 650 L-120 650Z" fill="#1d3557"/>
+<path d="M-30 345 L0 480 L30 345Z" fill="#fff"/>
+<path d="M-12 352 L12 352 L18 380 L0 560 L-18 380Z" fill="#00A862"/>
+<path d="M-125 410 L-60 345 L-30 345 L0 480 L-40 650 L-120 650Z" fill="#183050"/>
+<rect x="-168" y="385" width="52" height="190" rx="26" fill="#1d3557"/>
+<rect x="116" y="385" width="52" height="190" rx="26" fill="#1d3557" transform="rotate(-22 142 400)"/>
+<circle cx="-142" cy="585" r="24" fill="#D9A47F"/>
+<rect x="-6" y="590" width="0" height="0"/>
+<rect x="150" y="345" width="46" height="80" rx="9" fill="#0B1512" transform="rotate(-22 142 400)"/><rect x="156" y="352" width="34" height="66" rx="6" fill="#00A862" transform="rotate(-22 142 400)"/>
+<rect x="-146" y="568" width="22" height="12" rx="3" fill="#d4af37"/>
+<rect x="-20" y="310" width="40" height="45" fill="#D9A47F"/>
+<ellipse cx="0" cy="258" rx="82" ry="86" fill="#E3B08A"/>
+<path d="M-82 250 Q-86 160 0 160 Q86 160 82 250 Q70 200 0 195 Q-70 200 -82 250Z" fill="#2b2b2e"/>
+<path d="M-82 245 Q-86 215 -70 205 L-70 250Z" fill="#9aa0a6"/><path d="M82 245 Q86 215 70 205 L70 250Z" fill="#9aa0a6"/>
+<path d="M-40 232 L-14 238" stroke="#2b2b2e" stroke-width="7" stroke-linecap="round"/><path d="M40 232 L14 238" stroke="#2b2b2e" stroke-width="7" stroke-linecap="round"/>
+<circle cx="-27" cy="255" r="7" fill="#0B1512"/><circle cx="27" cy="255" r="7" fill="#0B1512"/>
+<path d="M-34 292 Q0 280 34 292 Q22 302 0 300 Q-22 302 -34 292Z" fill="#2b2b2e"/>
+<path d="M-18 312 Q0 322 18 312" stroke="#8a4b3a" stroke-width="5" fill="none" stroke-linecap="round"/>
+<path d="M-70 290 Q-60 335 0 338 Q60 335 70 290 Q62 322 0 322 Q-62 322 -70 290Z" fill="#3a3a3d" opacity=".55"/>
 </g>
-<text x="220" y="835" class="n">Айгүл</text><text x="220" y="858" class="r" style="display:none"></text>
+<text x="220" y="835" class="n">Асхат-аға</text>
 <text x="220" y="125" class="r" font-size="22">дүкен иесі</text>
 
 <!-- 2 Yeraly: honest seller, green apron, shoebox -->
@@ -64,7 +71,7 @@
 <circle cx="-24" cy="276" r="6" fill="#0B1512"/><circle cx="24" cy="276" r="6" fill="#0B1512"/>
 <path d="M-18 306 Q6 296 22 308" stroke="#0B1512" stroke-width="5" fill="none" stroke-linecap="round"/>
 </g>
-<text x="1000" y="835" class="n">Данияр</text><text x="1000" y="125" class="r" font-size="22">«дәптерге жазбайтын» сатушы</text>
+<text x="1000" y="835" class="n">Сатушы</text><text x="1000" y="125" class="r" font-size="22">«кейбір сатушы»</text>
 
 <!-- 4 Madina: client, yellow jacket, phone -->
 <g transform="translate(1385,0)">
