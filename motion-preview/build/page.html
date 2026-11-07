@@ -1,0 +1,23 @@
+<!doctype html><html><head><meta charset="utf-8">
+<style>html,body{margin:0;background:#000}canvas{display:block}</style></head>
+<body><canvas id="c" width="1080" height="1920"></canvas>
+<img id="logo" src="app_icon.png" style="display:none"><img id="logow" src="logo.png" style="display:none">
+<script src="ru_vo.js"></script><script src="i18n.js"></script><script src="engine.js"></script><script src="common.js"></script>
+<script>
+const V = (new URLSearchParams(location.search).get('v') || 'test').replace(/ru$/, '');
+const s = document.createElement('script'); s.src = V + '.js';
+s.onload = async () => {
+  const ws=[400,500,600,700,800,900];
+  await Promise.all(ws.map(w=>document.fonts.load(`${w} 40px "Inter Display"`, 'ҚқӘәҒғҢңӨөҰұҮүІі')));
+  await Promise.all(ws.map(w=>document.fonts.load(`italic ${w} 40px "Inter Display"`)));
+  await new Promise(r=>{const i=document.getElementById('logo'); if(i.complete) r(); else i.onload=r;});
+  await new Promise(r=>{const i=document.getElementById('logow'); if(i.complete) r(); else i.onload=r;});
+  window.LOGO=document.getElementById('logo'); window.LOGOW=document.getElementById('logow');
+  const render = makeRenderer(document.getElementById('c'), SCENE.draw, {sub: SCENE.sub||4});
+  window.frame = (t, n, q) => { render(t, n); return document.getElementById('c').toDataURL('image/jpeg', q||0.95); };
+  window.still = (t, n) => { render(t, n); return true; };
+  window.META = {dur: SCENE.dur, cues: SCENE.cues || [], vo: SCENE.vo || []};
+  window.READY = true;
+};
+document.body.appendChild(s);
+</script></body></html>
