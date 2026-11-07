@@ -21,7 +21,7 @@ const cue = (t, s, g = 1) => CUES1.push({ t: +t.toFixed(3), s, g });
 const INTRO_WORDS = LANG === 'ru' ? [
   { w: 'Что', rail: 0, x: -215 }, { w: 'изменится', rail: 0, x: 200 },
   { w: 'в магазине', rail: 1, x: -20 },
-  { w: 'с Qoima?', rail: 2, x: 0, hl: true },
+  { w: 'с Койма?', rail: 2, x: 0, hl: true },
 ] : [
   { w: 'Qoima', rail: 0, x: -255 }, { w: 'қосылса', rail: 0, x: 215 },
   { w: 'дүкенде', rail: 1, x: -110 }, { w: 'не', rail: 1, x: 300 },
